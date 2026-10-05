@@ -6,8 +6,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev:web": "pnpm --filter web dev",
-    "dev:collab": "pnpm --filter collab dev",
+    "dev": "pnpm --filter web dev",
+    "start": "pnpm --filter web start",
     "build": "pnpm -r build",
     "db:generate": "pnpm --filter shared prisma generate",
     "db:migrate": "pnpm --filter shared prisma migrate dev",

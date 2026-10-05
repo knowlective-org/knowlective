@@ -10,8 +10,7 @@
 
 ## 構成
 
-- `apps/web` — Next.js。画面 + APIルート（ページCRUD / workspace / 認証 / 権限）
-- `apps/collab` — Hocuspocus（Yjs WebSocket同期サーバー）専用プロセス
+- `apps/web` — Next.js。画面・Server Action・共同編集（Hocuspocus）を、カスタムサーバー（`apps/web/server/`）で1プロセス・1ポートにまとめて動かす
 - `packages/shared` — Prismaスキーマ・型定義の共有パッケージ
 
 エディタは [BlockNote](https://www.blocknotejs.org/)（Tiptap/ProseMirrorベース）、
@@ -101,9 +100,17 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 - プロキシは `X-Forwarded-For` に接続元を**追記**し、`X-Forwarded-Proto` を渡すこと（nginx なら `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` と `proxy_set_header X-Forwarded-Proto $scheme;`）。`X-Forwarded-Proto: https` が届かないと、管理画面の Cookie に Secure が付かない。
 - プロキシが2段以上（例: CDN → nginx）なら、`YOSUGA_TRUSTED_PROXY_HOPS` にその段数を設定する。
 
+## 本番での起動
+
+```bash
+pnpm build
+pnpm start         # NODE_ENV=production で起動。ポートは PORT（既定 3000）
+```
+
+リバースプロキシでは、`/collab` への WebSocket（Upgrade ヘッダー）も通すこと。
+
 ## 開発
 
 ```bash
-pnpm dev:web       # http://localhost:3000
-pnpm dev:collab    # ws://localhost:1234
+pnpm dev           # http://localhost:3000（共同編集の WebSocket も同じポートの /collab）
 ```

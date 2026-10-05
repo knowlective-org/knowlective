@@ -12,6 +12,13 @@ import { getCollabToken } from "@/app/(app)/actions";
 
 const CURSOR_COLORS = ["#5b8def", "#e5484d", "#30a46c", "#f76b15", "#8e4ec6", "#12a594", "#d6409f"];
 
+// The collaboration WebSocket is served by the same process and origin as the
+// app (server/collab.ts, COLLAB_PATH), so no separate URL needs configuring.
+function collabUrl(): string {
+  const { protocol, host } = window.location;
+  return `${protocol === "https:" ? "wss" : "ws"}://${host}/collab`;
+}
+
 // Stable per-user cursor color.
 function colorFor(id: string): string {
   let hash = 0;
@@ -19,7 +26,7 @@ function colorFor(id: string): string {
   return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
 }
 
-// Connects to the apps/collab Hocuspocus server and syncs a BlockNote
+// Connects to the Hocuspocus collaboration server and syncs a BlockNote
 // document over Yjs. The collab server authorizes each connection with a
 // short-lived token minted by the getCollabToken Server Action; the provider
 // calls it again on every reconnect.
@@ -35,7 +42,7 @@ export function CollaborativeEditor({
   const provider = useMemo(
     () =>
       new HocuspocusProvider({
-        url: process.env.NEXT_PUBLIC_COLLAB_URL ?? "ws://localhost:1234",
+        url: collabUrl(),
         name: pageId,
         document: new Y.Doc(),
         token: () => getCollabToken(pageId),
