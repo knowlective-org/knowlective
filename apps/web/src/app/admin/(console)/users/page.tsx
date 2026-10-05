@@ -5,9 +5,11 @@ import { INVITATION_TTL_DAYS, listPendingInvitations } from "@/lib/auth/invitati
 import styles from "@/styles/ui.module.css";
 import { revokeInvitation } from "../actions";
 import { InvitationForm } from "../invitation-form";
+import { RowMenu } from "../row-menu";
+import { disableUser, enableUser } from "./actions";
 
 export default async function AdminUsersPage() {
-  await requireAdmin();
+  const { session } = await requireAdmin();
   const [workspaces, invitations, users] = await Promise.all([
     prisma.workspace.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
     listPendingInvitations(),
@@ -18,6 +20,7 @@ export default async function AdminUsersPage() {
         email: true,
         name: true,
         createdAt: true,
+        disabledAt: true,
         memberships: { select: { role: true, workspace: { select: { name: true } } } },
         groups: { select: { group: { select: { name: true } } } },
       },
@@ -75,12 +78,16 @@ export default async function AdminUsersPage() {
                 <th>ワークスペース</th>
                 <th>グループ</th>
                 <th>登録日</th>
+                <th />
               </tr>
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.name ?? "-"}</td>
+                <tr key={u.id} className={u.disabledAt ? styles.disabledRow : undefined}>
+                  <td>
+                    {u.name ?? "-"}
+                    {u.disabledAt && <span className={styles.badge}>無効</span>}
+                  </td>
                   <td>{u.email}</td>
                   <td>
                     {u.memberships
@@ -89,6 +96,26 @@ export default async function AdminUsersPage() {
                   </td>
                   <td>{u.groups.map((g) => g.group.name).join("、") || "-"}</td>
                   <td>{dateFormat.format(u.createdAt)}</td>
+                  <td>
+                    {u.id === session.userId ? (
+                      <span className={styles.note}>自分</span>
+                    ) : (
+                      <RowMenu
+                        label={`${u.name ?? u.email} の操作`}
+                        items={[
+                          u.disabledAt
+                            ? { label: "有効にする", action: enableUser, fields: { userId: u.id } }
+                            : {
+                                label: "無効にする",
+                                action: disableUser,
+                                fields: { userId: u.id },
+                                danger: true,
+                                confirm: `${u.name ?? u.email} を無効にしますか？\nログイン中のセッションはすべて終了し、ログインできなくなります。`,
+                              },
+                        ]}
+                      />
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

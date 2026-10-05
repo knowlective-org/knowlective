@@ -36,7 +36,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, passwordHash: true },
+    select: { id: true, passwordHash: true, disabledAt: true },
   });
   // Same cost whether or not the account exists, so emails can't be probed.
   const ok = user
@@ -46,6 +46,10 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   await recordLoginAttempt(ctx, email, ok);
   if (!ok || !user) {
     return { error: "メールアドレスまたはパスワードが正しくありません。", email };
+  }
+  // Only revealed after the correct password, so it can't be used to probe.
+  if (user.disabledAt) {
+    return { error: "このアカウントは無効になっています。管理者に問い合わせてください。", email };
   }
 
   await createUserSession(ctx, user.id);

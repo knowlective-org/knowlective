@@ -19,6 +19,9 @@ model User {
   name         String?
   passwordHash String
   createdAt    DateTime @default(now())
+  // Set when an admin disables the account: no login, sessions ended,
+  // collab access refused. Memberships are kept so re-enabling restores access.
+  disabledAt   DateTime?
 
   memberships     WorkspaceMember[]
   pages           Page[]

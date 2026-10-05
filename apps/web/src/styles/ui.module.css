@@ -157,3 +157,75 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
+
+.kebab {
+  width: 32px;
+  height: 32px;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.kebab:hover,
+.kebab[aria-expanded="true"] {
+  border-color: #999;
+}
+
+.menu {
+  position: fixed;
+  z-index: 10;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--background);
+  border: 1px solid #999;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.menuItem {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.menuItem:hover,
+.menuItem:focus-visible {
+  background: rgba(128, 128, 128, 0.18);
+  outline: none;
+}
+
+.menuItemDanger {
+  composes: menuItem;
+  color: #d33;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  font-size: 12px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  opacity: 0.8;
+}
+
+.disabledRow td {
+  opacity: 0.55;
+}
+
+.disabledRow td:last-child {
+  opacity: 1;
+}

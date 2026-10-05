@@ -7,6 +7,8 @@ import { SITE_ADMINS } from "@/lib/groups";
 import styles from "@/styles/ui.module.css";
 import { deleteGroup, removeGroupMember } from "../actions";
 import { AddMemberForm, EditGroupForm } from "../group-forms";
+import { RowMenu, type RowMenuItem } from "../../row-menu";
+import { disableUser, enableUser } from "../../users/actions";
 
 export default async function AdminGroupPage({ params }: PageProps<"/admin/groups/[groupId]">) {
   const { session } = await requireAdmin();
@@ -16,7 +18,9 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
     include: {
       members: {
         orderBy: { createdAt: "asc" },
-        include: { user: { select: { id: true, email: true, name: true, totpSecret: true } } },
+        include: {
+          user: { select: { id: true, email: true, name: true, totpSecret: true, disabledAt: true } },
+        },
       },
     },
   });
@@ -61,22 +65,22 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
               </thead>
               <tbody>
                 {group.members.map(({ user, createdAt }) => (
-                  <tr key={user.id}>
-                    <td>{user.name ?? "-"}</td>
+                  <tr key={user.id} className={user.disabledAt ? styles.disabledRow : undefined}>
+                    <td>
+                      {user.name ?? "-"}
+                      {user.disabledAt && <span className={styles.badge}>無効</span>}
+                    </td>
                     <td>{user.email}</td>
                     {isSiteAdmins && <td>{user.totpSecret ? "登録済み" : "未登録（初回ログイン時に登録）"}</td>}
                     <td>{dateFormat.format(createdAt)}</td>
                     <td>
-                      {isSiteAdmins && user.id === session.userId ? (
-                        <span className={styles.note}>自分自身は外せません</span>
+                      {user.id === session.userId ? (
+                        <span className={styles.note}>{isSiteAdmins ? "自分自身は外せません" : "自分"}</span>
                       ) : (
-                        <form action={removeGroupMember}>
-                          <input type="hidden" name="groupId" value={group.id} />
-                          <input type="hidden" name="userId" value={user.id} />
-                          <button type="submit" className={styles.danger}>
-                            外す
-                          </button>
-                        </form>
+                        <RowMenu
+                          label={`${user.name ?? user.email} の操作`}
+                          items={memberMenu(group.id, group.name, user)}
+                        />
                       )}
                     </td>
                   </tr>
@@ -104,4 +108,29 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
       )}
     </>
   );
+}
+
+function memberMenu(
+  groupId: string,
+  groupName: string,
+  user: { id: string; email: string; name: string | null; disabledAt: Date | null },
+): RowMenuItem[] {
+  const who = user.name ?? user.email;
+  return [
+    {
+      label: "グループから外す",
+      action: removeGroupMember,
+      fields: { groupId, userId: user.id },
+      confirm: `${who} を「${groupName}」から外しますか？`,
+    },
+    user.disabledAt
+      ? { label: "ユーザーを有効にする", action: enableUser, fields: { userId: user.id } }
+      : {
+          label: "ユーザーを無効にする",
+          action: disableUser,
+          fields: { userId: user.id },
+          danger: true,
+          confirm: `${who} を無効にしますか？\nログイン中のセッションはすべて終了し、ログインできなくなります。`,
+        },
+  ];
 }

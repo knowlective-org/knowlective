@@ -95,12 +95,17 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!token) return null;
   const session = await prisma.userSession.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, email: true, name: true } } },
+    include: { user: { select: { id: true, email: true, name: true, disabledAt: true } } },
   });
   if (!session) return null;
 
   const now = Date.now();
-  if (session.expiresAt.getTime() <= now || session.lastSeenAt.getTime() <= now - IDLE_TIMEOUT_MS) {
+  // Disabling deletes sessions too; this also covers one created concurrently.
+  if (
+    session.user.disabledAt ||
+    session.expiresAt.getTime() <= now ||
+    session.lastSeenAt.getTime() <= now - IDLE_TIMEOUT_MS
+  ) {
     await prisma.userSession.deleteMany({ where: { tokenHash: session.tokenHash } });
     return null;
   }
@@ -110,7 +115,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       data: { lastSeenAt: new Date() },
     });
   }
-  return session.user;
+  const { id, email, name } = session.user;
+  return { id, email, name };
 }
 
 // Gate for every page and Server Action that needs a logged-in user.
