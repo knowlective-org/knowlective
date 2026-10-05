@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { MIN_PASSWORD_LENGTH, isSetupComplete } from "shared";
 import { prisma } from "@/lib/db";
 import { findValidInvitation } from "@/lib/auth/invitations";
+import { rootName } from "@/lib/knowledge-roots";
 import { getCurrentUser } from "@/lib/auth/session";
 import styles from "@/styles/ui.module.css";
 import { AcceptForm, RegisterForm } from "./invite-forms";
@@ -32,10 +33,10 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
     );
   }
 
-  const workspaceName = invitation.workspace?.name ?? invitation.newWorkspaceName ?? "";
-  const description = invitation.workspace
-    ? `ワークスペース「${workspaceName}」に${ROLE_LABELS[invitation.role]}として招待されています。`
-    : `新しいワークスペース「${workspaceName}」のオーナーとして招待されています。`;
+  const name = invitation.root ? rootName(invitation.root) : (invitation.newRootName ?? "");
+  const description = invitation.root
+    ? `ナレッジルート「${name}」に${ROLE_LABELS[invitation.role]}として招待されています。`
+    : `新しいナレッジルート「${name}」のオーナーとして招待されています。`;
 
   const user = await getCurrentUser();
   return (

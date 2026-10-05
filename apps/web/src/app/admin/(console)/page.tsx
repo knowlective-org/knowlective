@@ -7,14 +7,20 @@ import { getRequestOrigin } from "@/lib/request";
 import styles from "@/styles/ui.module.css";
 import { MailSettingsForm, TestMailForm } from "./mail-settings-form";
 import { PublicUrlForm } from "./public-url-form";
+import { StorageSettingsForm } from "./storage-settings-form";
+import { MAX_FILE_SIZE_MB_LIMIT, getMaxUploadSizeMb, getStorageSettingsView } from "@/lib/storage";
+import { UploadLimitForm } from "./upload-limit-form";
 
 export default async function AdminOverviewPage() {
   await requireAdmin();
-  const [mail, site, requestOrigin, siteAdminCount] = await Promise.all([
+  const [mail, site, requestOrigin, siteAdminCount, storage, fileCount, maxUploadSizeMb] = await Promise.all([
     getMailSettings(),
     prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true } }),
     getRequestOrigin(),
     prisma.groupMember.count({ where: { group: { systemKey: SITE_ADMINS } } }),
+    getStorageSettingsView(),
+    prisma.fileObject.count(),
+    getMaxUploadSizeMb(),
   ]);
 
   return (
@@ -49,6 +55,23 @@ export default async function AdminOverviewPage() {
         <div style={{ marginTop: 24 }}>
           <TestMailForm disabled={mail === null} />
         </div>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>ファイル保存</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          ページに添付したファイルの保存先（S3 互換ストレージ）です。ファイルは暗号化して保存され、ナレッジルートのメンバーだけが取り出せます。
+          保存先の変更はインフラ作業として扱い、既存ファイルの移行は手動で行ってください（README「ファイル保存の移行」）。
+        </p>
+        <StorageSettingsForm current={storage} fileCount={fileCount} />
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>アップロードの上限</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          エディタに添付できる1ファイルの最大サイズです。保存先（同梱・外部）に関係なく適用されます。初期値は 100MB です。
+        </p>
+        <UploadLimitForm current={maxUploadSizeMb} maxLimitMb={MAX_FILE_SIZE_MB_LIMIT} />
       </section>
     </>
   );

@@ -1,0 +1,32 @@
+/* Aligned with BlockNote's own horizontal padding so the title sits above
+   the first block's text. */
+.title {
+  display: block;
+  width: 100%;
+  padding: 0 54px;
+  margin: 0 0 16px;
+  font: inherit;
+  font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Open Sans",
+    "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+    "Helvetica Neue", sans-serif;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+}
+
+.title::placeholder {
+  color: #bbb;
+}
+
+@media (max-width: 640px) {
+  .title {
+    padding: 0 16px;
+    font-size: 30px;
+  }
+}

@@ -2,7 +2,7 @@ import path from "node:path";
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: path.resolve(__dirname, "../../../.env") });
 
-import { createPrismaClient } from "../src/index";
+import { createKnowledgeRoot, createPrismaClient } from "../src/index";
 
 async function main() {
   const prisma = createPrismaClient();
@@ -13,30 +13,25 @@ async function main() {
     update: {},
   });
 
-  const workspace = await prisma.workspace.upsert({
-    where: { slug: "demo" },
-    create: {
-      name: "Demo Workspace",
-      slug: "demo",
-      members: { create: { userId: user.id, role: "OWNER" } },
-    },
-    update: {},
-  });
+  // Idempotent: the demo page (fixed id "demo", used by /pages/demo) marks
+  // that the demo knowledge root already exists.
+  if (await prisma.page.findUnique({ where: { id: "demo" }, select: { id: true } })) {
+    console.log("Demo data already exists; nothing to do.");
+    return;
+  }
 
-  // Fixed id "demo" so the /pages/demo BlockNote + Yjs collaboration demo has
-  // a real Page row to satisfy PageDocument's foreign key.
-  await prisma.page.upsert({
-    where: { id: "demo" },
-    create: {
-      id: "demo",
-      title: "Demo Page",
-      workspaceId: workspace.id,
+  await prisma.$transaction(async (tx) => {
+    const { rootId, rootPageId } = await createKnowledgeRoot(tx, {
+      title: "Demo",
       createdById: user.id,
-    },
-    update: {},
+    });
+    await tx.knowledgeRootMember.create({ data: { userId: user.id, rootId, role: "OWNER" } });
+    await tx.page.create({
+      data: { id: "demo", title: "Demo Page", rootId, parentId: rootPageId, createdById: user.id },
+    });
   });
 
-  console.log("Seeded demo user, workspace, and page.");
+  console.log("Seeded demo user, knowledge root, and page.");
 }
 
 main();

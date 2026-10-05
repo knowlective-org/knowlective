@@ -5,11 +5,30 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { endAdminSession, requireAdmin } from "@/lib/admin/auth";
 import { formatCidr, isIpAllowed, parseCidr } from "@/lib/ip";
-import { createInvitation } from "@/lib/auth/invitations";
+import { INVITATION_TTL_DAYS, createInvitation } from "@/lib/auth/invitations";
 import { normalizeEmail } from "@/lib/auth/session";
+import { ROLE_LABELS } from "@/lib/admin/format";
 import { getPublicUrl } from "@/lib/site-url";
+import { rootName, rootNameSelect } from "@/lib/knowledge-roots";
 import { InvalidPublicUrlError, normalizePublicUrl } from "shared";
-import { MailNotConfiguredError, getMailSettings, saveMailSettings, sendMail } from "@/lib/mail";
+import {
+  MailNotConfiguredError,
+  getMailSettings,
+  isMailConfigured,
+  saveMailSettings,
+  sendMail,
+} from "@/lib/mail";
+import { invitationMail } from "@/lib/mail-templates";
+import {
+  MAX_FILE_SIZE_MB_LIMIT,
+  type StorageTestResult,
+  getStorageConfig,
+  getStorageSettingsView,
+  normalizeKeyPrefix,
+  resetStorageSettings,
+  saveStorageSettings,
+  testStorage,
+} from "@/lib/storage";
 
 export async function logout(): Promise<void> {
   await requireAdmin();
@@ -67,7 +86,13 @@ export async function saveIpAllowlist(
   return { saved: true };
 }
 
-export type InvitationState = { error?: string; link?: string };
+export type InvitationState = {
+  error?: string;
+  link?: string;
+  // Set when an invitation email was requested.
+  mailSentTo?: string;
+  mailError?: string;
+};
 
 const ROLES = ["ADMIN", "MEMBER", "GUEST"] as const;
 
@@ -75,36 +100,73 @@ export async function issueInvitation(
   _prev: InvitationState,
   formData: FormData,
 ): Promise<InvitationState> {
-  await requireAdmin();
-  const target = formData.get("workspace");
+  const { actorLabel } = await requireAdmin();
+  const sendEmail = formData.get("sendEmail") === "on";
+  const target = formData.get("root");
   const role = formData.get("role");
-  const newWorkspaceName = formData.get("newWorkspaceName");
+  const newRootName = formData.get("newRootName");
   const rawEmail = formData.get("email");
   const email = typeof rawEmail === "string" ? normalizeEmail(rawEmail) : "";
   if (email && !/^[^\s@]+@[^\s@]+$/.test(email)) {
     return { error: "メールアドレスの形式が正しくありません。" };
   }
+  if (sendEmail) {
+    if (!email) return { error: "招待メールを送るには、メールアドレスを入力してください。" };
+    if (!(await isMailConfigured())) {
+      return { error: "メール送信が未設定です。「概要」の「メール送信」で設定してください。" };
+    }
+  }
 
   let token: string;
+  let rootDisplayName: string;
+  let roleLabel = ROLE_LABELS.OWNER;
   if (target === "__new__") {
-    const name = typeof newWorkspaceName === "string" ? newWorkspaceName.trim() : "";
-    if (!name) return { error: "新しいワークスペースの名前を入力してください。" };
-    token = await createInvitation({ kind: "new", workspaceName: name, email });
+    const name = typeof newRootName === "string" ? newRootName.trim() : "";
+    if (!name) return { error: "新しいナレッジルートの名前を入力してください。" };
+    token = await createInvitation({ kind: "new", rootName: name, email });
+    rootDisplayName = name;
   } else {
-    if (typeof target !== "string" || !(await prisma.workspace.findUnique({ where: { id: target } }))) {
-      return { error: "ワークスペースを選んでください。" };
+    if (typeof target !== "string") return { error: "ナレッジルートを選んでください。" };
+    const root = await prisma.knowledgeRoot.findUnique({
+      where: { id: target },
+      select: rootNameSelect,
+    });
+    if (!root) {
+      return { error: "ナレッジルートを選んでください。" };
     }
+    rootDisplayName = rootName(root);
     if (!ROLES.includes(role as (typeof ROLES)[number])) return { error: "権限を選んでください。" };
+    roleLabel = ROLE_LABELS[role as string];
     token = await createInvitation({
       kind: "existing",
-      workspaceId: target,
+      rootId: target,
       role: role as (typeof ROLES)[number],
       email,
     });
   }
 
   revalidatePath("/admin", "layout");
-  return { link: `${await getPublicUrl()}/invite/${token}` };
+  const link = `${await getPublicUrl()}/invite/${token}`;
+  if (!sendEmail) return { link };
+
+  // The invitation stays valid even if sending fails; the admin can still
+  // hand over the link shown on screen.
+  try {
+    await sendMail({
+      to: email,
+      ...invitationMail({
+        link,
+        inviterName: actorLabel === "マスターパスワード" ? "yosuga の管理者" : actorLabel,
+        rootName: rootDisplayName,
+        isNewRoot: target === "__new__",
+        roleLabel,
+        ttlDays: INVITATION_TTL_DAYS,
+      }),
+    });
+    return { link, mailSentTo: email };
+  } catch (err) {
+    return { link, mailError: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 export async function revokeInvitation(formData: FormData): Promise<void> {
@@ -216,6 +278,91 @@ export async function savePublicUrl(
     throw err;
   }
   await prisma.instanceConfig.update({ where: { id: 1 }, data: { publicUrl } });
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+export type StorageFormState = { error?: string; saved?: boolean; needsMigrationConfirm?: number };
+
+function locationOf(s: { endpoint: string; bucket: string; keyPrefix: string }) {
+  return `${s.endpoint.replace(/\/+$/, "")}|${s.bucket}|${s.keyPrefix}`;
+}
+
+export async function saveStorage(_prev: StorageFormState, formData: FormData): Promise<StorageFormState> {
+  await requireAdmin();
+  const str = (key: string) => {
+    const v = formData.get(key);
+    return typeof v === "string" ? v.trim() : "";
+  };
+  const endpoint = str("endpoint");
+  const bucket = str("bucket");
+  const region = str("region");
+  const accessKeyId = str("accessKeyId");
+  const rawSecret = formData.get("secretAccessKey");
+  const secretAccessKey = typeof rawSecret === "string" && rawSecret !== "" ? rawSecret : undefined;
+  const forcePathStyle = formData.get("forcePathStyle") === "on";
+  const keyPrefix = normalizeKeyPrefix(str("keyPrefix"));
+
+  try {
+    const url = new URL(endpoint);
+    if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error();
+  } catch {
+    return { error: "エンドポイント URL は http:// または https:// で始まる URL で入力してください。" };
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{1,254}$/.test(bucket)) return { error: "バケット名を正しく入力してください。" };
+  if (region && !/^[A-Za-z0-9-]{1,64}$/.test(region)) return { error: "リージョンの形式が正しくありません。" };
+  if (!accessKeyId) return { error: "アクセスキー ID を入力してください。" };
+
+  const current = await getStorageSettingsView();
+  if (current?.source !== "custom" && secretAccessKey === undefined) {
+    return { error: "シークレットアクセスキーを入力してください。" };
+  }
+
+  // Moving storage is an infrastructure task: the app never copies objects.
+  // Make the admin confirm existing files were migrated first.
+  const fileCount = await prisma.fileObject.count();
+  const moving = !current || locationOf(current) !== locationOf({ endpoint, bucket, keyPrefix });
+  if (moving && fileCount > 0 && formData.get("confirmMigrated") !== "on") {
+    return { needsMigrationConfirm: fileCount };
+  }
+
+  await saveStorageSettings({
+    endpoint,
+    region: region || null,
+    bucket,
+    accessKeyId,
+    secretAccessKey,
+    forcePathStyle,
+    keyPrefix,
+  });
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+export async function resetStorage(): Promise<void> {
+  await requireAdmin();
+  await resetStorageSettings();
+  revalidatePath("/admin", "layout");
+}
+
+export type StorageTestState = { result?: StorageTestResult };
+
+export async function testStorageConnection(): Promise<StorageTestState> {
+  await requireAdmin();
+  const config = await getStorageConfig();
+  if (!config) return { result: { ok: false, step: "write", message: "ファイル保存が設定されていません。" } };
+  return { result: await testStorage(config) };
+}
+
+export type UploadLimitState = { error?: string; saved?: boolean };
+
+export async function saveUploadLimit(_prev: UploadLimitState, formData: FormData): Promise<UploadLimitState> {
+  await requireAdmin();
+  const value = Number(formData.get("maxUploadSizeMb"));
+  if (!Number.isInteger(value) || value < 1 || value > MAX_FILE_SIZE_MB_LIMIT) {
+    return { error: `1〜${MAX_FILE_SIZE_MB_LIMIT} MB の整数で入力してください。` };
+  }
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { maxUploadSizeMb: value } });
   revalidatePath("/admin", "layout");
   return { saved: true };
 }

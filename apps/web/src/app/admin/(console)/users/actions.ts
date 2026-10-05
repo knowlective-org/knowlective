@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
 
-// Disabling keeps the account and its workspace/group memberships, so
+// Disabling keeps the account and its knowledge root/group memberships, so
 // re-enabling restores access as it was. It takes effect immediately: every
 // session is deleted, and getCurrentUser / isSiteAdmin / the collab server
 // all refuse disabled accounts on their own as well.

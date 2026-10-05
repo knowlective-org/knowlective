@@ -12,6 +12,7 @@ import {
   loadDataKey,
   verifyCollabToken,
 } from "shared";
+import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
 
 // Real-time collaboration (Yjs over WebSocket), served by the same process
 // and port as the Next.js app at COLLAB_PATH. server/index.ts routes the
@@ -36,12 +37,18 @@ export async function createCollab() {
         if (!doc) return null;
         return decrypt(await loadDataKey(prisma), doc.state, documentName);
       },
-      store: async ({ documentName, state }) => {
+      store: async ({ documentName, state, document }) => {
         const bytes = Uint8Array.from(encrypt(await loadDataKey(prisma), state, documentName));
         await prisma.pageDocument.upsert({
           where: { pageId: documentName },
           create: { pageId: documentName, state: bytes },
           update: { state: bytes },
+        });
+        // Mirror the live title into Page.title (sidebar, home, root name).
+        const title = normalizeTitle(document.getText(TITLE_FIELD).toString());
+        await prisma.page.updateMany({
+          where: { id: documentName, NOT: { title } },
+          data: { title },
         });
       },
     }),
@@ -57,9 +64,18 @@ export async function createCollab() {
   const hocuspocus = new Hocuspocus({
     extensions,
     quiet: true,
+    // Documents saved before titles lived in Yjs (or never opened yet) have
+    // no title text: seed it from Page.title once, on the server, so clients
+    // never race to insert it twice.
+    async afterLoadDocument({ document, documentName }) {
+      const text = document.getText(TITLE_FIELD);
+      if (text.length > 0) return;
+      const page = await prisma.page.findUnique({ where: { id: documentName }, select: { title: true } });
+      if (page?.title && text.length === 0) text.insert(0, page.title);
+    },
     // The token is minted by getCollabToken (src/app/(app)/actions.ts) for a
     // logged-in user and a single page. Membership is re-checked here so
-    // removal from a workspace takes effect on the next connection, not when
+    // removal from a knowledge root takes effect on the next connection, not when
     // the token expires.
     async onAuthenticate({ token, documentName, connectionConfig }) {
       // Without setup there is no data key, so nothing could be loaded or saved.
@@ -70,16 +86,16 @@ export async function createCollab() {
       if (!payload || payload.p !== documentName) {
         throw new Error("Invalid collab token");
       }
-      const member = await prisma.workspaceMember.findFirst({
+      const member = await prisma.knowledgeRootMember.findFirst({
         where: {
           userId: payload.u,
           user: { disabledAt: null },
-          workspace: { pages: { some: { id: documentName, deletedAt: null } } },
+          root: { pages: { some: { id: documentName, deletedAt: null } } },
         },
         select: { role: true },
       });
       if (!member) {
-        throw new Error("Not a member of this page's workspace");
+        throw new Error("Not a member of this page's knowledge root");
       }
       if (member.role === "GUEST") {
         connectionConfig.readOnly = true;

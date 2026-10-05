@@ -1,24 +1,63 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
+import { MAX_PAGE_DEPTH } from "@/lib/knowledge-roots";
 import styles from "@/styles/ui.module.css";
 import { logout } from "./actions";
 
+type TreePage = { id: string; title: string; icon: string | null; parentId: string | null };
+
+function PageLink({ page }: { page: TreePage }) {
+  return (
+    <Link href={`/pages/${page.id}`} style={{ textDecoration: "underline" }}>
+      {page.icon ? `${page.icon} ` : ""}
+      {page.title}
+    </Link>
+  );
+}
+
+// Nested list of a page's descendants. `seen` and the depth cap keep a
+// corrupted tree (cycle, runaway depth) from rendering forever.
+function PageTree({
+  parentId,
+  childrenOf,
+  depth,
+  seen,
+}: {
+  parentId: string;
+  childrenOf: Map<string, TreePage[]>;
+  depth: number;
+  seen: Set<string>;
+}) {
+  const children = (childrenOf.get(parentId) ?? []).filter((p) => !seen.has(p.id));
+  if (children.length === 0 || depth > MAX_PAGE_DEPTH) return null;
+  children.forEach((p) => seen.add(p.id));
+  return (
+    <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
+      {children.map((page) => (
+        <li key={page.id}>
+          <PageLink page={page} />
+          <PageTree parentId={page.id} childrenOf={childrenOf} depth={depth + 1} seen={seen} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default async function Home() {
   const user = await requireUser("/");
-  const memberships = await prisma.workspaceMember.findMany({
+  const memberships = await prisma.knowledgeRootMember.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "asc" },
     select: {
-      role: true,
-      workspace: {
+      root: {
         select: {
           id: true,
-          name: true,
+          rootPageId: true,
           pages: {
             where: { deletedAt: null },
             orderBy: { createdAt: "asc" },
-            select: { id: true, title: true, icon: true },
+            select: { id: true, title: true, icon: true, parentId: true },
           },
         },
       },
@@ -40,27 +79,35 @@ export default async function Home() {
       </header>
 
       {memberships.length === 0 && (
-        <p className={styles.lead}>参加しているワークスペースはまだありません。</p>
+        <p className={styles.lead}>参加しているナレッジルートはまだありません。</p>
       )}
-      {memberships.map(({ workspace }) => (
-        <section key={workspace.id} className={styles.section}>
-          <h2 className={styles.sectionTitle}>{workspace.name}</h2>
-          {workspace.pages.length === 0 ? (
-            <p className={styles.note}>ページはまだありません。</p>
-          ) : (
-            <ul style={{ paddingLeft: 20, lineHeight: 2 }}>
-              {workspace.pages.map((page) => (
-                <li key={page.id}>
-                  <Link href={`/pages/${page.id}`} style={{ textDecoration: "underline" }}>
-                    {page.icon ? `${page.icon} ` : ""}
-                    {page.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+      {memberships.map(({ root }) => {
+        // A knowledge root is shown as its root page.
+        const rootPage = root.pages.find((p) => p.id === root.rootPageId);
+        if (!rootPage) return null;
+        const childrenOf = new Map<string, TreePage[]>();
+        for (const page of root.pages) {
+          if (!page.parentId) continue;
+          childrenOf.set(page.parentId, [...(childrenOf.get(page.parentId) ?? []), page]);
+        }
+        return (
+          <section key={root.id} className={styles.section}>
+            <h2 className={styles.sectionTitle}>
+              <PageLink page={rootPage} />
+            </h2>
+            {childrenOf.has(rootPage.id) ? (
+              <PageTree
+                parentId={rootPage.id}
+                childrenOf={childrenOf}
+                depth={1}
+                seen={new Set([rootPage.id])}
+              />
+            ) : (
+              <p className={styles.note}>子ページはまだありません。</p>
+            )}
+          </section>
+        );
+      })}
     </main>
   );
 }

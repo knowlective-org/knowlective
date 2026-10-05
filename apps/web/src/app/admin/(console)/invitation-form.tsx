@@ -7,15 +7,18 @@ import { issueInvitation, type InvitationState } from "./actions";
 const initialState: InvitationState = {};
 
 export function InvitationForm({
-  workspaces,
+  roots,
   ttlDays,
+  mailConfigured,
 }: {
-  workspaces: { id: string; name: string }[];
+  roots: { id: string; name: string }[];
   ttlDays: number;
+  mailConfigured: boolean;
 }) {
   const [state, formAction, pending] = useActionState(issueInvitation, initialState);
-  const [target, setTarget] = useState(workspaces[0]?.id ?? "__new__");
+  const [target, setTarget] = useState(roots[0]?.id ?? "__new__");
   const [copied, setCopied] = useState(false);
+  const [sendEmail, setSendEmail] = useState(mailConfigured);
 
   return (
     <div className={styles.form}>
@@ -23,23 +26,23 @@ export function InvitationForm({
         <label>
           招待先
           <select
-            name="workspace"
+            name="root"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
             className={styles.field}
           >
-            {workspaces.map((w) => (
+            {roots.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name}
               </option>
             ))}
-            <option value="__new__">＋ 新しいワークスペースを作る（招待した人がオーナー）</option>
+            <option value="__new__">＋ 新しいナレッジルートを作る（招待した人がオーナー）</option>
           </select>
         </label>
         {target === "__new__" ? (
           <label>
-            新しいワークスペースの名前
-            <input type="text" name="newWorkspaceName" required className={styles.field} />
+            新しいナレッジルートの名前
+            <input type="text" name="newRootName" required className={styles.field} />
           </label>
         ) : (
           <label>
@@ -52,19 +55,42 @@ export function InvitationForm({
           </label>
         )}
         <label>
-          メールアドレス（任意。指定するとこのアドレスでしか登録できない）
-          <input type="email" name="email" className={styles.field} />
+          メールアドレス（{sendEmail ? "必須" : "任意"}。指定するとこのアドレスでしか登録できない）
+          <input type="email" name="email" required={sendEmail} className={styles.field} />
         </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            name="sendEmail"
+            checked={sendEmail}
+            disabled={!mailConfigured}
+            onChange={(e) => setSendEmail(e.target.checked)}
+          />
+          招待メールを送信する
+        </label>
+        {!mailConfigured && (
+          <p className={styles.note}>
+            メール送信が未設定のため、送信できません。「概要」の「メール送信」で設定すると使えます。
+          </p>
+        )}
         <p aria-live="polite" className={styles.error}>
           {state.error}
         </p>
         <button type="submit" disabled={pending} className={styles.button}>
-          {pending ? "発行しています…" : "招待リンクを発行"}
+          {pending ? "発行しています…" : sendEmail ? "招待リンクを発行してメールで送る" : "招待リンクを発行"}
         </button>
       </form>
 
       {state.link && (
         <div>
+          {state.mailSentTo && (
+            <p className={styles.success}>{state.mailSentTo} に招待メールを送信しました。</p>
+          )}
+          {state.mailError && (
+            <p className={styles.error}>
+              招待メールの送信に失敗しました（{state.mailError}）。招待リンクは有効なので、下のリンクを直接渡してください。
+            </p>
+          )}
           <p className={styles.note}>
             招待リンクは今だけ表示されます（{ttlDays}日間有効・1回限り）。相手に渡してください。
           </p>

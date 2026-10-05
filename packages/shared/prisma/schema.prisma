@@ -14,20 +14,21 @@ enum MemberRole {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
   name         String?
   passwordHash String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   // Set when an admin disables the account: no login, sessions ended,
   // collab access refused. Memberships are kept so re-enabling restores access.
   disabledAt   DateTime?
 
-  memberships     WorkspaceMember[]
+  memberships     KnowledgeRootMember[]
   pages           Page[]
   sessions        UserSession[]
   usedInvitations Invitation[]
   groups          GroupMember[]
+  uploadedFiles   FileObject[]
   adminSessions   AdminSession[]
 
   // TOTP secret for this user's two-step verification, encrypted with the DEK
@@ -37,28 +38,40 @@ model User {
   totpLastStep Int?
 }
 
-model Workspace {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
+// A knowledge root ("ナレッジルート"): the container that owns members,
+// permissions and invitations for one page tree. In the UI it appears as its
+// root page — the root's name is the root page's title.
+//
+//   KnowledgeRoot ── rootPage (page1)
+//                      └ page1-1
+//                          └ page1-1-1
+model KnowledgeRoot {
+  id         String   @id @default(cuid())
+  // The root page. Nullable only because the root and its page reference
+  // each other and must be created in two steps; createKnowledgeRoot() always
+  // sets it in the same transaction, and the root page is never deleted.
+  rootPageId String?  @unique
+  rootPage   Page?    @relation("KnowledgeRootPage", fields: [rootPageId], references: [id], onDelete: Restrict)
+  createdAt  DateTime @default(now())
 
-  members     WorkspaceMember[]
-  pages       Page[]
+  members     KnowledgeRootMember[]
+  // Every page in the tree, including the root page.
+  pages       Page[]                @relation("KnowledgeRootPages")
   invitations Invitation[]
+  files       FileObject[]
 }
 
-model WorkspaceMember {
+model KnowledgeRootMember {
   id        String     @id @default(cuid())
   role      MemberRole @default(MEMBER)
   createdAt DateTime   @default(now())
 
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  userId String
+  user   User          @relation(fields: [userId], references: [id])
+  rootId String
+  root   KnowledgeRoot @relation(fields: [rootId], references: [id])
 
-  @@unique([userId, workspaceId])
+  @@unique([userId, rootId])
 }
 
 // Page hierarchy / metadata lives here. The actual block content lives in the
@@ -71,9 +84,14 @@ model Page {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  // The knowledge root this page belongs to, stored on every page (not just
+  // the root page) so permission checks never have to walk up the tree.
+  rootId String
+  root   KnowledgeRoot  @relation("KnowledgeRootPages", fields: [rootId], references: [id])
+  // Set on the root page only.
+  rootOf KnowledgeRoot? @relation("KnowledgeRootPage")
 
+  // Null only for a root page; every other page has a parent.
   parentId String?
   parent   Page?   @relation("PageToPage", fields: [parentId], references: [id])
   children Page[]  @relation("PageToPage")
@@ -82,8 +100,9 @@ model Page {
   createdBy   User   @relation(fields: [createdById], references: [id])
 
   document PageDocument?
+  files    FileObject[]
 
-  @@index([workspaceId])
+  @@index([rootId])
   @@index([parentId])
 }
 
@@ -119,6 +138,10 @@ model InstanceConfig {
 
   // CIDRs allowed to reach /admin. Empty = no restriction.
   adminIpAllowlist String[] @default([])
+
+  // Largest file an editor may attach, in MB. Independent of which storage
+  // is used. Capped by MAX_FILE_SIZE_MB_LIMIT in apps/web/src/lib/storage.ts.
+  maxUploadSizeMb Int @default(100)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -192,11 +215,11 @@ model Invitation {
   email     String?
   role      MemberRole
 
-  // Either an existing workspace to join, or (workspaceId null) a new
-  // workspace named newWorkspaceName that the invitee will own.
-  workspaceId      String?
-  workspace        Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  newWorkspaceName String?
+  // Either an existing knowledge root to join, or (rootId null) a new
+  // knowledge root whose root page is titled newRootName, owned by the invitee.
+  rootId      String?
+  root        KnowledgeRoot? @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  newRootName String?
 
   createdAt DateTime  @default(now())
   expiresAt DateTime
@@ -267,4 +290,46 @@ model GroupMember {
 
   @@id([groupId, userId])
   @@index([userId])
+}
+
+// S3-compatible storage for file attachments, edited from /admin. Singleton
+// row (id = 1). While absent, the bundled SeaweedFS from docker-compose.yml is
+// used (credentials from SEAWEEDFS_* env vars).
+//
+// Changing it is an infrastructure task: existing objects are NOT migrated by
+// the app. Object keys don't depend on these settings (keyPrefix + "files/" +
+// FileObject.id), so copying the bucket is enough.
+model StorageSettings {
+  id                 Int      @id @default(1)
+  endpoint           String
+  // Null = derived from an AWS endpoint host, else "us-east-1".
+  region             String?
+  bucket             String
+  accessKeyId        String
+  // Encrypted with the DEK. Never sent back to the browser.
+  secretAccessKeyEnc Bytes
+  forcePathStyle     Boolean  @default(false)
+  keyPrefix          String   @default("")
+  updatedAt          DateTime @updatedAt
+}
+
+// An uploaded attachment. Content lives in object storage, encrypted with the
+// DEK (AAD bound to the id). Served only through /api/files/<id> after a
+// membership check on rootId.
+model FileObject {
+  id           String        @id @default(cuid())
+  rootId       String
+  root         KnowledgeRoot @relation(fields: [rootId], references: [id])
+  // Page it was uploaded on (informational; access is decided by rootId).
+  pageId       String?
+  page         Page?         @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  uploadedById String?
+  uploadedBy   User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  name         String
+  mimeType     String
+  // Plaintext size in bytes.
+  size         Int
+  createdAt    DateTime      @default(now())
+
+  @@index([rootId])
 }

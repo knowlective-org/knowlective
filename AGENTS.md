@@ -8,7 +8,7 @@ pnpmモノレポ。
 
 | パス | 役割 |
 |---|---|
-| `apps/web` | Next.js 16（App Router / Turbopack）。画面と、今後追加するAPIルート（ページCRUD・workspace・認証・権限） |
+| `apps/web` | Next.js 16（App Router / Turbopack）。画面と、今後追加するAPIルート（ページCRUD・ナレッジルート・認証・権限） |
 | `packages/shared` | Prismaスキーマ、`createPrismaClient()`、シードスクリプト |
 
 - エディタ: BlockNote（Tiptap/ProseMirrorベース）
@@ -44,7 +44,7 @@ Next.jsは自分のディレクトリの `.env*` しか読まない。ルート�
 pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同じポートの /collab）
 ```
 
-デモ: `/admin` で「Demo Workspace」への招待リンクを発行して自分を登録し、`/pages/demo` を2つのタブで開く。片方で入力するともう片方に反映される（ページはワークスペースのメンバーしか開けない）。
+デモ: `/admin` でデモのナレッジルートへの招待リンクを発行して自分を登録し、`/pages/demo` を2つのタブで開く。片方で入力するともう片方に反映される（ページはナレッジルートのメンバーしか開けない）。
 
 ## 実装上の注意（ハマりどころ）
 
@@ -68,7 +68,12 @@ pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同
 - **グループとサイト管理者**: グループはサイト全体（`Group` / `GroupMember`）。組み込みグループはマイグレーションで作り、コードからは `systemKey` で引く（id や名前で引かない。`apps/web/src/lib/groups.ts` の `SITE_ADMINS`）。`AdminSession.userId` が null ならマスターパスワードでのログイン。`requireAdmin()` は毎回サイト管理者グループのメンバーかを確認し直す。ユーザーごとの TOTP 秘密鍵は `User.totpSecret`（AAD にユーザー id を含めて暗号化）。
 - **管理画面のページ構成**: `apps/web/src/app/admin/(console)/` の layout はナビゲーションだけで、守りは各ページと Server Action の `requireAdmin()`。更新後は `revalidatePath("/admin", "layout")` で管理画面全体を再検証する。
 - **接続元 IP**: Next.js は `X-Forwarded-For` が無いときしか接続元を入れない（`??=`）。そのため右から `YOSUGA_TRUSTED_PROXY_HOPS` 番目を採用している（`apps/web/src/lib/admin/ip.ts`）。リバースプロキシなしで公開すると偽装できる。
-- **ユーザー認証**: 招待制。`apps/web/src/lib/auth/`（`session.ts` / `invitations.ts` / `pages.ts`）。ページと Server Action はそれぞれ `requireUser()` を呼ぶこと（`(app)/layout.tsx` はセットアップ済みかを見るだけ）。ページを開く権限は `findAccessiblePage()`（ワークスペースのメンバーかどうか）で判定し、権限がなければ 404 にする。
+- **ナレッジルート**（旧ワークスペース。画面上の名前は「ナレッジルート」）: DB では入れ物 `KnowledgeRoot`（メンバー・権限・招待を持つ）と、そのルートページを別々に持ち、画面上はルートページがナレッジルートとして見える。名前はルートページのタイトルで、入れ物には名前を持たせない（`rootName()`・`rootNameSelect`、`apps/web/src/lib/knowledge-roots.ts`）。`KnowledgeRoot.rootPageId` と `Page.rootId` が互いを参照するので、作成は必ず `createKnowledgeRoot()`（`packages/shared`）でトランザクション内で行う。`rootPageId` は DB 上は任意だが常にセットされ、ルートページは `ON DELETE RESTRICT` で削除できない。`parentId` が null なのはルートページだけ。すべてのページが `rootId` を持つので、権限確認で親をたどる必要はない（別のルートへ移動するときは配下もまとめて付け替える）。ページの階層の上限は `MAX_PAGE_DEPTH`（50）。ページの作成・移動の処理を作るときは、上限と循環（自分や配下を親にしない）の確認を入れる。
+- **ページタイトル**: タイトルは Yjs ドキュメントの `Y.Text("title")`（本文の BlockNote と同じドキュメント）に持ち、共同編集でその場で同期する。collab サーバーが保存時に `Page.title` へ書き戻す（サイドバー・ホーム・ナレッジルート名は DB の値を読む）。まだタイトルを持たないドキュメントは、読み込み時にサーバー側で `Page.title` から1回だけ入れる（クライアントが入れると、同時に開いた人の分だけ重複するため）。定数は `apps/web/src/lib/page-title.ts`（ブラウザと collab の両方から読むので依存を入れない）。
+- **ページ画面**: `(app)/pages/[pageId]/page-view.tsx` が、左のドキュメントツリー（`position: sticky`）と右のタイトル＋エディタを並べる。ページごとに `key={pageId}` で作り直し、エディタはアンマウント時に共同編集の接続を閉じる。
+- **ファイル添付**: `apps/web/src/lib/storage.ts`（S3 互換。`@aws-sdk/client-s3`、チェックサムは互換性のため必要なときだけ）。保存先は `StorageSettings`（id=1 の1行だけ）、なければ同梱の SeaweedFS（`SEAWEEDFS_*` 環境変数）。ファイルの中身はデータ鍵で暗号化（AAD はファイル id）。アップロードは `POST /api/files?pageId=`、配信は `GET /api/files/<id>`（Route Handler なので CSRF は自前で Origin を確認）。配信時は `INLINE_TYPES` 以外を必ず `attachment` + `application/octet-stream` にする（HTML・SVG をアプリのオリジンで実行させないため）。今はファイル全体をメモリに載せて暗号化するので、上限は `MAX_FILE_SIZE_MB_LIMIT`（500MB）。ページからブロックを消してもファイルは消えない（後で掃除の仕組みが必要）。MinIO は公式イメージの配布が止まったため使っていない。
+- **開発サーバーの動作中に `next build` を実行しないこと。** `.next` を作り直すので、動いている開発サーバーが使う `.next/dev` まで消え、全ページが 500 になる（`server/` のファイルを保存して再起動すれば直る）。型の確認は `tsc --noEmit` で行う。
+- **ユーザー認証**: 招待制。`apps/web/src/lib/auth/`（`session.ts` / `invitations.ts` / `pages.ts`）。ページと Server Action はそれぞれ `requireUser()` を呼ぶこと（`(app)/layout.tsx` はセットアップ済みかを見るだけ）。ページを開く権限は `findAccessiblePage()`（ナレッジルートのメンバーかどうか）で判定し、権限がなければ 404 にする。
 - **公開 URL**: メールや招待リンクなど、サイトの外に出るリンクは必ず `getPublicUrl()`（`apps/web/src/lib/site-url.ts`）で組み立てる。Host ヘッダーはクライアントが自由に変えられるので、リクエストから組み立てない（`getRequestOrigin()` は入力欄の初期値と、未設定のときの代わりにだけ使う）。
 - **メール送信**: `apps/web/src/lib/mail.ts`（nodemailer 10。型は本体に同梱されているので `@types/nodemailer` は入れない）。設定は `MailSettings`（id=1 の1行だけ）、SMTP パスワードはデータ鍵で暗号化。送信は `sendMail()`、未設定なら `MailNotConfiguredError`。
 - **カスタムサーバー**（`apps/web/server/`）: `index.ts` が Next.js と共同編集を1つの HTTP サーバーで動かす。`env.ts` を必ず最初に import する（NODE_ENV と .env の読み込み）。`collab.ts` は Next.js にバンドルされないので、アプリ側（`src/lib/db.ts`）とは別の PrismaClient を持つ。Next.js は最初のリクエストで自前の upgrade リスナーを付け、開発時のホットリロード（`/_next/`）だけを処理し、ルートに一致しないパスの WebSocket には触らない。**`/collab` にページやルートを作らないこと**（作ると Next.js がその接続を切る）。tsx で動かすのは、`packages/shared` を TypeScript のまま使っているため。開発モードの Next.js は同じフォルダで2つ起動できない（2つ目はエラーで終了する）。
@@ -77,7 +82,7 @@ pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同
 ## 現在の状況
 
 完了:
-- モノレポ構成、Prismaスキーマ（User / Workspace / WorkspaceMember / Page / PageDocument）、Docker Compose
+- モノレポ構成、Prismaスキーマ（User / KnowledgeRoot / KnowledgeRootMember / Page / PageDocument ほか）、Docker Compose
 - BlockNote + Yjs + Hocuspocus のエンドツーエンド疎通（ブラウザとNodeクライアントの双方で、編集がCRDTでマージされPostgresに保存されることを確認済み）
 - `pnpm build`（web / shared）が通る
 - 初回アクセス時のマスターパスワード設定と、データ鍵の生成・ページ本文の暗号化（`/setup`、`pnpm rotate-server-key`）
@@ -89,9 +94,9 @@ pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同
 未着手（次の候補）:
 - ページ作成・一覧・階層のCRUD APIルート（`apps/web`）
 - パスワードの再設定（メール送信は実装済み。再設定メールの送信と、メール未設定時に管理画面から再設定リンクを発行する手段）
-- ワークスペースのオーナー・管理者によるアプリ内からの招待（今は /admin からのみ）
+- ナレッジルートのオーナー・管理者によるアプリ内からの招待（今は /admin からのみ）
 - ページの作成・一覧・階層の CRUD
-- ワークスペースの権限モデル
-- ファイル添付（S3互換 / MinIO）
+- ナレッジルートの権限モデル
+- 添付ファイルの掃除（ブロックを消したファイルの削除）と、大きいファイル向けのストリーミング暗号化
 - 全文検索（まずはPostgres全文検索）。ページ本文は暗号化されているため、DB側の全文検索ではなく、復号してから検索用の索引を作る設計が必要
 - 本番用のDockerイメージ（1つのイメージで足りる）

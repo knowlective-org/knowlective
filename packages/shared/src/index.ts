@@ -4,8 +4,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 export { PrismaClient, Prisma } from "@prisma/client";
 export type {
   User,
-  Workspace,
-  WorkspaceMember,
+  KnowledgeRoot,
+  KnowledgeRootMember,
   Page,
   PageDocument,
   MemberRole,
@@ -20,8 +20,11 @@ export type {
   SmtpSecurity,
   Group,
   GroupMember,
+  StorageSettings,
+  FileObject,
 } from "@prisma/client";
 export { encrypt, decrypt, generateKey, parseServerKey } from "./crypto";
+export { createKnowledgeRoot } from "./knowledge-root";
 export {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,
