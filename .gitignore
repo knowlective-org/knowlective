@@ -1,0 +1,11 @@
+node_modules/
+.pnpm-store/
+dist/
+build/
+.next/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+/packages/shared/generated/
+.claude/scheduled_tasks.lock

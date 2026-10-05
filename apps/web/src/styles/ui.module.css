@@ -1,0 +1,159 @@
+.narrow {
+  width: 100%;
+  max-width: 440px;
+  margin: 64px auto;
+  padding: 0 16px;
+}
+
+.wide {
+  width: 100%;
+  max-width: 960px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.title {
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+.lead {
+  line-height: 1.7;
+  margin-bottom: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.section {
+  margin-bottom: 40px;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.field {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  margin-top: 4px;
+  font: inherit;
+  font-size: 16px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #999;
+  border-radius: 6px;
+}
+
+.code {
+  composes: field;
+  font-family: var(--font-geist-mono), monospace;
+  letter-spacing: 0.2em;
+}
+
+.button {
+  padding: 10px 16px;
+  font: inherit;
+  border: 1px solid #999;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  justify-self: start;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.danger {
+  composes: button;
+  color: #d33;
+  border-color: #d33;
+}
+
+.error {
+  color: #d33;
+  min-height: 1.5em;
+}
+
+.success {
+  color: #2a8a4a;
+  min-height: 1.5em;
+}
+
+.note {
+  font-size: 14px;
+  opacity: 0.75;
+  line-height: 1.6;
+}
+
+.secret {
+  font-family: var(--font-geist-mono), monospace;
+  word-break: break-all;
+  padding: 8px 10px;
+  border: 1px dashed #999;
+  border-radius: 6px;
+}
+
+.qr {
+  display: block;
+  width: 200px;
+  height: 200px;
+  margin: 8px 0 16px;
+  background: #fff;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+  vertical-align: top;
+}
+
+.ua {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-bottom: 32px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+}
+
+.navLink {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}

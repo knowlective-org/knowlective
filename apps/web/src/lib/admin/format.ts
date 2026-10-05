@@ -1,0 +1,21 @@
+// Display helpers shared by the /admin pages.
+
+export const dateFormat = new Intl.DateTimeFormat("ja-JP", {
+  dateStyle: "short",
+  timeStyle: "medium",
+  timeZone: process.env.TZ || "Asia/Tokyo",
+});
+
+export const ROLE_LABELS: Record<string, string> = {
+  OWNER: "オーナー",
+  ADMIN: "管理者",
+  MEMBER: "メンバー",
+  GUEST: "ゲスト",
+};
+
+export const REASON_LABELS: Record<string, string> = {
+  bad_credentials: "認証失敗",
+  locked: "ロック中",
+  bad_credentials_cleared: "認証失敗（ロック解除済み）",
+  ip_denied: "IP 制限",
+};

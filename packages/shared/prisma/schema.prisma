@@ -1,0 +1,267 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  memberships     WorkspaceMember[]
+  pages           Page[]
+  sessions        UserSession[]
+  usedInvitations Invitation[]
+  groups          GroupMember[]
+  adminSessions   AdminSession[]
+
+  // TOTP secret for this user's two-step verification, encrypted with the DEK
+  // (AAD bound to the user id). Required for site admins signing in to /admin.
+  totpSecret   Bytes?
+  // Last accepted TOTP time step, so a code can't be replayed.
+  totpLastStep Int?
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  members     WorkspaceMember[]
+  pages       Page[]
+  invitations Invitation[]
+}
+
+model WorkspaceMember {
+  id        String     @id @default(cuid())
+  role      MemberRole @default(MEMBER)
+  createdAt DateTime   @default(now())
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([userId, workspaceId])
+}
+
+// Page hierarchy / metadata lives here. The actual block content lives in the
+// Yjs document referenced by PageDocument — Postgres never parses block content.
+model Page {
+  id        String    @id @default(cuid())
+  title     String    @default("Untitled")
+  icon      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  parentId String?
+  parent   Page?   @relation("PageToPage", fields: [parentId], references: [id])
+  children Page[]  @relation("PageToPage")
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  document PageDocument?
+
+  @@index([workspaceId])
+  @@index([parentId])
+}
+
+// Persisted Yjs document state for a page, written by the collab (Hocuspocus) server.
+// `state` is encrypted with the instance data encryption key (see InstanceConfig).
+model PageDocument {
+  pageId    String   @id
+  page      Page     @relation(fields: [pageId], references: [id])
+  state     Bytes
+  updatedAt DateTime @updatedAt
+}
+
+// Singleton row (id = 1) created by the first-run setup screen. Holds the
+// data encryption key (DEK), wrapped twice — never stored in plaintext:
+// - dekByPassword:  by a key derived from the master password (scrypt, kdfSalt/kdfParams)
+// - dekByServerKey: by YOSUGA_SERVER_KEY, so processes can unlock it on startup
+model InstanceConfig {
+  id             Int   @id @default(1)
+  kdfSalt        Bytes
+  kdfParams      Json
+  dekByPassword  Bytes
+  dekByServerKey Bytes
+
+  // Admin TOTP secret, encrypted with the DEK. Null until the first admin
+  // login enrolls an authenticator app.
+  totpSecret   Bytes?
+  // Last accepted TOTP time step, so a code can't be replayed.
+  totpLastStep Int?
+
+  // Public origin of the site (e.g. https://yosuga.example.com), used for links
+  // in emails and invitations. Null on instances set up before it existed.
+  publicUrl String?
+
+  // CIDRs allowed to reach /admin. Empty = no restriction.
+  adminIpAllowlist String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum AdminSessionStage {
+  // Master password verified, but no authenticator enrolled yet.
+  ENROLL_TOTP
+  // Fully authenticated (master password + TOTP).
+  ACTIVE
+}
+
+// Admin (/admin) sessions, separate from regular user sessions. The cookie
+// holds a random token; only its SHA-256 hash is stored here.
+model AdminSession {
+  tokenHash   String            @id
+  // The site admin (member of the site_admins group) who signed in.
+  // Null = signed in with the master password (bootstrap / recovery).
+  userId      String?
+  user        User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stage       AdminSessionStage
+  // TOTP secret being enrolled (ENROLL_TOTP stage only), encrypted with the DEK.
+  pendingTotp Bytes?
+  ip          String
+  userAgent   String?
+  createdAt   DateTime          @default(now())
+  lastSeenAt  DateTime          @default(now())
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+}
+
+// Every /admin login attempt, for rate limiting and the dashboard audit view.
+model AdminLoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  // Email entered for an account login; null for master password logins.
+  email     String?
+  success   Boolean
+  // e.g. "bad_credentials", "locked", "ip_denied"
+  reason    String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+  @@index([createdAt])
+}
+
+// Regular user sessions (separate from AdminSession). The cookie holds a
+// random token; only its SHA-256 hash is stored here.
+model UserSession {
+  tokenHash  String   @id
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip         String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Sign-up is invitation-only. Issued from /admin; the link carries a random
+// token and only its SHA-256 hash is stored. Single use.
+model Invitation {
+  id        String     @id @default(cuid())
+  tokenHash String     @unique
+  // If set, only this email address may use the invitation.
+  email     String?
+  role      MemberRole
+
+  // Either an existing workspace to join, or (workspaceId null) a new
+  // workspace named newWorkspaceName that the invitee will own.
+  workspaceId      String?
+  workspace        Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  newWorkspaceName String?
+
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  usedById  String?
+  usedBy    User?     @relation(fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([expiresAt])
+}
+
+// Every user login attempt, for rate limiting.
+model UserLoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  email     String
+  success   Boolean
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+  @@index([email, createdAt])
+}
+
+enum SmtpSecurity {
+  // Plain connection; never upgrade (only for trusted local relays).
+  NONE
+  // Plain connection upgraded with STARTTLS (usually port 587). Fails if the
+  // server doesn't offer it, rather than silently sending in plaintext.
+  STARTTLS
+  // TLS from the first byte (usually port 465).
+  TLS
+}
+
+// Outgoing mail (SMTP) settings, edited from /admin. Singleton row (id = 1).
+model MailSettings {
+  id          Int          @id @default(1)
+  fromAddress String
+  fromName    String?
+  host        String
+  port        Int
+  security    SmtpSecurity
+  authEnabled Boolean      @default(false)
+  username    String?
+  // SMTP password, encrypted with the DEK. Never sent back to the browser.
+  passwordEnc Bytes?
+  updatedAt   DateTime     @updatedAt
+}
+
+// Site-wide user groups, managed from /admin.
+model Group {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  // Set on built-in groups the app relies on (e.g. "site_admins"). Built-in
+  // groups can't be deleted.
+  systemKey   String?  @unique
+  createdAt   DateTime @default(now())
+
+  members GroupMember[]
+}
+
+model GroupMember {
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([groupId, userId])
+  @@index([userId])
+}

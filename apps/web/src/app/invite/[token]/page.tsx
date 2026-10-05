@@ -1,0 +1,64 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { MIN_PASSWORD_LENGTH, isSetupComplete } from "shared";
+import { prisma } from "@/lib/db";
+import { findValidInvitation } from "@/lib/auth/invitations";
+import { getCurrentUser } from "@/lib/auth/session";
+import styles from "@/styles/ui.module.css";
+import { AcceptForm, RegisterForm } from "./invite-forms";
+
+export const metadata: Metadata = {
+  title: "招待 | yosuga",
+  robots: { index: false, follow: false },
+};
+
+const ROLE_LABELS = { OWNER: "オーナー", ADMIN: "管理者", MEMBER: "メンバー", GUEST: "ゲスト（閲覧のみ）" };
+
+export default async function InvitePage({ params }: PageProps<"/invite/[token]">) {
+  if (!(await isSetupComplete(prisma))) redirect("/setup");
+  const { token } = await params;
+  const invitation = await findValidInvitation(token);
+
+  if (!invitation) {
+    return (
+      <main className={styles.narrow}>
+        <h1 className={styles.title}>招待リンクが無効です</h1>
+        <p className={styles.lead}>
+          このリンクは使用済みか、期限が切れています。管理者に新しいリンクを依頼してください。
+        </p>
+        <Link href="/login">ログイン画面へ</Link>
+      </main>
+    );
+  }
+
+  const workspaceName = invitation.workspace?.name ?? invitation.newWorkspaceName ?? "";
+  const description = invitation.workspace
+    ? `ワークスペース「${workspaceName}」に${ROLE_LABELS[invitation.role]}として招待されています。`
+    : `新しいワークスペース「${workspaceName}」のオーナーとして招待されています。`;
+
+  const user = await getCurrentUser();
+  return (
+    <main className={styles.narrow}>
+      <h1 className={styles.title}>yosuga への招待</h1>
+      <p className={styles.lead}>{description}</p>
+      {user ? (
+        <>
+          <p className={styles.lead}>
+            {user.name ?? user.email} としてログインしています。
+          </p>
+          <AcceptForm token={token} />
+        </>
+      ) : (
+        <>
+          <RegisterForm token={token} email={invitation.email} minLength={MIN_PASSWORD_LENGTH} />
+          <p className={styles.note} style={{ marginTop: 24 }}>
+            すでにアカウントをお持ちの場合は、
+            <Link href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}>ログイン</Link>
+            してから、このリンクをもう一度開いてください。
+          </p>
+        </>
+      )}
+    </main>
+  );
+}
