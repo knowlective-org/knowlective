@@ -61,5 +61,5 @@ export function CollaborativeEditor({
     [provider],
   );
 
-  return <BlockNoteView editor={editor} editable={!readOnly} />;
+  return <BlockNoteView editor={editor} editable={!readOnly} theme="light" />;
 }
