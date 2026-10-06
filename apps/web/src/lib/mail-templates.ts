@@ -6,18 +6,17 @@ type Mail = { subject: string; text: string };
 export function invitationMail(input: {
   link: string;
   inviterName: string;
-  rootName: string;
-  isNewRoot: boolean;
-  roleLabel: string;
+  siteRoleLabel: string;
+  groupNames: string[];
   ttlDays: number;
 }): Mail {
-  const what = input.isNewRoot
-    ? `新しいナレッジルート「${input.rootName}」のオーナー`
-    : `ナレッジルート「${input.rootName}」の${input.roleLabel}`;
   return {
     subject: "yosuga への招待",
     text: [
-      `${input.inviterName} から、yosuga の${what}として招待されました。`,
+      `${input.inviterName} から、yosuga に${input.siteRoleLabel}として招待されました。`,
+      ...(input.groupNames.length > 0
+        ? [`登録すると、次のグループに参加します: ${input.groupNames.join("、")}`]
+        : []),
       "",
       "次のリンクを開いて、アカウントを登録してください。",
       input.link,

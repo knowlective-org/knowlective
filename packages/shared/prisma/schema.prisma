@@ -19,11 +19,12 @@ enum SiteRole {
   USER
 }
 
-enum MemberRole {
-  OWNER
-  ADMIN
-  MEMBER
-  GUEST
+// What a group may do with a page and (by inheritance) its descendants.
+// MANAGE also allows changing the tree's group grants.
+enum PageAccess {
+  VIEW
+  EDIT
+  MANAGE
 }
 
 model User {
@@ -33,11 +34,10 @@ model User {
   passwordHash String
   createdAt    DateTime  @default(now())
   // Set when an admin disables the account: no login, sessions ended,
-  // collab access refused. Memberships are kept so re-enabling restores access.
+  // collab access refused. Group memberships are kept so re-enabling restores access.
   disabledAt   DateTime?
   siteRole     SiteRole  @default(USER)
 
-  memberships     KnowledgeRootMember[]
   pages           Page[]
   sessions        UserSession[]
   usedInvitations Invitation[]
@@ -68,24 +68,9 @@ model KnowledgeRoot {
   rootPage   Page?    @relation("KnowledgeRootPage", fields: [rootPageId], references: [id], onDelete: Restrict)
   createdAt  DateTime @default(now())
 
-  members     KnowledgeRootMember[]
   // Every page in the tree, including the root page.
-  pages       Page[]                @relation("KnowledgeRootPages")
-  invitations Invitation[]
-  files       FileObject[]
-}
-
-model KnowledgeRootMember {
-  id        String     @id @default(cuid())
-  role      MemberRole @default(MEMBER)
-  createdAt DateTime   @default(now())
-
-  userId String
-  user   User          @relation(fields: [userId], references: [id])
-  rootId String
-  root   KnowledgeRoot @relation(fields: [rootId], references: [id])
-
-  @@unique([userId, rootId])
+  pages Page[]       @relation("KnowledgeRootPages")
+  files FileObject[]
 }
 
 // Page hierarchy / metadata lives here. The actual block content lives in the
@@ -114,6 +99,7 @@ model Page {
   createdBy   User   @relation(fields: [createdById], references: [id])
 
   document PageDocument?
+  grants   PageGrant[]
   files    FileObject[]
 
   @@index([rootId])
@@ -223,17 +209,13 @@ model UserSession {
 // Sign-up is invitation-only. Issued from /admin; the link carries a random
 // token and only its SHA-256 hash is stored. Single use.
 model Invitation {
-  id        String     @id @default(cuid())
-  tokenHash String     @unique
+  id        String  @id @default(cuid())
+  tokenHash String  @unique
   // If set, only this email address may use the invitation.
   email     String?
-  role      MemberRole
 
-  // Either an existing knowledge root to join, or (rootId null) a new
-  // knowledge root whose root page is titled newRootName, owned by the invitee.
-  rootId      String?
-  root        KnowledgeRoot? @relation(fields: [rootId], references: [id], onDelete: Cascade)
-  newRootName String?
+  // Groups the invitee joins on accepting. Page access comes only from these.
+  groups InvitationGroup[]
 
   // Site role given to the account created from this invitation.
   siteRole SiteRole @default(USER)
@@ -293,7 +275,9 @@ model Group {
   description String?
   createdAt   DateTime @default(now())
 
-  members GroupMember[]
+  members     GroupMember[]
+  grants      PageGrant[]
+  invitations InvitationGroup[]
 }
 
 model GroupMember {
@@ -347,4 +331,31 @@ model FileObject {
   createdAt    DateTime      @default(now())
 
   @@index([rootId])
+}
+
+// Grants a group access to a page and, by inheritance, its descendants.
+// Page access comes only from these — never from individual users or site
+// roles. For one group, the grant nearest the page (walking up) wins, so a
+// lower grant can narrow access (e.g. EDIT on the root, VIEW on a subtree).
+// Across a user's groups the strongest access wins. See packages/shared/src/permissions.ts.
+model PageGrant {
+  id        String     @id @default(cuid())
+  pageId    String
+  page      Page       @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  access    PageAccess
+  createdAt DateTime   @default(now())
+
+  @@unique([pageId, groupId])
+  @@index([groupId])
+}
+
+model InvitationGroup {
+  invitationId String
+  invitation   Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  groupId      String
+  group        Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([invitationId, groupId])
 }

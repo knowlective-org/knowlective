@@ -7,17 +7,18 @@ import styles from "./doc-tree.module.css";
 
 export type DocTreeNode = { id: string; title: string; icon: string | null; parentId: string | null };
 
-// The page tree of one knowledge root, shown as its root page with nested
-// children. Ancestors of the current page start expanded.
+// The visible part of one knowledge root's page tree. It starts at the
+// entry pages (the root page, and/or subtrees shared without their parent).
+// Ancestors of the current page start expanded.
 export function DocTree({
   nodes,
-  rootPageId,
+  entryIds,
   currentPageId,
   currentTitle,
   maxDepth,
 }: {
   nodes: DocTreeNode[];
-  rootPageId: string;
+  entryIds: string[];
   currentPageId: string;
   // Live title of the open page, so renaming shows here before it's saved.
   currentTitle?: string;
@@ -34,7 +35,7 @@ export function DocTree({
   }, [nodes]);
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
-    const open = new Set<string>([rootPageId]);
+    const open = new Set<string>(entryIds);
     // Walk up from the current page; the depth cap also stops a corrupted cycle.
     let cursor = byId.get(currentPageId)?.parentId ?? null;
     for (let i = 0; cursor && i <= maxDepth; i++) {
@@ -52,8 +53,8 @@ export function DocTree({
       return next;
     });
 
-  const root = byId.get(rootPageId);
-  if (!root) return null;
+  const entries = entryIds.map((id) => byId.get(id)).filter((n): n is DocTreeNode => !!n);
+  if (entries.length === 0) return null;
 
   const renderNode = (node: DocTreeNode, depth: number, seen: Set<string>) => {
     const children = (childrenOf.get(node.id) ?? []).filter((c) => !seen.has(c.id));
@@ -96,7 +97,7 @@ export function DocTree({
 
   return (
     <nav aria-label="ドキュメントツリー">
-      <ul className={styles.list}>{renderNode(root, 0, new Set([root.id]))}</ul>
+      <ul className={styles.list}>{entries.map((e) => renderNode(e, 0, new Set([e.id])))}</ul>
     </nav>
   );
 }

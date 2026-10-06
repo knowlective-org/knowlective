@@ -1,35 +1,22 @@
+import { getPageAccess } from "shared";
 import { prisma } from "@/lib/db";
-import { rootName, rootNameSelect } from "@/lib/knowledge-roots";
 
-// The page plus the viewer's role in its knowledge root, or null if the page
-// doesn't exist, is deleted, or the user isn't a member of its knowledge root.
+// The page plus the viewer's access to it (from group grants), or null if the
+// page doesn't exist, is deleted, or none of the user's groups grants it.
 // Callers should treat null as "not found" so page ids can't be probed.
 export async function findAccessiblePage(userId: string, pageId: string) {
-  const page = await prisma.page.findFirst({
-    where: {
-      id: pageId,
-      deletedAt: null,
-      root: { members: { some: { userId } } },
-    },
-    select: {
-      id: true,
-      title: true,
-      root: {
-        select: {
-          id: true,
-          rootPageId: true,
-          ...rootNameSelect,
-          members: { where: { userId }, select: { role: true } },
-        },
-      },
-    },
+  const result = await getPageAccess(prisma, userId, pageId);
+  if (!result) return null;
+  const page = await prisma.page.findUnique({
+    where: { id: pageId },
+    select: { id: true, title: true, root: { select: { id: true, rootPageId: true } } },
   });
   if (!page) return null;
   return {
     id: page.id,
     title: page.title,
+    access: result.access,
     isRootPage: page.root.rootPageId === page.id,
-    root: { id: page.root.id, name: rootName(page.root), rootPageId: page.root.rootPageId },
-    role: page.root.members[0].role,
+    root: page.root,
   };
 }

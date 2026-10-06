@@ -5,7 +5,9 @@ import { Database } from "@hocuspocus/extension-database";
 import { Redis } from "@hocuspocus/extension-redis";
 import crossws from "crossws/adapters/node";
 import {
+  atLeast,
   createPrismaClient,
+  getPageAccess,
   decrypt,
   encrypt,
   isSetupComplete,
@@ -74,9 +76,9 @@ export async function createCollab() {
       if (page?.title && text.length === 0) text.insert(0, page.title);
     },
     // The token is minted by getCollabToken (src/app/(app)/actions.ts) for a
-    // logged-in user and a single page. Membership is re-checked here so
-    // removal from a knowledge root takes effect on the next connection, not when
-    // the token expires.
+    // logged-in user and a single page. Access is re-checked here (group
+    // grants, disabled account) so a revoked grant takes effect on the next
+    // connection, not when the token expires.
     async onAuthenticate({ token, documentName, connectionConfig }) {
       // Without setup there is no data key, so nothing could be loaded or saved.
       if (!(await isSetupComplete(prisma))) {
@@ -86,18 +88,12 @@ export async function createCollab() {
       if (!payload || payload.p !== documentName) {
         throw new Error("Invalid collab token");
       }
-      const member = await prisma.knowledgeRootMember.findFirst({
-        where: {
-          userId: payload.u,
-          user: { disabledAt: null },
-          root: { pages: { some: { id: documentName, deletedAt: null } } },
-        },
-        select: { role: true },
-      });
-      if (!member) {
-        throw new Error("Not a member of this page's knowledge root");
+      const result = await getPageAccess(prisma, payload.u, documentName);
+      if (!result) {
+        throw new Error("No access to this page");
       }
-      if (member.role === "GUEST") {
+      // VIEW: the server drops any update this connection sends.
+      if (!atLeast(result.access, "EDIT")) {
         connectionConfig.readOnly = true;
       }
       return { userId: payload.u };

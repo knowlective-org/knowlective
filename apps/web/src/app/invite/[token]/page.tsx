@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { MIN_PASSWORD_LENGTH, isSetupComplete } from "shared";
 import { prisma } from "@/lib/db";
 import { findValidInvitation } from "@/lib/auth/invitations";
-import { rootName } from "@/lib/knowledge-roots";
+import { SITE_ROLE_LABELS } from "@/lib/roles";
 import { getCurrentUser } from "@/lib/auth/session";
 import styles from "@/styles/ui.module.css";
 import { AcceptForm, RegisterForm } from "./invite-forms";
@@ -14,7 +14,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const ROLE_LABELS = { OWNER: "オーナー", ADMIN: "管理者", MEMBER: "メンバー", GUEST: "ゲスト（閲覧のみ）" };
 
 export default async function InvitePage({ params }: PageProps<"/invite/[token]">) {
   if (!(await isSetupComplete(prisma))) redirect("/setup");
@@ -33,10 +32,10 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
     );
   }
 
-  const name = invitation.root ? rootName(invitation.root) : (invitation.newRootName ?? "");
-  const description = invitation.root
-    ? `ナレッジルート「${name}」に${ROLE_LABELS[invitation.role]}として招待されています。`
-    : `新しいナレッジルート「${name}」のオーナーとして招待されています。`;
+  const groupNames = invitation.groups.map((g) => `「${g.group.name}」`).join("");
+  const description =
+    `${SITE_ROLE_LABELS[invitation.siteRole]}として招待されています。` +
+    (groupNames ? `登録すると、グループ${groupNames}に参加します。` : "");
 
   const user = await getCurrentUser();
   return (
@@ -46,7 +45,7 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
       {user ? (
         <>
           <p className={styles.lead}>
-            {user.name ?? user.email} としてログインしています。
+            {user.name ?? user.email} としてログインしています。参加すると、招待のグループに追加されます（ロールは変わりません）。
           </p>
           <AcceptForm token={token} />
         </>

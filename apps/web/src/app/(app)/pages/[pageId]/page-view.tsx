@@ -14,14 +14,15 @@ export function PageView({
   readOnly,
   user,
   tree,
-  rootPageId,
+  entryIds,
   maxDepth,
 }: {
   pageId: string;
   readOnly: boolean;
   user: { id: string; name: string };
   tree: DocTreeNode[];
-  rootPageId: string;
+  // Where the visible tree starts (the root page, and/or shared subtrees).
+  entryIds: string[];
   maxDepth: number;
 }) {
   const [liveTitle, setLiveTitle] = useState<string | undefined>(undefined);
@@ -34,7 +35,7 @@ export function PageView({
         </Link>
         <DocTree
           nodes={tree}
-          rootPageId={rootPageId}
+          entryIds={entryIds}
           currentPageId={pageId}
           currentTitle={liveTitle}
           maxDepth={maxDepth}

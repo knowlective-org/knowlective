@@ -4,7 +4,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { requireUser } from "@/lib/auth/session";
-import { MAX_PAGE_DEPTH } from "@/lib/knowledge-roots";
+import { MAX_PAGE_DEPTH, atLeast, getVisibleTree } from "shared";
 import { displayTitle } from "@/lib/page-title";
 import { PageView } from "./page-view";
 
@@ -22,24 +22,21 @@ export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">)
 
 export default async function PageEditorRoute({ params }: PageProps<"/pages/[pageId]">) {
   const { user, page } = await loadPage((await params).pageId);
-  if (!page || !page.root.rootPageId) notFound();
+  if (!page) notFound();
 
-  // Whole tree of this knowledge root for the sidebar (bounded by MAX_PAGE_DEPTH).
-  const tree = await prisma.page.findMany({
-    where: { rootId: page.root.id, deletedAt: null },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, title: true, icon: true, parentId: true },
-  });
+  // The part of this knowledge root the user can see, for the sidebar.
+  const tree = await getVisibleTree(prisma, user.id, page.root.id);
+  if (!tree) notFound();
 
   return (
     <PageView
       // Remount per page so the editor's collab connection is replaced cleanly.
       key={page.id}
       pageId={page.id}
-      readOnly={page.role === "GUEST"}
+      readOnly={!atLeast(page.access, "EDIT")}
       user={{ id: user.id, name: user.name ?? user.email }}
-      tree={tree}
-      rootPageId={page.root.rootPageId}
+      tree={tree.pages}
+      entryIds={tree.entryIds}
       maxDepth={MAX_PAGE_DEPTH}
     />
   );

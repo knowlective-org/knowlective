@@ -44,7 +44,7 @@ Next.jsは自分のディレクトリの `.env*` しか読まない。ルート�
 pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同じポートの /collab）
 ```
 
-デモ: `/admin` でデモのナレッジルートへの招待リンクを発行して自分を登録し、`/pages/demo` を2つのタブで開く。片方で入力するともう片方に反映される（ページはナレッジルートのメンバーしか開けない）。
+デモ: `/admin` で「Demo 管理」グループに入る招待リンクを発行して自分を登録し、`/pages/demo` を2つのタブで開く。片方で入力するともう片方に反映される（ページは権限のあるグループのメンバーしか開けない）。
 
 ## 実装上の注意（ハマりどころ）
 
@@ -68,25 +68,26 @@ pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同
 - **ロールとグループ**: サイト全体の権限は `User.siteRole`（SITE_ADMIN / CONTENT_MANAGER / USER、`apps/web/src/lib/roles.ts`）。グループ（`Group` / `GroupMember`）はページツリーの権限を付けるためだけのもので、ロールをグループで表さない（旧「サイト管理者」グループは廃止）。ページを見られるかどうかはロールで決めない（SITE_ADMIN でも権限がなければ見られない）。管理画面のページと Server Action は `requireAdmin(許可するロール)` を呼ぶ（既定は両方。設定まわりは `["SITE_ADMIN"]`）。マスターパスワードでのログイン（`AdminSession.userId` が null）は SITE_ADMIN 扱い。`requireAdmin()` は毎回ロールと無効化を確認し直す。コンテンツ管理者が招待できるのは CONTENT_MANAGER / USER だけ（`invitableRoles()`）。最後の有効な SITE_ADMIN は降格・無効化できない。ユーザーごとの TOTP 秘密鍵は `User.totpSecret`（AAD にユーザー id を含めて暗号化）。
 - **管理画面のページ構成**: `apps/web/src/app/admin/(console)/` の layout はナビゲーションだけで、守りは各ページと Server Action の `requireAdmin()`。更新後は `revalidatePath("/admin", "layout")` で管理画面全体を再検証する。
 - **接続元 IP**: Next.js は `X-Forwarded-For` が無いときしか接続元を入れない（`??=`）。そのため右から `YOSUGA_TRUSTED_PROXY_HOPS` 番目を採用している（`apps/web/src/lib/admin/ip.ts`）。リバースプロキシなしで公開すると偽装できる。
-- **ナレッジルート**（旧ワークスペース。画面上の名前は「ナレッジルート」）: DB では入れ物 `KnowledgeRoot`（メンバー・権限・招待を持つ）と、そのルートページを別々に持ち、画面上はルートページがナレッジルートとして見える。名前はルートページのタイトルで、入れ物には名前を持たせない（`rootName()`・`rootNameSelect`、`apps/web/src/lib/knowledge-roots.ts`）。`KnowledgeRoot.rootPageId` と `Page.rootId` が互いを参照するので、作成は必ず `createKnowledgeRoot()`（`packages/shared`）でトランザクション内で行う。`rootPageId` は DB 上は任意だが常にセットされ、ルートページは `ON DELETE RESTRICT` で削除できない。`parentId` が null なのはルートページだけ。すべてのページが `rootId` を持つので、権限確認で親をたどる必要はない（別のルートへ移動するときは配下もまとめて付け替える）。ページの階層の上限は `MAX_PAGE_DEPTH`（50）。ページの作成・移動の処理を作るときは、上限と循環（自分や配下を親にしない）の確認を入れる。
+- **ナレッジルート**（旧ワークスペース。画面上の名前は「ナレッジルート」）: DB では入れ物 `KnowledgeRoot` と、そのルートページを別々に持ち、画面上はルートページがナレッジルートとして見える。名前はルートページのタイトルで、入れ物には名前を持たせない。`KnowledgeRoot.rootPageId` と `Page.rootId` が互いを参照するので、作成は必ず `createKnowledgeRoot()`（`packages/shared`）でトランザクション内で行う。`rootPageId` は DB 上は任意だが常にセットされ、ルートページは `ON DELETE RESTRICT` で削除できない。`parentId` が null なのはルートページだけ。すべてのページが `rootId` を持つので、権限の判定はナレッジルート1つ分の木を1回読めば済む（別のルートへ移動するときは配下もまとめて付け替える）。ページの階層の上限は `MAX_PAGE_DEPTH`（50、`packages/shared`）。ページの作成・移動の処理を作るときは、上限と循環（自分や配下を親にしない）の確認を入れる。
 - **ページタイトル**: タイトルは Yjs ドキュメントの `Y.Text("title")`（本文の BlockNote と同じドキュメント）に持ち、共同編集でその場で同期する。collab サーバーが保存時に `Page.title` へ書き戻す（サイドバー・ホーム・ナレッジルート名は DB の値を読む）。まだタイトルを持たないドキュメントは、読み込み時にサーバー側で `Page.title` から1回だけ入れる（クライアントが入れると、同時に開いた人の分だけ重複するため）。定数は `apps/web/src/lib/page-title.ts`（ブラウザと collab の両方から読むので依存を入れない）。
 - **ページ画面**: `(app)/pages/[pageId]/page-view.tsx` が、左のドキュメントツリー（`position: sticky`）と右のタイトル＋エディタを並べる。ページごとに `key={pageId}` で作り直し、エディタはアンマウント時に共同編集の接続を閉じる。
 - **ファイル添付**: `apps/web/src/lib/storage.ts`（S3 互換。`@aws-sdk/client-s3`、チェックサムは互換性のため必要なときだけ）。保存先は `StorageSettings`（id=1 の1行だけ）、なければ同梱の SeaweedFS（`SEAWEEDFS_*` 環境変数）。ファイルの中身はデータ鍵で暗号化（AAD はファイル id）。アップロードは `POST /api/files?pageId=`、配信は `GET /api/files/<id>`（Route Handler なので CSRF は自前で Origin を確認）。配信時は `INLINE_TYPES` 以外を必ず `attachment` + `application/octet-stream` にする（HTML・SVG をアプリのオリジンで実行させないため）。今はファイル全体をメモリに載せて暗号化するので、上限は `MAX_FILE_SIZE_MB_LIMIT`（500MB）。ページからブロックを消してもファイルは消えない（後で掃除の仕組みが必要）。MinIO は公式イメージの配布が止まったため使っていない。
 - **開発サーバーの動作中に `next build` を実行しないこと。** `.next` を作り直すので、動いている開発サーバーが使う `.next/dev` まで消え、全ページが 500 になる（`server/` のファイルを保存して再起動すれば直る）。型の確認は `tsc --noEmit` で行う。
-- **ユーザー認証**: 招待制。`apps/web/src/lib/auth/`（`session.ts` / `invitations.ts` / `pages.ts`）。ページと Server Action はそれぞれ `requireUser()` を呼ぶこと（`(app)/layout.tsx` はセットアップ済みかを見るだけ）。ページを開く権限は `findAccessiblePage()`（ナレッジルートのメンバーかどうか）で判定し、権限がなければ 404 にする。
+- **ページの権限**: `packages/shared/src/permissions.ts`。権限は必ずグループ経由（`PageGrant`：ページ × グループ × 閲覧/編集/管理）。個人やサイトのロールには付けない。同じグループは親へたどって最初の付与が効き（下位で絞れる）、複数グループは最も強いものが効く。判定は `getPageAccess()`、一覧は `getVisibleTrees()` / `getVisibleTree()`（親が見えない「入口」のページは `entryIds`）。web・collab・ファイル配信は必ずこれを使う。見えない親のタイトルやナレッジルート名を、子だけ見える人に出さないこと。
+- **ユーザー認証**: 招待制。`apps/web/src/lib/auth/`（`session.ts` / `invitations.ts` / `pages.ts`）。ページと Server Action はそれぞれ `requireUser()` を呼ぶこと（`(app)/layout.tsx` はセットアップ済みかを見るだけ）。ページを開く権限は `findAccessiblePage()` で判定し、権限がなければ 404 にする。
 - **公開 URL**: メールや招待リンクなど、サイトの外に出るリンクは必ず `getPublicUrl()`（`apps/web/src/lib/site-url.ts`）で組み立てる。Host ヘッダーはクライアントが自由に変えられるので、リクエストから組み立てない（`getRequestOrigin()` は入力欄の初期値と、未設定のときの代わりにだけ使う）。
 - **メール送信**: `apps/web/src/lib/mail.ts`（nodemailer 10。型は本体に同梱されているので `@types/nodemailer` は入れない）。設定は `MailSettings`（id=1 の1行だけ）、SMTP パスワードはデータ鍵で暗号化。送信は `sendMail()`、未設定なら `MailNotConfiguredError`。
 - **カスタムサーバー**（`apps/web/server/`）: `index.ts` が Next.js と共同編集を1つの HTTP サーバーで動かす。`env.ts` を必ず最初に import する（NODE_ENV と .env の読み込み）。`collab.ts` は Next.js にバンドルされないので、アプリ側（`src/lib/db.ts`）とは別の PrismaClient を持つ。Next.js は最初のリクエストで自前の upgrade リスナーを付け、開発時のホットリロード（`/_next/`）だけを処理し、ルートに一致しないパスの WebSocket には触らない。**`/collab` にページやルートを作らないこと**（作ると Next.js がその接続を切る）。tsx で動かすのは、`packages/shared` を TypeScript のまま使っているため。開発モードの Next.js は同じフォルダで2つ起動できない（2つ目はエラーで終了する）。
-- **collabの認証**: エディタは接続のたびに Server Action `getCollabToken()` で5分有効の署名付きトークン（ユーザー＋ページ）を受け取る。署名鍵は `YOSUGA_SERVER_KEY` から HKDF で導出（`packages/shared/src/collab-token.ts`）。collab の `onAuthenticate` は署名・期限・ページ一致を確認したうえで、DB でメンバーかどうかを再確認する。GUEST は読み取り専用。
+- **collabの認証**: エディタは接続のたびに Server Action `getCollabToken()` で5分有効の署名付きトークン（ユーザー＋ページ）を受け取る。署名鍵は `YOSUGA_SERVER_KEY` から HKDF で導出（`packages/shared/src/collab-token.ts`）。collab の `onAuthenticate` は署名・期限・ページ一致を確認したうえで、DB でページの権限を再確認する。閲覧のみなら読み取り専用。
 
 ## 現在の状況
 
 完了:
-- モノレポ構成、Prismaスキーマ（User / KnowledgeRoot / KnowledgeRootMember / Page / PageDocument ほか）、Docker Compose
+- モノレポ構成、Prismaスキーマ（User / KnowledgeRoot / Page / PageGrant / Group ほか）、Docker Compose
 - BlockNote + Yjs + Hocuspocus のエンドツーエンド疎通（ブラウザとNodeクライアントの双方で、編集がCRDTでマージされPostgresに保存されることを確認済み）
 - `pnpm build`（web / shared）が通る
 - 初回アクセス時のマスターパスワード設定と、データ鍵の生成・ページ本文の暗号化（`/setup`、`pnpm rotate-server-key`）
-- ユーザーのログイン（招待制）、collab の認証（署名付きトークン＋メンバー確認、GUEST は読み取り専用）
+- ユーザーのログイン（招待制）、collab の認証（署名付きトークン＋ページ権限の確認、閲覧のみは読み取り専用）
 - メール送信の設定（SMTP）とテスト送信（`/admin`）
 - サイト全体のグループと、組み込みの「サイト管理者」グループ（自分のアカウント＋TOTP で /admin に入れる）
 - 管理画面 `/admin`: マスターパスワード＋TOTP、ログイン回数制限、管理画面専用セッション、IP 制限、復旧コマンド `pnpm admin:recover`
@@ -94,7 +95,7 @@ pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同
 未着手（次の候補）:
 - ページ作成・一覧・階層のCRUD APIルート（`apps/web`）
 - パスワードの再設定（メール送信は実装済み。再設定メールの送信と、メール未設定時に管理画面から再設定リンクを発行する手段）
-- ナレッジルートのオーナー・管理者によるアプリ内からの招待（今は /admin からのみ）
+- ナレッジルートの作成画面、ページの「共有」（グループ権限の設定）画面、コンテンツ管理者のグループ編集の制限、権限変更の記録（計画の3段階目）
 - ページの作成・一覧・階層の CRUD
 - ナレッジルートの権限モデル
 - 添付ファイルの掃除（ブロックを消したファイルの削除）と、大きいファイル向けのストリーミング暗号化

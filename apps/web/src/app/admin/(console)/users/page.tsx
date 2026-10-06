@@ -1,10 +1,9 @@
 import type { SiteRole } from "shared";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
-import { ROLE_LABELS, dateFormat } from "@/lib/admin/format";
+import { dateFormat } from "@/lib/admin/format";
 import { INVITATION_TTL_DAYS, listPendingInvitations } from "@/lib/auth/invitations";
 import { isMailConfigured } from "@/lib/mail";
-import { listKnowledgeRoots, rootName, rootNameSelect } from "@/lib/knowledge-roots";
 import { SITE_ROLES, SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
 import styles from "@/styles/ui.module.css";
 import { revokeInvitation } from "../actions";
@@ -40,8 +39,8 @@ function userMenu(u: UserRow): RowMenuItem[] {
 export default async function AdminUsersPage({ searchParams }: PageProps<"/admin/users">) {
   const { session, role } = await requireAdmin();
   const isSiteAdmin = role === "SITE_ADMIN";
-  const [roots, invitations, users, mailConfigured] = await Promise.all([
-    listKnowledgeRoots(),
+  const [groups, invitations, users, mailConfigured] = await Promise.all([
+    prisma.group.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true, description: true } }),
     listPendingInvitations(),
     // The user list (roles, disabling) is for site admins only.
     isSiteAdmin
@@ -54,7 +53,6 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
             siteRole: true,
             createdAt: true,
             disabledAt: true,
-            memberships: { select: { role: true, root: { select: rootNameSelect } } },
             groups: { select: { group: { select: { name: true } } } },
           },
         })
@@ -68,7 +66,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>ユーザーの招待</h2>
         <InvitationForm
-          roots={roots}
+          groups={groups}
           ttlDays={INVITATION_TTL_DAYS}
           mailConfigured={mailConfigured}
           siteRoles={invitableRoles(role).map((r) => ({ value: r, label: SITE_ROLE_LABELS[r] }))}
@@ -79,8 +77,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
               <thead>
                 <tr>
                   <th>ロール</th>
-                  <th>招待先</th>
-                  <th>権限</th>
+                  <th>参加するグループ</th>
                   <th>宛先</th>
                   <th>期限</th>
                   <th />
@@ -90,8 +87,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
                 {invitations.map((inv) => (
                   <tr key={inv.id}>
                     <td>{SITE_ROLE_LABELS[inv.siteRole]}</td>
-                    <td>{inv.root ? rootName(inv.root) : `（新規）${inv.newRootName}`}</td>
-                    <td>{ROLE_LABELS[inv.role]}</td>
+                    <td>{inv.groups.map((g) => g.group.name).join("、") || "-"}</td>
                     <td>{inv.email ?? "指定なし"}</td>
                     <td>{dateFormat.format(inv.expiresAt)}</td>
                     <td>
@@ -125,7 +121,6 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
                   <th>表示名</th>
                   <th>メールアドレス</th>
                   <th>ロール</th>
-                  <th>ナレッジルート</th>
                   <th>グループ</th>
                   <th>登録日</th>
                   <th />
@@ -140,11 +135,6 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
                     </td>
                     <td>{u.email}</td>
                     <td>{SITE_ROLE_LABELS[u.siteRole]}</td>
-                    <td>
-                      {u.memberships
-                        .map((m) => `${rootName(m.root)}（${ROLE_LABELS[m.role]}）`)
-                        .join("、") || "-"}
-                    </td>
                     <td>{u.groups.map((g) => g.group.name).join("、") || "-"}</td>
                     <td>{dateFormat.format(u.createdAt)}</td>
                     <td>

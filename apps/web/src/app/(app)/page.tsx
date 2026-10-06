@@ -1,23 +1,22 @@
 import Link from "next/link";
+import { MAX_PAGE_DEPTH, getVisibleTrees, type VisiblePage } from "shared";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
-import { MAX_PAGE_DEPTH } from "@/lib/knowledge-roots";
+import { displayTitle } from "@/lib/page-title";
 import styles from "@/styles/ui.module.css";
 import { logout } from "./actions";
 
-type TreePage = { id: string; title: string; icon: string | null; parentId: string | null };
-
-function PageLink({ page }: { page: TreePage }) {
+function PageLink({ page }: { page: VisiblePage }) {
   return (
     <Link href={`/pages/${page.id}`} style={{ textDecoration: "underline" }}>
       {page.icon ? `${page.icon} ` : ""}
-      {page.title}
+      {displayTitle(page.title)}
     </Link>
   );
 }
 
-// Nested list of a page's descendants. `seen` and the depth cap keep a
-// corrupted tree (cycle, runaway depth) from rendering forever.
+// Nested list of a page's visible descendants. `seen` and the depth cap keep
+// a corrupted tree (cycle, runaway depth) from rendering forever.
 function PageTree({
   parentId,
   childrenOf,
@@ -25,7 +24,7 @@ function PageTree({
   seen,
 }: {
   parentId: string;
-  childrenOf: Map<string, TreePage[]>;
+  childrenOf: Map<string, VisiblePage[]>;
   depth: number;
   seen: Set<string>;
 }) {
@@ -44,25 +43,36 @@ function PageTree({
   );
 }
 
+function Entry({ page, childrenOf, asHeading }: { page: VisiblePage; childrenOf: Map<string, VisiblePage[]>; asHeading: boolean }) {
+  return (
+    <section className={styles.section} style={asHeading ? undefined : { marginBottom: 16 }}>
+      <h2 className={styles.sectionTitle} style={asHeading ? undefined : { fontSize: 16 }}>
+        <PageLink page={page} />
+      </h2>
+      <PageTree parentId={page.id} childrenOf={childrenOf} depth={1} seen={new Set([page.id])} />
+    </section>
+  );
+}
+
 export default async function Home() {
   const user = await requireUser("/");
-  const memberships = await prisma.knowledgeRootMember.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "asc" },
-    select: {
-      root: {
-        select: {
-          id: true,
-          rootPageId: true,
-          pages: {
-            where: { deletedAt: null },
-            orderBy: { createdAt: "asc" },
-            select: { id: true, title: true, icon: true, parentId: true },
-          },
-        },
-      },
-    },
-  });
+  // Only pages the user's groups grant are listed (site roles grant nothing).
+  const trees = await getVisibleTrees(prisma, user.id);
+
+  const roots: { page: VisiblePage; childrenOf: Map<string, VisiblePage[]> }[] = [];
+  // Visible pages whose parent isn't visible (e.g. a grant on a subtree).
+  // Their root's name isn't shown: the user can't see the root page.
+  const shared: { page: VisiblePage; childrenOf: Map<string, VisiblePage[]> }[] = [];
+  for (const tree of trees) {
+    const childrenOf = new Map<string, VisiblePage[]>();
+    for (const p of tree.pages) {
+      if (p.parentId) childrenOf.set(p.parentId, [...(childrenOf.get(p.parentId) ?? []), p]);
+    }
+    for (const id of tree.entryIds) {
+      const page = tree.pages.find((p) => p.id === id)!;
+      (id === tree.rootPageId ? roots : shared).push({ page, childrenOf });
+    }
+  }
 
   return (
     <main className={styles.wide}>
@@ -78,36 +88,20 @@ export default async function Home() {
         </form>
       </header>
 
-      {memberships.length === 0 && (
-        <p className={styles.lead}>参加しているナレッジルートはまだありません。</p>
+      {roots.length === 0 && shared.length === 0 && (
+        <p className={styles.lead}>見られるページはまだありません。グループに追加されると、ここに表示されます。</p>
       )}
-      {memberships.map(({ root }) => {
-        // A knowledge root is shown as its root page.
-        const rootPage = root.pages.find((p) => p.id === root.rootPageId);
-        if (!rootPage) return null;
-        const childrenOf = new Map<string, TreePage[]>();
-        for (const page of root.pages) {
-          if (!page.parentId) continue;
-          childrenOf.set(page.parentId, [...(childrenOf.get(page.parentId) ?? []), page]);
-        }
-        return (
-          <section key={root.id} className={styles.section}>
-            <h2 className={styles.sectionTitle}>
-              <PageLink page={rootPage} />
-            </h2>
-            {childrenOf.has(rootPage.id) ? (
-              <PageTree
-                parentId={rootPage.id}
-                childrenOf={childrenOf}
-                depth={1}
-                seen={new Set([rootPage.id])}
-              />
-            ) : (
-              <p className={styles.note}>子ページはまだありません。</p>
-            )}
-          </section>
-        );
-      })}
+      {roots.map(({ page, childrenOf }) => (
+        <Entry key={page.id} page={page} childrenOf={childrenOf} asHeading />
+      ))}
+      {shared.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>共有されたページ</h2>
+          {shared.map(({ page, childrenOf }) => (
+            <Entry key={page.id} page={page} childrenOf={childrenOf} asHeading={false} />
+          ))}
+        </section>
+      )}
     </main>
   );
 }

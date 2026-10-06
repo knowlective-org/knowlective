@@ -6,13 +6,6 @@ export const dateFormat = new Intl.DateTimeFormat("ja-JP", {
   timeZone: process.env.TZ || "Asia/Tokyo",
 });
 
-export const ROLE_LABELS: Record<string, string> = {
-  OWNER: "オーナー",
-  ADMIN: "管理者",
-  MEMBER: "メンバー",
-  GUEST: "ゲスト",
-};
-
 export const REASON_LABELS: Record<string, string> = {
   bad_credentials: "認証失敗",
   locked: "ロック中",

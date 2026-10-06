@@ -7,19 +7,19 @@ import { issueInvitation, type InvitationState } from "./actions";
 const initialState: InvitationState = {};
 
 export function InvitationForm({
-  roots,
+  groups,
   ttlDays,
   mailConfigured,
   siteRoles,
 }: {
-  roots: { id: string; name: string }[];
+  // Groups the invitee can be added to (page access comes only from groups).
+  groups: { id: string; name: string; description: string | null }[];
   ttlDays: number;
   mailConfigured: boolean;
   // Roles the signed-in admin may hand out, with labels.
   siteRoles: { value: string; label: string }[];
 }) {
   const [state, formAction, pending] = useActionState(issueInvitation, initialState);
-  const [target, setTarget] = useState(roots[0]?.id ?? "__new__");
   const [copied, setCopied] = useState(false);
   const [sendEmail, setSendEmail] = useState(mailConfigured);
 
@@ -36,37 +36,22 @@ export function InvitationForm({
             ))}
           </select>
         </label>
-        <label>
-          招待先
-          <select
-            name="root"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            className={styles.field}
-          >
-            {roots.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-            <option value="__new__">＋ 新しいナレッジルートを作る（招待した人がオーナー）</option>
-          </select>
-        </label>
-        {target === "__new__" ? (
-          <label>
-            新しいナレッジルートの名前
-            <input type="text" name="newRootName" required className={styles.field} />
-          </label>
-        ) : (
-          <label>
-            権限
-            <select name="role" defaultValue="MEMBER" className={styles.field}>
-              <option value="ADMIN">管理者</option>
-              <option value="MEMBER">メンバー</option>
-              <option value="GUEST">ゲスト（閲覧のみ）</option>
-            </select>
-          </label>
-        )}
+        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend style={{ marginBottom: 6 }}>参加するグループ（任意。ページを見る権限はグループで決まります）</legend>
+          {groups.length === 0 ? (
+            <p className={styles.note}>グループがまだありません。「グループ」で作成できます。</p>
+          ) : (
+            <div style={{ display: "grid", gap: 4 }}>
+              {groups.map((g) => (
+                <label key={g.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input type="checkbox" name="groupIds" value={g.id} />
+                  {g.name}
+                  {g.description && <span className={styles.note}>— {g.description}</span>}
+                </label>
+              ))}
+            </div>
+          )}
+        </fieldset>
         <label>
           メールアドレス（{sendEmail ? "必須" : "任意"}。指定するとこのアドレスでしか登録できない）
           <input type="email" name="email" required={sendEmail} className={styles.field} />

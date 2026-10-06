@@ -5,10 +5,10 @@ export { PrismaClient, Prisma } from "@prisma/client";
 export type {
   User,
   KnowledgeRoot,
-  KnowledgeRootMember,
   Page,
   PageDocument,
-  MemberRole,
+  PageAccess,
+  PageGrant,
   SiteRole,
   InstanceConfig,
   AdminSession,
@@ -26,6 +26,17 @@ export type {
 } from "@prisma/client";
 export { encrypt, decrypt, generateKey, parseServerKey } from "./crypto";
 export { createKnowledgeRoot } from "./knowledge-root";
+export {
+  ACCESS_RANK,
+  MAX_PAGE_DEPTH,
+  type VisiblePage,
+  type VisibleTree,
+  atLeast,
+  computeTreeAccess,
+  getPageAccess,
+  getVisibleTree,
+  getVisibleTrees,
+} from "./permissions";
 export {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,

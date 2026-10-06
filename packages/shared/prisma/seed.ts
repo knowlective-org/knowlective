@@ -25,7 +25,18 @@ async function main() {
       title: "Demo",
       createdById: user.id,
     });
-    await tx.knowledgeRootMember.create({ data: { userId: user.id, rootId, role: "OWNER" } });
+    // Page access only comes from group grants.
+    const group = await tx.group.upsert({
+      where: { name: "Demo 管理" },
+      create: { name: "Demo 管理", description: "デモのナレッジルートを管理するグループ" },
+      update: {},
+    });
+    await tx.groupMember.upsert({
+      where: { groupId_userId: { groupId: group.id, userId: user.id } },
+      create: { groupId: group.id, userId: user.id },
+      update: {},
+    });
+    await tx.pageGrant.create({ data: { pageId: rootPageId, groupId: group.id, access: "MANAGE" } });
     await tx.page.create({
       data: { id: "demo", title: "Demo Page", rootId, parentId: rootPageId, createdById: user.id },
     });

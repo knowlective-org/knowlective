@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { atLeast } from "shared";
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
   const pageId = req.nextUrl.searchParams.get("pageId");
   const page = pageId ? await findAccessiblePage(user.id, pageId) : null;
   if (!page) return json(404, { error: "ページが見つかりません。" });
-  if (page.role === "GUEST") return json(403, { error: "閲覧のみの権限ではファイルを追加できません。" });
+  if (!atLeast(page.access, "EDIT")) return json(403, { error: "閲覧のみの権限ではファイルを追加できません。" });
 
   const config = await getStorageConfig();
   if (!config) return json(503, { error: "ファイル保存が設定されていません。管理者に連絡してください。" });

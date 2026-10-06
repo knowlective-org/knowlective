@@ -1,11 +1,12 @@
 import type { NextRequest } from "next/server";
+import { getPageAccess } from "shared";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getFile, getStorageConfig } from "@/lib/storage";
 
 // GET /api/files/<id>
-// Serves an attachment to members of its knowledge root only. Anything else
-// gets 404, so file ids can't be probed.
+// Serves an attachment to users who can view the page it was attached to
+// (group grants). Anything else gets 404, so file ids can't be probed.
 
 // Types a browser may render inline. Everything else — notably HTML, SVG and
 // PDF, which can run script — is forced to download, so uploaded content
@@ -41,11 +42,12 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/files/[file
   if (!user) return notFound();
   const { fileId } = await ctx.params;
 
-  const file = await prisma.fileObject.findFirst({
-    where: { id: fileId, root: { members: { some: { userId: user.id } } } },
-    select: { id: true, name: true, mimeType: true },
+  const file = await prisma.fileObject.findUnique({
+    where: { id: fileId },
+    select: { id: true, name: true, mimeType: true, pageId: true },
   });
-  if (!file) return notFound();
+  // A file whose page was deleted (pageId set to null) is no longer served.
+  if (!file?.pageId || !(await getPageAccess(prisma, user.id, file.pageId))) return notFound();
 
   const config = await getStorageConfig();
   if (!config) return new Response("File storage is not configured", { status: 503 });

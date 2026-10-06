@@ -7,11 +7,9 @@ import { endAdminSession, requireAdmin } from "@/lib/admin/auth";
 import { formatCidr, isIpAllowed, parseCidr } from "@/lib/ip";
 import { INVITATION_TTL_DAYS, createInvitation } from "@/lib/auth/invitations";
 import { normalizeEmail } from "@/lib/auth/session";
-import { ROLE_LABELS } from "@/lib/admin/format";
 import { getPublicUrl } from "@/lib/site-url";
-import { rootName, rootNameSelect } from "@/lib/knowledge-roots";
 import { InvalidPublicUrlError, normalizePublicUrl, type SiteRole } from "shared";
-import { invitableRoles } from "@/lib/roles";
+import { SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
 import {
   MailNotConfiguredError,
   getMailSettings,
@@ -95,8 +93,6 @@ export type InvitationState = {
   mailError?: string;
 };
 
-const ROLES = ["ADMIN", "MEMBER", "GUEST"] as const;
-
 export async function issueInvitation(
   _prev: InvitationState,
   formData: FormData,
@@ -109,9 +105,6 @@ export async function issueInvitation(
   if (!allowedRoles.includes(siteRole as SiteRole)) {
     return { error: "招待するユーザーのロールを選んでください。" };
   }
-  const target = formData.get("root");
-  const role = formData.get("role");
-  const newRootName = formData.get("newRootName");
   const rawEmail = formData.get("email");
   const email = typeof rawEmail === "string" ? normalizeEmail(rawEmail) : "";
   if (email && !/^[^\s@]+@[^\s@]+$/.test(email)) {
@@ -124,34 +117,12 @@ export async function issueInvitation(
     }
   }
 
-  let token: string;
-  let rootDisplayName: string;
-  let roleLabel = ROLE_LABELS.OWNER;
-  if (target === "__new__") {
-    const name = typeof newRootName === "string" ? newRootName.trim() : "";
-    if (!name) return { error: "新しいナレッジルートの名前を入力してください。" };
-    token = await createInvitation({ kind: "new", rootName: name, email, siteRole: siteRole as SiteRole });
-    rootDisplayName = name;
-  } else {
-    if (typeof target !== "string") return { error: "ナレッジルートを選んでください。" };
-    const root = await prisma.knowledgeRoot.findUnique({
-      where: { id: target },
-      select: rootNameSelect,
-    });
-    if (!root) {
-      return { error: "ナレッジルートを選んでください。" };
-    }
-    rootDisplayName = rootName(root);
-    if (!ROLES.includes(role as (typeof ROLES)[number])) return { error: "権限を選んでください。" };
-    roleLabel = ROLE_LABELS[role as string];
-    token = await createInvitation({
-      kind: "existing",
-      rootId: target,
-      role: role as (typeof ROLES)[number],
-      email,
-      siteRole: siteRole as SiteRole,
-    });
-  }
+  // Groups to join. Page access only ever comes from group grants.
+  const requested = [...new Set(formData.getAll("groupIds").filter((v): v is string => typeof v === "string"))];
+  const groups = await prisma.group.findMany({ where: { id: { in: requested } }, select: { id: true, name: true } });
+  if (groups.length !== requested.length) return { error: "存在しないグループが選ばれています。" };
+
+  const token = await createInvitation({ email, siteRole: siteRole as SiteRole, groupIds: groups.map((g) => g.id) });
 
   revalidatePath("/admin", "layout");
   const link = `${await getPublicUrl()}/invite/${token}`;
@@ -165,9 +136,8 @@ export async function issueInvitation(
       ...invitationMail({
         link,
         inviterName: actorLabel === "マスターパスワード" ? "yosuga の管理者" : actorLabel,
-        rootName: rootDisplayName,
-        isNewRoot: target === "__new__",
-        roleLabel,
+        siteRoleLabel: SITE_ROLE_LABELS[siteRole as SiteRole],
+        groupNames: groups.map((g) => g.name),
         ttlDays: INVITATION_TTL_DAYS,
       }),
     });
