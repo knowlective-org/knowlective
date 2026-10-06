@@ -12,6 +12,7 @@ import {
   safeNextPath,
 } from "@/lib/auth/session";
 import { getRequestContext } from "@/lib/request";
+import { passwordLoginAllowed } from "@/lib/auth/oidc";
 
 export type LoginState = { error?: string; email?: string };
 
@@ -36,7 +37,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, passwordHash: true, disabledAt: true },
+    select: { id: true, passwordHash: true, disabledAt: true, siteRole: true },
   });
   // Same cost whether or not the account exists, so emails can't be probed.
   const ok = user
@@ -50,6 +51,11 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   // Only revealed after the correct password, so it can't be used to probe.
   if (user.disabledAt) {
     return { error: "このアカウントは無効になっています。管理者に問い合わせてください。", email };
+  }
+  // SSO-only sites: passwords still work for site admins (a way back in if
+  // the IdP fails). Also only told after the correct password.
+  if (!(await passwordLoginAllowed(user.siteRole))) {
+    return { error: "パスワードでのログインは無効になっています。シングルサインオンでログインしてください。", email };
   }
 
   await createUserSession(ctx, user.id);

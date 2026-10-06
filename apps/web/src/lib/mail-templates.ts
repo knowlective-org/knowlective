@@ -26,3 +26,36 @@ export function invitationMail(input: {
     ].join("\n"),
   };
 }
+
+// /signup: confirms the address and opens the registration page.
+export function signupMail(input: { link: string; ttlHours: number }): Mail {
+  return {
+    subject: "yosuga アカウント登録のご案内",
+    text: [
+      "yosuga のアカウント登録を受け付けました。",
+      "",
+      "次のリンクを開いて、表示名とパスワードを設定してください。",
+      input.link,
+      "",
+      `このリンクは${input.ttlHours}時間有効で、1回だけ使えます。`,
+      "心当たりがない場合は、このメールを無視してください（アカウントは作られません）。",
+    ].join("\n"),
+  };
+}
+
+// /signup for an address that already has an account. Sent instead of a
+// registration link, so the form itself never reveals who is registered.
+export function alreadyRegisteredMail(input: { loginLink: string }): Mail {
+  return {
+    subject: "yosuga アカウント登録について",
+    text: [
+      "このメールアドレスで yosuga のアカウント登録が申し込まれましたが、すでにアカウントがあります。",
+      "",
+      "次のリンクからログインしてください。",
+      input.loginLink,
+      "",
+      "パスワードがわからない場合は、管理者に連絡してください。",
+      "心当たりがない場合は、このメールを無視してください。",
+    ].join("\n"),
+  };
+}

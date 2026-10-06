@@ -77,7 +77,8 @@ export async function consumeInvitation(
 
 export async function listPendingInvitations() {
   return prisma.invitation.findMany({
-    where: { usedAt: null, expiresAt: { gt: new Date() } },
+    // Self-signup links (lib/auth/signup.ts) aren't the admin's to manage.
+    where: { usedAt: null, expiresAt: { gt: new Date() }, selfSignup: false },
     orderBy: { createdAt: "desc" },
     include: groupsInclude,
   });

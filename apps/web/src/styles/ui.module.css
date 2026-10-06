@@ -275,7 +275,7 @@
   font-size: 16px;
   background: var(--color-primary-light);
   border-left: 4px solid var(--color-primary);
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 .adminPane .form > .button,

@@ -9,7 +9,16 @@ export type AdminNavItem = { href: string; label: string };
 
 // Left pane of the admin console: the menu (already filtered by role in the
 // layout) and the signed-in admin. Same look as the app's page sidebar.
-export function AdminSidebar({ items, actor }: { items: AdminNavItem[]; actor: string }) {
+export function AdminSidebar({
+  items,
+  actor,
+  sourceUrl,
+}: {
+  items: AdminNavItem[];
+  actor: string;
+  // Source code of this instance (AGPL-3.0; lib/source.ts).
+  sourceUrl: string;
+}) {
   const pathname = usePathname();
   // "/admin" is only current on itself; the others also cover their subpages.
   const isCurrent = (href: string) =>
@@ -43,6 +52,16 @@ export function AdminSidebar({ items, actor }: { items: AdminNavItem[]; actor: s
             ログアウト
           </button>
         </form>
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.footerLink}
+          title="yosuga は AGPL-3.0 で公開されています"
+          data-ui="AdminSidebar.sourceLink"
+        >
+          ソースコード（AGPL-3.0）
+        </a>
       </div>
     </div>
   );

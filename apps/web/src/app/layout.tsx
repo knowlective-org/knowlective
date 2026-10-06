@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "yosuga",
+  title: "YOSUGA",
   description: "セルフホスト可能なドキュメント・ナレッジ共有ツール",
 };
 

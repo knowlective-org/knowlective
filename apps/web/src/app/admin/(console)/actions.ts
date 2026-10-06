@@ -13,6 +13,9 @@ import { SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
 import { recordAudit } from "@/lib/audit";
 import { manageableGroupIds } from "@/lib/group-access";
 import { saveTheme as storeTheme } from "@/lib/theme";
+import { getSignupSettings, isSignupRole, parseDomains } from "@/lib/auth/signup";
+import { decrypt, loadDataKey } from "shared";
+import { discoverWith, getOidcSettings, isOidcRole, sealClientSecret } from "@/lib/auth/oidc";
 import { THEME_TOKENS, normalizeColor, type ThemeColors } from "@/lib/theme-tokens";
 import {
   MailNotConfiguredError,
@@ -374,5 +377,216 @@ export async function saveTheme(_prev: ThemeState, formData: FormData): Promise<
   await storeTheme(theme);
   // The theme is injected by the root layout, so every screen needs it.
   revalidatePath("/", "layout");
+  return { saved: true };
+}
+
+export type SignupSettingsState = { error?: string; saved?: boolean };
+
+// Invitation-only vs. self-registration (/signup). Site admins only.
+export async function saveSignupSettings(_prev: SignupSettingsState, formData: FormData): Promise<SignupSettingsState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const mode = formData.get("mode");
+  if (mode !== "INVITE_ONLY" && mode !== "OPEN") return { error: "入力内容が不正です。" };
+  const before = await getSignupSettings();
+  // Shown for OPEN only; keep the saved role otherwise. Never SITE_ADMIN.
+  const rawRole = formData.get("siteRole") ?? before.siteRole;
+  if (!isSignupRole(rawRole)) return { error: "入力内容が不正です。" };
+  const siteRole = rawRole;
+  // Signup confirms the address by mail, so it can't work without it.
+  if (mode === "OPEN" && !before.mailConfigured) {
+    return { error: "先に「概要」でメール送信を設定してください。" };
+  }
+  const rawDomains = formData.get("domains");
+  // The domain field is only shown for OPEN; keep the saved list otherwise.
+  const domains = typeof rawDomains === "string" ? parseDomains(rawDomains) : before.allowedDomains;
+  if (!domains) return { error: "ドメインの形式が正しくありません（例: example.co.jp）。50個まで指定できます。" };
+
+  await prisma.instanceConfig.update({
+    where: { id: 1 },
+    data: { signupMode: mode, signupAllowedDomains: domains, signupSiteRole: siteRole },
+  });
+  const describe = (m: string, d: string[], r: SiteRole) =>
+    m === "OPEN"
+      ? `誰でも登録できる（${d.length > 0 ? `ドメイン: ${d.join("、")}` : "ドメインの制限なし"}、${SITE_ROLE_LABELS[r]}として登録）`
+      : "招待のみ";
+  const from = describe(before.mode, before.allowedDomains, before.siteRole);
+  const to = describe(mode, domains, siteRole);
+  if (from !== to) {
+    await recordAudit(actor, "signup.settings", `アカウント登録の設定を「${from}」から「${to}」に変更`, {
+      from: { mode: before.mode, domains: before.allowedDomains, siteRole: before.siteRole },
+      to: { mode, domains, siteRole },
+    });
+  }
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+export type OidcFormState = { error?: string; saved?: boolean; message?: string };
+
+type OidcInput = {
+  enabled: boolean;
+  issuer: string;
+  clientId: string;
+  // Null: keep the saved one.
+  clientSecret: string | null;
+  buttonLabel: string;
+  // "" = default (name, then preferred_username).
+  nameClaim: string;
+  newUserRole: "USER" | "CONTENT_MANAGER";
+  allowedDomains: string[];
+  trustEmail: boolean;
+  passwordLogin: "ALLOWED" | "SITE_ADMINS_ONLY";
+};
+
+function readOidcForm(formData: FormData): OidcInput | string {
+  const text = (name: string) => {
+    const v = formData.get(name);
+    return typeof v === "string" ? v.trim() : "";
+  };
+  const issuer = text("issuer");
+  let url: URL;
+  try {
+    url = new URL(issuer);
+  } catch {
+    return "Issuer URL を入力してください（https://〜）。";
+  }
+  // http only for a local IdP (development).
+  if (url.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(url.hostname)) {
+    return "Issuer URL は https:// で始まる必要があります。";
+  }
+  const clientId = text("clientId");
+  if (!clientId || clientId.length > 500) return "クライアント ID を入力してください。";
+  const secret = formData.get("clientSecret");
+  const buttonLabel = text("buttonLabel") || "シングルサインオン";
+  if (buttonLabel.length > 40) return "ボタンの名前は40文字以内にしてください。";
+  const nameClaim = text("nameClaim");
+  // A claim name, or a dotted path to a nested one.
+  if (nameClaim && !/^[A-Za-z0-9_:\-]+(\.[A-Za-z0-9_:\-]+)*$/.test(nameClaim)) {
+    return "表示名に使う属性は、属性名（英数字・_・-・:、入れ子は . 区切り）で入力してください。";
+  }
+  if (nameClaim.length > 100) return "表示名に使う属性は100文字以内にしてください。";
+  const role = formData.get("newUserRole");
+  if (!isOidcRole(role)) return "入力内容が不正です。";
+  const domains = parseDomains(text("allowedDomains"));
+  if (!domains) return "ドメインの形式が正しくありません（例: example.co.jp）。50個まで指定できます。";
+  const passwordLogin = formData.get("passwordLogin");
+  if (passwordLogin !== "ALLOWED" && passwordLogin !== "SITE_ADMINS_ONLY") return "入力内容が不正です。";
+  return {
+    enabled: formData.get("enabled") === "on",
+    issuer,
+    clientId,
+    clientSecret: typeof secret === "string" && secret !== "" ? secret : null,
+    buttonLabel,
+    nameClaim,
+    newUserRole: role,
+    allowedDomains: domains,
+    trustEmail: formData.get("trustEmail") === "on",
+    passwordLogin,
+  };
+}
+
+// The secret to use for a check: the one just entered, or the saved one.
+async function secretFor(input: OidcInput): Promise<string | null> {
+  if (input.clientSecret !== null) return input.clientSecret;
+  const row = await prisma.oidcSettings.findUnique({ where: { id: 1 }, select: { clientSecretEnc: true } });
+  if (!row || row.clientSecretEnc.length === 0) return null;
+  return decrypt(await loadDataKey(prisma), row.clientSecretEnc, "yosuga:oidc-client-secret").toString("utf8");
+}
+
+async function checkIssuer(input: OidcInput, secret: string): Promise<string | null> {
+  try {
+    const config = await discoverWith({ issuer: input.issuer, clientId: input.clientId, clientSecret: secret });
+    return config.serverMetadata().issuer;
+  } catch (err) {
+    console.error("[oidc] discovery check failed", err);
+    return null;
+  }
+}
+
+// 接続テスト: fetches the IdP's discovery document with the entered values.
+// It can't check the client secret itself (only a real sign-in does).
+export async function testOidcSettings(_prev: OidcFormState, formData: FormData): Promise<OidcFormState> {
+  await requireAdmin(["SITE_ADMIN"]);
+  const input = readOidcForm(formData);
+  if (typeof input === "string") return { error: input, message: input };
+  const secret = (await secretFor(input)) ?? "";
+  const issuer = await checkIssuer(input, secret);
+  if (!issuer) {
+    return {
+      error: "接続できません",
+      message: "Issuer に接続できませんでした。URL と、サーバーから IdP に接続できるかを確認してください。",
+    };
+  }
+  return {
+    message: `IdP の設定を読み込めました（Issuer: ${issuer}）。クライアントシークレットが正しいかは、実際のログインで確認されます。`,
+  };
+}
+
+export async function saveOidcSettings(_prev: OidcFormState, formData: FormData): Promise<OidcFormState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  // Turning it off needs none of the other fields (they're hidden then); the
+  // saved settings are kept for turning it back on.
+  if (formData.get("enabled") !== "on") {
+    const { count } = await prisma.oidcSettings.updateMany({ where: { id: 1, enabled: true }, data: { enabled: false } });
+    if (count > 0) await recordAudit(actor, "oidc.settings", "シングルサインオンの設定を変更: 無効にした", { enabled: false });
+    revalidatePath("/admin", "layout");
+    return { saved: true };
+  }
+  const input = readOidcForm(formData);
+  if (typeof input === "string") return { error: input };
+  const secret = await secretFor(input);
+  if (secret === null) return { error: "クライアントシークレットを入力してください。" };
+  // Don't turn on a sign-in button that can't work.
+  if (input.enabled && !(await checkIssuer(input, secret))) {
+    return { error: "Issuer に接続できなかったため、有効にできません。「接続テスト」で確認してください。" };
+  }
+
+  const before = await getOidcSettings();
+  const sealed = input.clientSecret !== null ? await sealClientSecret(input.clientSecret) : null;
+  const data = {
+    enabled: input.enabled,
+    issuer: input.issuer,
+    clientId: input.clientId,
+    buttonLabel: input.buttonLabel,
+    nameClaim: input.nameClaim || null,
+    newUserRole: input.newUserRole,
+    allowedDomains: input.allowedDomains,
+    trustEmail: input.trustEmail,
+    passwordLogin: input.passwordLogin,
+    ...(sealed && { clientSecretEnc: sealed }),
+  };
+  await prisma.oidcSettings.upsert({
+    where: { id: 1 },
+    create: { id: 1, ...data, clientSecretEnc: sealed ?? (await sealClientSecret(secret)) },
+    update: data,
+  });
+
+  const changes: string[] = [];
+  if (before.enabled !== input.enabled) changes.push(input.enabled ? "有効にした" : "無効にした");
+  if (before.issuer !== input.issuer) changes.push(`Issuer を ${input.issuer} に`);
+  if (before.clientId !== input.clientId) changes.push("クライアント ID を変更");
+  if (input.clientSecret !== null) changes.push("クライアントシークレットを変更");
+  if (before.nameClaim !== input.nameClaim) changes.push(`表示名に使う属性を${input.nameClaim || "既定（name）"}に`);
+  if (before.newUserRole !== input.newUserRole) changes.push(`新規アカウントのロールを${SITE_ROLE_LABELS[input.newUserRole]}に`);
+  if (before.allowedDomains.join() !== input.allowedDomains.join()) {
+    changes.push(`ドメインを${input.allowedDomains.length > 0 ? input.allowedDomains.join("、") : "制限なし"}に`);
+  }
+  if (before.trustEmail !== input.trustEmail) {
+    changes.push(input.trustEmail ? "メールアドレスを確認済みとして扱う" : "メールアドレスの確認を必須に");
+  }
+  if (before.passwordLogin !== input.passwordLogin) {
+    changes.push(input.passwordLogin === "SITE_ADMINS_ONLY" ? "パスワードログインをサイト管理者だけに" : "パスワードログインを併用に");
+  }
+  if (changes.length > 0) {
+    await recordAudit(actor, "oidc.settings", `シングルサインオンの設定を変更: ${changes.join("、")}`, {
+      enabled: input.enabled,
+      issuer: input.issuer,
+      newUserRole: input.newUserRole,
+      allowedDomains: input.allowedDomains,
+      trustEmail: input.trustEmail,
+      passwordLogin: input.passwordLogin,
+    });
+  }
+  revalidatePath("/admin", "layout");
   return { saved: true };
 }

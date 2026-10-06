@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AppShell } from "@/components/app-shell";
 import { requireAdmin } from "@/lib/admin/auth";
 import { SITE_ROLE_LABELS } from "@/lib/roles";
+import { getSourceUrl } from "@/lib/source";
 import styles from "@/styles/ui.module.css";
 import { AdminSidebar, type AdminNavItem } from "./admin-sidebar";
 
@@ -27,7 +28,7 @@ export default async function AdminConsoleLayout({ children }: LayoutProps<"/adm
     label,
   }));
   return (
-    <AppShell sidebar={<AdminSidebar items={items} actor={`${actorLabel}（${SITE_ROLE_LABELS[role]}）`} />}>
+    <AppShell sidebar={<AdminSidebar items={items} actor={`${actorLabel}（${SITE_ROLE_LABELS[role]}）`} sourceUrl={getSourceUrl()} />}>
       <div className={`${styles.pane} ${styles.adminPane}`} data-ui="AdminConsoleLayout">
         {children}
       </div>

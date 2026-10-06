@@ -155,6 +155,43 @@ async function uploadFile(pageId: string, file: File): Promise<string> {
   return data.url;
 }
 
+// Editors in the middle of a paste: the H1 rule in EditorBody leaves the
+// pasted headings to shiftPastedHeadings.
+const pasting = new WeakSet<object>();
+
+type AnyBlock = { id: string; type: string; props: Record<string, unknown>; children: AnyBlock[] };
+
+// "type:level" of every block, by id.
+function blockKinds(blocks: AnyBlock[], into = new Map<string, string>()) {
+  for (const block of blocks) {
+    into.set(block.id, `${block.type}:${block.props.level ?? ""}`);
+    blockKinds(block.children, into);
+  }
+  return into;
+}
+
+// Headings a paste brought in: new blocks, or blocks the paste turned into a
+// heading (pasting into an empty line reuses that line's block). Headings
+// that only received pasted text keep their level.
+function shiftPastedHeadings(
+  editor: { document: unknown; updateBlock: (id: string, update: { type: "heading"; props: { level: 2 | 3 | 4 | 5 | 6 } }) => unknown },
+  before: Map<string, string>,
+) {
+  const walk = (blocks: AnyBlock[]) => {
+    for (const block of blocks) {
+      if (block.type === "heading") {
+        const level = Number(block.props.level);
+        if (before.get(block.id) !== `heading:${level}`) {
+          const next = Math.min(level + 1, 6) as 2 | 3 | 4 | 5 | 6;
+          if (next !== level) editor.updateBlock(block.id, { type: "heading", props: { level: next } });
+        }
+      }
+      walk(block.children);
+    }
+  };
+  walk(editor.document as AnyBlock[]);
+}
+
 function EditorBody({
   pageId,
   readOnly,
@@ -166,6 +203,21 @@ function EditorBody({
     withCollaboration({
       schema: editorSchema,
       dictionary: ja,
+      // Headings pasted from outside yosuga (HTML or Markdown) move down one
+      // level — H1→H2 … H5→H6, H6 stays — keeping their relative structure
+      // under the page title. Copy and paste within yosuga (blocknote/html)
+      // keeps the levels as they are.
+      pasteHandler: ({ event, editor, defaultPasteHandler }) => {
+        if (event.clipboardData?.types.includes("blocknote/html")) return defaultPasteHandler();
+        const before = blockKinds(editor.document as AnyBlock[]);
+        pasting.add(editor);
+        try {
+          return defaultPasteHandler();
+        } finally {
+          pasting.delete(editor);
+          shiftPastedHeadings(editor, before);
+        }
+      },
       // Guests can't add files; without uploadFile BlockNote ignores drops.
       uploadFile: readOnly ? undefined : (file: File) => uploadFile(pageId, file),
       collaboration: {
@@ -182,6 +234,28 @@ function EditorBody({
     }),
     [provider],
   );
+
+  // One H1 per page: the title. Turn H1s in the body into H2 — those already
+  // in the page when it opens, and those this user's own changes bring in
+  // (e.g. pasted HTML). Remote changes are left to the editor that made them;
+  // read-only viewers never write.
+  useEffect(() => {
+    if (readOnly) return;
+    const demoteH1 = (blocks: AnyBlock[]) => {
+      for (const block of blocks) {
+        if (block.type === "heading" && block.props.level === 1) {
+          editor.updateBlock(block.id, { type: "heading", props: { level: 2 } });
+        }
+        demoteH1(block.children);
+      }
+    };
+    demoteH1(editor.document as AnyBlock[]);
+    return editor.onChange((_, { getChanges }) => {
+      if (pasting.has(editor)) return;
+      const added = getChanges().filter((c) => c.type !== "delete" && c.source.type !== "yjs-remote");
+      demoteH1(added.map((c) => c.block as AnyBlock));
+    });
+  }, [editor, readOnly]);
 
   // Undo/redo (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z) uses y-prosemirror's
   // UndoManager, which only undoes this user's own changes. Its plugin

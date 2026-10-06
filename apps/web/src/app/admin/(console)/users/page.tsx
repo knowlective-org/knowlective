@@ -4,12 +4,16 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { dateFormat } from "@/lib/admin/format";
 import { INVITATION_TTL_DAYS, listPendingInvitations } from "@/lib/auth/invitations";
 import { isMailConfigured } from "@/lib/mail";
+import { getSignupSettings } from "@/lib/auth/signup";
+import { getOidcSettings, oidcCallbackUrl } from "@/lib/auth/oidc";
 import { SITE_ROLES, SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
 import { manageableGroupIds } from "@/lib/group-access";
 import styles from "@/styles/ui.module.css";
 import { revokeInvitation } from "../actions";
 import { InvitationForm } from "../invitation-form";
 import { RowMenu, type RowMenuItem } from "../row-menu";
+import { SignupSettingsForm } from "../signup-settings-form";
+import { OidcSettingsForm } from "../oidc-settings-form";
 import { changeSiteRole, disableUser, enableUser } from "./actions";
 
 type UserRow = { id: string; email: string; name: string | null; siteRole: SiteRole; disabledAt: Date | null };
@@ -41,7 +45,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
   const { session, role, actor } = await requireAdmin();
   const allowedGroups = await manageableGroupIds(actor);
   const isSiteAdmin = role === "SITE_ADMIN";
-  const [groups, invitations, users, mailConfigured] = await Promise.all([
+  const [groups, invitations, users, mailConfigured, signup, oidc, callbackUrl] = await Promise.all([
     // Content managers can only hand out groups within trees they manage.
     prisma.group.findMany({
       // Built-in groups (全ユーザー) need no invitation: everyone is in them.
@@ -66,11 +70,38 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
         })
       : Promise.resolve([]),
     isMailConfigured(),
+    getSignupSettings(),
+    getOidcSettings(),
+    oidcCallbackUrl(),
   ]);
   const error = (await searchParams).error;
 
   return (
     <>
+      {isSiteAdmin && (
+        <section className={styles.section} data-ui="AdminUsersPage.signupSection">
+          <h2 className={styles.sectionTitle}>アカウント登録</h2>
+          <SignupSettingsForm
+            mode={signup.mode}
+            allowedDomains={signup.allowedDomains}
+            siteRole={signup.siteRole}
+            roleLabels={{ USER: SITE_ROLE_LABELS.USER, CONTENT_MANAGER: SITE_ROLE_LABELS.CONTENT_MANAGER }}
+            mailConfigured={signup.mailConfigured}
+          />
+        </section>
+      )}
+
+      {isSiteAdmin && (
+        <section className={styles.section} data-ui="AdminUsersPage.oidcSection">
+          <h2 className={styles.sectionTitle}>シングルサインオン（OpenID Connect）</h2>
+          <OidcSettingsForm
+            values={oidc}
+            callbackUrl={callbackUrl}
+            roleLabels={{ USER: SITE_ROLE_LABELS.USER, CONTENT_MANAGER: SITE_ROLE_LABELS.CONTENT_MANAGER }}
+          />
+        </section>
+      )}
+
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>ユーザーの招待</h2>
         <InvitationForm

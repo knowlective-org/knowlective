@@ -1,6 +1,11 @@
 "use client";
 
-import { BlockNoteSchema, defaultBlockSpecs, insertOrUpdateBlockForSlashMenu } from "@blocknote/core";
+import {
+  BlockNoteSchema,
+  createHeadingBlockSpec,
+  defaultBlockSpecs,
+  insertOrUpdateBlockForSlashMenu,
+} from "@blocknote/core";
 import type { DefaultReactSuggestionItem } from "@blocknote/react";
 import { childPagesBlock } from "./child-pages-block";
 import { childTableBlock } from "./child-table-block";
@@ -8,9 +13,17 @@ import { childTableBlock } from "./child-table-block";
 // The editor's block types: BlockNote's defaults plus yosuga's own. Block
 // types are saved in page documents, so a custom type must never be removed
 // or renamed once released — pages using it would no longer load.
+//
+// Headings start at H2: the page title is the page's one H1. Without level 1
+// in the schema it isn't offered (slash menu, toolbar, "# ", Ctrl+Alt+1);
+// H1s that still arrive (pasted HTML, older pages) are turned into H2 by the
+// editor (demoteH1 in collaborative-editor.tsx).
+export const HEADING_LEVELS = [2, 3, 4, 5, 6] as const;
+
 export const editorSchema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
+    heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
     childPages: childPagesBlock(),
     childTable: childTableBlock(),
   },

@@ -21,7 +21,7 @@
   font: inherit;
   font-size: 13px;
   color: inherit;
-  background: var(--color-surface);
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 6px;
 }

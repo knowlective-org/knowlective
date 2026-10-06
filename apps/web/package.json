@@ -2,6 +2,7 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "tsx watch --clear-screen=false server/index.ts",
     "build": "next build",
@@ -21,6 +22,7 @@
     "crossws": "^0.4.10",
     "next": "16.3.1",
     "nodemailer": "^10.0.14",
+    "openid-client": "^6.8.8",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",

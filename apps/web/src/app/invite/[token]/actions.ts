@@ -9,6 +9,7 @@ import {
   findValidInvitation,
 } from "@/lib/auth/invitations";
 import { createUserSession, normalizeEmail, requireUser } from "@/lib/auth/session";
+import { getSignupSettings, isDomainAllowed } from "@/lib/auth/signup";
 import { getRequestContext } from "@/lib/request";
 
 export type InviteState = { error?: string };
@@ -33,6 +34,15 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
 
   const invitation = await findValidInvitation(token);
   if (!invitation) return { error: UNAVAILABLE };
+  let siteRole = invitation.siteRole;
+  if (invitation.selfSignup) {
+    const signup = await getSignupSettings();
+    if (!signup.enabled || !isDomainAllowed(invitation.email ?? "", signup.allowedDomains)) {
+      return { error: "現在、アカウント登録は受け付けていません。" };
+    }
+    // The role set now, not when the link was sent.
+    siteRole = signup.siteRole;
+  }
 
   const email = normalizeEmail(rawEmail);
   if (!/^[^\s@]+@[^\s@]+$/.test(email)) return { error: "メールアドレスの形式が正しくありません。" };
@@ -56,7 +66,7 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
   try {
     userId = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { email, name: name.trim(), passwordHash, siteRole: invitation.siteRole },
+        data: { email, name: name.trim(), passwordHash, siteRole },
       });
       await consumeInvitation(tx, invitation.id, user.id);
       return user.id;
@@ -81,7 +91,8 @@ export async function accept(_prev: InviteState, formData: FormData): Promise<In
   const user = await requireUser(`/invite/${encodeURIComponent(token)}`);
 
   const invitation = await findValidInvitation(token);
-  if (!invitation) return { error: UNAVAILABLE };
+  // Self-signup links only create accounts; they carry no groups to join.
+  if (!invitation || invitation.selfSignup) return { error: UNAVAILABLE };
   if (invitation.email && invitation.email !== user.email) {
     return { error: "この招待は別のメールアドレス宛てです。" };
   }

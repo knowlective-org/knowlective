@@ -31,6 +31,9 @@ export type {
   PageVersion,
   PageVersionKind,
   PageSearchIndex,
+  SignupMode,
+  OidcSettings,
+  PasswordLoginMode,
 } from "@prisma/client";
 export { encrypt, decrypt, generateKey, parseServerKey } from "./crypto";
 export { createKnowledgeRoot } from "./knowledge-root";

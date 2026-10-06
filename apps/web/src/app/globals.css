@@ -80,3 +80,16 @@ a {
 .bn-root .bn-editor b {
   font-weight: 900;
 }
+
+/* H2 is the largest body heading (the page title is the H1, 42px). H2 is
+   the default level, and BlockNote leaves data-level off for the default. */
+.bn-root [data-content-type="heading"]:is([data-level="2"], :not([data-level])) {
+  --level: 38px;
+}
+
+/* Phones: the title drops to 30px; keep H2 below it. */
+@media (max-width: 640px) {
+  .bn-root [data-content-type="heading"]:is([data-level="2"], :not([data-level])) {
+    --level: 26px;
+  }
+}

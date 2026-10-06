@@ -55,6 +55,14 @@ model User {
   totpSecret   Bytes?
   // Last accepted TOTP time step, so a code can't be replayed.
   totpLastStep Int?
+
+  // OpenID Connect account this user signs in with: the IdP's `sub` claim,
+  // stored on the first sign-in (new account or matched by verified email).
+  // `sub` is only unique per IdP, hence the issuer next to it.
+  oidcIssuer  String?
+  oidcSubject String?
+
+  @@unique([oidcIssuer, oidcSubject])
 }
 
 // A knowledge root ("ナレッジルート"): the container that owns members,
@@ -254,6 +262,16 @@ model InstanceConfig {
   // is used. Capped by MAX_FILE_SIZE_MB_LIMIT in apps/web/src/lib/storage.ts.
   maxUploadSizeMb Int @default(100)
 
+  // How accounts are created: by invitation only, or also by anyone who
+  // confirms their email address at /signup (needs mail settings).
+  signupMode SignupMode @default(INVITE_ONLY)
+  // OPEN only: email domains allowed to sign up (e.g. example.co.jp).
+  // Empty = any domain.
+  signupAllowedDomains String[] @default([])
+  // Site role of accounts created by self-registration: USER or
+  // CONTENT_MANAGER (never SITE_ADMIN). Applied when the account is created.
+  signupSiteRole SiteRole @default(USER)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -319,6 +337,11 @@ model UserSession {
 
 // Sign-up is invitation-only. Issued from /admin; the link carries a random
 // token and only its SHA-256 hash is stored. Single use.
+enum SignupMode {
+  INVITE_ONLY
+  OPEN
+}
+
 model Invitation {
   id        String  @id @default(cuid())
   tokenHash String  @unique
@@ -330,6 +353,13 @@ model Invitation {
 
   // Site role given to the account created from this invitation.
   siteRole SiteRole @default(USER)
+
+  // Created by /signup (self-registration) rather than by an admin: the
+  // link was mailed to `email` to confirm it. No groups, USER role. Hidden
+  // from the admin's pending invitations.
+  selfSignup  Boolean @default(false)
+  // selfSignup only: who asked, for rate limiting.
+  requestedIp String?
 
   createdAt DateTime  @default(now())
   expiresAt DateTime
@@ -503,3 +533,39 @@ model ThemeSettings {
   colors    Json
   updatedAt DateTime @updatedAt
 }
+
+enum PasswordLoginMode {
+  // Password and OpenID Connect both work.
+  ALLOWED
+  // Only OpenID Connect, except site admins (so nobody gets locked out if
+  // the IdP is down or misconfigured).
+  SITE_ADMINS_ONLY
+}
+
+// Sign-in with OpenID Connect (one row, id = 1). apps/web/src/lib/auth/oidc.ts.
+model OidcSettings {
+  id              Int               @id @default(1)
+  enabled         Boolean           @default(false)
+  // Issuer URL; its /.well-known/openid-configuration is fetched.
+  issuer          String
+  clientId        String
+  // Client secret, encrypted with the DEK. Never sent back to the browser.
+  clientSecretEnc Bytes
+  // Label of the login button ("〇〇でログイン").
+  buttonLabel     String
+  // Claim used as a new account's display name (e.g. "name", "given_name").
+  // Null = "name", else "preferred_username". Fetched from the UserInfo
+  // endpoint if the ID token doesn't have it.
+  nameClaim       String?
+  // New users are created on their first sign-in with this role
+  // (USER or CONTENT_MANAGER), if their email domain is allowed.
+  newUserRole     SiteRole          @default(USER)
+  // Empty = any domain.
+  allowedDomains  String[]          @default([])
+  // Treat the IdP's email as verified even without email_verified: true
+  // (e.g. Microsoft Entra ID omits it). Only for IdPs that control emails.
+  trustEmail      Boolean           @default(false)
+  passwordLogin   PasswordLoginMode @default(ALLOWED)
+  updatedAt       DateTime          @updatedAt
+}
+
