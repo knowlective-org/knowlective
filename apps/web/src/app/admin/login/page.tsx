@@ -24,7 +24,7 @@ export default async function AdminLoginPage({ searchParams }: PageProps<"/admin
   if (master) {
     const enrolled = config.totpSecret !== null;
     return (
-      <main className={styles.narrow}>
+      <main className={styles.narrow} data-ui="AdminLoginPage">
         <h1 className={styles.title}>マスターパスワードでログイン</h1>
         <p className={styles.lead}>
           最初のサイト管理者を登録するときや、管理者全員がログインできなくなったときに使います。
@@ -32,7 +32,7 @@ export default async function AdminLoginPage({ searchParams }: PageProps<"/admin
         </p>
         <MasterLoginForm needsCode={enrolled} />
         <p className={styles.note} style={{ marginTop: 24 }}>
-          <Link href="/admin/login" style={{ textDecoration: "underline" }}>
+          <Link href="/admin/login" data-ui="AdminLoginPage.accountLoginLink" style={{ textDecoration: "underline" }}>
             アカウントでログインする
           </Link>
         </p>
@@ -41,12 +41,12 @@ export default async function AdminLoginPage({ searchParams }: PageProps<"/admin
   }
 
   return (
-    <main className={styles.narrow}>
+    <main className={styles.narrow} data-ui="AdminLoginPage">
       <h1 className={styles.title}>管理画面ログイン</h1>
       <p className={styles.lead}>「サイト管理者」または「コンテンツ管理者」のロールを持つアカウントでログインします。</p>
       <AccountLoginForm />
       <p className={styles.note} style={{ marginTop: 24 }}>
-        <Link href="/admin/login?mode=master" style={{ textDecoration: "underline" }}>
+        <Link href="/admin/login?mode=master" data-ui="AdminLoginPage.masterLoginLink" style={{ textDecoration: "underline" }}>
           マスターパスワードでログインする（初期設定・復旧用）
         </Link>
       </p>

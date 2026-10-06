@@ -21,7 +21,7 @@ const MAX_FAILURES_PER_IP = 10;
 const MAX_FAILURES_PER_EMAIL = 10;
 export const LOCK_WINDOW_MS = 15 * 60 * 1000;
 
-export type CurrentUser = Pick<User, "id" | "email" | "name">;
+export type CurrentUser = Pick<User, "id" | "email" | "name" | "siteRole">;
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -95,7 +95,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!token) return null;
   const session = await prisma.userSession.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, email: true, name: true, disabledAt: true } } },
+    include: { user: { select: { id: true, email: true, name: true, siteRole: true, disabledAt: true } } },
   });
   if (!session) return null;
 
@@ -115,8 +115,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       data: { lastSeenAt: new Date() },
     });
   }
-  const { id, email, name } = session.user;
-  return { id, email, name };
+  const { id, email, name, siteRole } = session.user;
+  return { id, email, name, siteRole };
 }
 
 // Gate for every page and Server Action that needs a logged-in user.

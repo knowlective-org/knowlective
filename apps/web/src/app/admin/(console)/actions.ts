@@ -10,6 +10,8 @@ import { normalizeEmail } from "@/lib/auth/session";
 import { getPublicUrl } from "@/lib/site-url";
 import { InvalidPublicUrlError, normalizePublicUrl, type SiteRole } from "shared";
 import { SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
+import { recordAudit } from "@/lib/audit";
+import { manageableGroupIds } from "@/lib/group-access";
 import {
   MailNotConfiguredError,
   getMailSettings,
@@ -97,7 +99,7 @@ export async function issueInvitation(
   _prev: InvitationState,
   formData: FormData,
 ): Promise<InvitationState> {
-  const { actorLabel, role: actorRole } = await requireAdmin();
+  const { actorLabel, role: actorRole, actor } = await requireAdmin();
   const sendEmail = formData.get("sendEmail") === "on";
   // A content manager can only invite content managers or users.
   const siteRole = formData.get("siteRole");
@@ -121,8 +123,20 @@ export async function issueInvitation(
   const requested = [...new Set(formData.getAll("groupIds").filter((v): v is string => typeof v === "string"))];
   const groups = await prisma.group.findMany({ where: { id: { in: requested } }, select: { id: true, name: true } });
   if (groups.length !== requested.length) return { error: "存在しないグループが選ばれています。" };
+  // Content managers may only hand out groups within trees they manage.
+  const allowedGroups = await manageableGroupIds(actor);
+  if (allowedGroups !== "all" && groups.some((g) => !allowedGroups.has(g.id))) {
+    return { error: "選べないグループが含まれています。" };
+  }
 
   const token = await createInvitation({ email, siteRole: siteRole as SiteRole, groupIds: groups.map((g) => g.id) });
+  await recordAudit(
+    actor,
+    "invitation.issue",
+    `${email || "宛先指定なし"} を${SITE_ROLE_LABELS[siteRole as SiteRole]}として招待` +
+      (groups.length ? `（グループ: ${groups.map((g) => g.name).join("、")}）` : ""),
+    { email: email || null, siteRole: siteRole as SiteRole, groupIds: groups.map((g) => g.id) },
+  );
 
   revalidatePath("/admin", "layout");
   const link = `${await getPublicUrl()}/invite/${token}`;

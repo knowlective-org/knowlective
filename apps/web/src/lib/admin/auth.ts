@@ -6,6 +6,7 @@ import { decrypt, encrypt, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
 import type { SiteRole } from "shared";
 import { getAdminConsoleRole } from "@/lib/roles";
+import { userLabel } from "@/lib/audit";
 import { isIpAllowed } from "@/lib/ip";
 import { type RequestContext, getRequestContext } from "@/lib/request";
 
@@ -221,5 +222,11 @@ export async function requireAdmin(allowed: SiteRole[] = ["SITE_ADMIN", "CONTENT
   }
   // Display name for "who is signed in"; "マスターパスワード" for the master login.
   const actorLabel = session.user ? (session.user.name ?? session.user.email) : "マスターパスワード";
-  return { ctx, config, session, actorLabel, role };
+  // Who is acting, for the audit log and group access checks.
+  const actor = {
+    userId: session.userId,
+    label: session.user ? userLabel(session.user) : "マスターパスワード",
+    role,
+  };
+  return { ctx, config, session, actorLabel, role, actor };
 }

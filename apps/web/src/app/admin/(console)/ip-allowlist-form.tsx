@@ -10,10 +10,11 @@ export function IpAllowlistForm({ current, clientIp }: { current: string[]; clie
   const [state, formAction, pending] = useActionState(saveIpAllowlist, initialState);
 
   return (
-    <form action={formAction} className={styles.form}>
+    <form data-ui="IpAllowlistForm" action={formAction} className={styles.form}>
       <label>
         許可する IP アドレス・CIDR（1行に1つ。空欄なら制限なし）
         <textarea
+          data-ui="IpAllowlistForm.allowlistInput"
           name="allowlist"
           rows={5}
           defaultValue={current.join("\n")}
@@ -27,10 +28,10 @@ export function IpAllowlistForm({ current, clientIp }: { current: string[]; clie
         現在の接続元: <code>{clientIp}</code>
         。自分の接続元を含まない設定は保存できません。
       </p>
-      <p aria-live="polite" className={state.error ? styles.error : styles.success}>
+      <p data-ui="IpAllowlistForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
         {state.error ?? (state.saved ? "保存しました。" : "")}
       </p>
-      <button type="submit" disabled={pending} className={styles.button}>
+      <button data-ui="IpAllowlistForm.submitButton" type="submit" disabled={pending} className={styles.button}>
         {pending ? "保存しています…" : "保存"}
       </button>
     </form>

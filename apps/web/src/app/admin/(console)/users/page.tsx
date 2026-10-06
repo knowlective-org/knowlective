@@ -5,6 +5,7 @@ import { dateFormat } from "@/lib/admin/format";
 import { INVITATION_TTL_DAYS, listPendingInvitations } from "@/lib/auth/invitations";
 import { isMailConfigured } from "@/lib/mail";
 import { SITE_ROLES, SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
+import { manageableGroupIds } from "@/lib/group-access";
 import styles from "@/styles/ui.module.css";
 import { revokeInvitation } from "../actions";
 import { InvitationForm } from "../invitation-form";
@@ -37,10 +38,16 @@ function userMenu(u: UserRow): RowMenuItem[] {
 }
 
 export default async function AdminUsersPage({ searchParams }: PageProps<"/admin/users">) {
-  const { session, role } = await requireAdmin();
+  const { session, role, actor } = await requireAdmin();
+  const allowedGroups = await manageableGroupIds(actor);
   const isSiteAdmin = role === "SITE_ADMIN";
   const [groups, invitations, users, mailConfigured] = await Promise.all([
-    prisma.group.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true, description: true } }),
+    // Content managers can only hand out groups within trees they manage.
+    prisma.group.findMany({
+      where: allowedGroups === "all" ? {} : { id: { in: [...allowedGroups] } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, description: true },
+    }),
     listPendingInvitations(),
     // The user list (roles, disabling) is for site admins only.
     isSiteAdmin
@@ -85,15 +92,15 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
               </thead>
               <tbody>
                 {invitations.map((inv) => (
-                  <tr key={inv.id}>
+                  <tr data-ui="AdminUsersPage.invitationRow" data-id={inv.id} key={inv.id}>
                     <td>{SITE_ROLE_LABELS[inv.siteRole]}</td>
                     <td>{inv.groups.map((g) => g.group.name).join("、") || "-"}</td>
                     <td>{inv.email ?? "指定なし"}</td>
                     <td>{dateFormat.format(inv.expiresAt)}</td>
                     <td>
-                      <form action={revokeInvitation}>
+                      <form data-ui="AdminUsersPage.revokeInvitationForm" action={revokeInvitation}>
                         <input type="hidden" name="id" value={inv.id} />
-                        <button type="submit" className={styles.danger}>
+                        <button data-ui="AdminUsersPage.revokeInvitationButton" type="submit" className={styles.danger}>
                           取り消す
                         </button>
                       </form>
@@ -110,7 +117,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>ユーザー</h2>
           {error === "last-site-admin" && (
-            <p className={styles.error} style={{ marginBottom: 12 }}>
+            <p data-ui="AdminUsersPage.lastSiteAdminError" className={styles.error} style={{ marginBottom: 12 }}>
               最後のサイト管理者は、降格・無効化できません。先に別のユーザーをサイト管理者にしてください。
             </p>
           )}
@@ -128,7 +135,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className={u.disabledAt ? styles.disabledRow : undefined}>
+                  <tr data-ui="AdminUsersPage.userRow" data-id={u.id} key={u.id} className={u.disabledAt ? styles.disabledRow : undefined}>
                     <td>
                       {u.name ?? "-"}
                       {u.disabledAt && <span className={styles.badge}>無効</span>}

@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
+import { manageableGroupIds } from "@/lib/group-access";
 import styles from "@/styles/ui.module.css";
 import { CreateGroupForm } from "./group-forms";
 
 export default async function AdminGroupsPage() {
-  await requireAdmin();
+  const { actor } = await requireAdmin();
+  const allowed = await manageableGroupIds(actor);
   const groups = await prisma.group.findMany({
+    // Content managers only see groups within trees they manage.
+    where: allowed === "all" ? {} : { id: { in: [...allowed] } },
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, description: true, _count: { select: { members: true } } },
+    select: { id: true, name: true, description: true, _count: { select: { members: true, grants: true } } },
   });
 
   return (
@@ -22,18 +26,20 @@ export default async function AdminGroupsPage() {
                 <th>グループ名</th>
                 <th>説明</th>
                 <th>メンバー数</th>
+                <th>権限の数</th>
               </tr>
             </thead>
             <tbody>
               {groups.map((g) => (
-                <tr key={g.id}>
+                <tr data-ui="AdminGroupsPage.groupRow" data-id={g.id} key={g.id}>
                   <td>
-                    <Link href={`/admin/groups/${g.id}`} style={{ textDecoration: "underline" }}>
+                    <Link data-ui="AdminGroupsPage.groupLink" href={`/admin/groups/${g.id}`} style={{ textDecoration: "underline" }}>
                       {g.name}
                     </Link>
                   </td>
                   <td>{g.description ?? "-"}</td>
                   <td>{g._count.members}</td>
+                  <td>{g._count.grants}</td>
                 </tr>
               ))}
             </tbody>

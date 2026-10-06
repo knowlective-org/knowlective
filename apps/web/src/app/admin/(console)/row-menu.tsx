@@ -52,6 +52,7 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
     <>
       <button
         ref={buttonRef}
+        data-ui="RowMenu.toggle"
         type="button"
         aria-label={label}
         aria-haspopup="menu"
@@ -66,10 +67,11 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
         ⋯
       </button>
       {open && (
-        <div ref={menuRef} role="menu" className={styles.menu} style={{ top: pos.top, right: pos.right }}>
+        <div ref={menuRef} data-ui="RowMenu.menu" role="menu" className={styles.menu} style={{ top: pos.top, right: pos.right }}>
           {items.map((item) => (
             <form
               key={item.label}
+              data-ui="RowMenu.itemForm"
               action={item.action}
               onSubmit={(e) => {
                 if (item.confirm && !window.confirm(item.confirm)) e.preventDefault();
@@ -80,6 +82,7 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
                 <input key={name} type="hidden" name={name} value={value} />
               ))}
               <button
+                data-ui="RowMenu.item"
                 type="submit"
                 role="menuitem"
                 className={item.danger ? styles.menuItemDanger : styles.menuItem}

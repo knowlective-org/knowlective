@@ -37,6 +37,9 @@ model User {
   // collab access refused. Group memberships are kept so re-enabling restores access.
   disabledAt   DateTime?
   siteRole     SiteRole  @default(USER)
+  // Page opened most recently; "/" reopens it (if still accessible). No
+  // foreign key: a deleted page simply falls back to the first visible one.
+  lastPageId   String?
 
   pages           Page[]
   sessions        UserSession[]
@@ -358,4 +361,24 @@ model InvitationGroup {
   group        Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@id([invitationId, groupId])
+}
+
+// Who changed what, for permission-related changes: roles, account
+// enable/disable, group membership, page grants, knowledge root creation.
+// Kept even when the actor or target is deleted (no foreign keys), so it
+// stays a faithful record. Shown to site admins in /admin/security.
+model AuditLog {
+  id         String   @id @default(cuid())
+  // Null for the master password login.
+  actorId    String?
+  // Name/email at the time, or "マスターパスワード".
+  actorLabel String
+  // e.g. "user.role", "user.disable", "group.member.add", "page.grant.set"
+  action     String
+  // Human-readable summary, rendered as-is.
+  summary    String
+  detail     Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

@@ -17,7 +17,7 @@ export default async function SetupPage() {
   }
 
   return (
-    <main style={{ maxWidth: 480, margin: "64px auto", padding: "0 16px" }}>
+    <main style={{ maxWidth: 480, margin: "64px auto", padding: "0 16px" }} data-ui="SetupPage">
       <h1 style={{ fontSize: 24, marginBottom: 16 }}>yosuga の初期セットアップ</h1>
       <p style={{ lineHeight: 1.7, marginBottom: 12 }}>
         このインスタンスを管理するためのマスターパスワードと、サイトの公開 URL を設定します。

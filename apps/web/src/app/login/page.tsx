@@ -17,7 +17,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect(next);
 
   return (
-    <main className={styles.narrow}>
+    <main className={styles.narrow} data-ui="LoginPage">
       <h1 className={styles.title}>yosuga にログイン</h1>
       <LoginForm next={next} />
       <p className={styles.note} style={{ marginTop: 24 }}>

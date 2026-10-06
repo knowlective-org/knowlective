@@ -34,7 +34,7 @@ export default async function AdminEnrollPage() {
   secret.fill(0);
 
   return (
-    <main className={styles.narrow}>
+    <main className={styles.narrow} data-ui="AdminEnrollPage">
       <h1 className={styles.title}>認証アプリの登録</h1>
       <p className={styles.lead}>
         管理画面へのログインには、{session.user ? "パスワード" : "マスターパスワード"}に加えて認証アプリのコードが必要です。
@@ -42,9 +42,9 @@ export default async function AdminEnrollPage() {
         コードを読み取ってください。
       </p>
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL, nothing to optimize */}
-      <img src={qr} alt="認証アプリ登録用の QR コード" className={styles.qr} />
+      <img src={qr} alt="認証アプリ登録用の QR コード" className={styles.qr} data-ui="AdminEnrollPage.qrCode" />
       <p className={styles.note}>QR コードを読み取れない場合は、次のキーを手入力してください。</p>
-      <p className={styles.secret}>{base32}</p>
+      <p className={styles.secret} data-ui="AdminEnrollPage.secretKey">{base32}</p>
       <p className={styles.note} style={{ margin: "16px 0" }}>
         この画面は10分で無効になります。期限が切れたら、もう一度ログインしてください。
       </p>

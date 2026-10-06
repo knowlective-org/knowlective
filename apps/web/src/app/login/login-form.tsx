@@ -10,11 +10,12 @@ export function LoginForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState(login, initialState);
 
   return (
-    <form action={formAction} className={styles.form}>
+    <form action={formAction} className={styles.form} data-ui="LoginForm">
       <input type="hidden" name="next" value={next} />
       <label>
         メールアドレス
         <input
+          data-ui="LoginForm.emailInput"
           type="email"
           name="email"
           required
@@ -26,6 +27,7 @@ export function LoginForm({ next }: { next: string }) {
       <label>
         パスワード
         <input
+          data-ui="LoginForm.passwordInput"
           type="password"
           name="password"
           required
@@ -33,10 +35,10 @@ export function LoginForm({ next }: { next: string }) {
           className={styles.field}
         />
       </label>
-      <p aria-live="polite" className={styles.error}>
+      <p aria-live="polite" className={styles.error} data-ui="LoginForm.error">
         {state.error}
       </p>
-      <button type="submit" disabled={pending} className={styles.button}>
+      <button type="submit" disabled={pending} className={styles.button} data-ui="LoginForm.submitButton">
         {pending ? "確認しています…" : "ログイン"}
       </button>
     </form>

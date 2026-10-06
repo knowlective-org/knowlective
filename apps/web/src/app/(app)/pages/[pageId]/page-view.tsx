@@ -2,48 +2,51 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { DocTree, type DocTreeNode } from "@/components/doc-tree";
+import { AppShell } from "@/components/app-shell";
+import { Sidebar, type SidebarTree } from "@/components/sidebar";
 import { EditorLoader } from "./editor-loader";
 import styles from "./page-view.module.css";
 
-// Two-pane page screen: the knowledge root's document tree on the left
-// (sticky), the title + editor on the right. The open page's live title is
-// shared so renaming shows in the tree immediately.
+export type SidebarInfo = {
+  trees: SidebarTree[];
+  maxDepth: number;
+  userName: string;
+  canCreateRoot: boolean;
+  canOpenAdmin: boolean;
+};
+
+// The page screen: sidebar with every visible knowledge root on the left,
+// title + editor on the right. The open page's live title is shared so
+// renaming shows in the sidebar immediately.
 export function PageView({
   pageId,
   readOnly,
+  canManage,
   user,
-  tree,
-  entryIds,
-  maxDepth,
+  sidebar,
 }: {
   pageId: string;
   readOnly: boolean;
+  // MANAGE access: may change this page's group grants.
+  canManage: boolean;
   user: { id: string; name: string };
-  tree: DocTreeNode[];
-  // Where the visible tree starts (the root page, and/or shared subtrees).
-  entryIds: string[];
-  maxDepth: number;
+  sidebar: SidebarInfo;
 }) {
   const [liveTitle, setLiveTitle] = useState<string | undefined>(undefined);
 
   return (
-    <div className={styles.layout}>
-      <aside className={styles.sidebar}>
-        <Link href="/" className={styles.home}>
-          ← ホーム
-        </Link>
-        <DocTree
-          nodes={tree}
-          entryIds={entryIds}
-          currentPageId={pageId}
-          currentTitle={liveTitle}
-          maxDepth={maxDepth}
-        />
-      </aside>
-      <main className={styles.main}>
+    <AppShell sidebar={<Sidebar {...sidebar} currentPageId={pageId} currentTitle={liveTitle} />}>
+      <div data-ui="PageView">
+        <div className={styles.toolbar}>
+          {readOnly && <span className={styles.readOnly} data-ui="PageView.readOnlyBadge">閲覧のみ</span>}
+          {canManage && (
+            <Link href={`/pages/${pageId}/share`} className={styles.share} data-ui="PageView.shareLink">
+              共有
+            </Link>
+          )}
+        </div>
         <EditorLoader pageId={pageId} readOnly={readOnly} user={user} onTitleChange={setLiveTitle} />
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

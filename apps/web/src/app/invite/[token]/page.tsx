@@ -22,12 +22,12 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
 
   if (!invitation) {
     return (
-      <main className={styles.narrow}>
+      <main className={styles.narrow} data-ui="InvitePage">
         <h1 className={styles.title}>招待リンクが無効です</h1>
         <p className={styles.lead}>
           このリンクは使用済みか、期限が切れています。管理者に新しいリンクを依頼してください。
         </p>
-        <Link href="/login">ログイン画面へ</Link>
+        <Link href="/login" data-ui="InvitePage.loginLink">ログイン画面へ</Link>
       </main>
     );
   }
@@ -39,7 +39,7 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
 
   const user = await getCurrentUser();
   return (
-    <main className={styles.narrow}>
+    <main className={styles.narrow} data-ui="InvitePage">
       <h1 className={styles.title}>yosuga への招待</h1>
       <p className={styles.lead}>{description}</p>
       {user ? (
@@ -54,7 +54,7 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
           <RegisterForm token={token} email={invitation.email} minLength={MIN_PASSWORD_LENGTH} />
           <p className={styles.note} style={{ marginTop: 24 }}>
             すでにアカウントをお持ちの場合は、
-            <Link href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}>ログイン</Link>
+            <Link data-ui="InvitePage.existingAccountLoginLink" href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}>ログイン</Link>
             してから、このリンクをもう一度開いてください。
           </p>
         </>

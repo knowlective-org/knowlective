@@ -20,11 +20,12 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
   const [authEnabled, setAuthEnabled] = useState(current?.authEnabled ?? true);
 
   return (
-    <form action={formAction} className={styles.form}>
+    <form data-ui="MailSettingsForm" action={formAction} className={styles.form}>
       <label>
         送信元メールアドレス
         <input
           type="email"
+          data-ui="MailSettingsForm.fromAddressInput"
           name="fromAddress"
           required
           defaultValue={current?.fromAddress}
@@ -36,6 +37,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
         送信者名（任意）
         <input
           type="text"
+          data-ui="MailSettingsForm.fromNameInput"
           name="fromName"
           defaultValue={current?.fromName ?? "yosuga"}
           className={styles.field}
@@ -45,6 +47,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
         SMTP サーバー
         <input
           type="text"
+          data-ui="MailSettingsForm.hostInput"
           name="host"
           required
           defaultValue={current?.host}
@@ -56,6 +59,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
       <label>
         暗号化
         <select
+          data-ui="MailSettingsForm.securitySelect"
           name="security"
           value={security}
           onChange={(e) => {
@@ -75,6 +79,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
         SMTP サーバーポート
         <input
           type="number"
+          data-ui="MailSettingsForm.portInput"
           name="port"
           required
           min={1}
@@ -87,6 +92,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input
           type="checkbox"
+          data-ui="MailSettingsForm.authEnabledCheckbox"
           name="authEnabled"
           checked={authEnabled}
           onChange={(e) => setAuthEnabled(e.target.checked)}
@@ -96,7 +102,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
       {authEnabled && (
         <>
           {security === "NONE" && (
-            <p className={styles.error}>
+            <p data-ui="MailSettingsForm.insecureAuthError" className={styles.error}>
               暗号化なしでは SMTP AUTH は使えません（パスワードが平文で送られるため）。
             </p>
           )}
@@ -104,6 +110,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
             ユーザー名
             <input
               type="text"
+              data-ui="MailSettingsForm.usernameInput"
               name="username"
               required
               defaultValue={current?.username ?? ""}
@@ -116,6 +123,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
             パスワード
             <input
               type="password"
+              data-ui="MailSettingsForm.passwordInput"
               name="password"
               required={!current?.hasPassword}
               autoComplete="new-password"
@@ -125,10 +133,10 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
           </label>
         </>
       )}
-      <p aria-live="polite" className={state.error ? styles.error : styles.success}>
+      <p data-ui="MailSettingsForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
         {state.error ?? (state.saved ? "保存しました。" : "")}
       </p>
-      <button type="submit" disabled={pending} className={styles.button}>
+      <button data-ui="MailSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
         {pending ? "保存しています…" : "保存"}
       </button>
     </form>
@@ -139,17 +147,17 @@ export function TestMailForm({ disabled }: { disabled: boolean }) {
   const [state, formAction, pending] = useActionState(sendTestMail, {} as TestMailState);
 
   return (
-    <form action={formAction} className={styles.form}>
+    <form data-ui="TestMailForm" action={formAction} className={styles.form}>
       <label>
         テストメールの送信先
-        <input type="email" name="to" required disabled={disabled} className={styles.field} />
+        <input data-ui="TestMailForm.toInput" type="email" name="to" required disabled={disabled} className={styles.field} />
       </label>
-      <p aria-live="polite" className={state.error ? styles.error : styles.success}>
+      <p data-ui="TestMailForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
         {state.error ??
           (state.sentTo ? `${state.sentTo} に送信しました。届いているか確認してください。` : "")}
         {disabled && !state.error && "設定を保存すると、テストメールを送れます。"}
       </p>
-      <button type="submit" disabled={pending || disabled} className={styles.button}>
+      <button data-ui="TestMailForm.submitButton" type="submit" disabled={pending || disabled} className={styles.button}>
         {pending ? "送信しています…" : "テストメールを送信"}
       </button>
     </form>

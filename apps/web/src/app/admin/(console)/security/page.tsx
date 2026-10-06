@@ -14,9 +14,10 @@ import { IpAllowlistForm } from "../ip-allowlist-form";
 
 export default async function AdminSecurityPage() {
   const { ctx, config, session } = await requireAdmin(["SITE_ADMIN"]);
-  const [sessions, attempts] = await Promise.all([
+  const [sessions, attempts, auditLogs] = await Promise.all([
     listActiveAdminSessions(),
     prisma.adminLoginAttempt.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),
+    prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
   ]);
 
   return (
@@ -34,6 +35,37 @@ export default async function AdminSecurityPage() {
             {ABSOLUTE_TIMEOUT_MS / 3600000}時間経つと切れます。
           </li>
         </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>変更の記録（新しい順に100件）</h2>
+        <p className={styles.note} style={{ marginBottom: 12 }}>
+          ロール・アカウントの有効/無効・グループのメンバー・ページの権限・ナレッジルートの作成・招待の変更を記録しています。
+        </p>
+        {auditLogs.length === 0 ? (
+          <p className={styles.note}>まだ記録はありません。</p>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>日時</th>
+                  <th>操作した人</th>
+                  <th>内容</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.map((log) => (
+                  <tr data-ui="AdminSecurityPage.auditLogRow" data-id={log.id} key={log.id}>
+                    <td style={{ whiteSpace: "nowrap" }}>{dateFormat.format(log.createdAt)}</td>
+                    <td>{log.actorLabel}</td>
+                    <td>{log.summary}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className={styles.section}>
@@ -57,7 +89,7 @@ export default async function AdminSecurityPage() {
             </thead>
             <tbody>
               {sessions.map((s) => (
-                <tr key={s.tokenHash}>
+                <tr data-ui="AdminSecurityPage.sessionRow" key={s.tokenHash}>
                   <td>
                     {s.user ? (s.user.name ?? s.user.email) : "マスターパスワード"}
                     {s.tokenHash === session.tokenHash && "（このセッション）"}
@@ -69,9 +101,9 @@ export default async function AdminSecurityPage() {
                   <td>{dateFormat.format(s.createdAt)}</td>
                   <td>{dateFormat.format(s.lastSeenAt)}</td>
                   <td>
-                    <form action={revokeSession}>
+                    <form data-ui="AdminSecurityPage.revokeSessionForm" action={revokeSession}>
                       <input type="hidden" name="tokenHash" value={s.tokenHash} />
-                      <button type="submit" className={styles.danger}>
+                      <button data-ui="AdminSecurityPage.revokeSessionButton" type="submit" className={styles.danger}>
                         終了
                       </button>
                     </form>
@@ -82,8 +114,8 @@ export default async function AdminSecurityPage() {
           </table>
         </div>
         {sessions.length > 1 && (
-          <form action={revokeOtherSessions} style={{ marginTop: 12 }}>
-            <button type="submit" className={styles.danger}>
+          <form data-ui="AdminSecurityPage.revokeOtherSessionsForm" action={revokeOtherSessions} style={{ marginTop: 12 }}>
+            <button data-ui="AdminSecurityPage.revokeOtherSessionsButton" type="submit" className={styles.danger}>
               このセッション以外をすべて終了
             </button>
           </form>
@@ -105,7 +137,7 @@ export default async function AdminSecurityPage() {
             </thead>
             <tbody>
               {attempts.map((a) => (
-                <tr key={a.id}>
+                <tr data-ui="AdminSecurityPage.loginAttemptRow" data-id={a.id} key={a.id}>
                   <td>{dateFormat.format(a.createdAt)}</td>
                   <td>{a.email ?? "（マスターパスワード）"}</td>
                   <td>{a.ip}</td>

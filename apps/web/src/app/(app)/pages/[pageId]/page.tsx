@@ -4,7 +4,8 @@ import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { requireUser } from "@/lib/auth/session";
-import { MAX_PAGE_DEPTH, atLeast, getVisibleTree } from "shared";
+import { atLeast } from "shared";
+import { loadSidebar } from "@/lib/sidebar-data";
 import { displayTitle } from "@/lib/page-title";
 import { PageView } from "./page-view";
 
@@ -24,9 +25,14 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
   const { user, page } = await loadPage((await params).pageId);
   if (!page) notFound();
 
-  // The part of this knowledge root the user can see, for the sidebar.
-  const tree = await getVisibleTree(prisma, user.id, page.root.id);
-  if (!tree) notFound();
+  const [sidebar] = await Promise.all([
+    loadSidebar(user),
+    // "/" reopens the page opened last.
+    prisma.user.updateMany({
+      where: { id: user.id, OR: [{ lastPageId: null }, { lastPageId: { not: page.id } }] },
+      data: { lastPageId: page.id },
+    }),
+  ]);
 
   return (
     <PageView
@@ -34,10 +40,9 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
       key={page.id}
       pageId={page.id}
       readOnly={!atLeast(page.access, "EDIT")}
+      canManage={atLeast(page.access, "MANAGE")}
       user={{ id: user.id, name: user.name ?? user.email }}
-      tree={tree.pages}
-      entryIds={tree.entryIds}
-      maxDepth={MAX_PAGE_DEPTH}
+      sidebar={sidebar}
     />
   );
 }

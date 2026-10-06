@@ -23,23 +23,23 @@ const NAV: { href: string; label: string; siteAdminOnly?: boolean }[] = [
 export default async function AdminConsoleLayout({ children }: LayoutProps<"/admin">) {
   const { actorLabel, role } = await requireAdmin();
   return (
-    <main className={styles.wide}>
+    <main data-ui="AdminConsoleLayout" className={styles.wide}>
       <header className={styles.header}>
         <h1 className={styles.title} style={{ margin: 0 }}>
           管理画面
         </h1>
-        <form action={logout} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <form data-ui="AdminConsoleLayout.logoutForm" action={logout} style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span className={styles.note}>
             {actorLabel}（{SITE_ROLE_LABELS[role]}）
           </span>
-          <button type="submit" className={styles.button}>
+          <button data-ui="AdminConsoleLayout.logoutButton" type="submit" className={styles.button}>
             ログアウト
           </button>
         </form>
       </header>
-      <nav className={styles.nav}>
+      <nav data-ui="AdminConsoleLayout.nav" className={styles.nav}>
         {NAV.filter((item) => role === "SITE_ADMIN" || !item.siteAdminOnly).map((item) => (
-          <Link key={item.href} href={item.href} className={styles.navLink}>
+          <Link key={item.href} data-ui="AdminConsoleLayout.navLink" href={item.href} className={styles.navLink}>
             {item.label}
           </Link>
         ))}

@@ -7,11 +7,12 @@ import { type UploadLimitState, saveUploadLimit } from "./actions";
 export function UploadLimitForm({ current, maxLimitMb }: { current: number; maxLimitMb: number }) {
   const [state, formAction, pending] = useActionState(saveUploadLimit, {} as UploadLimitState);
   return (
-    <form action={formAction} className={styles.form}>
+    <form data-ui="UploadLimitForm" action={formAction} className={styles.form}>
       <label>
         1ファイルの最大サイズ（MB、1〜{maxLimitMb}）
         <input
           type="number"
+          data-ui="UploadLimitForm.maxUploadSizeInput"
           name="maxUploadSizeMb"
           required
           min={1}
@@ -20,10 +21,10 @@ export function UploadLimitForm({ current, maxLimitMb }: { current: number; maxL
           className={styles.field}
         />
       </label>
-      <p aria-live="polite" className={state.error ? styles.error : styles.success}>
+      <p data-ui="UploadLimitForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
         {state.error ?? (state.saved ? "保存しました。" : "")}
       </p>
-      <button type="submit" disabled={pending} className={styles.button}>
+      <button data-ui="UploadLimitForm.submitButton" type="submit" disabled={pending} className={styles.button}>
         {pending ? "保存しています…" : "保存"}
       </button>
     </form>

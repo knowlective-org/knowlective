@@ -10,11 +10,12 @@ export function PublicUrlForm({ current, suggested }: { current: string | null; 
   const [state, formAction, pending] = useActionState(savePublicUrl, initialState);
 
   return (
-    <form action={formAction} className={styles.form}>
+    <form data-ui="PublicUrlForm" action={formAction} className={styles.form}>
       <label>
         サイトの公開 URL
         <input
           type="url"
+          data-ui="PublicUrlForm.publicUrlInput"
           name="publicUrl"
           required
           defaultValue={current ?? suggested}
@@ -26,10 +27,10 @@ export function PublicUrlForm({ current, suggested }: { current: string | null; 
       <p className={styles.note}>
         メールや招待リンクに使われます。利用者がブラウザで開く URL（https://〜）を、パスを付けずに入力してください。
       </p>
-      <p aria-live="polite" className={state.error ? styles.error : styles.success}>
+      <p data-ui="PublicUrlForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
         {state.error ?? (state.saved ? "保存しました。" : "")}
       </p>
-      <button type="submit" disabled={pending} className={styles.button}>
+      <button data-ui="PublicUrlForm.submitButton" type="submit" disabled={pending} className={styles.button}>
         {pending ? "保存しています…" : "保存"}
       </button>
     </form>

@@ -18,11 +18,12 @@ export function RegisterForm({
   const [state, formAction, pending] = useActionState(register, initialState);
 
   return (
-    <form action={formAction} className={styles.form}>
+    <form action={formAction} className={styles.form} data-ui="RegisterForm">
       <input type="hidden" name="token" value={token} />
       <label>
         メールアドレス
         <input
+          data-ui="RegisterForm.emailInput"
           type="email"
           name="email"
           required
@@ -34,11 +35,12 @@ export function RegisterForm({
       </label>
       <label>
         表示名
-        <input type="text" name="name" required autoComplete="name" className={styles.field} />
+        <input data-ui="RegisterForm.nameInput" type="text" name="name" required autoComplete="name" className={styles.field} />
       </label>
       <label>
         パスワード（{minLength}文字以上）
         <input
+          data-ui="RegisterForm.passwordInput"
           type="password"
           name="password"
           required
@@ -50,6 +52,7 @@ export function RegisterForm({
       <label>
         パスワード（確認）
         <input
+          data-ui="RegisterForm.confirmPasswordInput"
           type="password"
           name="confirm"
           required
@@ -58,10 +61,10 @@ export function RegisterForm({
           className={styles.field}
         />
       </label>
-      <p aria-live="polite" className={styles.error}>
+      <p aria-live="polite" className={styles.error} data-ui="RegisterForm.error">
         {state.error}
       </p>
-      <button type="submit" disabled={pending} className={styles.button}>
+      <button type="submit" disabled={pending} className={styles.button} data-ui="RegisterForm.submitButton">
         {pending ? "登録しています…" : "登録して参加する"}
       </button>
     </form>
@@ -72,12 +75,12 @@ export function AcceptForm({ token }: { token: string }) {
   const [state, formAction, pending] = useActionState(accept, initialState);
 
   return (
-    <form action={formAction} className={styles.form}>
+    <form action={formAction} className={styles.form} data-ui="AcceptForm">
       <input type="hidden" name="token" value={token} />
-      <p aria-live="polite" className={styles.error}>
+      <p aria-live="polite" className={styles.error} data-ui="AcceptForm.error">
         {state.error}
       </p>
-      <button type="submit" disabled={pending} className={styles.button}>
+      <button type="submit" disabled={pending} className={styles.button} data-ui="AcceptForm.submitButton">
         {pending ? "参加しています…" : "参加する"}
       </button>
     </form>

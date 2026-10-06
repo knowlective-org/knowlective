@@ -9,6 +9,7 @@ export type {
   PageDocument,
   PageAccess,
   PageGrant,
+  AuditLog,
   SiteRole,
   InstanceConfig,
   AdminSession,

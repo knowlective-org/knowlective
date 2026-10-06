@@ -44,6 +44,28 @@ Next.jsは自分のディレクトリの `.env*` しか読まない。ルート�
 pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同じポートの /collab）
 ```
 
+### UI 要素の名前（`data-ui` 属性）
+
+画面の要素を名前で指示・特定できるように、**機能のある DOM 要素には必ず `data-ui` 属性で名前を付ける。** 新しく作る・変更するコンポーネントでも守ること。
+
+```tsx
+<div data-ui="DocTree">
+  <button data-ui="DocTree.toggle">▸</button>
+  <a data-ui="DocTree.link" data-id={node.id}>…</a>
+</div>
+```
+
+- **コンポーネントのルート要素**: コンポーネント名（関数名と同じ PascalCase）。例: `data-ui="DocTree"`。ページ（`page.tsx`）や layout はその関数名（`AdminUsersPage` など）を使う。
+- **機能のある要素**: `コンポーネント名.要素名`（要素名は camelCase）。例: `DocTree.toggle`、`LoginForm.submitButton`。
+- **対象**: ボタン、リンク、入力欄（input / select / textarea）、フォーム、メニュー・メニュー項目、トグル、エラーやステータスの表示、ツリー・一覧の行など、操作できるものや状態を表示するもの。レイアウトだけの div や単なる見出し・文章には付けない。
+- **繰り返す要素**（一覧の行など）は同じ名前にし、区別が必要なら `data-id` に id を入れる。
+- **名前はページ内で一意でなくてよいが、同じコンポーネントの中では一意にする。** 子コンポーネントの中の要素は、子コンポーネントの名前で付ける（親の名前を付け足さない）。
+- 名前は機能を表す（`submitButton`、`deleteMenuItem` など）。見た目（`blueButton`）や文言で付けない。
+- 末尾は要素の種類に揃える: `〜Button` / `〜Link` / `〜Input` / `〜Select` / `〜Checkbox` / `〜Radio` / `〜Form` / `〜Row`（一覧の行）/ `〜Item`（ツリー・メニューの項目）。エラー表示は `error`（種類があれば `〜Error`）、成功・進行中などの表示は `status`。
+- Fragment を返すページなど、ルートの DOM 要素がないコンポーネントにはルートの名前を付けなくてよい。
+- BlockNote など外部ライブラリが描画する内部の DOM は対象外。自分で書いたコンポーネント（ラッパーやカスタムブロック）にだけ付ける。
+- 将来 Playwright を入れるときは `testIdAttribute: "data-ui"` を設定し、`getByTestId("LoginForm.submitButton")` で同じ名前を使う。
+
 デモ: `/admin` で「Demo 管理」グループに入る招待リンクを発行して自分を登録し、`/pages/demo` を2つのタブで開く。片方で入力するともう片方に反映される（ページは権限のあるグループのメンバーしか開けない）。
 
 ## 実装上の注意（ハマりどころ）
@@ -70,10 +92,13 @@ pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同
 - **接続元 IP**: Next.js は `X-Forwarded-For` が無いときしか接続元を入れない（`??=`）。そのため右から `YOSUGA_TRUSTED_PROXY_HOPS` 番目を採用している（`apps/web/src/lib/admin/ip.ts`）。リバースプロキシなしで公開すると偽装できる。
 - **ナレッジルート**（旧ワークスペース。画面上の名前は「ナレッジルート」）: DB では入れ物 `KnowledgeRoot` と、そのルートページを別々に持ち、画面上はルートページがナレッジルートとして見える。名前はルートページのタイトルで、入れ物には名前を持たせない。`KnowledgeRoot.rootPageId` と `Page.rootId` が互いを参照するので、作成は必ず `createKnowledgeRoot()`（`packages/shared`）でトランザクション内で行う。`rootPageId` は DB 上は任意だが常にセットされ、ルートページは `ON DELETE RESTRICT` で削除できない。`parentId` が null なのはルートページだけ。すべてのページが `rootId` を持つので、権限の判定はナレッジルート1つ分の木を1回読めば済む（別のルートへ移動するときは配下もまとめて付け替える）。ページの階層の上限は `MAX_PAGE_DEPTH`（50、`packages/shared`）。ページの作成・移動の処理を作るときは、上限と循環（自分や配下を親にしない）の確認を入れる。
 - **ページタイトル**: タイトルは Yjs ドキュメントの `Y.Text("title")`（本文の BlockNote と同じドキュメント）に持ち、共同編集でその場で同期する。collab サーバーが保存時に `Page.title` へ書き戻す（サイドバー・ホーム・ナレッジルート名は DB の値を読む）。まだタイトルを持たないドキュメントは、読み込み時にサーバー側で `Page.title` から1回だけ入れる（クライアントが入れると、同時に開いた人の分だけ重複するため）。定数は `apps/web/src/lib/page-title.ts`（ブラウザと collab の両方から読むので依存を入れない）。
-- **ページ画面**: `(app)/pages/[pageId]/page-view.tsx` が、左のドキュメントツリー（`position: sticky`）と右のタイトル＋エディタを並べる。ページごとに `key={pageId}` で作り直し、エディタはアンマウント時に共同編集の接続を閉じる。
+- **ページ画面**: `(app)/pages/[pageId]/page-view.tsx` が、`AppShell`（左に sticky のサイドバー）の中にタイトル＋エディタを置く。サイドバー（`components/sidebar.tsx`、データは `lib/sidebar-data.ts`）は見られるナレッジルートをすべて並べる。`/` は専用画面を持たず、`User.lastPageId`（ページを開くたびに更新）か最初に見えるページへリダイレクトする。アプリの全ページに `RefreshOnReturn` があり、タブに戻ったときや戻る／進むで `router.refresh()` する（ロールや権限の変更をログインし直さずに反映するため）。ページごとに `key={pageId}` で作り直し、エディタはアンマウント時に共同編集の接続を閉じる。
 - **ファイル添付**: `apps/web/src/lib/storage.ts`（S3 互換。`@aws-sdk/client-s3`、チェックサムは互換性のため必要なときだけ）。保存先は `StorageSettings`（id=1 の1行だけ）、なければ同梱の SeaweedFS（`SEAWEEDFS_*` 環境変数）。ファイルの中身はデータ鍵で暗号化（AAD はファイル id）。アップロードは `POST /api/files?pageId=`、配信は `GET /api/files/<id>`（Route Handler なので CSRF は自前で Origin を確認）。配信時は `INLINE_TYPES` 以外を必ず `attachment` + `application/octet-stream` にする（HTML・SVG をアプリのオリジンで実行させないため）。今はファイル全体をメモリに載せて暗号化するので、上限は `MAX_FILE_SIZE_MB_LIMIT`（500MB）。ページからブロックを消してもファイルは消えない（後で掃除の仕組みが必要）。MinIO は公式イメージの配布が止まったため使っていない。
 - **開発サーバーの動作中に `next build` を実行しないこと。** `.next` を作り直すので、動いている開発サーバーが使う `.next/dev` まで消え、全ページが 500 になる（`server/` のファイルを保存して再起動すれば直る）。型の確認は `tsc --noEmit` で行う。
 - **ページの権限**: `packages/shared/src/permissions.ts`。権限は必ずグループ経由（`PageGrant`：ページ × グループ × 閲覧/編集/管理）。個人やサイトのロールには付けない。同じグループは親へたどって最初の付与が効き（下位で絞れる）、複数グループは最も強いものが効く。判定は `getPageAccess()`、一覧は `getVisibleTrees()` / `getVisibleTree()`（親が見えない「入口」のページは `entryIds`）。web・collab・ファイル配信は必ずこれを使う。見えない親のタイトルやナレッジルート名を、子だけ見える人に出さないこと。
+- **グループを扱える範囲**: `apps/web/src/lib/group-access.ts`。サイト管理者（とマスターパスワード）はすべて、コンテンツ管理者は「付いている権限がすべて自分が MANAGE を持つページにある」グループだけ。グループの画面・Server Action・招待・ナレッジルート作成のすべてで確認する（自分をグループに入れて見えないページを見る抜け道を防ぐため）。
+- **変更の記録**: `AuditLog`（`apps/web/src/lib/audit.ts` の `recordAudit()`）。権限に関わる変更（ロール・有効/無効・グループのメンバーと名前・ページの権限・ナレッジルートの作成・招待）は必ず記録する。拒否した変更は記録しない。
+- **ページの共有**: `(app)/pages/[pageId]/share`。MANAGE を持つ人だけが変更でき、ルートページの MANAGE が0件になる変更は拒否する（サイト管理者もページを見られないので、誰も管理できないツリーになるため）。サイト管理者に見えるところ（グループの説明など）に、見えないページのタイトルを自動で書き込まないこと。
 - **ユーザー認証**: 招待制。`apps/web/src/lib/auth/`（`session.ts` / `invitations.ts` / `pages.ts`）。ページと Server Action はそれぞれ `requireUser()` を呼ぶこと（`(app)/layout.tsx` はセットアップ済みかを見るだけ）。ページを開く権限は `findAccessiblePage()` で判定し、権限がなければ 404 にする。
 - **公開 URL**: メールや招待リンクなど、サイトの外に出るリンクは必ず `getPublicUrl()`（`apps/web/src/lib/site-url.ts`）で組み立てる。Host ヘッダーはクライアントが自由に変えられるので、リクエストから組み立てない（`getRequestOrigin()` は入力欄の初期値と、未設定のときの代わりにだけ使う）。
 - **メール送信**: `apps/web/src/lib/mail.ts`（nodemailer 10。型は本体に同梱されているので `@types/nodemailer` は入れない）。設定は `MailSettings`（id=1 の1行だけ）、SMTP パスワードはデータ鍵で暗号化。送信は `sendMail()`、未設定なら `MailNotConfiguredError`。
@@ -95,7 +120,7 @@ pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同
 未着手（次の候補）:
 - ページ作成・一覧・階層のCRUD APIルート（`apps/web`）
 - パスワードの再設定（メール送信は実装済み。再設定メールの送信と、メール未設定時に管理画面から再設定リンクを発行する手段）
-- ナレッジルートの作成画面、ページの「共有」（グループ権限の設定）画面、コンテンツ管理者のグループ編集の制限、権限変更の記録（計画の3段階目）
+- ページの作成・移動・削除（作成・移動では `MAX_PAGE_DEPTH` と循環の確認、削除では添付ファイルの扱いも）
 - ページの作成・一覧・階層の CRUD
 - ナレッジルートの権限モデル
 - 添付ファイルの掃除（ブロックを消したファイルの削除）と、大きいファイル向けのストリーミング暗号化

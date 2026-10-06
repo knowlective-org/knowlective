@@ -9,7 +9,7 @@ export type DocTreeNode = { id: string; title: string; icon: string | null; pare
 
 // The visible part of one knowledge root's page tree. It starts at the
 // entry pages (the root page, and/or subtrees shared without their parent).
-// Ancestors of the current page start expanded.
+// Only the path to the current page starts expanded.
 export function DocTree({
   nodes,
   entryIds,
@@ -19,7 +19,8 @@ export function DocTree({
 }: {
   nodes: DocTreeNode[];
   entryIds: string[];
-  currentPageId: string;
+  // Null when no page is open (e.g. the empty home screen).
+  currentPageId: string | null;
   // Live title of the open page, so renaming shows here before it's saved.
   currentTitle?: string;
   maxDepth: number;
@@ -35,7 +36,11 @@ export function DocTree({
   }, [nodes]);
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
-    const open = new Set<string>(entryIds);
+    // Only the path to the open page starts expanded (plus the page itself,
+    // to show its children); trees not containing it start collapsed.
+    const open = new Set<string>();
+    if (!currentPageId || !byId.has(currentPageId)) return open;
+    open.add(currentPageId);
     // Walk up from the current page; the depth cap also stops a corrupted cycle.
     let cursor = byId.get(currentPageId)?.parentId ?? null;
     for (let i = 0; cursor && i <= maxDepth; i++) {
@@ -62,12 +67,13 @@ export function DocTree({
     const isCurrent = node.id === currentPageId;
     const title = isCurrent && currentTitle !== undefined ? currentTitle : node.title;
     return (
-      <li key={node.id}>
+      <li key={node.id} data-ui="DocTree.item" data-id={node.id}>
         <div className={isCurrent ? styles.rowCurrent : styles.row} style={{ paddingLeft: 4 + depth * 14 }}>
           {children.length > 0 ? (
             <button
               type="button"
               className={styles.toggle}
+              data-ui="DocTree.toggle"
               aria-label={isOpen ? "折りたたむ" : "展開する"}
               aria-expanded={isOpen}
               onClick={() => toggle(node.id)}
@@ -80,6 +86,8 @@ export function DocTree({
           <Link
             href={`/pages/${node.id}`}
             className={styles.link}
+            data-ui="DocTree.link"
+            data-id={node.id}
             aria-current={isCurrent ? "page" : undefined}
           >
             {node.icon ? `${node.icon} ` : ""}
@@ -96,7 +104,7 @@ export function DocTree({
   };
 
   return (
-    <nav aria-label="ドキュメントツリー">
+    <nav aria-label="ドキュメントツリー" data-ui="DocTree">
       <ul className={styles.list}>{entries.map((e) => renderNode(e, 0, new Set([e.id])))}</ul>
     </nav>
   );

@@ -140,7 +140,7 @@ function EditorBody({
         onChange={onTitleChange}
         onEnter={() => editor.focus()}
       />
-      <BlockNoteView editor={editor} editable={!readOnly} theme="light" />
+      <BlockNoteView editor={editor} editable={!readOnly} theme="light" data-ui="EditorBody.editor" />
     </>
   );
 }
@@ -210,6 +210,7 @@ function TitleField({
     <textarea
       ref={ref}
       className={styles.title}
+      data-ui="TitleField"
       value={value}
       placeholder={UNTITLED}
       readOnly={readOnly}

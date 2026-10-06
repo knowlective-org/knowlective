@@ -25,7 +25,7 @@ export default async function AdminOverviewPage() {
   return (
     <>
       {siteAdminCount === 0 && (
-        <p className={styles.error} style={{ marginBottom: 24 }}>
+        <p data-ui="AdminOverviewPage.noSiteAdminError" className={styles.error} style={{ marginBottom: 24 }}>
           サイト管理者のロールを持つユーザーがまだいません。「ユーザー」でユーザーのロールを「サイト管理者」にすると、そのユーザーは自分のアカウントで管理画面にログインできます。
         </p>
       )}
@@ -33,12 +33,12 @@ export default async function AdminOverviewPage() {
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>サイトの設定</h2>
         {site.publicUrl === null && (
-          <p className={styles.error} style={{ marginBottom: 12 }}>
+          <p data-ui="AdminOverviewPage.publicUrlUnsetError" className={styles.error} style={{ marginBottom: 12 }}>
             公開 URL が未設定です。設定するまでは、招待リンクやメールのリンクに、今アクセスしている URL（{requestOrigin}）が使われます。
           </p>
         )}
         {site.publicUrl !== null && isInsecurePublicUrl(site.publicUrl) && (
-          <p className={styles.error} style={{ marginBottom: 12 }}>
+          <p data-ui="AdminOverviewPage.insecurePublicUrlError" className={styles.error} style={{ marginBottom: 12 }}>
             公開 URL が http:// です。本番では https:// を使ってください（ログイン情報が暗号化されずに送られます）。
           </p>
         )}

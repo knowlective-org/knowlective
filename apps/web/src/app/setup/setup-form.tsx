@@ -19,10 +19,11 @@ export function SetupForm({ minLength, suggestedUrl }: { minLength: number; sugg
   const [state, formAction, pending] = useActionState(completeSetup, initialState);
 
   return (
-    <form action={formAction} style={{ display: "grid", gap: 16 }}>
+    <form action={formAction} style={{ display: "grid", gap: 16 }} data-ui="SetupForm">
       <label>
         サイトの公開 URL
         <input
+          data-ui="SetupForm.publicUrlInput"
           type="url"
           name="publicUrl"
           required
@@ -38,6 +39,7 @@ export function SetupForm({ minLength, suggestedUrl }: { minLength: number; sugg
       <label>
         マスターパスワード（{minLength}文字以上）
         <input
+          data-ui="SetupForm.passwordInput"
           type="password"
           name="password"
           required
@@ -49,6 +51,7 @@ export function SetupForm({ minLength, suggestedUrl }: { minLength: number; sugg
       <label>
         マスターパスワード（確認）
         <input
+          data-ui="SetupForm.confirmPasswordInput"
           type="password"
           name="confirm"
           required
@@ -57,10 +60,11 @@ export function SetupForm({ minLength, suggestedUrl }: { minLength: number; sugg
           style={fieldStyle}
         />
       </label>
-      <p aria-live="polite" style={{ color: "#d33", minHeight: "1.5em" }}>
+      <p aria-live="polite" style={{ color: "#d33", minHeight: "1.5em" }} data-ui="SetupForm.error">
         {state.error}
       </p>
       <button
+        data-ui="SetupForm.submitButton"
         type="submit"
         disabled={pending}
         style={{ padding: "10px 16px", fontSize: 16, borderRadius: 6, cursor: "pointer" }}
