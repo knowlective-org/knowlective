@@ -5,6 +5,7 @@ import { createReactBlockSpec } from "@blocknote/react";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { displayTitle } from "@/lib/page-title";
 import type { ChildPageItem } from "@/lib/page-property-types";
+import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-blocks.module.css";
 
@@ -12,41 +13,63 @@ const DEPTHS = [1, 2, 3] as const;
 
 const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", timeStyle: "short" });
 
+const LIST_PLACEHOLDER = "子ページ一覧";
+
 // 子ページ一覧: links to the page's children, always current. Only the
-// settings (how many levels) are stored in the document; the list itself is
-// fetched with the viewer's permissions.
+// settings (title, how many levels) are stored in the document; the list
+// itself is fetched with the viewer's permissions.
 export const childPagesBlock = createReactBlockSpec(
   {
     type: "childPages",
-    propSchema: { depth: { default: 1 } },
+    propSchema: {
+      // Shown above the list; empty shows the placeholder 子ページ一覧.
+      title: { default: "" },
+      depth: { default: 1 },
+    },
     content: "none",
   },
   {
     render: ({ block, editor }) => (
       <ChildPagesList
+        title={block.props.title}
         depth={block.props.depth}
-        onDepthChange={
-          editor.isEditable ? (depth) => editor.updateBlock(block, { props: { depth } }) : undefined
-        }
+        editable={editor.isEditable}
+        onChange={(props) => editor.updateBlock(block, { props })}
       />
     ),
   },
 );
 
-function ChildPagesList({ depth, onDepthChange }: { depth: number; onDepthChange?: (depth: number) => void }) {
+function ChildPagesList({
+  title,
+  depth,
+  editable,
+  onChange,
+}: {
+  title: string;
+  depth: number;
+  editable: boolean;
+  onChange: (props: { title?: string; depth?: number }) => void;
+}) {
   const { pageId } = usePageEditor();
   const { data } = useChildrenData(loadChildPages);
 
   return (
     <div className={styles.block} contentEditable={false} data-ui="ChildPagesBlock">
       <div className={styles.header}>
-        <span className={styles.label}>子ページ一覧</span>
-        {onDepthChange && (
+        <BlockTitle
+          value={title}
+          placeholder={LIST_PLACEHOLDER}
+          editable={editable}
+          onSave={(next) => onChange({ title: next })}
+          uiName="ChildPagesBlock"
+        />
+        {editable && (
           <select
             className={styles.inlineSelect}
             data-ui="ChildPagesBlock.depth"
             value={depth}
-            onChange={(e) => onDepthChange(Number(e.target.value))}
+            onChange={(e) => onChange({ depth: Number(e.target.value) })}
             aria-label="表示する階層"
           >
             {DEPTHS.map((d) => (

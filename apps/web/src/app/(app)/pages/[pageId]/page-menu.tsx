@@ -132,11 +132,19 @@ export function PageMenu({
                 <dd>{info.updatedBy ?? "—"}</dd>
                 <dt>更新日時</dt>
                 <dd>{dateTimeFormat.format(new Date(info.updatedAt))}</dd>
+                <dt>オーナー</dt>
+                <dd className={styles.infoList} data-ui="PageMenu.ownerGroups">
+                  {info.ownerGroups.length > 0
+                    ? info.ownerGroups.map((name) => <span key={name}>{name}</span>)
+                    : "—"}
+                </dd>
               </>
             )}
           </dl>
           <div role="menu" className={styles.menuItems}>
-            <PlannedItem label="履歴表示" />
+            <Link href={`/pages/${pageId}/history`} role="menuitem" className={styles.menuItem} data-ui="PageMenu.history">
+              履歴表示
+            </Link>
             <PlannedItem label="ロック" />
             {canManage ? (
               <Link

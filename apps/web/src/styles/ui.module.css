@@ -261,3 +261,40 @@
 .disabledRow td:last-child {
   opacity: 1;
 }
+
+/* Admin console only (layout wraps its pane in .adminPane): section
+   headings as bands, so sections are easy to tell apart, and actions on
+   the right. */
+.adminPane .section {
+  margin-bottom: 48px;
+}
+
+.adminPane .sectionTitle {
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  font-size: 16px;
+  background: var(--color-primary-light);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 4px;
+}
+
+.adminPane .form > .button,
+.adminPane .form > .buttonSecondary,
+.adminPane .form > .danger {
+  justify-self: end;
+}
+
+/* Buttons alone in a plain form (delete group, end sessions, …). */
+.adminPane form:not(.form) > .button,
+.adminPane form:not(.form) > .buttonSecondary,
+.adminPane form:not(.form) > .danger {
+  display: block;
+  margin-left: auto;
+}
+
+/* A row of buttons, main action last (rightmost). */
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { Hocuspocus, type Extension } from "@hocuspocus/server";
 import { Database } from "@hocuspocus/extension-database";
 import { Redis } from "@hocuspocus/extension-redis";
 import crossws from "crossws/adapters/node";
+import * as Y from "yjs";
 import {
   atLeast,
   createPrismaClient,
@@ -16,6 +18,7 @@ import {
 } from "shared";
 import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
 import { CHILDREN_CHANGED, PAGE_DELETED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
+import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
 
 // Real-time collaboration (Yjs over WebSocket), served by the same process
 // and port as the Next.js app at COLLAB_PATH. server/index.ts routes the
@@ -34,6 +37,52 @@ export async function createCollab() {
   // Last user whose update changed each document since it was last stored.
   // Server-side changes (the title seed) have no connection context.
   const editedBy = new Map<string, string>();
+  // Users who edited each document since its last saved version (履歴).
+  const pendingEditors = new Map<string, Set<string>>();
+
+  // Saves the document's current state as a version of the page.
+  async function saveVersion(
+    pageId: string,
+    document: Y.Doc,
+    kind: PageVersionKind,
+    editorIds: string[],
+    restoredFromId?: string,
+  ) {
+    const id = randomUUID();
+    const state = Y.encodeStateAsUpdate(document);
+    await prisma.pageVersion.create({
+      data: {
+        id,
+        pageId,
+        kind,
+        title: normalizeTitle(document.getText(TITLE_FIELD).toString()),
+        editorIds,
+        state: Uint8Array.from(encrypt(await loadDataKey(prisma), state, versionAad(pageId, id))),
+        restoredFromId,
+      },
+    });
+  }
+
+  // A version for edits not yet in one, if the last version is old enough
+  // (or `force`, e.g. everyone left). Never fails the caller.
+  async function maybeSaveVersion(pageId: string, document: Y.Doc, force: boolean) {
+    const editors = pendingEditors.get(pageId);
+    if (!editors?.size) return;
+    try {
+      if (!force) {
+        const last = await prisma.pageVersion.findFirst({
+          where: { pageId },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        });
+        if (last && Date.now() - last.createdAt.getTime() < VERSION_INTERVAL_MS) return;
+      }
+      pendingEditors.delete(pageId);
+      await saveVersion(pageId, document, "AUTO", [...editors]);
+    } catch (err) {
+      console.error("[collab] saving a page version failed", err);
+    }
+  }
 
   // Page content is encrypted at rest with the instance data key. The pageId
   // is bound as AAD so a ciphertext can't be copied onto a different page's row.
@@ -63,6 +112,7 @@ export async function createCollab() {
           data: { title, ...(editorId && { updatedById: editorId, updatedAt: new Date() }) },
         });
         notifyChildrenChanged(page.parentId);
+        await maybeSaveVersion(documentName, document, false);
       },
     }),
   ];
@@ -81,10 +131,22 @@ export async function createCollab() {
     // no title text: seed it from Page.title once, on the server, so clients
     // never race to insert it twice.
     async afterLoadDocument({ document, documentName }) {
+      // Pages edited before history existed: keep the state found now as the
+      // first version, so the earliest edits can still be undone.
+      const hasContent = document.getXmlFragment("blocknote").length > 0;
+      if (hasContent && (await prisma.pageVersion.count({ where: { pageId: documentName } })) === 0) {
+        await saveVersion(documentName, document, "INITIAL", []).catch((err) =>
+          console.error("[collab] saving the initial page version failed", err),
+        );
+      }
       const text = document.getText(TITLE_FIELD);
       if (text.length > 0) return;
       const page = await prisma.page.findUnique({ where: { id: documentName }, select: { title: true } });
       if (page?.title && text.length === 0) text.insert(0, page.title);
+    },
+    // Everyone has left: whatever was edited since the last version becomes one.
+    async beforeUnloadDocument({ document, documentName }) {
+      await maybeSaveVersion(documentName, document, true);
     },
     // The token is minted by getCollabToken (src/app/(app)/actions.ts) for a
     // logged-in user and a single page. Access is re-checked here (group
@@ -111,7 +173,11 @@ export async function createCollab() {
     },
     async onChange({ documentName, context }) {
       const userId = (context as { userId?: string } | undefined)?.userId;
-      if (userId) editedBy.set(documentName, userId);
+      if (!userId) return;
+      editedBy.set(documentName, userId);
+      const editors = pendingEditors.get(documentName) ?? new Set<string>();
+      editors.add(userId);
+      pendingEditors.set(documentName, editors);
     },
   });
 
@@ -144,6 +210,43 @@ export async function createCollab() {
         if (!document) continue;
         document.broadcastStateless(JSON.stringify({ type: PAGE_DELETED }));
         hocuspocus.closeConnections(id);
+      }
+    },
+    // Replaces the page's title and body with a saved version, through the
+    // live document so everyone editing sees it (and it merges like any
+    // edit). The state just before is saved first, so a restore can itself
+    // be undone. Access is checked by the caller.
+    async restoreVersion(pageId, versionId, userId) {
+      const version = await prisma.pageVersion.findUnique({ where: { id: versionId } });
+      if (!version || version.pageId !== pageId) throw new Error("Version not found");
+      const snapshot = new Y.Doc();
+      Y.applyUpdate(snapshot, decrypt(await loadDataKey(prisma), version.state, versionAad(pageId, versionId)));
+
+      const connection = await hocuspocus.openDirectConnection(pageId, { userId });
+      try {
+        const document = connection.document!;
+        const before = pendingEditors.get(pageId);
+        pendingEditors.delete(pageId);
+        await saveVersion(pageId, document, "BEFORE_RESTORE", [...(before ?? [])]);
+        await connection.transact((doc) => {
+          const fragment = doc.getXmlFragment("blocknote");
+          fragment.delete(0, fragment.length);
+          fragment.insert(
+            0,
+            snapshot
+              .getXmlFragment("blocknote")
+              .toArray()
+              .map((node) => (node as Y.XmlElement | Y.XmlText).clone()),
+          );
+          const title = doc.getText(TITLE_FIELD);
+          title.delete(0, title.length);
+          title.insert(0, snapshot.getText(TITLE_FIELD).toString());
+        });
+        await saveVersion(pageId, document, "RESTORED", [userId], versionId);
+        // The restore itself is in the RESTORED version.
+        pendingEditors.delete(pageId);
+      } finally {
+        await connection.disconnect();
       }
     },
   });

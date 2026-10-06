@@ -33,6 +33,7 @@ import {
   type PropertyType,
   type SelectOption,
 } from "@/lib/page-property-types";
+import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-blocks.module.css";
 
@@ -217,7 +218,13 @@ function ChildTable({
   return (
     <div className={styles.block} contentEditable={false} data-ui="ChildTableBlock">
       <div className={styles.header}>
-        <TableTitle value={title} editable={editable} onSave={(next) => onChange({ title: next })} />
+        <BlockTitle
+          value={title}
+          placeholder={TABLE_PLACEHOLDER}
+          editable={editable}
+          onSave={(next) => onChange({ title: next })}
+          uiName="ChildTableBlock"
+        />
         {editable && (
           <Popover
             open={menu === "columns"}
@@ -357,7 +364,7 @@ function Frame({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className={styles.block} contentEditable={false} data-ui="ChildTableBlock">
       <div className={styles.header}>
-        <TableTitle value={title} editable={false} onSave={() => {}} />
+        <BlockTitle value={title} placeholder={TABLE_PLACEHOLDER} editable={false} onSave={() => {}} uiName="ChildTableBlock" />
       </div>
       <p className={styles.muted}>{children}</p>
     </div>
@@ -770,53 +777,6 @@ function TextCell({ value, onSave }: { value: string; onSave: (value: string) =>
       onBlur={() => {
         setEditing(false);
         if (!cancelled.current && draft.trim() !== value) onSave(draft);
-        cancelled.current = false;
-      }}
-      onKeyDown={(e) => {
-        if (e.nativeEvent.isComposing) return;
-        if (e.key === "Enter") e.currentTarget.blur();
-        if (e.key === "Escape") {
-          cancelled.current = true;
-          e.currentTarget.blur();
-        }
-      }}
-    />
-  );
-}
-
-// The table's title. Edited locally and saved to the block on blur / Enter,
-// so typing doesn't push a document update per keystroke.
-function TableTitle({
-  value,
-  editable,
-  onSave,
-}: {
-  value: string;
-  editable: boolean;
-  onSave: (title: string) => void;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const cancelled = useRef(false);
-  if (!editable) {
-    return (
-      <span className={value ? styles.tableTitle : styles.tableTitlePlaceholder} data-ui="ChildTableBlock.title">
-        {value || TABLE_PLACEHOLDER}
-      </span>
-    );
-  }
-  return (
-    <input
-      className={styles.tableTitleInput}
-      data-ui="ChildTableBlock.titleInput"
-      value={draft ?? value}
-      placeholder={TABLE_PLACEHOLDER}
-      maxLength={100}
-      aria-label="テーブルのタイトル"
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={(e) => {
-        const next = e.target.value.replace(/\s+/g, " ").trim();
-        setDraft(null);
-        if (!cancelled.current && next !== value) onSave(next);
         cancelled.current = false;
       }}
       onKeyDown={(e) => {

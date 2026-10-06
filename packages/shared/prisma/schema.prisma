@@ -121,6 +121,7 @@ model Page {
   propertyDefs   PagePropertyDef[]
   // This page's values for its parent's columns.
   propertyValues PagePropertyValue[]
+  versions       PageVersion[]
 
   @@index([rootId])
   @@index([parentId])
@@ -166,6 +167,35 @@ model PagePropertyValue {
 
   @@id([pageId, defId])
   @@index([defId])
+}
+
+enum PageVersionKind {
+  // Saved while editing (every VERSION_INTERVAL_MS) and when everyone left.
+  AUTO
+  // The state found when a page was first opened after history existed.
+  INITIAL
+  // The state just before "restore this version" replaced it.
+  BEFORE_RESTORE
+  // The state right after a restore (restoredFromId = the version restored).
+  RESTORED
+}
+
+// A saved state of a page's document (title + body), for 履歴表示. `state` is
+// a full Yjs update encrypted with the DEK, AAD bound to (pageId, id)
+// (apps/web/src/lib/page-versions.ts). The title is plaintext like Page.title.
+model PageVersion {
+  id             String          @id
+  pageId         String
+  page           Page            @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+  kind           PageVersionKind
+  title          String
+  // Users whose edits went into this version since the previous one.
+  editorIds      String[]
+  state          Bytes
+  restoredFromId String?
+
+  @@index([pageId, createdAt])
 }
 
 model PageDocument {

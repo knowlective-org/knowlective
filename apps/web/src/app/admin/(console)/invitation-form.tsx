@@ -98,7 +98,7 @@ export function InvitationForm({
             data-ui="InvitationForm.copyButton"
             type="button"
             className={styles.buttonSecondary}
-            style={{ marginTop: 8 }}
+            style={{ display: "block", marginTop: 8, marginLeft: "auto" }}
             onClick={async () => {
               await navigator.clipboard.writeText(state.link!);
               setCopied(true);

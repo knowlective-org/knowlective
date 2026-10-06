@@ -292,18 +292,18 @@
   border-radius: 10px;
 }
 
-/* Child-page table: title and the 新しいページ row. */
-.tableTitle {
+/* Block title (block-title.tsx) and the table's 新しいページ row. */
+.blockTitle {
   margin-right: auto;
   font-size: 15px;
   font-weight: 700;
 }
 
-.tableTitlePlaceholder {
+.blockTitlePlaceholder {
   composes: label;
 }
 
-.tableTitleInput {
+.blockTitleInput {
   flex: 1;
   min-width: 120px;
   margin-right: auto;
@@ -317,14 +317,14 @@
   border-radius: 4px;
 }
 
-.tableTitleInput::placeholder {
+.blockTitleInput::placeholder {
   font-size: 12px;
   font-weight: 600;
   color: var(--color-muted);
 }
 
-.tableTitleInput:hover,
-.tableTitleInput:focus {
+.blockTitleInput:hover,
+.blockTitleInput:focus {
   border-color: var(--color-border-strong);
   outline: none;
 }

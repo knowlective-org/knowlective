@@ -28,7 +28,7 @@ export default async function AdminConsoleLayout({ children }: LayoutProps<"/adm
   }));
   return (
     <AppShell sidebar={<AdminSidebar items={items} actor={`${actorLabel}（${SITE_ROLE_LABELS[role]}）`} />}>
-      <div className={styles.pane} data-ui="AdminConsoleLayout">
+      <div className={`${styles.pane} ${styles.adminPane}`} data-ui="AdminConsoleLayout">
         {children}
       </div>
     </AppShell>

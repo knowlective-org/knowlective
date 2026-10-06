@@ -52,6 +52,32 @@
   font-weight: 600;
 }
 
+/* Admin console menu (admin-sidebar.tsx): same rows as the page tree
+   (doc-tree.module.css), no extra space between them. */
+.nav {
+  composes: scroll;
+  gap: 0;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 14px;
+  border-radius: 6px;
+}
+
+.navItem:hover {
+  background: var(--color-hover);
+}
+
+.navItemCurrent {
+  composes: navItem;
+  background: var(--color-selected);
+  font-weight: 600;
+}
+
 .footer {
   display: flex;
   flex-wrap: wrap;

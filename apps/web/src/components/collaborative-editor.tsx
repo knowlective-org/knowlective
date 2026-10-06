@@ -72,8 +72,19 @@ type Props = {
 // and BlockNote body over Yjs. The collab server authorizes each connection
 // with a short-lived token minted by the getCollabToken Server Action; the
 // provider calls it again on every reconnect.
+// Waits before reconnecting after a refused connection. Refusals are usually
+// final (no access, page deleted), but can also be transient: the token
+// request failing for a moment (network, a server restart or, in
+// development, a recompile) or the server failing to check access. So the
+// editor tries again a few times before saying the page can't be opened.
+const RETRY_DELAYS_MS = [1000, 2000, 4000];
+
 export function CollaborativeEditor(props: Props) {
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
+  // Bumped to replace the provider with a fresh one (new token, new socket).
+  const [attempt, setAttempt] = useState(0);
+  // Refusals since the last successful sync.
+  const failures = useRef(0);
   // The provider whose first sync finished. Until then the document (and
   // its title) is empty, so the placeholder is shown instead.
   const [synced, setSynced] = useState<HocuspocusProvider | null>(null);
@@ -85,13 +96,25 @@ export function CollaborativeEditor(props: Props) {
   // remounts this component per page (key={pageId}), so there's no stale
   // provider to reset on cleanup.
   useEffect(() => {
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const p = new HocuspocusProvider({
       url: collabUrl(),
       name: props.pageId,
       document: new Y.Doc(),
       token: () => getCollabToken(props.pageId),
-      onSynced: () => setSynced(p),
-      onAuthenticationFailed: () => setFailure("このページを開けませんでした。再読み込みしてください。"),
+      onSynced: () => {
+        failures.current = 0;
+        setSynced(p);
+      },
+      // Also fires when getCollabToken() itself throws.
+      onAuthenticationFailed: () => {
+        const delay = RETRY_DELAYS_MS[failures.current++];
+        if (delay === undefined) {
+          setFailure("このページを開けませんでした。再読み込みしてください。");
+          return;
+        }
+        retryTimer = setTimeout(() => setAttempt((n) => n + 1), delay);
+      },
       onStateless: ({ payload }) => {
         try {
           if ((JSON.parse(payload) as { type?: string }).type === PAGE_DELETED) {
@@ -104,10 +127,12 @@ export function CollaborativeEditor(props: Props) {
     });
     // Opening the socket is a side effect tied to mount/unmount (and must
     // survive StrictMode's double effect run), so it can't happen in render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProvider(p);
-    return () => p.destroy();
-  }, [props.pageId]);
+    return () => {
+      clearTimeout(retryTimer);
+      p.destroy();
+    };
+  }, [props.pageId, attempt]);
 
   if (failure) return <EditorPlaceholder message={failure} />;
   if (!provider || synced !== provider) return <EditorPlaceholder />;

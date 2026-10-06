@@ -18,12 +18,12 @@ export function AdminSidebar({ items, actor }: { items: AdminNavItem[]; actor: s
   return (
     <div className={styles.sidebar} data-ui="AdminSidebar">
       <div className={styles.brand}>yosuga 管理画面</div>
-      <nav className={styles.scroll} data-ui="AdminSidebar.nav">
+      <nav className={styles.nav} data-ui="AdminSidebar.nav">
         {items.map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className={isCurrent(item.href) ? styles.actionCurrent : styles.action}
+            className={isCurrent(item.href) ? styles.navItemCurrent : styles.navItem}
             aria-current={isCurrent(item.href) ? "page" : undefined}
             data-ui="AdminSidebar.navLink"
           >

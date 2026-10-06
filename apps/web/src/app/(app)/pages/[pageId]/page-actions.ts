@@ -1,6 +1,6 @@
 "use server";
 
-import { atLeast, getPageAccess, getTreeWithAccess } from "shared";
+import { atLeast, getGroupAccessForPage, getPageAccess, getTreeWithAccess } from "shared";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { closeDocuments, notifyChildrenChanged } from "@/lib/collab-events";
@@ -10,6 +10,8 @@ export type PageInfo = {
   createdAt: string;
   updatedBy: string | null;
   updatedAt: string;
+  // Groups with MANAGE on this page (granted here or inherited).
+  ownerGroups: string[];
 };
 
 const displayName = (u: { name: string | null; email: string } | null) => (u ? u.name || u.email : null);
@@ -29,12 +31,20 @@ export async function loadPageInfo(pageId: string): Promise<PageInfo | null> {
     },
   });
   if (!page) return null;
+  const groupAccess = await getGroupAccessForPage(prisma, pageId);
+  const ownerIds = [...groupAccess].filter(([, access]) => access === "MANAGE").map(([id]) => id);
+  const owners = await prisma.group.findMany({
+    where: { id: { in: ownerIds } },
+    select: { name: true },
+    orderBy: { name: "asc" },
+  });
   return {
     createdBy: displayName(page.createdBy) ?? "",
     createdAt: page.createdAt.toISOString(),
     // Not edited since it was created: the creator was the last to touch it.
     updatedBy: displayName(page.updatedBy) ?? displayName(page.createdBy),
     updatedAt: page.updatedAt.toISOString(),
+    ownerGroups: owners.map((g) => g.name),
   };
 }
 

@@ -17,6 +17,7 @@ export const PAGE_DELETED = "page-deleted";
 type CollabBridge = {
   notifyChildrenChanged(parentPageId: string): void;
   closeDocuments(pageIds: string[]): void;
+  restoreVersion(pageId: string, versionId: string, userId: string): Promise<void>;
 };
 
 // The custom server and the Next.js bundle are separate module graphs in one
@@ -40,4 +41,12 @@ export function notifyChildrenChanged(parentPageId: string | null | undefined) {
 export function closeDocuments(pageIds: string[]) {
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   bridge?.closeDocuments(pageIds);
+}
+
+// Replaces a page's content with one of its saved versions (履歴表示).
+// Throws outside the custom server: there is no document to change.
+export async function restoreVersion(pageId: string, versionId: string, userId: string) {
+  const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
+  if (!bridge) throw new Error("The collaboration server is not running");
+  await bridge.restoreVersion(pageId, versionId, userId);
 }

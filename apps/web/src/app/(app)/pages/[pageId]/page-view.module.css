@@ -84,6 +84,14 @@
   color: var(--color-primary);
 }
 
+/* オーナー: one group per line, wrapped instead of cut off. */
+.info .infoList {
+  display: flex;
+  flex-direction: column;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .info .infoMuted {
   grid-column: 1 / -1;
   color: var(--color-muted);

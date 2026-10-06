@@ -92,10 +92,7 @@ export function ThemeForm({ current }: { current: ThemeColors }) {
       <p data-ui="ThemeForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
         {state.error ?? (state.saved ? "保存しました。すべての画面に反映されます。" : "")}
       </p>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button data-ui="ThemeForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-          {pending ? "保存しています…" : "保存"}
-        </button>
+      <div className={styles.actions}>
         <button
           data-ui="ThemeForm.resetButton"
           type="button"
@@ -103,6 +100,9 @@ export function ThemeForm({ current }: { current: ThemeColors }) {
           onClick={() => setDraft(DEFAULT_THEME)}
         >
           初期値に戻す
+        </button>
+        <button data-ui="ThemeForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? "保存しています…" : "保存"}
         </button>
       </div>
     </form>
