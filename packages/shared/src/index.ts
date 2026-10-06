@@ -9,6 +9,7 @@ export type {
   Page,
   PageDocument,
   MemberRole,
+  SiteRole,
   InstanceConfig,
   AdminSession,
   AdminSessionStage,

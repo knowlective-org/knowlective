@@ -13,7 +13,7 @@ import {
   recordLoginAttempt,
 } from "@/lib/admin/auth";
 import { normalizeEmail } from "@/lib/auth/session";
-import { isSiteAdmin } from "@/lib/groups";
+import { getAdminConsoleRole } from "@/lib/roles";
 import { getRequestContext, type RequestContext } from "@/lib/request";
 import { isIpAllowed } from "@/lib/ip";
 import { generateTotpSecret, verifyTotp } from "@/lib/admin/totp";
@@ -46,7 +46,7 @@ async function failure(ctx: RequestContext, message: string, email?: string): Pr
   return { error: `${message}（あと${remaining}回でロックされます）。`, email };
 }
 
-// Normal sign-in: a user account in the site admins group, plus TOTP.
+// Normal sign-in: a SITE_ADMIN or CONTENT_MANAGER account, plus TOTP.
 export async function loginWithAccount(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const ctx = await getRequestContext();
   const rawEmail = formData.get("email");
@@ -68,7 +68,7 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
     ? await verifyPassword(password, user.passwordHash)
     : await verifyPasswordAgainstDummy(password);
   // Not saying "not an admin" separately: it would confirm the password.
-  const allowed = passwordOk && user !== null && (await isSiteAdmin(user.id));
+  const allowed = passwordOk && user !== null && (await getAdminConsoleRole(user.id)) !== null;
 
   let totpOk = false;
   if (allowed && user.totpSecret) {

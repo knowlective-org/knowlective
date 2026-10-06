@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
 import { dateFormat } from "@/lib/admin/format";
-import { SITE_ADMINS } from "@/lib/groups";
 import styles from "@/styles/ui.module.css";
 import { deleteGroup, removeGroupMember } from "../actions";
 import { AddMemberForm, EditGroupForm } from "../group-forms";
@@ -11,21 +10,18 @@ import { RowMenu, type RowMenuItem } from "../../row-menu";
 import { disableUser, enableUser } from "../../users/actions";
 
 export default async function AdminGroupPage({ params }: PageProps<"/admin/groups/[groupId]">) {
-  const { session } = await requireAdmin();
+  const { session, role } = await requireAdmin();
   const { groupId } = await params;
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: {
       members: {
         orderBy: { createdAt: "asc" },
-        include: {
-          user: { select: { id: true, email: true, name: true, totpSecret: true, disabledAt: true } },
-        },
+        include: { user: { select: { id: true, email: true, name: true, disabledAt: true } } },
       },
     },
   });
   if (!group) notFound();
-  const isSiteAdmins = group.systemKey === SITE_ADMINS;
 
   return (
     <>
@@ -36,16 +32,7 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
       </p>
 
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>
-          {group.name}
-          {group.systemKey && "（組み込み）"}
-        </h2>
-        {isSiteAdmins && (
-          <p className={styles.lead}>
-            このグループのメンバーは、自分のアカウント（パスワード＋認証アプリ）で管理画面にログインできます。
-            初回ログイン時に認証アプリを登録します。外すと、ログイン中のセッションもすぐに終了します。
-          </p>
-        )}
+        <h2 className={styles.sectionTitle}>{group.name}</h2>
         <EditGroupForm id={group.id} name={group.name} description={group.description} />
       </section>
 
@@ -58,7 +45,6 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
                 <tr>
                   <th>表示名</th>
                   <th>メールアドレス</th>
-                  {isSiteAdmins && <th>認証アプリ</th>}
                   <th>追加日</th>
                   <th />
                 </tr>
@@ -71,17 +57,15 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
                       {user.disabledAt && <span className={styles.badge}>無効</span>}
                     </td>
                     <td>{user.email}</td>
-                    {isSiteAdmins && <td>{user.totpSecret ? "登録済み" : "未登録（初回ログイン時に登録）"}</td>}
                     <td>{dateFormat.format(createdAt)}</td>
                     <td>
-                      {user.id === session.userId ? (
-                        <span className={styles.note}>{isSiteAdmins ? "自分自身は外せません" : "自分"}</span>
-                      ) : (
-                        <RowMenu
-                          label={`${user.name ?? user.email} の操作`}
-                          items={memberMenu(group.id, group.name, user)}
-                        />
-                      )}
+                      <RowMenu
+                        label={`${user.name ?? user.email} の操作`}
+                        items={memberMenu(group.id, group.name, user, {
+                          // Disabling accounts is a site admin task, and never yourself.
+                          canDisable: role === "SITE_ADMIN" && user.id !== session.userId,
+                        })}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -92,20 +76,18 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
         <AddMemberForm groupId={group.id} />
       </section>
 
-      {!group.systemKey && (
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>グループの削除</h2>
-          <p className={styles.note} style={{ marginBottom: 12 }}>
-            グループを削除しても、メンバーのアカウントは削除されません。
-          </p>
-          <form action={deleteGroup}>
-            <input type="hidden" name="id" value={group.id} />
-            <button type="submit" className={styles.danger}>
-              このグループを削除
-            </button>
-          </form>
-        </section>
-      )}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>グループの削除</h2>
+        <p className={styles.note} style={{ marginBottom: 12 }}>
+          グループを削除しても、メンバーのアカウントは削除されません。
+        </p>
+        <form action={deleteGroup}>
+          <input type="hidden" name="id" value={group.id} />
+          <button type="submit" className={styles.danger}>
+            このグループを削除
+          </button>
+        </form>
+      </section>
     </>
   );
 }
@@ -114,23 +96,29 @@ function memberMenu(
   groupId: string,
   groupName: string,
   user: { id: string; email: string; name: string | null; disabledAt: Date | null },
+  { canDisable }: { canDisable: boolean },
 ): RowMenuItem[] {
   const who = user.name ?? user.email;
-  return [
+  const items: RowMenuItem[] = [
     {
       label: "グループから外す",
       action: removeGroupMember,
       fields: { groupId, userId: user.id },
       confirm: `${who} を「${groupName}」から外しますか？`,
     },
-    user.disabledAt
-      ? { label: "ユーザーを有効にする", action: enableUser, fields: { userId: user.id } }
-      : {
-          label: "ユーザーを無効にする",
-          action: disableUser,
-          fields: { userId: user.id },
-          danger: true,
-          confirm: `${who} を無効にしますか？\nログイン中のセッションはすべて終了し、ログインできなくなります。`,
-        },
   ];
+  if (canDisable) {
+    items.push(
+      user.disabledAt
+        ? { label: "ユーザーを有効にする", action: enableUser, fields: { userId: user.id } }
+        : {
+            label: "ユーザーを無効にする",
+            action: disableUser,
+            fields: { userId: user.id },
+            danger: true,
+            confirm: `${who} を無効にしますか？\nログイン中のセッションはすべて終了し、ログインできなくなります。`,
+          },
+    );
+  }
+  return items;
 }

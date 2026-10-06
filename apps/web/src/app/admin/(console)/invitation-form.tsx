@@ -10,10 +10,13 @@ export function InvitationForm({
   roots,
   ttlDays,
   mailConfigured,
+  siteRoles,
 }: {
   roots: { id: string; name: string }[];
   ttlDays: number;
   mailConfigured: boolean;
+  // Roles the signed-in admin may hand out, with labels.
+  siteRoles: { value: string; label: string }[];
 }) {
   const [state, formAction, pending] = useActionState(issueInvitation, initialState);
   const [target, setTarget] = useState(roots[0]?.id ?? "__new__");
@@ -23,6 +26,16 @@ export function InvitationForm({
   return (
     <div className={styles.form}>
       <form action={formAction} className={styles.form} onSubmit={() => setCopied(false)}>
+        <label>
+          ロール
+          <select name="siteRole" defaultValue="USER" className={styles.field}>
+            {siteRoles.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           招待先
           <select

@@ -13,7 +13,7 @@ import { revokeOtherSessions, revokeSession } from "../actions";
 import { IpAllowlistForm } from "../ip-allowlist-form";
 
 export default async function AdminSecurityPage() {
-  const { ctx, config, session } = await requireAdmin();
+  const { ctx, config, session } = await requireAdmin(["SITE_ADMIN"]);
   const [sessions, attempts] = await Promise.all([
     listActiveAdminSessions(),
     prisma.adminLoginAttempt.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),

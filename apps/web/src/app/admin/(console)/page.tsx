@@ -1,7 +1,6 @@
 import { isInsecurePublicUrl } from "shared";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
-import { SITE_ADMINS } from "@/lib/groups";
 import { getMailSettings } from "@/lib/mail";
 import { getRequestOrigin } from "@/lib/request";
 import styles from "@/styles/ui.module.css";
@@ -12,12 +11,12 @@ import { MAX_FILE_SIZE_MB_LIMIT, getMaxUploadSizeMb, getStorageSettingsView } fr
 import { UploadLimitForm } from "./upload-limit-form";
 
 export default async function AdminOverviewPage() {
-  await requireAdmin();
+  await requireAdmin(["SITE_ADMIN"]);
   const [mail, site, requestOrigin, siteAdminCount, storage, fileCount, maxUploadSizeMb] = await Promise.all([
     getMailSettings(),
     prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true } }),
     getRequestOrigin(),
-    prisma.groupMember.count({ where: { group: { systemKey: SITE_ADMINS } } }),
+    prisma.user.count({ where: { siteRole: "SITE_ADMIN", disabledAt: null } }),
     getStorageSettingsView(),
     prisma.fileObject.count(),
     getMaxUploadSizeMb(),
@@ -27,7 +26,7 @@ export default async function AdminOverviewPage() {
     <>
       {siteAdminCount === 0 && (
         <p className={styles.error} style={{ marginBottom: 24 }}>
-          サイト管理者がまだいません。「グループ」の「サイト管理者」にユーザーを追加すると、そのユーザーは自分のアカウントで管理画面にログインできます。
+          サイト管理者のロールを持つユーザーがまだいません。「ユーザー」でユーザーのロールを「サイト管理者」にすると、そのユーザーは自分のアカウントで管理画面にログインできます。
         </p>
       )}
 

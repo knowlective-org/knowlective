@@ -10,7 +10,8 @@ import { normalizeEmail } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/admin/format";
 import { getPublicUrl } from "@/lib/site-url";
 import { rootName, rootNameSelect } from "@/lib/knowledge-roots";
-import { InvalidPublicUrlError, normalizePublicUrl } from "shared";
+import { InvalidPublicUrlError, normalizePublicUrl, type SiteRole } from "shared";
+import { invitableRoles } from "@/lib/roles";
 import {
   MailNotConfiguredError,
   getMailSettings,
@@ -37,7 +38,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function revokeSession(formData: FormData): Promise<void> {
-  const { session } = await requireAdmin();
+  const { session } = await requireAdmin(["SITE_ADMIN"]);
   const target = formData.get("tokenHash");
   if (typeof target !== "string") return;
   if (target === session.tokenHash) {
@@ -49,7 +50,7 @@ export async function revokeSession(formData: FormData): Promise<void> {
 }
 
 export async function revokeOtherSessions(): Promise<void> {
-  const { session } = await requireAdmin();
+  const { session } = await requireAdmin(["SITE_ADMIN"]);
   await prisma.adminSession.deleteMany({ where: { tokenHash: { not: session.tokenHash } } });
   revalidatePath("/admin", "layout");
 }
@@ -60,7 +61,7 @@ export async function saveIpAllowlist(
   _prev: AllowlistState,
   formData: FormData,
 ): Promise<AllowlistState> {
-  const { ctx } = await requireAdmin();
+  const { ctx } = await requireAdmin(["SITE_ADMIN"]);
   const raw = formData.get("allowlist");
   if (typeof raw !== "string") return { error: "入力内容が不正です。" };
 
@@ -100,8 +101,14 @@ export async function issueInvitation(
   _prev: InvitationState,
   formData: FormData,
 ): Promise<InvitationState> {
-  const { actorLabel } = await requireAdmin();
+  const { actorLabel, role: actorRole } = await requireAdmin();
   const sendEmail = formData.get("sendEmail") === "on";
+  // A content manager can only invite content managers or users.
+  const siteRole = formData.get("siteRole");
+  const allowedRoles = invitableRoles(actorRole);
+  if (!allowedRoles.includes(siteRole as SiteRole)) {
+    return { error: "招待するユーザーのロールを選んでください。" };
+  }
   const target = formData.get("root");
   const role = formData.get("role");
   const newRootName = formData.get("newRootName");
@@ -123,7 +130,7 @@ export async function issueInvitation(
   if (target === "__new__") {
     const name = typeof newRootName === "string" ? newRootName.trim() : "";
     if (!name) return { error: "新しいナレッジルートの名前を入力してください。" };
-    token = await createInvitation({ kind: "new", rootName: name, email });
+    token = await createInvitation({ kind: "new", rootName: name, email, siteRole: siteRole as SiteRole });
     rootDisplayName = name;
   } else {
     if (typeof target !== "string") return { error: "ナレッジルートを選んでください。" };
@@ -142,6 +149,7 @@ export async function issueInvitation(
       rootId: target,
       role: role as (typeof ROLES)[number],
       email,
+      siteRole: siteRole as SiteRole,
     });
   }
 
@@ -186,7 +194,7 @@ export async function saveMail(
   _prev: MailSettingsState,
   formData: FormData,
 ): Promise<MailSettingsState> {
-  await requireAdmin();
+  await requireAdmin(["SITE_ADMIN"]);
   const str = (key: string) => {
     const v = formData.get(key);
     return typeof v === "string" ? v.trim() : "";
@@ -242,7 +250,7 @@ export async function sendTestMail(
   _prev: TestMailState,
   formData: FormData,
 ): Promise<TestMailState> {
-  await requireAdmin();
+  await requireAdmin(["SITE_ADMIN"]);
   const to = formData.get("to");
   if (typeof to !== "string" || !EMAIL_RE.test(to.trim())) {
     return { error: "送信先メールアドレスの形式が正しくありません。" };
@@ -267,7 +275,7 @@ export async function savePublicUrl(
   _prev: PublicUrlState,
   formData: FormData,
 ): Promise<PublicUrlState> {
-  await requireAdmin();
+  await requireAdmin(["SITE_ADMIN"]);
   const input = formData.get("publicUrl");
   if (typeof input !== "string") return { error: "入力内容が不正です。" };
   let publicUrl: string;
@@ -289,7 +297,7 @@ function locationOf(s: { endpoint: string; bucket: string; keyPrefix: string }) 
 }
 
 export async function saveStorage(_prev: StorageFormState, formData: FormData): Promise<StorageFormState> {
-  await requireAdmin();
+  await requireAdmin(["SITE_ADMIN"]);
   const str = (key: string) => {
     const v = formData.get(key);
     return typeof v === "string" ? v.trim() : "";
@@ -340,7 +348,7 @@ export async function saveStorage(_prev: StorageFormState, formData: FormData): 
 }
 
 export async function resetStorage(): Promise<void> {
-  await requireAdmin();
+  await requireAdmin(["SITE_ADMIN"]);
   await resetStorageSettings();
   revalidatePath("/admin", "layout");
 }
@@ -348,7 +356,7 @@ export async function resetStorage(): Promise<void> {
 export type StorageTestState = { result?: StorageTestResult };
 
 export async function testStorageConnection(): Promise<StorageTestState> {
-  await requireAdmin();
+  await requireAdmin(["SITE_ADMIN"]);
   const config = await getStorageConfig();
   if (!config) return { result: { ok: false, step: "write", message: "ファイル保存が設定されていません。" } };
   return { result: await testStorage(config) };
@@ -357,7 +365,7 @@ export async function testStorageConnection(): Promise<StorageTestState> {
 export type UploadLimitState = { error?: string; saved?: boolean };
 
 export async function saveUploadLimit(_prev: UploadLimitState, formData: FormData): Promise<UploadLimitState> {
-  await requireAdmin();
+  await requireAdmin(["SITE_ADMIN"]);
   const value = Number(formData.get("maxUploadSizeMb"));
   if (!Number.isInteger(value) || value < 1 || value > MAX_FILE_SIZE_MB_LIMIT) {
     return { error: `1〜${MAX_FILE_SIZE_MB_LIMIT} MB の整数で入力してください。` };

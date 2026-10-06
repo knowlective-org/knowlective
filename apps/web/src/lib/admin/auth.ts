@@ -4,7 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import type { AdminSession } from "shared";
 import { decrypt, encrypt, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
-import { isSiteAdmin } from "@/lib/groups";
+import type { SiteRole } from "shared";
+import { getAdminConsoleRole } from "@/lib/roles";
 import { isIpAllowed } from "@/lib/ip";
 import { type RequestContext, getRequestContext } from "@/lib/request";
 
@@ -12,8 +13,9 @@ import { type RequestContext, getRequestContext } from "@/lib/request";
 // short-lived sessions separate from user sessions.
 //
 // Two ways in, both requiring TOTP:
-// - A user account in the "site admins" group (normal use). Membership is
-//   re-checked on every request, so removal takes effect immediately.
+// - A user account whose site role is SITE_ADMIN or CONTENT_MANAGER (normal
+//   use). The role is re-checked on every request, so a demotion or
+//   disabling takes effect immediately.
 // - The master password (bootstrap: adding the first site admin; recovery).
 //
 // Every admin page AND every admin Server Action must call requireAdmin()
@@ -186,8 +188,11 @@ export async function endAdminSession(): Promise<void> {
   store.delete({ name: COOKIE_NAME, path: COOKIE_PATH });
 }
 
-// Gate for every admin page and admin Server Action.
-export async function requireAdmin() {
+// Gate for every admin page and admin Server Action. `allowed` limits the
+// page/action to some roles (e.g. settings are SITE_ADMIN only); a content
+// manager sent somewhere it can't go lands on the users page instead. The
+// master password session counts as SITE_ADMIN.
+export async function requireAdmin(allowed: SiteRole[] = ["SITE_ADMIN", "CONTENT_MANAGER"]) {
   const ctx = await getRequestContext();
   const config = await getAdminConfig();
   assertIpAllowed(ctx.ip, config.adminIpAllowlist);
@@ -196,11 +201,17 @@ export async function requireAdmin() {
   if (!session) redirect("/admin/login");
   if (session.stage !== "ACTIVE") redirect("/admin/enroll");
 
-  // Removed from the site admins group since signing in: end the session now.
-  if (session.userId && !(await isSiteAdmin(session.userId))) {
-    await prisma.adminSession.deleteMany({ where: { tokenHash: session.tokenHash } });
-    redirect("/admin/login");
+  // Demoted or disabled since signing in: end the session now.
+  let role: SiteRole = "SITE_ADMIN";
+  if (session.userId) {
+    const current = await getAdminConsoleRole(session.userId);
+    if (!current) {
+      await prisma.adminSession.deleteMany({ where: { tokenHash: session.tokenHash } });
+      redirect("/admin/login");
+    }
+    role = current;
   }
+  if (!allowed.includes(role)) redirect("/admin/users");
 
   if (Date.now() - session.lastSeenAt.getTime() > TOUCH_INTERVAL_MS) {
     await prisma.adminSession.update({
@@ -210,5 +221,5 @@ export async function requireAdmin() {
   }
   // Display name for "who is signed in"; "マスターパスワード" for the master login.
   const actorLabel = session.user ? (session.user.name ?? session.user.email) : "マスターパスワード";
-  return { ctx, config, session, actorLabel };
+  return { ctx, config, session, actorLabel, role };
 }

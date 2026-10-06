@@ -43,7 +43,7 @@ export default async function AdminLoginPage({ searchParams }: PageProps<"/admin
   return (
     <main className={styles.narrow}>
       <h1 className={styles.title}>管理画面ログイン</h1>
-      <p className={styles.lead}>「サイト管理者」グループのアカウントでログインします。</p>
+      <p className={styles.lead}>「サイト管理者」または「コンテンツ管理者」のロールを持つアカウントでログインします。</p>
       <AccountLoginForm />
       <p className={styles.note} style={{ marginTop: 24 }}>
         <Link href="/admin/login?mode=master" style={{ textDecoration: "underline" }}>

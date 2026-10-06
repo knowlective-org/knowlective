@@ -56,7 +56,7 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
   try {
     userId = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { email, name: name.trim(), passwordHash },
+        data: { email, name: name.trim(), passwordHash, siteRole: invitation.siteRole },
       });
       await consumeInvitation(tx, invitation.id, user.id);
       return user.id;

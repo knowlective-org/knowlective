@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
 import { normalizeEmail } from "@/lib/auth/session";
-import { SITE_ADMINS } from "@/lib/groups";
 
 export type GroupFormState = { error?: string; saved?: boolean };
 
@@ -57,8 +56,7 @@ export async function deleteGroup(formData: FormData): Promise<void> {
   await requireAdmin();
   const id = formData.get("id");
   if (typeof id !== "string") return;
-  // Built-in groups (systemKey set) can't be deleted.
-  await prisma.group.deleteMany({ where: { id, systemKey: null } });
+  await prisma.group.deleteMany({ where: { id } });
   revalidatePath("/admin", "layout");
   redirect("/admin/groups");
 }
@@ -91,23 +89,10 @@ export async function addGroupMember(_prev: AddMemberState, formData: FormData):
 }
 
 export async function removeGroupMember(formData: FormData): Promise<void> {
-  const { session } = await requireAdmin();
+  await requireAdmin();
   const groupId = formData.get("groupId");
   const userId = formData.get("userId");
   if (typeof groupId !== "string" || typeof userId !== "string") return;
-
-  const group = await prisma.group.findUnique({ where: { id: groupId }, select: { systemKey: true } });
-  if (!group) return;
-  const isSiteAdminsGroup = group.systemKey === SITE_ADMINS;
-  // Removing yourself from site admins would end your own session mid-change;
-  // ask another admin (or use the master password) instead.
-  if (isSiteAdminsGroup && userId === session.userId) return;
-
   await prisma.groupMember.deleteMany({ where: { groupId, userId } });
-  if (isSiteAdminsGroup) {
-    // Takes effect immediately anyway (requireAdmin re-checks membership),
-    // but don't leave dead sessions listed.
-    await prisma.adminSession.deleteMany({ where: { userId } });
-  }
   revalidatePath("/admin", "layout");
 }

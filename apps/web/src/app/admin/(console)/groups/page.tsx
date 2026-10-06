@@ -7,9 +7,8 @@ import { CreateGroupForm } from "./group-forms";
 export default async function AdminGroupsPage() {
   await requireAdmin();
   const groups = await prisma.group.findMany({
-    // Built-in groups first, then by creation.
-    orderBy: [{ systemKey: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
-    select: { id: true, name: true, description: true, systemKey: true, _count: { select: { members: true } } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, description: true, _count: { select: { members: true } } },
   });
 
   return (
@@ -32,7 +31,6 @@ export default async function AdminGroupsPage() {
                     <Link href={`/admin/groups/${g.id}`} style={{ textDecoration: "underline" }}>
                       {g.name}
                     </Link>
-                    {g.systemKey && "（組み込み）"}
                   </td>
                   <td>{g.description ?? "-"}</td>
                   <td>{g._count.members}</td>

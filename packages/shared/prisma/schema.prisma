@@ -6,6 +6,19 @@ datasource db {
   provider = "postgresql"
 }
 
+// Site-wide role ("サイトのロール"), independent of page permissions.
+// - SITE_ADMIN: everything in /admin except server-side work (master
+//   password, server key, recovery CLI). Can't read pages without a group grant.
+// - CONTENT_MANAGER: creates knowledge roots, invites users (as
+//   CONTENT_MANAGER or USER), edits groups within trees it manages. In /admin
+//   it only sees invitations and groups.
+// - USER: no /admin access.
+enum SiteRole {
+  SITE_ADMIN
+  CONTENT_MANAGER
+  USER
+}
+
 enum MemberRole {
   OWNER
   ADMIN
@@ -22,6 +35,7 @@ model User {
   // Set when an admin disables the account: no login, sessions ended,
   // collab access refused. Memberships are kept so re-enabling restores access.
   disabledAt   DateTime?
+  siteRole     SiteRole  @default(USER)
 
   memberships     KnowledgeRootMember[]
   pages           Page[]
@@ -158,7 +172,7 @@ enum AdminSessionStage {
 // holds a random token; only its SHA-256 hash is stored here.
 model AdminSession {
   tokenHash   String            @id
-  // The site admin (member of the site_admins group) who signed in.
+  // The signed-in SITE_ADMIN / CONTENT_MANAGER user.
   // Null = signed in with the master password (bootstrap / recovery).
   userId      String?
   user        User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -221,6 +235,9 @@ model Invitation {
   root        KnowledgeRoot? @relation(fields: [rootId], references: [id], onDelete: Cascade)
   newRootName String?
 
+  // Site role given to the account created from this invitation.
+  siteRole SiteRole @default(USER)
+
   createdAt DateTime  @default(now())
   expiresAt DateTime
   usedAt    DateTime?
@@ -268,14 +285,12 @@ model MailSettings {
   updatedAt   DateTime     @updatedAt
 }
 
-// Site-wide user groups, managed from /admin.
+// User groups, managed from /admin. Groups exist to grant page tree
+// permissions; site-wide roles are User.siteRole, not groups.
 model Group {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
-  // Set on built-in groups the app relies on (e.g. "site_admins"). Built-in
-  // groups can't be deleted.
-  systemKey   String?  @unique
   createdAt   DateTime @default(now())
 
   members GroupMember[]

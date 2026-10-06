@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { createKnowledgeRoot, type MemberRole, type Prisma } from "shared";
+import { createKnowledgeRoot, type MemberRole, type Prisma, type SiteRole } from "shared";
 import { prisma } from "@/lib/db";
 import { rootNameSelect } from "@/lib/knowledge-roots";
 
@@ -13,9 +13,10 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export type NewInvitation =
-  | { kind: "existing"; rootId: string; role: MemberRole; email?: string }
-  | { kind: "new"; rootName: string; email?: string };
+export type NewInvitation = (
+  | { kind: "existing"; rootId: string; role: MemberRole }
+  | { kind: "new"; rootName: string }
+) & { email?: string; siteRole: SiteRole };
 
 export async function createInvitation(input: NewInvitation): Promise<string> {
   const token = randomBytes(32).toString("base64url");
@@ -27,6 +28,8 @@ export async function createInvitation(input: NewInvitation): Promise<string> {
       role: input.kind === "new" ? "OWNER" : input.role,
       rootId: input.kind === "existing" ? input.rootId : null,
       newRootName: input.kind === "new" ? input.rootName : null,
+      // Applied when the invitation creates a new account.
+      siteRole: input.siteRole,
       expiresAt: new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000),
     },
   });
