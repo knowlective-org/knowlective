@@ -18,6 +18,7 @@ type CollabBridge = {
   notifyChildrenChanged(parentPageId: string): void;
   closeDocuments(pageIds: string[]): void;
   restoreVersion(pageId: string, versionId: string, userId: string): Promise<void>;
+  liveState(pageId: string): Uint8Array | null;
 };
 
 // The custom server and the Next.js bundle are separate module graphs in one
@@ -49,4 +50,11 @@ export async function restoreVersion(pageId: string, versionId: string, userId: 
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   if (!bridge) throw new Error("The collaboration server is not running");
   await bridge.restoreVersion(pageId, versionId, userId);
+}
+
+// The page's document as currently open in the collab server (including
+// edits not stored yet), or null if nobody has it open on this instance.
+export function liveDocumentState(pageId: string): Uint8Array | null {
+  const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
+  return bridge?.liveState(pageId) ?? null;
 }

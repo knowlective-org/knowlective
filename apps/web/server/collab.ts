@@ -212,6 +212,10 @@ export async function createCollab() {
         hocuspocus.closeConnections(id);
       }
     },
+    liveState(pageId) {
+      const document = hocuspocus.documents.get(pageId);
+      return document ? Y.encodeStateAsUpdate(document) : null;
+    },
     // Replaces the page's title and body with a saved version, through the
     // live document so everyone editing sees it (and it merges like any
     // edit). The state just before is saved first, so a restore can itself

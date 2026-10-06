@@ -30,7 +30,7 @@ export default async function PageHistoryRoute({ params }: PageProps<"/pages/[pa
     prisma.pageVersion.findMany({
       where: { pageId },
       orderBy: { createdAt: "desc" },
-      select: { id: true, createdAt: true, kind: true, title: true, editorIds: true, restoredFromId: true },
+      select: { id: true, createdAt: true, kind: true, title: true, editorIds: true, restoredFromId: true, maskedAt: true },
     }),
   ]);
   const editorIds = [...new Set(versions.flatMap((v) => v.editorIds))];
@@ -60,6 +60,7 @@ export default async function PageHistoryRoute({ params }: PageProps<"/pages/[pa
             title: v.title,
             editors: v.editorIds.map((id) => names.get(id) ?? "（削除されたユーザー）"),
             restoredFromId: v.restoredFromId,
+            masked: v.maskedAt !== null,
           }))}
         />
       </div>

@@ -1,12 +1,23 @@
 "use server";
 
-import { atLeast, decrypt, getPageAccess, loadDataKey } from "shared";
+import { atLeast, decrypt, encrypt, getPageAccess, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
+import { recordAudit, userLabel } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/session";
-import { restoreVersion } from "@/lib/collab-events";
+import { liveDocumentState, restoreVersion } from "@/lib/collab-events";
+import { displayTitle } from "@/lib/page-title";
 import { versionAad } from "@/lib/page-versions";
+import {
+  MAX_MASK_LENGTH,
+  MAX_MASK_STRINGS,
+  MIN_MASK_LENGTH,
+  maskText,
+  maskVersionState,
+  normalizeMaskStrings,
+} from "@/lib/version-mask";
 
-// 履歴表示. Viewing needs access to the page (VIEW); restoring needs EDIT.
+// 履歴表示. Viewing needs access to the page (VIEW); restoring and masking
+// need EDIT. Masked versions can't be restored.
 // A version id that doesn't belong to the page is treated as missing.
 
 async function findVersion(pageId: unknown, versionId: unknown) {
@@ -29,7 +40,9 @@ export async function restorePageVersion(pageId: string, versionId: string): Pro
   const user = await requireUser();
   const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
   if (!access || !atLeast(access.access, "EDIT")) return { error: "この版に戻す権限がありません。" };
-  if (!(await findVersion(pageId, versionId))) return { error: "この版は見つかりません。" };
+  const version = await findVersion(pageId, versionId);
+  if (!version) return { error: "この版は見つかりません。" };
+  if (version.maskedAt) return { error: "マスクした版には戻せません。" };
   try {
     await restoreVersion(pageId, versionId, user.id);
   } catch (err) {
@@ -37,4 +50,85 @@ export async function restorePageVersion(pageId: string, versionId: string): Pro
     return { error: "この版に戻せませんでした。もう一度お試しください。" };
   }
   return {};
+}
+
+// ---- Masking (e.g. a password typed by mistake) ----------------------------
+// The strings arrive as Server Action arguments and are only used here: they
+// are never stored, logged, or returned.
+
+type MaskCheck = { versions: number; matches: number; inCurrent: boolean };
+const BAD_STRINGS = `マスクする文字列は${MAX_MASK_STRINGS}個まで、それぞれ${MIN_MASK_LENGTH}〜${MAX_MASK_LENGTH}文字で入力してください。`;
+
+async function editablePage(userId: string, pageId: unknown) {
+  if (typeof pageId !== "string") return null;
+  const access = await getPageAccess(prisma, userId, pageId);
+  return access && atLeast(access.access, "EDIT") ? pageId : null;
+}
+
+// Matches in every version, and whether the page itself (live document, or
+// the stored one if nobody has it open, plus its title) still contains them.
+async function scan(pageId: string, strings: string[]) {
+  const key = await loadDataKey(prisma);
+  const [versions, page, stored] = await Promise.all([
+    prisma.pageVersion.findMany({ where: { pageId }, select: { id: true, state: true, title: true } }),
+    prisma.page.findUniqueOrThrow({ where: { id: pageId }, select: { title: true } }),
+    prisma.pageDocument.findUnique({ where: { pageId }, select: { state: true } }),
+  ]);
+  const current = liveDocumentState(pageId) ?? (stored ? decrypt(key, stored.state, pageId) : null);
+  const inCurrent =
+    maskText(page.title, strings).count > 0 || (current !== null && maskVersionState(Uint8Array.from(current), strings).count > 0);
+  const hits = versions
+    .map((v) => {
+      const masked = maskVersionState(Uint8Array.from(decrypt(key, v.state, versionAad(pageId, v.id))), strings);
+      return { id: v.id, title: v.title, ...masked };
+    })
+    .filter((v) => v.count > 0);
+  return { key, page, inCurrent, hits };
+}
+
+export async function checkMask(pageId: string, rawStrings: string[]): Promise<MaskCheck | { error: string }> {
+  const user = await requireUser();
+  const id = await editablePage(user.id, pageId);
+  if (!id) return { error: "マスクする権限がありません。" };
+  const strings = normalizeMaskStrings(rawStrings);
+  if (!strings) return { error: BAD_STRINGS };
+  const { inCurrent, hits } = await scan(id, strings);
+  return { versions: hits.length, matches: hits.reduce((n, h) => n + h.count, 0), inCurrent };
+}
+
+export async function applyMask(pageId: string, rawStrings: string[]): Promise<MaskCheck | { error: string }> {
+  const user = await requireUser();
+  const id = await editablePage(user.id, pageId);
+  if (!id) return { error: "マスクする権限がありません。" };
+  const strings = normalizeMaskStrings(rawStrings);
+  if (!strings) return { error: BAD_STRINGS };
+  const { key, page, inCurrent, hits } = await scan(id, strings);
+  // Otherwise the next saved version would contain it again.
+  if (inCurrent) {
+    return { error: "今のページ（本文またはタイトル）にまだ含まれています。先にページから消してから、マスクしてください。" };
+  }
+  if (hits.length === 0) return { versions: 0, matches: 0, inCurrent: false };
+
+  const now = new Date();
+  await prisma.$transaction(
+    hits.map((h) =>
+      prisma.pageVersion.update({
+        where: { id: h.id },
+        data: {
+          state: Uint8Array.from(encrypt(key, h.state, versionAad(id, h.id))),
+          title: maskText(h.title, strings).text,
+          maskedAt: now,
+          maskedById: user.id,
+        },
+      }),
+    ),
+  );
+  const matches = hits.reduce((n, h) => n + h.count, 0);
+  await recordAudit(
+    { userId: user.id, label: userLabel(user) },
+    "page.version.mask",
+    `ページ「${displayTitle(maskText(page.title, strings).text)}」の履歴で、${hits.length}個の版の${matches}か所をマスク`,
+    { pageId: id, versionIds: hits.map((h) => h.id), matches },
+  );
+  return { versions: hits.length, matches, inCurrent: false };
 }

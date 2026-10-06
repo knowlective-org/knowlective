@@ -194,6 +194,12 @@ model PageVersion {
   editorIds      String[]
   state          Bytes
   restoredFromId String?
+  // Set when text in this version was masked (e.g. a password typed by
+  // mistake): `state` and `title` were rebuilt with the text replaced, so the
+  // version is shown masked and can no longer be restored. Versions are
+  // never deleted (audit).
+  maskedAt       DateTime?
+  maskedById     String?
 
   @@index([pageId, createdAt])
 }
