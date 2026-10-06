@@ -19,14 +19,14 @@
   margin-right: auto;
   font-size: 12px;
   font-weight: 600;
-  color: #888;
+  color: var(--color-muted);
 }
 
 .muted {
   margin: 0;
   padding: 2px 0;
   font-size: 13px;
-  color: #888;
+  color: var(--color-muted);
 }
 
 .pageList {
@@ -56,8 +56,16 @@
   text-underline-offset: 3px;
 }
 
+/* Last-updated time after a page link (plain text, not part of the link). */
+.pageMeta {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
 .pageLink:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--color-hover);
 }
 
 .inlineSelect,
@@ -67,7 +75,7 @@
   padding: 2px 8px;
   font: inherit;
   font-size: 12px;
-  color: #555;
+  color: var(--color-muted);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -76,26 +84,26 @@
 
 .inlineSelect:hover,
 .toolButton:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--color-hover);
 }
 
 .toolButton:disabled {
-  color: #bbb;
+  color: color-mix(in srgb, var(--color-muted) 55%, transparent);
   cursor: default;
   background: transparent;
 }
 
 .primaryButton {
-  color: #fff;
-  background: #2f6fde;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
 }
 
 .dangerButton {
-  color: #c62828;
+  color: var(--color-danger);
 }
 
 .dangerButton:hover {
-  background: #fdecea;
+  background: var(--color-danger-light);
 }
 
 .popoverAnchor {
@@ -113,8 +121,8 @@
   padding: 10px;
   font-weight: normal;
   text-align: left;
-  background: #fff;
-  border: 1px solid #e3e3e0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
@@ -137,7 +145,7 @@
   padding: 4px 6px;
   font: inherit;
   font-size: 13px;
-  border: 1px solid #d9d9d6;
+  border: 1px solid var(--color-border-strong);
   border-radius: 4px;
 }
 
@@ -153,7 +161,7 @@
   flex: none;
   width: 18px;
   height: 18px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--color-border-strong);
   border-radius: 4px;
   cursor: pointer;
 }
@@ -163,24 +171,66 @@
 }
 
 .table {
+  display: table;
   width: 100%;
   border-collapse: collapse;
 }
 
-.table th,
-.table td {
+.tableDragging {
+  composes: table;
+  cursor: grabbing;
+  user-select: none;
+}
+
+.tr {
+  display: table-row;
+}
+
+.cell {
+  display: table-cell;
   padding: 4px 8px;
   text-align: left;
   vertical-align: middle;
-  border: 1px solid #e9e9e7;
+  border: 1px solid var(--color-border);
 }
 
-.table th {
+.headCell {
+  composes: cell;
   font-size: 12px;
   font-weight: 600;
-  color: #666;
+  color: var(--color-muted);
   white-space: nowrap;
-  background: #fafaf9;
+  background: var(--color-primary-light);
+}
+
+/* Column drag and drop. */
+.headCell[data-dragging],
+.cell[data-dragging] {
+  opacity: 0.45;
+}
+
+.headCell[data-drop="before"] {
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.headCell[data-drop="after"] {
+  box-shadow: inset -3px 0 0 var(--color-primary);
+}
+
+.grip {
+  flex: none;
+  padding: 0 2px;
+  font-size: 11px;
+  letter-spacing: -2px;
+  color: var(--color-muted);
+  cursor: grab;
+  opacity: 0;
+  touch-action: none;
+}
+
+.headCell:hover .grip,
+.headCell[data-dragging] .grip {
+  opacity: 1;
 }
 
 .th {
@@ -191,21 +241,25 @@
 }
 
 .thButton {
+  flex: 1;
   padding: 2px 0;
   font: inherit;
   color: inherit;
+  text-align: left;
   background: transparent;
   border: 0;
   cursor: pointer;
 }
 
 .titleCell {
+  composes: cell;
   min-width: 180px;
 }
 
 .metaCell {
+  composes: cell;
   font-size: 12px;
-  color: #777;
+  color: var(--color-muted);
   white-space: nowrap;
 }
 
@@ -228,7 +282,7 @@
 .cellInput:hover,
 .cellInput:focus,
 .cellSelect:hover {
-  border-color: #d9d9d6;
+  border-color: var(--color-border-strong);
 }
 
 .chip {
@@ -236,4 +290,78 @@
   padding: 1px 8px;
   font-size: 12px;
   border-radius: 10px;
+}
+
+/* Child-page table: title and the 新しいページ row. */
+.tableTitle {
+  margin-right: auto;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.tableTitlePlaceholder {
+  composes: label;
+}
+
+.tableTitleInput {
+  flex: 1;
+  min-width: 120px;
+  margin-right: auto;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.tableTitleInput::placeholder {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.tableTitleInput:hover,
+.tableTitleInput:focus {
+  border-color: var(--color-border-strong);
+  outline: none;
+}
+
+/* Below the table, looking like its last row. */
+.newRow {
+  border: 1px solid var(--color-border);
+  border-top: 0;
+}
+
+.newRowButton {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.newRowButton:hover {
+  color: var(--color-primary);
+  background: var(--color-hover);
+}
+
+.newRowInput {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: var(--color-surface);
+  border: 0;
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  outline-offset: -2px;
 }

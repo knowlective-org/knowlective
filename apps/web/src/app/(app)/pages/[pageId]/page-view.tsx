@@ -24,6 +24,7 @@ export function PageView({
   initialTitle,
   readOnly,
   canManage,
+  isRootPage,
   shareUrl,
   user,
   sidebar,
@@ -34,6 +35,7 @@ export function PageView({
   readOnly: boolean;
   // MANAGE access: may change this page's group grants.
   canManage: boolean;
+  isRootPage: boolean;
   // This page's URL on the site's public URL, for the share button.
   shareUrl: string;
   user: { id: string; name: string };
@@ -47,7 +49,13 @@ export function PageView({
         <div className={styles.toolbar}>
           {readOnly && <span className={styles.readOnly} data-ui="PageView.readOnlyBadge">閲覧のみ</span>}
           <ShareButton url={shareUrl} />
-          <PageMenu pageId={pageId} canManage={canManage} />
+          <PageMenu
+            pageId={pageId}
+            title={liveTitle ?? initialTitle}
+            canEdit={!readOnly}
+            canManage={canManage}
+            isRootPage={isRootPage}
+          />
         </div>
         <InitialTitleContext.Provider value={initialTitle}>
           <EditorLoader pageId={pageId} readOnly={readOnly} user={user} onTitleChange={setLiveTitle} />

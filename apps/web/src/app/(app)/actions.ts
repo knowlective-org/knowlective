@@ -5,6 +5,7 @@ import { MAX_PAGE_DEPTH, atLeast, createCollabToken, getPageAccess } from "share
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { notifyChildrenChanged } from "@/lib/collab-events";
+import { normalizeTitle } from "@/lib/page-title";
 import { endUserSession, requireUser } from "@/lib/auth/session";
 
 export async function logout(): Promise<void> {
@@ -22,13 +23,16 @@ export async function getCollabToken(pageId: string): Promise<string> {
   return createCollabToken(user.id, pageId);
 }
 
-// Creates an untitled child page under `parentId` and opens it. Needs EDIT on
-// the parent; the child inherits the parent's grants, so no grant is added.
-export async function createChildPage(parentId: string): Promise<{ error: string }> {
-  const user = await requireUser();
-  const parentAccess = typeof parentId === "string" ? await getPageAccess(prisma, user.id, parentId) : null;
+// Creates a child page under `parentId`. Needs EDIT on the parent; the child
+// inherits the parent's grants, so no grant is added.
+async function insertChildPage(
+  userId: string,
+  parentId: unknown,
+  title: string,
+): Promise<{ id: string } | { error: string }> {
+  const parentAccess = typeof parentId === "string" ? await getPageAccess(prisma, userId, parentId) : null;
   // Same message for missing and forbidden, so page ids can't be probed.
-  if (!parentAccess || !atLeast(parentAccess.access, "EDIT")) {
+  if (typeof parentId !== "string" || !parentAccess || !atLeast(parentAccess.access, "EDIT")) {
     return { error: "このページの下にはページを作成できません。" };
   }
 
@@ -48,10 +52,26 @@ export async function createChildPage(parentId: string): Promise<{ error: string
   }
 
   const page = await prisma.page.create({
-    // Empty title: shown as 無題 until renamed in the editor.
-    data: { title: "", rootId: parentAccess.rootId, parentId, createdById: user.id },
+    // An empty title shows as 無題 until renamed. The collab server seeds the
+    // document's title from this when the page is first opened.
+    data: { title, rootId: parentAccess.rootId, parentId, createdById: userId },
     select: { id: true },
   });
   notifyChildrenChanged(parentId);
-  redirect(`/pages/${page.id}`);
+  return page;
+}
+
+// Creates an untitled child page under `parentId` and opens it (sidebar ＋).
+export async function createChildPage(parentId: string): Promise<{ error: string }> {
+  const user = await requireUser();
+  const result = await insertChildPage(user.id, parentId, "");
+  if ("error" in result) return result;
+  redirect(`/pages/${result.id}`);
+}
+
+// Creates a child page with a title and stays on the current page (child-page
+// table's 新しいページ row).
+export async function createChildPageInPlace(parentId: string, title: string): Promise<{ id: string } | { error: string }> {
+  const user = await requireUser();
+  return insertChildPage(user.id, parentId, normalizeTitle(typeof title === "string" ? title : ""));
 }

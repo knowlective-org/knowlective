@@ -97,7 +97,7 @@ export function InvitationForm({
           <button
             data-ui="InvitationForm.copyButton"
             type="button"
-            className={styles.button}
+            className={styles.buttonSecondary}
             style={{ marginTop: 8 }}
             onClick={async () => {
               await navigator.clipboard.writeText(state.link!);

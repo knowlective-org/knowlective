@@ -8,8 +8,16 @@
 // ever receives what their own permissions allow.
 
 export const CHILDREN_CHANGED = "children-changed";
+// Sent to a page's editors right before the server closes them because the
+// page went to the trash. (Closing alone isn't enough: Hocuspocus closes only
+// that document's channel on the shared socket, and the provider doesn't
+// reconnect it, so the editor would silently stop saving.)
+export const PAGE_DELETED = "page-deleted";
 
-type CollabBridge = { notifyChildrenChanged(parentPageId: string): void };
+type CollabBridge = {
+  notifyChildrenChanged(parentPageId: string): void;
+  closeDocuments(pageIds: string[]): void;
+};
 
 // The custom server and the Next.js bundle are separate module graphs in one
 // process, so the collab server registers itself on globalThis.
@@ -25,4 +33,11 @@ export function notifyChildrenChanged(parentPageId: string | null | undefined) {
   if (!parentPageId) return;
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   bridge?.notifyChildrenChanged(parentPageId);
+}
+
+// Tells everyone editing these pages that they went to the trash
+// (PAGE_DELETED), then disconnects them.
+export function closeDocuments(pageIds: string[]) {
+  const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
+  bridge?.closeDocuments(pageIds);
 }

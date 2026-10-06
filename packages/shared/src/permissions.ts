@@ -151,6 +151,146 @@ export async function getUsersWithPageAccess(
   });
 }
 
+// One knowledge root's whole tree, deleted pages included, with the user's
+// access to each page as if nothing were deleted. For the trash (listing and
+// restoring) and for checking a subtree before deleting it. Callers decide
+// what deletion means; pages missing from `access` are inaccessible anyway.
+export async function getTreeWithAccess(prisma: PrismaClient, userId: string, rootId: string) {
+  const [groupIds, user] = await Promise.all([
+    userGroupIds(prisma, userId),
+    prisma.user.findUnique({ where: { id: userId }, select: { disabledAt: true } }),
+  ]);
+  const pages = await prisma.page.findMany({
+    where: { rootId },
+    select: {
+      id: true,
+      parentId: true,
+      title: true,
+      icon: true,
+      createdAt: true,
+      deletedAt: true,
+      deletedById: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const grants = !user || user.disabledAt ? [] : await loadGrants(prisma, rootId, groupIds);
+  const access = computeTreeAccess(pages, grants, groupIds, MAX_PAGE_DEPTH);
+  // Live = not deleted and every ancestor live (what the app shows).
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const live = new Set<string>();
+  const isLive = (id: string, depth = 0): boolean => {
+    if (live.has(id)) return true;
+    const page = byId.get(id);
+    if (!page || page.deletedAt || depth > MAX_PAGE_DEPTH) return false;
+    const ok = page.parentId === null || isLive(page.parentId, depth + 1);
+    if (ok) live.add(id);
+    return ok;
+  };
+  for (const p of pages) isLive(p.id);
+  return { pages, access, live };
+}
+
+export type TrashItem = {
+  id: string;
+  rootId: string;
+  title: string;
+  icon: string | null;
+  deletedAt: Date;
+  deletedById: string | null;
+  // The page it was under, if the user can see it (or could, before it was
+  // deleted too).
+  parent: { id: string; title: string } | null;
+  // The original parent is in the trash too (or under a page that is), so
+  // this page can only come back under another page — see
+  // `suggestedParentId` and getTrash()'s `destinations`.
+  parentInTrash: boolean;
+  // For parentInTrash items: the nearest live ancestor the user can edit.
+  suggestedParentId: string | null;
+};
+
+// A live page the user may restore something under (EDIT), in tree order.
+export type RestoreDestination = { id: string; title: string; depth: number };
+
+// Pages in the trash the user may restore (EDIT on them), newest first.
+// A page deleted together with an ancestor comes back with it and isn't
+// listed; a page deleted on its own is, even if its parent was deleted later
+// (parentInTrash). `destinations` lists, per knowledge root with such items,
+// where they can be restored instead.
+export async function getTrash(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<{ items: TrashItem[]; destinations: Record<string, RestoreDestination[]> }> {
+  const groupIds = await userGroupIds(prisma, userId);
+  if (groupIds.size === 0) return { items: [], destinations: {} };
+  const granted = await prisma.page.findMany({
+    where: { grants: { some: { groupId: { in: [...groupIds] } } } },
+    select: { rootId: true },
+    distinct: ["rootId"],
+  });
+  const withDeleted = await prisma.page.findMany({
+    where: { rootId: { in: granted.map((g) => g.rootId) }, deletedAt: { not: null } },
+    select: { rootId: true },
+    distinct: ["rootId"],
+  });
+
+  const items: TrashItem[] = [];
+  const destinations: Record<string, RestoreDestination[]> = {};
+  for (const { rootId } of withDeleted) {
+    const tree = await getTreeWithAccess(prisma, userId, rootId);
+    const { pages, access, live } = tree;
+    const byId = new Map(pages.map((p) => [p.id, p]));
+    const editable = (id: string) => atLeast(access.get(id) ?? null, "EDIT");
+    let needsDestinations = false;
+    for (const p of pages) {
+      if (!p.deletedAt || !p.parentId || !editable(p.id)) continue;
+      const parent = byId.get(p.parentId);
+      const parentInTrash = !live.has(p.parentId);
+      let suggestedParentId: string | null = null;
+      if (parentInTrash) {
+        needsDestinations = true;
+        for (let id = byId.get(p.parentId)?.parentId ?? null, i = 0; id && i <= MAX_PAGE_DEPTH; i++) {
+          if (live.has(id) && editable(id)) {
+            suggestedParentId = id;
+            break;
+          }
+          id = byId.get(id)?.parentId ?? null;
+        }
+      }
+      items.push({
+        id: p.id,
+        rootId,
+        title: p.title,
+        icon: p.icon,
+        deletedAt: p.deletedAt,
+        deletedById: p.deletedById,
+        parent: parent && access.has(parent.id) ? { id: parent.id, title: parent.title } : null,
+        parentInTrash,
+        suggestedParentId,
+      });
+    }
+    if (needsDestinations) destinations[rootId] = restoreDestinations(tree);
+  }
+  items.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
+  return { items, destinations };
+}
+
+// Live pages the user can edit, depth-first in creation order, with their
+// depth below the root page (for an indented picker).
+export function restoreDestinations(tree: Awaited<ReturnType<typeof getTreeWithAccess>>): RestoreDestination[] {
+  const { pages, access, live } = tree;
+  const result: RestoreDestination[] = [];
+  const visit = (parentId: string | null, depth: number) => {
+    if (depth > MAX_PAGE_DEPTH) return;
+    for (const p of pages) {
+      if (p.parentId !== parentId || !live.has(p.id)) continue;
+      if (atLeast(access.get(p.id) ?? null, "EDIT")) result.push({ id: p.id, title: p.title, depth });
+      visit(p.id, depth + 1);
+    }
+  };
+  visit(null, 0);
+  return result;
+}
+
 export type VisiblePage = {
   id: string;
   parentId: string | null;

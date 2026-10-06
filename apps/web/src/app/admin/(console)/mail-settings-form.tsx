@@ -157,7 +157,7 @@ export function TestMailForm({ disabled }: { disabled: boolean }) {
           (state.sentTo ? `${state.sentTo} に送信しました。届いているか確認してください。` : "")}
         {disabled && !state.error && "設定を保存すると、テストメールを送れます。"}
       </p>
-      <button data-ui="TestMailForm.submitButton" type="submit" disabled={pending || disabled} className={styles.button}>
+      <button data-ui="TestMailForm.submitButton" type="submit" disabled={pending || disabled} className={styles.buttonSecondary}>
         {pending ? "送信しています…" : "テストメールを送信"}
       </button>
     </form>

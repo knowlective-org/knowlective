@@ -32,7 +32,14 @@ export type BuiltinColumn = keyof typeof BUILTIN_COLUMNS;
 
 export type UserRef = { id: string; name: string };
 
-export type ChildPageItem = { id: string; parentId: string; title: string; icon: string | null };
+export type ChildPageItem = {
+  id: string;
+  parentId: string;
+  title: string;
+  icon: string | null;
+  // ISO time of the last stored edit (body, title or a property value).
+  updatedAt: string;
+};
 
 export type ChildTableRow = {
   id: string;

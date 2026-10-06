@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { loadPageInfo, type PageInfo } from "./page-actions";
+import { displayTitle } from "@/lib/page-title";
+import { checkDeletePage, deletePage, loadPageInfo, type PageInfo } from "./page-actions";
 import styles from "./page-view.module.css";
 
 const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" });
@@ -54,8 +56,23 @@ export function ShareButton({ url }: { url: string }) {
 }
 
 // The ⋯ menu at the top right of a page: page information plus page actions.
-export function PageMenu({ pageId, canManage }: { pageId: string; canManage: boolean }) {
+export function PageMenu({
+  pageId,
+  title,
+  canEdit,
+  canManage,
+  isRootPage,
+}: {
+  pageId: string;
+  // Current (live) title, for the delete confirmation.
+  title: string;
+  canEdit: boolean;
+  canManage: boolean;
+  isRootPage: boolean;
+}) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [info, setInfo] = useState<PageInfo | null | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -134,7 +151,42 @@ export function PageMenu({ pageId, canManage }: { pageId: string; canManage: boo
               <PlannedItem label="権限設定" note="管理の権限が必要" />
             )}
             <PlannedItem label="エクスポート" />
-            <PlannedItem label="削除" danger />
+            {canEdit && !isRootPage ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItemDanger}
+                data-ui="PageMenu.delete"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    const check = await checkDeletePage(pageId);
+                    if ("error" in check) {
+                      window.alert(check.error);
+                      return;
+                    }
+                    const children = check.descendants > 0 ? `と、その下の${check.descendants}ページ` : "";
+                    if (!window.confirm(`「${displayTitle(title)}」${children}をごみ箱に移動しますか？
+ごみ箱から元に戻せます。`)) return;
+                    const result = await deletePage(pageId);
+                    if ("error" in result) {
+                      window.alert(result.error);
+                      return;
+                    }
+                    setOpen(false);
+                    router.push(`/pages/${result.parentId}`);
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+              >
+                <span>{deleting ? "削除しています…" : "削除"}</span>
+                <span className={styles.menuNote}>ごみ箱へ</span>
+              </button>
+            ) : (
+              <PlannedItem label="削除" danger note={isRootPage ? "ナレッジルートは削除不可" : "編集の権限が必要"} />
+            )}
           </div>
         </div>
       )}

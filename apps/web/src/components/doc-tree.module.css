@@ -13,12 +13,12 @@
 }
 
 .row:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--color-hover);
 }
 
 .rowCurrent {
   composes: row;
-  background: rgba(0, 0, 0, 0.07);
+  background: var(--color-selected);
   font-weight: 600;
 }
 
@@ -29,7 +29,7 @@
   font: inherit;
   font-size: 12px;
   line-height: 1;
-  color: #777;
+  color: var(--color-muted);
   background: transparent;
   border: 0;
   border-radius: 4px;
@@ -37,7 +37,7 @@
 }
 
 .toggle:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--color-selected);
 }
 
 .toggleSpacer {
@@ -62,7 +62,7 @@
   font: inherit;
   font-size: 13px;
   line-height: 1;
-  color: #777;
+  color: var(--color-muted);
   background: transparent;
   border: 0;
   border-radius: 4px;
@@ -76,7 +76,7 @@
 }
 
 .add:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--color-selected);
 }
 
 .add:disabled {

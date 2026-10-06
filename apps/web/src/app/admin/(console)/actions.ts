@@ -12,6 +12,8 @@ import { InvalidPublicUrlError, normalizePublicUrl, type SiteRole } from "shared
 import { SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
 import { recordAudit } from "@/lib/audit";
 import { manageableGroupIds } from "@/lib/group-access";
+import { saveTheme as storeTheme } from "@/lib/theme";
+import { THEME_TOKENS, normalizeColor, type ThemeColors } from "@/lib/theme-tokens";
 import {
   MailNotConfiguredError,
   getMailSettings,
@@ -356,5 +358,21 @@ export async function saveUploadLimit(_prev: UploadLimitState, formData: FormDat
   }
   await prisma.instanceConfig.update({ where: { id: 1 }, data: { maxUploadSizeMb: value } });
   revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+export type ThemeState = { error?: string; saved?: boolean };
+
+export async function saveTheme(_prev: ThemeState, formData: FormData): Promise<ThemeState> {
+  await requireAdmin(["SITE_ADMIN"]);
+  const theme = {} as ThemeColors;
+  for (const t of THEME_TOKENS) {
+    const value = normalizeColor(formData.get(t.key));
+    if (!value) return { error: `「${t.label}」は #RRGGBB の形式で入力してください。` };
+    theme[t.key] = value;
+  }
+  await storeTheme(theme);
+  // The theme is injected by the root layout, so every screen needs it.
+  revalidatePath("/", "layout");
   return { saved: true };
 }

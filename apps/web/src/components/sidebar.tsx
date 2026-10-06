@@ -85,6 +85,9 @@ export function Sidebar({
         <span className={styles.user} title={userName}>
           {userName}
         </span>
+        <Link href="/trash" className={styles.footerLink} data-ui="Sidebar.trashLink">
+          ごみ箱
+        </Link>
         {canOpenAdmin && (
           <Link href="/admin" className={styles.footerLink}>
             管理画面

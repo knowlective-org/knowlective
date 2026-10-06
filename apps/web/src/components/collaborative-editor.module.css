@@ -21,7 +21,7 @@
 }
 
 .title::placeholder {
-  color: #bbb;
+  color: color-mix(in srgb, var(--color-muted) 55%, transparent);
 }
 
 @media (max-width: 640px) {
@@ -39,14 +39,14 @@
 
 .titleLoading {
   composes: title;
-  color: #bbb;
+  color: color-mix(in srgb, var(--color-muted) 55%, transparent);
 }
 
 .loading {
   margin: 0;
   padding: 0 54px;
   font-size: 14px;
-  color: #999;
+  color: var(--color-muted);
 }
 
 @media (max-width: 640px) {

@@ -1,0 +1,104 @@
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px 24px;
+}
+
+.field {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.picker {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-top: 20px;
+  padding: 2px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.default {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.hex {
+  font-family: var(--font-geist-mono), monospace;
+  text-transform: uppercase;
+}
+
+/* A miniature of the app, colored by the values being edited (the form
+   sets the --color-* variables on this element). */
+.preview {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--color-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.previewSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 8px;
+  background: var(--color-primary-light);
+  border-right: 1px solid var(--color-border);
+}
+
+.previewBrand {
+  padding: 0 6px 8px;
+  font-weight: 700;
+}
+
+.previewItem {
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.previewItemCurrent {
+  composes: previewItem;
+  font-weight: 600;
+  background: var(--color-selected);
+}
+
+.previewMain {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  background: var(--color-background);
+}
+
+.previewTitle {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.previewMuted {
+  color: var(--color-muted);
+}
+
+.previewButton {
+  padding: 4px 12px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 6px;
+}

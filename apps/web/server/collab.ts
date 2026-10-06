@@ -15,7 +15,7 @@ import {
   verifyCollabToken,
 } from "shared";
 import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
-import { CHILDREN_CHANGED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
+import { CHILDREN_CHANGED, PAGE_DELETED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
 
 // Real-time collaboration (Yjs over WebSocket), served by the same process
 // and port as the Next.js app at COLLAB_PATH. server/index.ts routes the
@@ -135,6 +135,16 @@ export async function createCollab() {
           await connection.disconnect();
         })
         .catch((err) => console.error("[collab] notify failed", err));
+    },
+    // Only this instance's connections; with Redis, other instances keep
+    // theirs until they reconnect (access is re-checked then).
+    closeDocuments(pageIds) {
+      for (const id of pageIds) {
+        const document = hocuspocus.documents.get(id);
+        if (!document) continue;
+        document.broadcastStateless(JSON.stringify({ type: PAGE_DELETED }));
+        hocuspocus.closeConnections(id);
+      }
     },
   });
 

@@ -43,6 +43,7 @@ model User {
 
   pages           Page[]          @relation("PageCreatedBy")
   updatedPages    Page[]          @relation("PageUpdatedBy")
+  deletedPages    Page[]          @relation("PageDeletedBy")
   sessions        UserSession[]
   usedInvitations Invitation[]
   groups          GroupMember[]
@@ -85,7 +86,13 @@ model Page {
   icon      String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  // Set when the page is moved to the trash. Its descendants keep null but
+  // are hidden too (the tree walk never passes a deleted page), so restoring
+  // brings back the whole subtree. A descendant deleted on its own before
+  // stays in the trash as a separate item.
+  deletedAt   DateTime?
+  deletedById String?
+  deletedBy   User?     @relation("PageDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
 
   // The knowledge root this page belongs to, stored on every page (not just
   // the root page) so permission checks never have to walk up the tree.
@@ -435,4 +442,13 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// Site colors set in /admin (one row, id = 1). Keys and defaults live in
+// apps/web/src/lib/theme-tokens.ts; unknown or invalid entries are ignored,
+// so tokens can be added without a migration.
+model ThemeSettings {
+  id        Int      @id @default(1)
+  colors    Json
+  updatedAt DateTime @updatedAt
 }

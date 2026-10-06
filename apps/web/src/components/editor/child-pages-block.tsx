@@ -10,6 +10,8 @@ import styles from "./child-blocks.module.css";
 
 const DEPTHS = [1, 2, 3] as const;
 
+const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", timeStyle: "short" });
+
 // 子ページ一覧: links to the page's children, always current. Only the
 // settings (how many levels) are stored in the document; the list itself is
 // fetched with the viewer's permissions.
@@ -77,6 +79,11 @@ function PageList({ pages, parentId, levels }: { pages: ChildPageItem[]; parentI
             <span aria-hidden>{p.icon ?? "📄"}</span>
             <span>{displayTitle(p.title)}</span>
           </Link>
+          {p.updatedAt && (
+            <time className={styles.pageMeta} dateTime={p.updatedAt} title="最終更新日時" data-ui="ChildPagesBlock.updatedAt">
+              {dateTimeFormat.format(new Date(p.updatedAt))}
+            </time>
+          )}
           {levels > 1 && <PageList pages={pages} parentId={p.id} levels={levels - 1} />}
         </li>
       ))}

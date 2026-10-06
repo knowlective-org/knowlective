@@ -50,7 +50,7 @@ export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | 
   const tree = await visibleTreeOf(user.id, pageId);
   if (!tree) return null;
   const below = new Set([pageId]);
-  const result: ChildPageItem[] = [];
+  const result: Omit<ChildPageItem, "updatedAt">[] = [];
   // Creation order puts parents first except after moves; loop until stable.
   for (let changed = true; changed; ) {
     changed = false;
@@ -62,7 +62,12 @@ export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | 
       }
     }
   }
-  return result;
+  const times = await prisma.page.findMany({
+    where: { id: { in: result.map((p) => p.id) } },
+    select: { id: true, updatedAt: true },
+  });
+  const updatedAt = new Map(times.map((t) => [t.id, t.updatedAt.toISOString()]));
+  return result.map((p) => ({ ...p, updatedAt: updatedAt.get(p.id) ?? "" }));
 }
 
 const displayName = (u: { name: string | null; email: string }) => u.name || u.email;
@@ -101,7 +106,8 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
     createdById: c.createdById,
-    updatedById: c.updatedById,
+    // Not edited since it was created: the creator was the last to touch it.
+    updatedById: c.updatedById ?? c.createdById,
     values: valuesOf.get(c.id) ?? {},
   }));
 
@@ -186,26 +192,6 @@ export async function setColumnOptions(defId: string, rawOptions: SelectOption[]
   if (!options) return { error: "選択肢が不正です（名前は50文字以内、50個まで）。" };
   const key = await loadDataKey(prisma);
   await prisma.pagePropertyDef.update({ where: { id: def.id }, data: { options: sealOptions(key, def.id, options) } });
-  notifyChildrenChanged(def.pageId);
-  return {};
-}
-
-// Moves a column one step left (-1) or right (+1).
-export async function moveColumn(defId: string, direction: -1 | 1): Promise<Result> {
-  const user = await requireUser();
-  const def = await editableColumn(user.id, defId);
-  if (!def || (direction !== -1 && direction !== 1)) return { error: NOT_ALLOWED };
-  const defs = await prisma.pagePropertyDef.findMany({
-    where: { pageId: def.pageId },
-    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-    select: { id: true },
-  });
-  const ids = defs.map((d) => d.id);
-  const from = ids.indexOf(def.id);
-  const to = from + direction;
-  if (to < 0 || to >= ids.length) return {};
-  [ids[from], ids[to]] = [ids[to], ids[from]];
-  await prisma.$transaction(ids.map((id, position) => prisma.pagePropertyDef.update({ where: { id }, data: { position } })));
   notifyChildrenChanged(def.pageId);
   return {};
 }

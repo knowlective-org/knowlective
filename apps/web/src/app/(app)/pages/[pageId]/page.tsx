@@ -44,6 +44,7 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
       initialTitle={page.title}
       readOnly={!atLeast(page.access, "EDIT")}
       canManage={atLeast(page.access, "MANAGE")}
+      isRootPage={page.isRootPage}
       shareUrl={`${publicUrl}/pages/${page.id}`}
       user={{ id: user.id, name: user.name ?? user.email }}
       sidebar={sidebar}

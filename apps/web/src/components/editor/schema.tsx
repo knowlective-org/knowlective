@@ -24,7 +24,7 @@ export function customSlashMenuItems(editor: YosugaEditor): DefaultReactSuggesti
     {
       title: "子ページ一覧",
       subtext: "このページの子ページへのリンクを常に最新で表示",
-      aliases: ["child", "children", "list", "kopeji", "子ページ"],
+      aliases: ["child", "children", "subpage", "pages", "list", "kopeji", "子ページ", "一覧"],
       group,
       icon: <span aria-hidden>📑</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childPages" }),
@@ -32,7 +32,7 @@ export function customSlashMenuItems(editor: YosugaEditor): DefaultReactSuggesti
     {
       title: "子ページテーブル",
       subtext: "子ページを行にした表。担当者などの列を追加できます",
-      aliases: ["table", "database", "kopeji", "子ページ", "テーブル"],
+      aliases: ["child", "children", "subpage", "pages", "table", "kopeji", "子ページ", "テーブル"],
       group,
       icon: <span aria-hidden>📊</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childTable" }),

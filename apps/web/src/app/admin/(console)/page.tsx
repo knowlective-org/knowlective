@@ -9,10 +9,12 @@ import { PublicUrlForm } from "./public-url-form";
 import { StorageSettingsForm } from "./storage-settings-form";
 import { MAX_FILE_SIZE_MB_LIMIT, getMaxUploadSizeMb, getStorageSettingsView } from "@/lib/storage";
 import { UploadLimitForm } from "./upload-limit-form";
+import { getTheme } from "@/lib/theme";
+import { ThemeForm } from "./theme-form";
 
 export default async function AdminOverviewPage() {
   await requireAdmin(["SITE_ADMIN"]);
-  const [mail, site, requestOrigin, siteAdminCount, storage, fileCount, maxUploadSizeMb] = await Promise.all([
+  const [mail, site, requestOrigin, siteAdminCount, storage, fileCount, maxUploadSizeMb, theme] = await Promise.all([
     getMailSettings(),
     prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true } }),
     getRequestOrigin(),
@@ -20,6 +22,7 @@ export default async function AdminOverviewPage() {
     getStorageSettingsView(),
     prisma.fileObject.count(),
     getMaxUploadSizeMb(),
+    getTheme(),
   ]);
 
   return (
@@ -43,6 +46,14 @@ export default async function AdminOverviewPage() {
           </p>
         )}
         <PublicUrlForm current={site.publicUrl} suggested={requestOrigin} />
+      </section>
+
+      <section className={styles.section} data-ui="AdminOverviewPage.themeSection">
+        <h2 className={styles.sectionTitle}>テーマ</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          サイト全体（ページ・管理画面・ログイン画面）の色です。保存すると、すべての利用者の画面に反映されます。
+        </p>
+        <ThemeForm current={theme} />
       </section>
 
       <section className={styles.section}>

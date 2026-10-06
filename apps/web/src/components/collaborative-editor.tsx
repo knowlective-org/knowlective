@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
+import { yUndoPluginKey } from "y-prosemirror";
 import { filterSuggestionItems } from "@blocknote/core";
 import { ja } from "@blocknote/core/locales";
 import { withCollaboration } from "@blocknote/core/yjs";
@@ -11,7 +12,7 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlock
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { getCollabToken } from "@/app/(app)/actions";
-import { CHILDREN_CHANGED } from "@/lib/collab-events";
+import { CHILDREN_CHANGED, PAGE_DELETED } from "@/lib/collab-events";
 import { MAX_TITLE_LENGTH, TITLE_FIELD, UNTITLED, displayTitle } from "@/lib/page-title";
 import { PageEditorContext, type PageEditorContextValue } from "./editor/page-context";
 import { customSlashMenuItems, editorSchema } from "./editor/schema";
@@ -76,7 +77,8 @@ export function CollaborativeEditor(props: Props) {
   // The provider whose first sync finished. Until then the document (and
   // its title) is empty, so the placeholder is shown instead.
   const [synced, setSynced] = useState<HocuspocusProvider | null>(null);
-  const [failed, setFailed] = useState(false);
+  // Shown instead of the editor once it can't be used any more.
+  const [failure, setFailure] = useState<string | null>(null);
 
   // One connection per mounted page, closed when leaving it — navigating to
   // another page would otherwise leave the old socket open. The page screen
@@ -89,7 +91,16 @@ export function CollaborativeEditor(props: Props) {
       document: new Y.Doc(),
       token: () => getCollabToken(props.pageId),
       onSynced: () => setSynced(p),
-      onAuthenticationFailed: () => setFailed(true),
+      onAuthenticationFailed: () => setFailure("このページを開けませんでした。再読み込みしてください。"),
+      onStateless: ({ payload }) => {
+        try {
+          if ((JSON.parse(payload) as { type?: string }).type === PAGE_DELETED) {
+            setFailure("このページはごみ箱に移動されました。");
+          }
+        } catch {
+          // Not ours.
+        }
+      },
     });
     // Opening the socket is a side effect tied to mount/unmount (and must
     // survive StrictMode's double effect run), so it can't happen in render.
@@ -98,7 +109,7 @@ export function CollaborativeEditor(props: Props) {
     return () => p.destroy();
   }, [props.pageId]);
 
-  if (failed) return <EditorPlaceholder message="このページを開けませんでした。再読み込みしてください。" />;
+  if (failure) return <EditorPlaceholder message={failure} />;
   if (!provider || synced !== provider) return <EditorPlaceholder />;
   return <EditorBody {...props} provider={provider} />;
 }
@@ -146,6 +157,21 @@ function EditorBody({
     }),
     [provider],
   );
+
+  // Undo/redo (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z) uses y-prosemirror's
+  // UndoManager, which only undoes this user's own changes. Its plugin
+  // destroys the UndoManager whenever the editor view is destroyed, but the
+  // editor state (holding that same UndoManager) is reused when the view is
+  // mounted again — React StrictMode does exactly that in development — and
+  // Ctrl+Z then has nothing to undo. Reattach it if so. Runs after
+  // BlockNoteView (a child) has mounted the view.
+  useEffect(() => {
+    const undoManager = yUndoPluginKey.getState(editor.prosemirrorState)?.undoManager;
+    if (!undoManager || undoManager.trackedOrigins.has(undoManager)) return;
+    undoManager.trackedOrigins.add(undoManager);
+    undoManager.doc.on("afterTransaction", undoManager.afterTransactionHandler);
+    undoManager.doc.on("destroy", undoManager.destroy);
+  }, [editor]);
 
   // Child-page blocks refetch when the collab server says this page's
   // children changed (lib/collab-events.ts), and after a reconnect, since

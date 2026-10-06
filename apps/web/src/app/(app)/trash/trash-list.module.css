@@ -1,0 +1,32 @@
+/* Items whose original parent is also in the trash. */
+.orphan .dim {
+  color: var(--color-muted);
+  opacity: 0.75;
+}
+
+.dim {
+  vertical-align: top;
+}
+
+.badge {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.picker {
+  display: grid;
+  gap: 10px;
+  max-width: 520px;
+  padding: 8px 0 4px;
+}
+
+.pickerLabel {
+  display: grid;
+  gap: 4px;
+}
+
+.pickerActions {
+  display: flex;
+  gap: 8px;
+}

@@ -63,7 +63,7 @@
   font-size: 16px;
   color: inherit;
   background: transparent;
-  border: 1px solid #999;
+  border: 1px solid var(--color-border-strong);
   border-radius: 6px;
 }
 
@@ -73,15 +73,33 @@
   letter-spacing: 0.2em;
 }
 
+.field:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  outline-offset: 0;
+  border-color: var(--color-primary);
+}
+
+/* Main action: filled with the theme's primary color. */
 .button {
   padding: 10px 16px;
   font: inherit;
-  border: 1px solid #999;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
   border-radius: 6px;
-  background: transparent;
-  color: inherit;
   cursor: pointer;
   justify-self: start;
+}
+
+.button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 85%, black);
+}
+
+.button:focus-visible,
+.buttonSecondary:focus-visible,
+.danger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  outline-offset: 2px;
 }
 
 .button:disabled {
@@ -89,19 +107,36 @@
   cursor: progress;
 }
 
+/* Secondary action next to (or instead of) a main one: outlined. */
+.buttonSecondary {
+  composes: button;
+  color: var(--color-primary);
+  background: transparent;
+}
+
+.buttonSecondary:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+
+/* Destructive action: outlined in the danger color. */
 .danger {
   composes: button;
-  color: #d33;
-  border-color: #d33;
+  color: var(--color-danger);
+  background: transparent;
+  border-color: var(--color-danger);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--color-danger-light);
 }
 
 .error {
-  color: #d33;
+  color: var(--color-danger);
   min-height: 1.5em;
 }
 
 .success {
-  color: #2a8a4a;
+  color: var(--color-success);
   min-height: 1.5em;
 }
 
@@ -115,7 +150,7 @@
   font-family: var(--font-geist-mono), monospace;
   word-break: break-all;
   padding: 8px 10px;
-  border: 1px dashed #999;
+  border: 1px dashed var(--color-border-strong);
   border-radius: 6px;
 }
 
@@ -143,7 +178,7 @@
 .table td {
   text-align: left;
   padding: 8px;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+  border-bottom: 1px solid var(--color-border);
   vertical-align: top;
 }
 
@@ -169,7 +204,8 @@
 
 .kebab:hover,
 .kebab[aria-expanded="true"] {
-  border-color: #999;
+  background: var(--color-primary-light);
+  border-color: var(--color-border);
 }
 
 .menu {
@@ -177,8 +213,8 @@
   z-index: 10;
   min-width: 180px;
   padding: 4px;
-  background: var(--background);
-  border: 1px solid #999;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
 }
@@ -199,13 +235,13 @@
 
 .menuItem:hover,
 .menuItem:focus-visible {
-  background: rgba(128, 128, 128, 0.18);
+  background: var(--color-hover);
   outline: none;
 }
 
 .menuItemDanger {
   composes: menuItem;
-  color: #d33;
+  color: var(--color-danger);
 }
 
 .badge {

@@ -27,6 +27,7 @@ export type {
   PagePropertyDef,
   PagePropertyValue,
   PropertyType,
+  ThemeSettings,
 } from "@prisma/client";
 export { encrypt, decrypt, generateKey, parseServerKey } from "./crypto";
 export { createKnowledgeRoot } from "./knowledge-root";
@@ -39,6 +40,11 @@ export {
   atLeast,
   computeTreeAccess,
   getPageAccess,
+  getTrash,
+  getTreeWithAccess,
+  type TrashItem,
+  type RestoreDestination,
+  restoreDestinations,
   getUsersWithPageAccess,
   getVisibleTree,
   getVisibleTrees,
