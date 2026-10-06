@@ -276,6 +276,10 @@ model Group {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
+  // Set on built-in groups. "all_users": every enabled user is implicitly a
+  // member (no GroupMember rows); see permissions.ts. Built-in groups can't
+  // be deleted or have members edited.
+  builtIn     String?  @unique
   createdAt   DateTime @default(now())
 
   members     GroupMember[]

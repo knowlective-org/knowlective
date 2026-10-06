@@ -61,9 +61,18 @@ export function computeTreeAccess(
 
 export const MAX_PAGE_DEPTH = 50;
 
+// Built-in group every enabled user implicitly belongs to (no GroupMember rows).
+export const ALL_USERS_GROUP = "all_users";
+
 async function userGroupIds(prisma: PrismaClient, userId: string): Promise<Set<string>> {
-  const rows = await prisma.groupMember.findMany({ where: { userId }, select: { groupId: true } });
-  return new Set(rows.map((r) => r.groupId));
+  const [rows, user, allUsers] = await Promise.all([
+    prisma.groupMember.findMany({ where: { userId }, select: { groupId: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { disabledAt: true } }),
+    prisma.group.findUnique({ where: { builtIn: ALL_USERS_GROUP }, select: { id: true } }),
+  ]);
+  const ids = new Set(rows.map((r) => r.groupId));
+  if (allUsers && user && !user.disabledAt) ids.add(allUsers.id);
+  return ids;
 }
 
 // Non-deleted pages of one knowledge root. Descendants of a deleted page

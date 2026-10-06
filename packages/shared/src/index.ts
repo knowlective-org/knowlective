@@ -29,6 +29,7 @@ export { encrypt, decrypt, generateKey, parseServerKey } from "./crypto";
 export { createKnowledgeRoot } from "./knowledge-root";
 export {
   ACCESS_RANK,
+  ALL_USERS_GROUP,
   MAX_PAGE_DEPTH,
   type VisiblePage,
   type VisibleTree,

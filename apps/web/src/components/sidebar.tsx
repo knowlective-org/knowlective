@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { logout } from "@/app/(app)/actions";
 import { DocTree, type DocTreeNode } from "./doc-tree";
 import styles from "./sidebar.module.css";
@@ -32,6 +33,7 @@ export function Sidebar({
   canCreateRoot: boolean;
   canOpenAdmin: boolean;
 }) {
+  const pathname = usePathname();
   const rootTrees = trees.filter((t) => t.rootPageId && t.entryIds.includes(t.rootPageId));
   // Entry pages other than a visible root page: shared without their parent.
   const shared = trees
@@ -43,6 +45,12 @@ export function Sidebar({
       <div className={styles.brand}>yosuga</div>
 
       <div className={styles.scroll}>
+        {/* At the top so it stays reachable however many roots are listed. */}
+        {canCreateRoot && (
+          <Link href="/roots/new" className={pathname === "/roots/new" ? styles.actionCurrent : styles.action}>
+            ＋ 新しいナレッジルート
+          </Link>
+        )}
         {rootTrees.length === 0 && shared.length === 0 && (
           <p className={styles.empty}>見られるページはまだありません。</p>
         )}
@@ -70,11 +78,6 @@ export function Sidebar({
               />
             ))}
           </>
-        )}
-        {canCreateRoot && (
-          <Link href="/roots/new" className={styles.action}>
-            ＋ 新しいナレッジルート
-          </Link>
         )}
       </div>
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createKnowledgeRoot } from "shared";
+import { ALL_USERS_GROUP, createKnowledgeRoot } from "shared";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
@@ -25,6 +25,7 @@ export async function createRoot(_prev: CreateRootState, formData: FormData): Pr
   if (!title) return { error: "ナレッジルートの名前を入力してください。" };
   if (title.length > MAX_TITLE_LENGTH) return { error: `名前は${MAX_TITLE_LENGTH}文字以内にしてください。` };
 
+  const shareWithAll = formData.get("shareWithAll") === "on";
   const mode = formData.get("groupMode");
   let groupId: string | null = null;
   let newGroupName: string | null = null;
@@ -36,6 +37,8 @@ export async function createRoot(_prev: CreateRootState, formData: FormData): Pr
     if (!(await canManageGroup({ userId: user.id, role: user.siteRole }, id))) {
       return { error: "このグループは選べません。" };
     }
+    const chosen = await prisma.group.findUnique({ where: { id }, select: { builtIn: true } });
+    if (!chosen || chosen.builtIn) return { error: "このグループは選べません。" };
     groupId = id;
   } else {
     const raw = formData.get("newGroupName");
@@ -64,6 +67,11 @@ export async function createRoot(_prev: CreateRootState, formData: FormData): Pr
       await tx.groupMember.create({ data: { groupId: gid, userId: user.id } });
     }
     await tx.pageGrant.create({ data: { pageId: rootPageId, groupId: gid, access: "MANAGE" } });
+    // Optional: every registered user can read the whole tree.
+    if (shareWithAll) {
+      const all = await tx.group.findUniqueOrThrow({ where: { builtIn: ALL_USERS_GROUP }, select: { id: true } });
+      await tx.pageGrant.create({ data: { pageId: rootPageId, groupId: all.id, access: "VIEW" } });
+    }
     return { rootPageId, groupName: gname };
   });
 
@@ -71,7 +79,8 @@ export async function createRoot(_prev: CreateRootState, formData: FormData): Pr
     { userId: user.id, label: userLabel(user) },
     "root.create",
     `ナレッジルート「${title}」を作成し、グループ「${groupName}」に管理権限を付与` +
-      (newGroupName ? "（グループを新規作成し、作成者が参加）" : ""),
+      (newGroupName ? "（グループを新規作成し、作成者が参加）" : "") +
+      (shareWithAll ? "。全ユーザーに閲覧権限を付与" : ""),
     { rootPageId },
   );
   redirect(`/pages/${rootPageId}`);

@@ -69,8 +69,9 @@ export async function deleteGroup(formData: FormData): Promise<void> {
   const { actor } = await requireAdmin();
   const id = formData.get("id");
   if (typeof id !== "string" || !(await canManageGroup(actor, id))) return;
-  const group = await prisma.group.findUnique({ where: { id }, select: { name: true } });
-  if (!group) return;
+  const group = await prisma.group.findUnique({ where: { id }, select: { name: true, builtIn: true } });
+  // Built-in groups (e.g. 全ユーザー) can't be deleted.
+  if (!group || group.builtIn) return;
   await prisma.group.delete({ where: { id } });
   await recordAudit(actor, "group.delete", `グループ「${group.name}」を削除（付いていた権限も削除）`, { groupId: id });
   revalidatePath("/admin", "layout");
@@ -89,10 +90,11 @@ export async function addGroupMember(_prev: AddMemberState, formData: FormData):
   if (!(await canManageGroup(actor, groupId))) return { error: NOT_ALLOWED };
   const email = normalizeEmail(rawEmail);
   const [group, user] = await Promise.all([
-    prisma.group.findUnique({ where: { id: groupId }, select: { id: true, name: true } }),
+    prisma.group.findUnique({ where: { id: groupId }, select: { id: true, name: true, builtIn: true } }),
     prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true } }),
   ]);
   if (!group) return { error: "グループが見つかりません。" };
+  if (group.builtIn) return { error: "このグループのメンバーは自動で決まるため、追加できません。" };
   if (!user) {
     return { error: "このメールアドレスのユーザーはいません。先に「ユーザー」から招待してください。" };
   }
@@ -118,9 +120,10 @@ export async function removeGroupMember(formData: FormData): Promise<void> {
   if (typeof groupId !== "string" || typeof userId !== "string") return;
   if (!(await canManageGroup(actor, groupId))) return;
   const [group, user] = await Promise.all([
-    prisma.group.findUnique({ where: { id: groupId }, select: { name: true } }),
+    prisma.group.findUnique({ where: { id: groupId }, select: { name: true, builtIn: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
   ]);
+  if (group?.builtIn) return;
   const { count } = await prisma.groupMember.deleteMany({ where: { groupId, userId } });
   if (count > 0 && group && user) {
     await recordAudit(actor, "group.member.remove", `${userLabel(user)} をグループ「${group.name}」から削除`, {

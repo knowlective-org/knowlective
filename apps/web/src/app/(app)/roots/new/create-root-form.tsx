@@ -94,6 +94,11 @@ export function CreateRootForm({ groups }: { groups: { id: string; name: string;
         )}
       </fieldset>
 
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input type="checkbox" name="shareWithAll" data-ui="CreateRootForm.shareWithAllCheckbox" />
+        登録ユーザー全員が閲覧できるようにする（「全ユーザー」に閲覧権限を付けます。あとから「共有」で変更できます）
+      </label>
+
       <p aria-live="polite" className={styles.error} data-ui="CreateRootForm.error">
         {state.error}
       </p>

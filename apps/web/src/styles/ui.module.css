@@ -12,6 +12,23 @@
   padding: 0 16px;
 }
 
+/* Content of a screen in AppShell's right pane (same side margins as the
+   page editor). Add .paneNarrow for form screens. */
+.pane {
+  padding: 0 54px;
+}
+
+.paneNarrow {
+  composes: pane;
+  max-width: 600px;
+}
+
+@media (max-width: 768px) {
+  .pane {
+    padding: 0 16px;
+  }
+}
+
 .title {
   font-size: 24px;
   margin-bottom: 16px;

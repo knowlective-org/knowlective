@@ -12,7 +12,7 @@ export default async function AdminGroupsPage() {
     // Content managers only see groups within trees they manage.
     where: allowed === "all" ? {} : { id: { in: [...allowed] } },
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, description: true, _count: { select: { members: true, grants: true } } },
+    select: { id: true, name: true, description: true, builtIn: true, _count: { select: { members: true, grants: true } } },
   });
 
   return (
@@ -38,7 +38,7 @@ export default async function AdminGroupsPage() {
                     </Link>
                   </td>
                   <td>{g.description ?? "-"}</td>
-                  <td>{g._count.members}</td>
+                  <td>{g.builtIn ? "全員（自動）" : g._count.members}</td>
                   <td>{g._count.grants}</td>
                 </tr>
               ))}

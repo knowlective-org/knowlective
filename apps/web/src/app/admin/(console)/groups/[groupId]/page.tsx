@@ -70,6 +70,15 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
         )}
       </section>
 
+      {group.builtIn ? (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>メンバー</h2>
+          <p className={styles.note}>
+            登録されている有効なユーザー全員が、自動でこのグループに含まれます（あとから登録した人も含む）。メンバーの追加・削除と、グループの削除はできません。
+          </p>
+        </section>
+      ) : (
+        <>
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>メンバー（{group.members.length}人）</h2>
         {group.members.length > 0 && (
@@ -122,6 +131,8 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
           </button>
         </form>
       </section>
+        </>
+      )}
     </>
   );
 }
