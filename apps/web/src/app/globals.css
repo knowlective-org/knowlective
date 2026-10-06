@@ -12,7 +12,9 @@ html {
 html,
 body {
   max-width: 100vw;
-  overflow-x: hidden;
+  /* clip, not hidden: hidden makes body a scroll container, which breaks the
+     sticky sidebar (it would stick to body, which never scrolls). */
+  overflow-x: clip;
 }
 
 body {

@@ -53,3 +53,32 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Shown on row hover (or keyboard focus) only, to keep the tree quiet. */
+.add {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: #777;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.row:hover .add,
+.add:focus-visible {
+  opacity: 1;
+}
+
+.add:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.add:disabled {
+  cursor: progress;
+}

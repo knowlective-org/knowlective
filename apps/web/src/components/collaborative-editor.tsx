@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
+import { filterSuggestionItems } from "@blocknote/core";
+import { ja } from "@blocknote/core/locales";
 import { withCollaboration } from "@blocknote/core/yjs";
 import { BlockNoteView } from "@blocknote/mantine";
-import { useCreateBlockNote } from "@blocknote/react";
+import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote } from "@blocknote/react";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { getCollabToken } from "@/app/(app)/actions";
+import { CHILDREN_CHANGED } from "@/lib/collab-events";
 import { MAX_TITLE_LENGTH, TITLE_FIELD, UNTITLED, displayTitle } from "@/lib/page-title";
+import { PageEditorContext, type PageEditorContextValue } from "./editor/page-context";
+import { customSlashMenuItems, editorSchema } from "./editor/schema";
+import { EditorPlaceholder } from "./editor-placeholder";
 import styles from "./collaborative-editor.module.css";
 
 const CURSOR_COLORS = ["#5b8def", "#e5484d", "#30a46c", "#f76b15", "#8e4ec6", "#12a594", "#d6409f"];
@@ -67,6 +73,10 @@ type Props = {
 // provider calls it again on every reconnect.
 export function CollaborativeEditor(props: Props) {
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
+  // The provider whose first sync finished. Until then the document (and
+  // its title) is empty, so the placeholder is shown instead.
+  const [synced, setSynced] = useState<HocuspocusProvider | null>(null);
+  const [failed, setFailed] = useState(false);
 
   // One connection per mounted page, closed when leaving it — navigating to
   // another page would otherwise leave the old socket open. The page screen
@@ -78,6 +88,8 @@ export function CollaborativeEditor(props: Props) {
       name: props.pageId,
       document: new Y.Doc(),
       token: () => getCollabToken(props.pageId),
+      onSynced: () => setSynced(p),
+      onAuthenticationFailed: () => setFailed(true),
     });
     // Opening the socket is a side effect tied to mount/unmount (and must
     // survive StrictMode's double effect run), so it can't happen in render.
@@ -86,7 +98,8 @@ export function CollaborativeEditor(props: Props) {
     return () => p.destroy();
   }, [props.pageId]);
 
-  if (!provider) return null;
+  if (failed) return <EditorPlaceholder message="このページを開けませんでした。再読み込みしてください。" />;
+  if (!provider || synced !== provider) return <EditorPlaceholder />;
   return <EditorBody {...props} provider={provider} />;
 }
 
@@ -115,6 +128,8 @@ function EditorBody({
 }: Props & { provider: HocuspocusProvider }) {
   const editor = useCreateBlockNote(
     withCollaboration({
+      schema: editorSchema,
+      dictionary: ja,
       // Guests can't add files; without uploadFile BlockNote ignores drops.
       uploadFile: readOnly ? undefined : (file: File) => uploadFile(pageId, file),
       collaboration: {
@@ -132,6 +147,42 @@ function EditorBody({
     [provider],
   );
 
+  // Child-page blocks refetch when the collab server says this page's
+  // children changed (lib/collab-events.ts), and after a reconnect, since
+  // notifications sent while offline are lost.
+  const events = useMemo(() => new EventTarget(), []);
+  const pageContext = useMemo<PageEditorContextValue>(
+    () => ({
+      pageId,
+      onChildrenChanged(listener) {
+        events.addEventListener(CHILDREN_CHANGED, listener);
+        return () => events.removeEventListener(CHILDREN_CHANGED, listener);
+      },
+    }),
+    [pageId, events],
+  );
+  useEffect(() => {
+    const emit = () => events.dispatchEvent(new Event(CHILDREN_CHANGED));
+    const onStateless = ({ payload }: { payload: string }) => {
+      try {
+        if ((JSON.parse(payload) as { type?: string }).type === CHILDREN_CHANGED) emit();
+      } catch {
+        // Not ours.
+      }
+    };
+    let synced = false;
+    const onSynced = () => {
+      if (synced) emit();
+      synced = true;
+    };
+    provider.on("stateless", onStateless);
+    provider.on("synced", onSynced);
+    return () => {
+      provider.off("stateless", onStateless);
+      provider.off("synced", onSynced);
+    };
+  }, [provider, events]);
+
   return (
     <>
       <TitleField
@@ -140,7 +191,16 @@ function EditorBody({
         onChange={onTitleChange}
         onEnter={() => editor.focus()}
       />
-      <BlockNoteView editor={editor} editable={!readOnly} theme="light" data-ui="EditorBody.editor" />
+      <PageEditorContext.Provider value={pageContext}>
+        <BlockNoteView editor={editor} editable={!readOnly} theme="light" slashMenu={false} data-ui="EditorBody.editor">
+          <SuggestionMenuController
+            triggerCharacter="/"
+            getItems={async (query) =>
+              filterSuggestionItems([...getDefaultReactSlashMenuItems(editor), ...customSlashMenuItems(editor)], query)
+            }
+          />
+        </BlockNoteView>
+      </PageEditorContext.Provider>
     </>
   );
 }

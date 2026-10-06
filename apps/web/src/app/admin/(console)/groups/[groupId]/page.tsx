@@ -50,7 +50,7 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
         <h2 className={styles.sectionTitle}>このグループの権限（{group.grants.length}件）</h2>
         {group.grants.length === 0 ? (
           <p className={styles.note}>
-            まだ権限が付いていません。ページの「共有」から、このグループに権限を付けられます。
+            まだ権限が付いていません。ページの「⋯」メニューの「権限設定」から、このグループに権限を付けられます。
           </p>
         ) : (
           <ul className={styles.note} style={{ paddingLeft: 20, lineHeight: 1.9 }}>

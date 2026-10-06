@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { createChildPage } from "@/app/(app)/actions";
 import { displayTitle } from "@/lib/page-title";
 import styles from "./doc-tree.module.css";
 
-export type DocTreeNode = { id: string; title: string; icon: string | null; parentId: string | null };
+export type DocTreeNode = {
+  id: string;
+  title: string;
+  icon: string | null;
+  parentId: string | null;
+  // The user can edit this page, so may add child pages under it.
+  canEdit: boolean;
+};
 
 // The visible part of one knowledge root's page tree. It starts at the
 // entry pages (the root page, and/or subtrees shared without their parent).
@@ -50,6 +58,15 @@ export function DocTree({
     return open;
   });
 
+  const [creating, startCreating] = useTransition();
+  const addChild = (parentId: string) =>
+    startCreating(async () => {
+      // On success the action redirects to the new page, which remounts the
+      // tree with the path to it expanded.
+      const result = await createChildPage(parentId);
+      if (result?.error) alert(result.error);
+    });
+
   const toggle = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -93,6 +110,20 @@ export function DocTree({
             {node.icon ? `${node.icon} ` : ""}
             {displayTitle(title)}
           </Link>
+          {node.canEdit && (
+            <button
+              type="button"
+              className={styles.add}
+              data-ui="DocTree.addChildButton"
+              data-id={node.id}
+              aria-label="子ページを追加"
+              title="子ページを追加"
+              disabled={creating}
+              onClick={() => addChild(node.id)}
+            >
+              ＋
+            </button>
+          )}
         </div>
         {isOpen && children.length > 0 && depth < maxDepth && (
           <ul className={styles.list}>

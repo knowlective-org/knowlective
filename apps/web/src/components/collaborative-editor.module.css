@@ -30,3 +30,27 @@
     font-size: 30px;
   }
 }
+
+/* Loading state (editor-placeholder.tsx). */
+.title:is(div) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.titleLoading {
+  composes: title;
+  color: #bbb;
+}
+
+.loading {
+  margin: 0;
+  padding: 0 54px;
+  font-size: 14px;
+  color: #999;
+}
+
+@media (max-width: 640px) {
+  .loading {
+    padding: 0 16px;
+  }
+}

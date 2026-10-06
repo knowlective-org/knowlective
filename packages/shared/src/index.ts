@@ -24,6 +24,9 @@ export type {
   GroupMember,
   StorageSettings,
   FileObject,
+  PagePropertyDef,
+  PagePropertyValue,
+  PropertyType,
 } from "@prisma/client";
 export { encrypt, decrypt, generateKey, parseServerKey } from "./crypto";
 export { createKnowledgeRoot } from "./knowledge-root";
@@ -36,6 +39,7 @@ export {
   atLeast,
   computeTreeAccess,
   getPageAccess,
+  getUsersWithPageAccess,
   getVisibleTree,
   getVisibleTrees,
 } from "./permissions";

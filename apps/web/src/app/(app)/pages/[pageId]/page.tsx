@@ -6,6 +6,7 @@ import { findAccessiblePage } from "@/lib/auth/pages";
 import { requireUser } from "@/lib/auth/session";
 import { atLeast } from "shared";
 import { loadSidebar } from "@/lib/sidebar-data";
+import { getPublicUrl } from "@/lib/site-url";
 import { displayTitle } from "@/lib/page-title";
 import { PageView } from "./page-view";
 
@@ -25,8 +26,9 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
   const { user, page } = await loadPage((await params).pageId);
   if (!page) notFound();
 
-  const [sidebar] = await Promise.all([
+  const [sidebar, publicUrl] = await Promise.all([
     loadSidebar(user),
+    getPublicUrl(),
     // "/" reopens the page opened last.
     prisma.user.updateMany({
       where: { id: user.id, OR: [{ lastPageId: null }, { lastPageId: { not: page.id } }] },
@@ -39,8 +41,10 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
       // Remount per page so the editor's collab connection is replaced cleanly.
       key={page.id}
       pageId={page.id}
+      initialTitle={page.title}
       readOnly={!atLeast(page.access, "EDIT")}
       canManage={atLeast(page.access, "MANAGE")}
+      shareUrl={`${publicUrl}/pages/${page.id}`}
       user={{ id: user.id, name: user.name ?? user.email }}
       sidebar={sidebar}
     />

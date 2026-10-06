@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { InitialTitleContext } from "@/components/editor-placeholder";
 import { Sidebar, type SidebarTree } from "@/components/sidebar";
 import { EditorLoader } from "./editor-loader";
+import { PageMenu, ShareButton } from "./page-menu";
 import styles from "./page-view.module.css";
 
 export type SidebarInfo = {
@@ -20,15 +21,21 @@ export type SidebarInfo = {
 // renaming shows in the sidebar immediately.
 export function PageView({
   pageId,
+  initialTitle,
   readOnly,
   canManage,
+  shareUrl,
   user,
   sidebar,
 }: {
   pageId: string;
+  // Page.title, shown while the editor loads.
+  initialTitle: string;
   readOnly: boolean;
   // MANAGE access: may change this page's group grants.
   canManage: boolean;
+  // This page's URL on the site's public URL, for the share button.
+  shareUrl: string;
   user: { id: string; name: string };
   sidebar: SidebarInfo;
 }) {
@@ -39,13 +46,12 @@ export function PageView({
       <div data-ui="PageView">
         <div className={styles.toolbar}>
           {readOnly && <span className={styles.readOnly} data-ui="PageView.readOnlyBadge">閲覧のみ</span>}
-          {canManage && (
-            <Link href={`/pages/${pageId}/share`} className={styles.share} data-ui="PageView.shareLink">
-              共有
-            </Link>
-          )}
+          <ShareButton url={shareUrl} />
+          <PageMenu pageId={pageId} canManage={canManage} />
         </div>
-        <EditorLoader pageId={pageId} readOnly={readOnly} user={user} onTitleChange={setLiveTitle} />
+        <InitialTitleContext.Provider value={initialTitle}>
+          <EditorLoader pageId={pageId} readOnly={readOnly} user={user} onTitleChange={setLiveTitle} />
+        </InitialTitleContext.Provider>
       </div>
     </AppShell>
   );

@@ -15,6 +15,7 @@ import {
   verifyCollabToken,
 } from "shared";
 import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
+import { CHILDREN_CHANGED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
 
 // Real-time collaboration (Yjs over WebSocket), served by the same process
 // and port as the Next.js app at COLLAB_PATH. server/index.ts routes the
@@ -29,6 +30,10 @@ export async function createCollab() {
   // Separate from the app's PrismaClient (src/lib/db.ts): this module is
   // loaded by the custom server, not bundled by Next.js.
   const prisma = createPrismaClient();
+
+  // Last user whose update changed each document since it was last stored.
+  // Server-side changes (the title seed) have no connection context.
+  const editedBy = new Map<string, string>();
 
   // Page content is encrypted at rest with the instance data key. The pageId
   // is bound as AAD so a ciphertext can't be copied onto a different page's row.
@@ -46,12 +51,18 @@ export async function createCollab() {
           create: { pageId: documentName, state: bytes },
           update: { state: bytes },
         });
-        // Mirror the live title into Page.title (sidebar, home, root name).
+        // Mirror the live title into Page.title (sidebar, home, root name),
+        // and record who last edited (child-page table's 更新日時 / 更新者).
         const title = normalizeTitle(document.getText(TITLE_FIELD).toString());
-        await prisma.page.updateMany({
-          where: { id: documentName, NOT: { title } },
-          data: { title },
+        const editorId = editedBy.get(documentName);
+        editedBy.delete(documentName);
+        const page = await prisma.page.findUnique({ where: { id: documentName }, select: { title: true, parentId: true } });
+        if (!page || (page.title === title && !editorId)) return;
+        await prisma.page.update({
+          where: { id: documentName },
+          data: { title, ...(editorId && { updatedById: editorId, updatedAt: new Date() }) },
         });
+        notifyChildrenChanged(page.parentId);
       },
     }),
   ];
@@ -97,6 +108,33 @@ export async function createCollab() {
         connectionConfig.readOnly = true;
       }
       return { userId: payload.u };
+    },
+    async onChange({ documentName, context }) {
+      const userId = (context as { userId?: string } | undefined)?.userId;
+      if (userId) editedBy.set(documentName, userId);
+    },
+  });
+
+  // Server Actions reach the running instance through this bridge
+  // (src/lib/collab-events.ts). The message carries no data: clients refetch.
+  registerCollabBridge({
+    notifyChildrenChanged(parentPageId) {
+      const payload = JSON.stringify({ type: CHILDREN_CHANGED });
+      const document = hocuspocus.documents.get(parentPageId);
+      if (document) {
+        // With Redis, the beforeBroadcastStateless hook relays it to other instances.
+        document.broadcastStateless(payload);
+        return;
+      }
+      // Not open here, but may be open on another instance.
+      if (!process.env.REDIS_URL) return;
+      void hocuspocus
+        .openDirectConnection(parentPageId)
+        .then(async (connection) => {
+          connection.document?.broadcastStateless(payload);
+          await connection.disconnect();
+        })
+        .catch((err) => console.error("[collab] notify failed", err));
     },
   });
 

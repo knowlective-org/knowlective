@@ -13,7 +13,7 @@ import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { removeGrant, setGrant } from "./actions";
 
-export const metadata: Metadata = { title: "共有 | yosuga" };
+export const metadata: Metadata = { title: "権限設定 | yosuga" };
 
 const ERRORS: Record<string, string> = {
   "last-manager": "ルートページには「管理」の権限を持つグループが最低1つ必要です。先に別のグループに「管理」を付けてください。",
@@ -85,7 +85,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
             ← ページに戻る
           </Link>
         </p>
-        <h1 className={styles.title}>「{displayTitle(page.title)}」の共有</h1>
+        <h1 className={styles.title}>「{displayTitle(page.title)}」の権限設定</h1>
         <p className={styles.lead}>
           権限はグループに付け、配下のページにも引き継がれます。同じグループに下のページで別の権限を付けると、そこから下はその権限になります。
           {page.isRootPage && " これはナレッジルートのルートページです。「管理」を持つグループが最低1つ必要です。"}

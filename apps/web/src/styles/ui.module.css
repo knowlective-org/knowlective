@@ -5,13 +5,6 @@
   padding: 0 16px;
 }
 
-.wide {
-  width: 100%;
-  max-width: 960px;
-  margin: 40px auto;
-  padding: 0 16px;
-}
-
 /* Content of a screen in AppShell's right pane (same side margins as the
    page editor). Add .paneNarrow for form screens. */
 .pane {
@@ -159,20 +152,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 20px;
-  margin-bottom: 32px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.35);
-}
-
-.navLink {
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 .kebab {

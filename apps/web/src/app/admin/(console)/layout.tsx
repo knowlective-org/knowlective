@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { AppShell } from "@/components/app-shell";
 import { requireAdmin } from "@/lib/admin/auth";
 import { SITE_ROLE_LABELS } from "@/lib/roles";
 import styles from "@/styles/ui.module.css";
-import { logout } from "./actions";
+import { AdminSidebar, type AdminNavItem } from "./admin-sidebar";
 
 export const metadata: Metadata = {
   title: "管理画面 | yosuga",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 // Content managers only see users (invitations) and groups.
-const NAV: { href: string; label: string; siteAdminOnly?: boolean }[] = [
+const NAV: (AdminNavItem & { siteAdminOnly?: boolean })[] = [
   { href: "/admin", label: "概要", siteAdminOnly: true },
   { href: "/admin/users", label: "ユーザー" },
   { href: "/admin/groups", label: "グループ" },
@@ -22,29 +22,15 @@ const NAV: { href: string; label: string; siteAdminOnly?: boolean }[] = [
 // Action calls requireAdmin() itself.
 export default async function AdminConsoleLayout({ children }: LayoutProps<"/admin">) {
   const { actorLabel, role } = await requireAdmin();
+  const items = NAV.filter((item) => role === "SITE_ADMIN" || !item.siteAdminOnly).map(({ href, label }) => ({
+    href,
+    label,
+  }));
   return (
-    <main data-ui="AdminConsoleLayout" className={styles.wide}>
-      <header className={styles.header}>
-        <h1 className={styles.title} style={{ margin: 0 }}>
-          管理画面
-        </h1>
-        <form data-ui="AdminConsoleLayout.logoutForm" action={logout} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span className={styles.note}>
-            {actorLabel}（{SITE_ROLE_LABELS[role]}）
-          </span>
-          <button data-ui="AdminConsoleLayout.logoutButton" type="submit" className={styles.button}>
-            ログアウト
-          </button>
-        </form>
-      </header>
-      <nav data-ui="AdminConsoleLayout.nav" className={styles.nav}>
-        {NAV.filter((item) => role === "SITE_ADMIN" || !item.siteAdminOnly).map((item) => (
-          <Link key={item.href} data-ui="AdminConsoleLayout.navLink" href={item.href} className={styles.navLink}>
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-      {children}
-    </main>
+    <AppShell sidebar={<AdminSidebar items={items} actor={`${actorLabel}（${SITE_ROLE_LABELS[role]}）`} />}>
+      <div className={styles.pane} data-ui="AdminConsoleLayout">
+        {children}
+      </div>
+    </AppShell>
   );
 }

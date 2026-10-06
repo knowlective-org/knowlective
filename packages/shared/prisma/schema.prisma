@@ -41,7 +41,8 @@ model User {
   // foreign key: a deleted page simply falls back to the first visible one.
   lastPageId   String?
 
-  pages           Page[]
+  pages           Page[]          @relation("PageCreatedBy")
+  updatedPages    Page[]          @relation("PageUpdatedBy")
   sessions        UserSession[]
   usedInvitations Invitation[]
   groups          GroupMember[]
@@ -99,11 +100,20 @@ model Page {
   children Page[]  @relation("PageToPage")
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User   @relation("PageCreatedBy", fields: [createdById], references: [id])
+  // Last user whose edit was stored (body or title via collab, or a property
+  // value). Null for pages nobody has edited since this column was added.
+  updatedById String?
+  updatedBy   User?   @relation("PageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  document PageDocument?
-  grants   PageGrant[]
-  files    FileObject[]
+  document       PageDocument?
+  grants         PageGrant[]
+  files          FileObject[]
+  // Columns of the child-page table: defined on the parent, shared by every
+  // table block placed on it.
+  propertyDefs   PagePropertyDef[]
+  // This page's values for its parent's columns.
+  propertyValues PagePropertyValue[]
 
   @@index([rootId])
   @@index([parentId])
@@ -111,6 +121,46 @@ model Page {
 
 // Persisted Yjs document state for a page, written by the collab (Hocuspocus) server.
 // `state` is encrypted with the instance data encryption key (see InstanceConfig).
+enum PropertyType {
+  TEXT
+  DATE
+  USER
+  SELECT
+}
+
+// A column of the child-page table on `pageId` (applies to its children).
+// Name and SELECT options are encrypted with the DEK, AAD bound to the id
+// (lib/page-properties.ts).
+model PagePropertyDef {
+  id        String       @id @default(cuid())
+  pageId    String
+  page      Page         @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  type      PropertyType
+  name      Bytes
+  // SELECT only: JSON [{ id, name, color }].
+  options   Bytes?
+  position  Int
+  createdAt DateTime     @default(now())
+
+  values PagePropertyValue[]
+
+  @@index([pageId])
+}
+
+// A child page's value for one of its parent's columns: encrypted JSON, AAD
+// bound to (pageId, defId). No row means empty.
+model PagePropertyValue {
+  pageId    String
+  page      Page            @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  defId     String
+  def       PagePropertyDef @relation(fields: [defId], references: [id], onDelete: Cascade)
+  value     Bytes
+  updatedAt DateTime        @updatedAt
+
+  @@id([pageId, defId])
+  @@index([defId])
+}
+
 model PageDocument {
   pageId    String   @id
   page      Page     @relation(fields: [pageId], references: [id])

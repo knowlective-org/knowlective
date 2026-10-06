@@ -31,6 +31,7 @@
     "yjs": "^13.6.32"
   },
   "devDependencies": {
+    "@blocknote/server-util": "^0.54.2",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",

@@ -113,6 +113,44 @@ export async function getPageAccess(
   return access ? { access, rootId: page.rootId } : null;
 }
 
+// Enabled users who can open `pageId`: the members of every group whose
+// nearest grant (walking up from the page) gives access. Used to offer
+// assignees without exposing the whole user directory.
+export async function getUsersWithPageAccess(
+  prisma: PrismaClient,
+  pageId: string,
+): Promise<{ id: string; name: string | null; email: string }[]> {
+  const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, deletedAt: true } });
+  if (!page || page.deletedAt) return [];
+  const tree = await loadTree(prisma, page.rootId);
+  const parentOf = new Map(tree.map((p) => [p.id, p.parentId]));
+  if (!parentOf.has(pageId)) return []; // under a deleted page
+  const chain: string[] = [];
+  for (let id: string | null = pageId; id && chain.length <= MAX_PAGE_DEPTH; id = parentOf.get(id) ?? null) {
+    chain.push(id);
+  }
+  const grants = await prisma.pageGrant.findMany({
+    where: { pageId: { in: chain } },
+    select: { pageId: true, groupId: true, access: true },
+  });
+  // Nearest grant per group decides; every PageAccess level allows viewing.
+  const depthOf = new Map(chain.map((id, i) => [id, i]));
+  const nearest = new Map<string, number>();
+  for (const g of grants) {
+    const d = depthOf.get(g.pageId)!;
+    if (!nearest.has(g.groupId) || d < nearest.get(g.groupId)!) nearest.set(g.groupId, d);
+  }
+  const groupIds = [...nearest.keys()];
+  if (groupIds.length === 0) return [];
+  const allUsers = await prisma.group.findUnique({ where: { builtIn: ALL_USERS_GROUP }, select: { id: true } });
+  const everyone = allUsers !== null && nearest.has(allUsers.id);
+  return prisma.user.findMany({
+    where: { disabledAt: null, ...(everyone ? {} : { groups: { some: { groupId: { in: groupIds } } } }) },
+    select: { id: true, name: true, email: true },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+  });
+}
+
 export type VisiblePage = {
   id: string;
   parentId: string | null;
