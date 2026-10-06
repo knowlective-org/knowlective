@@ -19,6 +19,7 @@ import {
 import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
 import { CHILDREN_CHANGED, PAGE_DELETED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
+import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 
 // Real-time collaboration (Yjs over WebSocket), served by the same process
 // and port as the Next.js app at COLLAB_PATH. server/index.ts routes the
@@ -106,6 +107,8 @@ export async function createCollab() {
         const editorId = editedBy.get(documentName);
         editedBy.delete(documentName);
         const page = await prisma.page.findUnique({ where: { id: documentName }, select: { title: true, parentId: true } });
+        // Search index (title, body, attachment names) from the state just stored.
+        await reindexPage(prisma, documentName, Uint8Array.from(state));
         if (!page || (page.title === title && !editorId)) return;
         await prisma.page.update({
           where: { id: documentName },
@@ -279,6 +282,11 @@ export async function createCollab() {
   // on the first document load. Before setup there is no key to check yet.
   if (await isSetupComplete(prisma)) {
     await loadDataKey(prisma);
+    // Catch up the search index (pages edited before it existed, or while
+    // indexing failed) without delaying startup.
+    void reindexStalePages(prisma)
+      .then((n) => n > 0 && console.log(`[search] indexed ${n} page(s)`))
+      .catch((err) => console.error("[search] catching up the index failed", err));
   }
 
   return {

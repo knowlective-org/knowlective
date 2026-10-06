@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { atLeast } from "shared";
 import { prisma } from "@/lib/db";
+import { reindexPage } from "@/lib/search-index";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getMaxUploadSizeMb, getStorageConfig, putFile } from "@/lib/storage";
@@ -82,5 +83,7 @@ export async function POST(req: NextRequest) {
     return json(502, { error: "ファイルの保存に失敗しました。時間をおいて再度お試しください。" });
   }
 
+  // Attachment names are searchable.
+  await reindexPage(prisma, page.id);
   return json(201, { url: `/api/files/${record.id}` });
 }

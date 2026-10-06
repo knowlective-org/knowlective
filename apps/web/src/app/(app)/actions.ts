@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { notifyChildrenChanged } from "@/lib/collab-events";
 import { normalizeTitle } from "@/lib/page-title";
+import { reindexPage } from "@/lib/search-index";
 import { endUserSession, requireUser } from "@/lib/auth/session";
 
 export async function logout(): Promise<void> {
@@ -57,6 +58,8 @@ async function insertChildPage(
     data: { title, rootId: parentAccess.rootId, parentId, createdById: userId },
     select: { id: true },
   });
+  // Findable by title right away, before anyone opens it.
+  await reindexPage(prisma, page.id);
   notifyChildrenChanged(parentId);
   return page;
 }

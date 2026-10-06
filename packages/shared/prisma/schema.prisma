@@ -122,6 +122,7 @@ model Page {
   // This page's values for its parent's columns.
   propertyValues PagePropertyValue[]
   versions       PageVersion[]
+  searchIndex    PageSearchIndex?
 
   @@index([rootId])
   @@index([parentId])
@@ -202,6 +203,20 @@ model PageVersion {
   maskedById     String?
 
   @@index([pageId, createdAt])
+}
+
+// Full-text search index, one row per page: the page's text (title, body,
+// attachment names) as keyed 64-bit hashes of its 1- and 2-character pieces
+// (apps/web/src/lib/search-index.ts). No plaintext: a query is hashed the
+// same way and matched with array containment; candidates are then decrypted
+// to confirm the match and build snippets.
+model PageSearchIndex {
+  pageId    String   @id
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  tokens    BigInt[]
+  indexedAt DateTime @default(now())
+
+  @@index([tokens], type: Gin)
 }
 
 model PageDocument {

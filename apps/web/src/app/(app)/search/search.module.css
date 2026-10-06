@@ -1,0 +1,59 @@
+.form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.form input {
+  flex: 1;
+  margin-top: 0;
+}
+
+.count {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.results {
+  list-style: none;
+}
+
+.result {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.path {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  text-underline-offset: 3px;
+}
+
+.snippet {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.snippet mark {
+  padding: 0 1px;
+  color: inherit;
+  background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  border-radius: 2px;
+}
+
+.meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-muted);
+}

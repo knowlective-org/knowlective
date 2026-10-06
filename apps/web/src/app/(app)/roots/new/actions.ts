@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { ALL_USERS_GROUP, createKnowledgeRoot } from "shared";
 import { prisma } from "@/lib/db";
+import { reindexPage } from "@/lib/search-index";
 import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { canManageGroup } from "@/lib/group-access";
@@ -83,5 +84,6 @@ export async function createRoot(_prev: CreateRootState, formData: FormData): Pr
       (shareWithAll ? "。全ユーザーに閲覧権限を付与" : ""),
     { rootPageId },
   );
+  await reindexPage(prisma, rootPageId);
   redirect(`/pages/${rootPageId}`);
 }

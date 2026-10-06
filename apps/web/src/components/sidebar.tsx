@@ -24,6 +24,7 @@ export function Sidebar({
   userName,
   canCreateRoot,
   canOpenAdmin,
+  searchQuery = "",
 }: {
   trees: SidebarTree[];
   currentPageId: string | null;
@@ -32,6 +33,8 @@ export function Sidebar({
   userName: string;
   canCreateRoot: boolean;
   canOpenAdmin: boolean;
+  // Prefills the search box (on the search screen).
+  searchQuery?: string;
 }) {
   const pathname = usePathname();
   const rootTrees = trees.filter((t) => t.rootPageId && t.entryIds.includes(t.rootPageId));
@@ -43,6 +46,19 @@ export function Sidebar({
   return (
     <div className={styles.sidebar}>
       <div className={styles.brand}>yosuga</div>
+      {/* A plain GET form, so it works before hydration too. */}
+      <form action="/search" role="search" className={styles.search} data-ui="Sidebar.searchForm">
+        <input
+          type="search"
+          name="q"
+          defaultValue={searchQuery}
+          maxLength={100}
+          placeholder="検索"
+          aria-label="ページを検索"
+          className={styles.searchInput}
+          data-ui="Sidebar.searchInput"
+        />
+      </form>
 
       <div className={styles.scroll}>
         {/* At the top so it stays reachable however many roots are listed. */}

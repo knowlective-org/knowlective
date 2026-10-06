@@ -30,6 +30,7 @@ export type {
   ThemeSettings,
   PageVersion,
   PageVersionKind,
+  PageSearchIndex,
 } from "@prisma/client";
 export { encrypt, decrypt, generateKey, parseServerKey } from "./crypto";
 export { createKnowledgeRoot } from "./knowledge-root";
