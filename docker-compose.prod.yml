@@ -1,9 +1,13 @@
-# Production: yosuga + PostgreSQL + bundled SeaweedFS (file attachments).
-# Put a reverse proxy (Caddy / nginx) in front: the app only listens on
-# 127.0.0.1:3000. See README「本番での起動」.
+# Production: yosuga + bundled SeaweedFS (file attachments), with either the
+# bundled PostgreSQL or one you run yourself. Put a reverse proxy (Caddy /
+# nginx) in front: the app only listens on 127.0.0.1:3000. See README「本番での起動」.
 #
-#   cp .env.production.example .env.production   # fill in the values
+#   ./install.sh      # asks for the settings and writes .env.production
 #   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Database:
+# - bundled:  COMPOSE_PROFILES=bundled-db and POSTGRES_PASSWORD in .env.production
+# - external: DATABASE_URL in .env.production (COMPOSE_PROFILES unset)
 #
 # A separate project name, so it never shares containers or volumes with the
 # development stack (docker-compose.yml) on the same machine.
@@ -17,10 +21,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        # Not started when an external database is used.
+        required: false
       seaweedfs:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql://yosuga:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/yosuga
+      # External database if set, otherwise the bundled one.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://yosuga:${POSTGRES_PASSWORD:?set DATABASE_URL, or POSTGRES_PASSWORD for the bundled database}@postgres:5432/yosuga}
       YOSUGA_SERVER_KEY: ${YOSUGA_SERVER_KEY:?set YOSUGA_SERVER_KEY}
       SEAWEEDFS_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:?set SEAWEEDFS_ACCESS_KEY}
       SEAWEEDFS_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY}
@@ -33,12 +40,16 @@ services:
     # Time to save open documents on `docker compose stop` / down.
     stop_grace_period: 30s
 
+  # Bundled database: only with COMPOSE_PROFILES=bundled-db.
   postgres:
     image: postgres:16-alpine
+    profiles: [bundled-db]
     restart: unless-stopped
     environment:
       POSTGRES_USER: yosuga
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      # Not ":?": compose checks variables of disabled services too. The image
+      # itself refuses to initialize without a password.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: yosuga
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U yosuga -d yosuga"]

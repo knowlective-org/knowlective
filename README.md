@@ -263,12 +263,21 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 
 ### Docker Compose（推奨）
 
-アプリ（Next.js と共同編集を1つのコンテナで動かす）・PostgreSQL・SeaweedFS（ファイル保存）をまとめて起動する。開発用の `docker-compose.yml` とは別のプロジェクト（`yosuga-prod`）なので、同じマシンでもコンテナやボリュームは共有しない。
+アプリ（Next.js と共同編集を1つのコンテナで動かす）・SeaweedFS（ファイル保存）と、同梱の PostgreSQL（または別途用意した PostgreSQL）で動かす。開発用の `docker-compose.yml` とは別のプロジェクト（`yosuga-prod`）なので、同じマシンでもコンテナやボリュームは共有しない。
 
 ```bash
-cp .env.production.example .env.production
-# .env.production に POSTGRES_PASSWORD・YOSUGA_SERVER_KEY・SEAWEEDFS_ACCESS_KEY・SEAWEEDFS_SECRET_KEY を設定
-#   YOSUGA_SERVER_KEY: openssl rand -base64 32   その他: openssl rand -hex 32
+./install.sh
+```
+
+`install.sh` が設定を対話式で聞いて `.env.production` を作り、ビルドと起動まで行う（Docker と Docker Compose v2、bash が必要）。
+
+- データベースは「同梱の PostgreSQL」か「別途用意した PostgreSQL」（16 以上を推奨）を選ぶ。別途用意する場合は、データベースとユーザーを先に作り、ユーザーにテーブルを作る権限を付けておく（起動時のマイグレーションでテーブルを作る）。接続先を入力すると、コンテナから実際に接続できるかを確認できる。コンテナの中から見た `localhost` はコンテナ自身なので、同じサーバーの PostgreSQL でもサーバーのアドレスを指定する
+- サーバー鍵（`YOSUGA_SERVER_KEY`）は新しく作るか、移行・復元なら既存の鍵を入力する。同梱の SeaweedFS の認証情報と同梱の PostgreSQL のパスワードは自動で作る
+- もう一度実行すると、今の `.env.production` の値を初期値にして作り直す（元のファイルは `.env.production.bak.<日時>` に残す）。サーバー鍵と同梱の PostgreSQL のパスワードは引き継ぐ（変えるとデータを読めない・接続できないため）
+
+手で設定する場合は、`.env.production.example` を `.env.production` にコピーして値を入れ、次のコマンドで起動する。
+
+```bash
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 
