@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import styles from "@/styles/ui.module.css";
 import { login, type LoginState } from "./actions";
@@ -41,6 +42,9 @@ export function LoginForm({ next }: { next: string }) {
       <button type="submit" disabled={pending} className={styles.button} data-ui="LoginForm.submitButton">
         {pending ? "確認しています…" : "ログイン"}
       </button>
+      <p className={styles.note}>
+        <Link href="/forgot-password" data-ui="LoginForm.forgotPasswordLink">パスワードを忘れた場合</Link>
+      </p>
     </form>
   );
 }

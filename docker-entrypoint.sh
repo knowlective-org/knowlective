@@ -1,0 +1,25 @@
+#!/bin/sh
+# Container entrypoint (see Dockerfile).
+#   (no arguments)  apply pending database migrations, then start yosuga
+#   <command>       run that instead, e.g. `pnpm admin:recover --clear-lockout`
+set -e
+
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+
+if [ -z "$YOSUGA_SERVER_KEY" ]; then
+  echo "YOSUGA_SERVER_KEY is not set (generate one with: openssl rand -base64 32)" >&2
+  exit 1
+fi
+
+if [ "$YOSUGA_SKIP_MIGRATIONS" != "1" ]; then
+  echo "> applying database migrations"
+  (cd /app/packages/shared && ./node_modules/.bin/prisma migrate deploy)
+fi
+
+cd /app/apps/web
+# tsx as a loader in this process (not the tsx CLI, which runs a child
+# process), so SIGTERM from `docker stop` reaches the server and open
+# documents are saved before exit.
+exec node --import tsx server/index.ts --prod

@@ -7,6 +7,11 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
 import { ADMIN_CONSOLE_ROLES, SITE_ROLES, SITE_ROLE_LABELS, countOtherActiveSiteAdmins } from "@/lib/roles";
 import { type AuditActor, recordAudit, userLabel } from "@/lib/audit";
+import { ADMIN_PASSWORD_RESET_TTL_HOURS, createPasswordReset } from "@/lib/auth/password-reset";
+import { passwordLoginAllowed } from "@/lib/auth/oidc";
+import { sendMail } from "@/lib/mail";
+import { passwordResetMail } from "@/lib/mail-templates";
+import { getPublicUrl } from "@/lib/site-url";
 
 async function audit(actor: AuditActor, action: string, userId: string, summary: (who: string) => string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
@@ -83,4 +88,54 @@ export async function changeSiteRole(formData: FormData): Promise<void> {
     await prisma.adminSession.deleteMany({ where: { userId } });
   }
   revalidatePath("/admin", "layout");
+}
+
+// From the user list's "⋯" menu: the link is issued on its own page so it
+// can be shown once (a menu item can't display a result).
+export async function openPasswordReset(formData: FormData): Promise<void> {
+  await requireAdmin(["SITE_ADMIN"]);
+  const userId = formData.get("userId");
+  if (typeof userId !== "string") return;
+  redirect(`/admin/users/${encodeURIComponent(userId)}/password-reset`);
+}
+
+export type PasswordResetIssueState = { error?: string; link?: string; mailSentTo?: string; mailError?: string };
+
+// Site admins only. Issues a reset link for another user, shown once and
+// optionally mailed. Any earlier link for the user stops working. The
+// password itself only changes when the user opens the link.
+export async function issuePasswordReset(
+  _prev: PasswordResetIssueState,
+  formData: FormData,
+): Promise<PasswordResetIssueState> {
+  const { session, actor } = await requireAdmin(["SITE_ADMIN"]);
+  const userId = formData.get("userId");
+  if (typeof userId !== "string") return { error: "入力内容が不正です。" };
+  if (userId === session.userId) return { error: "自分のパスワードは、ここでは再設定できません。" };
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, name: true, siteRole: true, disabledAt: true },
+  });
+  if (!user) return { error: "ユーザーが見つかりません。" };
+  if (user.disabledAt) return { error: "無効なユーザーのリンクは発行できません。先に有効にしてください。" };
+  if (!(await passwordLoginAllowed(user.siteRole))) {
+    return { error: "このユーザーはパスワードでログインできない設定です（シングルサインオンのみ）。" };
+  }
+
+  const token = await createPasswordReset(userId, { byAdmin: true });
+  const who = userLabel(user);
+  await recordAudit(actor, "user.password.reset.issue", `${who} のパスワード再設定リンクを発行`, { userId });
+  const link = `${await getPublicUrl()}/reset-password/${token}`;
+  if (formData.get("sendEmail") !== "on") return { link };
+
+  // The link stays valid even if sending fails; it is still shown on screen.
+  try {
+    await sendMail({
+      to: user.email,
+      ...passwordResetMail({ link, ttl: `${ADMIN_PASSWORD_RESET_TTL_HOURS}時間`, byAdmin: true }),
+    });
+    return { link, mailSentTo: user.email };
+  } catch (err) {
+    return { link, mailError: err instanceof Error ? err.message : String(err) };
+  }
 }

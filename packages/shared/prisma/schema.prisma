@@ -46,6 +46,7 @@ model User {
   deletedPages    Page[]          @relation("PageDeletedBy")
   sessions        UserSession[]
   usedInvitations Invitation[]
+  passwordResets  PasswordResetToken[]
   groups          GroupMember[]
   uploadedFiles   FileObject[]
   adminSessions   AdminSession[]
@@ -381,6 +382,29 @@ model UserLoginAttempt {
 
   @@index([ip, createdAt])
   @@index([email, createdAt])
+}
+
+// Password reset links: /reset-password/<token>. Mailed to the user from
+// /forgot-password, or issued by a site admin in /admin/users (also the way
+// in when mail isn't configured). Only the token's SHA-256 hash is stored.
+// Rows are kept after use or expiry, for rate limiting.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Issued from /admin rather than requested at /forgot-password.
+  issuedByAdmin Boolean @default(false)
+  // /forgot-password only: who asked, for rate limiting.
+  requestedIp String?
+
+  createdAt DateTime  @default(now())
+  // A newer link for the same user expires the older ones (sets this to now).
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([userId, createdAt])
+  @@index([requestedIp, createdAt])
 }
 
 enum SmtpSecurity {

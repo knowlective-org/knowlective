@@ -25,10 +25,16 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     ? OIDC_ERROR_MESSAGES[params.sso_error as keyof typeof OIDC_ERROR_MESSAGES]
     : null;
   const ssoOnly = oidc.enabled && oidc.passwordLogin === "SITE_ADMINS_ONLY";
+  const passwordReset = params.reset === "done";
 
   return (
     <main className={styles.narrow} data-ui="LoginPage">
       <h1 className={styles.title}>yosuga にログイン</h1>
+      {passwordReset && (
+        <p className={styles.success} data-ui="LoginPage.passwordResetStatus" style={{ marginBottom: 16 }}>
+          パスワードを再設定しました。新しいパスワードでログインしてください。
+        </p>
+      )}
       {ssoError && (
         <p className={styles.error} data-ui="LoginPage.ssoError" style={{ marginBottom: 16 }}>
           {ssoError}

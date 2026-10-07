@@ -1,0 +1,12 @@
+**/node_modules
+**/.next
+**/dist
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!.env.example
+!.env.production.example
+packages/shared/generated
+.git
+.claude
+**/.DS_Store

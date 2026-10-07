@@ -54,8 +54,26 @@ export function alreadyRegisteredMail(input: { loginLink: string }): Mail {
       "次のリンクからログインしてください。",
       input.loginLink,
       "",
-      "パスワードがわからない場合は、管理者に連絡してください。",
+      "パスワードがわからない場合は、ログイン画面の「パスワードを忘れた場合」から再設定できます。",
       "心当たりがない場合は、このメールを無視してください。",
+    ].join("\n"),
+  };
+}
+
+// /forgot-password, or a link a site admin chose to mail from /admin/users.
+export function passwordResetMail(input: { link: string; ttl: string; byAdmin: boolean }): Mail {
+  return {
+    subject: "yosuga パスワードの再設定",
+    text: [
+      input.byAdmin
+        ? "管理者が、yosuga のパスワード再設定用のリンクを発行しました。"
+        : "yosuga のパスワードの再設定を受け付けました。",
+      "",
+      "次のリンクを開いて、新しいパスワードを設定してください。",
+      input.link,
+      "",
+      `このリンクは${input.ttl}有効で、1回だけ使えます。再設定すると、ログイン中の端末はすべてログアウトします。`,
+      "心当たりがない場合は、このメールを無視してください（パスワードは変わりません）。",
     ].join("\n"),
   };
 }

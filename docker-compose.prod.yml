@@ -1,0 +1,70 @@
+# Production: yosuga + PostgreSQL + bundled SeaweedFS (file attachments).
+# Put a reverse proxy (Caddy / nginx) in front: the app only listens on
+# 127.0.0.1:3000. See README「本番での起動」.
+#
+#   cp .env.production.example .env.production   # fill in the values
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# A separate project name, so it never shares containers or volumes with the
+# development stack (docker-compose.yml) on the same machine.
+name: yosuga-prod
+
+services:
+  app:
+    build: .
+    image: yosuga:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://yosuga:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/yosuga
+      YOSUGA_SERVER_KEY: ${YOSUGA_SERVER_KEY:?set YOSUGA_SERVER_KEY}
+      SEAWEEDFS_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:?set SEAWEEDFS_ACCESS_KEY}
+      SEAWEEDFS_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY}
+      YOSUGA_BUNDLED_S3_ENDPOINT: http://seaweedfs:8333
+      YOSUGA_TRUSTED_PROXY_HOPS: ${YOSUGA_TRUSTED_PROXY_HOPS:-1}
+      YOSUGA_SOURCE_URL: ${YOSUGA_SOURCE_URL:-}
+      TZ: ${TZ:-Asia/Tokyo}
+    ports:
+      - "127.0.0.1:${YOSUGA_PORT:-3000}:3000"
+    # Time to save open documents on `docker compose stop` / down.
+    stop_grace_period: 30s
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yosuga
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: yosuga
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yosuga -d yosuga"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Same setup as in docker-compose.yml, but only reachable by the app.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    restart: unless-stopped
+    environment:
+      S3_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:?set SEAWEEDFS_ACCESS_KEY}
+      S3_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat > /etc/seaweedfs-s3.json <<JSON
+        {"identities":[{"name":"yosuga","credentials":[{"accessKey":"$${S3_ACCESS_KEY}","secretKey":"$${S3_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+        JSON
+        exec weed server -dir=/data -ip.bind=0.0.0.0 -volume.max=0 -master.volumeSizeLimitMB=1024 -s3 -s3.port=8333 -s3.config=/etc/seaweedfs-s3.json
+    volumes:
+      - seaweedfs_data:/data
+
+volumes:
+  postgres_data:
+  seaweedfs_data:

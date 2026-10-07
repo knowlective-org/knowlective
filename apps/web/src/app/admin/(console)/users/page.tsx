@@ -14,11 +14,11 @@ import { InvitationForm } from "../invitation-form";
 import { RowMenu, type RowMenuItem } from "../row-menu";
 import { SignupSettingsForm } from "../signup-settings-form";
 import { OidcSettingsForm } from "../oidc-settings-form";
-import { changeSiteRole, disableUser, enableUser } from "./actions";
+import { changeSiteRole, disableUser, enableUser, openPasswordReset } from "./actions";
 
 type UserRow = { id: string; email: string; name: string | null; siteRole: SiteRole; disabledAt: Date | null };
 
-// Site admins only: change role, disable / enable.
+// Site admins only: change role, password reset link, disable / enable.
 function userMenu(u: UserRow): RowMenuItem[] {
   const who = u.name ?? u.email;
   const roleItems: RowMenuItem[] = SITE_ROLES.filter((r) => r !== u.siteRole).map((r) => ({
@@ -29,6 +29,9 @@ function userMenu(u: UserRow): RowMenuItem[] {
   }));
   return [
     ...roleItems,
+    ...(u.disabledAt
+      ? []
+      : [{ label: "パスワード再設定リンクを発行", action: openPasswordReset, fields: { userId: u.id } }]),
     u.disabledAt
       ? { label: "有効にする", action: enableUser, fields: { userId: u.id } }
       : {

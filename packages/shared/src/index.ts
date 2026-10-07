@@ -18,6 +18,7 @@ export type {
   UserSession,
   Invitation,
   UserLoginAttempt,
+  PasswordResetToken,
   MailSettings,
   SmtpSecurity,
   Group,

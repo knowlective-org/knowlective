@@ -8,13 +8,13 @@ pnpmモノレポ。
 
 | パス | 役割 |
 |---|---|
-| `apps/web` | Next.js 16（App Router / Turbopack）。画面と、今後追加するAPIルート（ページCRUD・ナレッジルート・認証・権限） |
+| `apps/web` | Next.js 16（App Router / Turbopack）。画面・Server Action・Route Handler と、共同編集（Hocuspocus）を載せたカスタムサーバー（`server/`） |
 | `packages/shared` | Prismaスキーマ、`createPrismaClient()`、シードスクリプト |
 
 - エディタ: BlockNote（Tiptap/ProseMirrorベース）
 - 共同編集: Yjs（CRDT）+ Hocuspocus
 - DB: PostgreSQL（メタデータ + Yjs状態のバイト列）
-- 配布: Docker Composeでのセルフホストを前提とする
+- 配布: Docker Composeでのセルフホストを前提とする（本番は `Dockerfile` ＋ `docker-compose.prod.yml`。`docker-compose.yml` は開発用の依存サービスだけ）
 
 ## 技術選定の経緯（再提案しないこと）
 
@@ -111,29 +111,28 @@ pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同
 - **ページの共有**: `(app)/pages/[pageId]/share`。MANAGE を持つ人だけが変更でき、ルートページの MANAGE が0件になる変更は拒否する（サイト管理者もページを見られないので、誰も管理できないツリーになるため）。サイト管理者に見えるところ（グループの説明など）に、見えないページのタイトルを自動で書き込まないこと。
 - **ユーザー認証**: 招待制。`apps/web/src/lib/auth/`（`session.ts` / `invitations.ts` / `pages.ts`）。ページと Server Action はそれぞれ `requireUser()` を呼ぶこと（`(app)/layout.tsx` はセットアップ済みかを見るだけ）。ページを開く権限は `findAccessiblePage()` で判定し、権限がなければ 404 にする。
 - **ユーザーによる登録**: `lib/auth/signup.ts`。設定は `InstanceConfig.signupMode`（INVITE_ONLY / OPEN）・`signupAllowedDomains`・`signupSiteRole`（USER / CONTENT_MANAGER のみ）。OPEN でもメール送信が未設定なら無効（`getSignupSettings().enabled`）。`/signup` は `selfSignup: true` の `Invitation`（メールアドレス固定・24時間・グループなし）を作ってメールで送り、登録は通常の `/invite/<token>` で行う。登録時（`register()`）に設定・ドメインを確認し直し、ロールはその時点の設定を使う。登録済みのアドレスかどうかを画面で区別しないこと。管理画面の招待一覧には出さない。
+- **パスワードの再設定**: `lib/auth/password-reset.ts`。`PasswordResetToken`（招待と同じくトークンのハッシュだけを保存、1回限り）。入口は2つ：`/forgot-password`（メールで送る。60分）と、管理画面のユーザー一覧「⋯」→ `/admin/users/<id>/password-reset`（サイト管理者のみ。画面に1回だけ表示し、任意でメール送信。24時間。メール未設定時の手段を兼ねる）。新しいリンクを発行すると、同じユーザーの未使用のリンクは `expiresAt` を今にして無効にする（行は回数制限のために残す）。`/forgot-password` は、アカウントの有無・無効化・SSO のみ・回数制限のどれでも同じ画面を返し、メールは待たずに送る（応答時間で区別させないため）。再設定（`completePasswordReset()`）はトランザクションでトークンを使用済みにし、無効化されていないことを確かめてからパスワードを変え、通常・管理画面のセッションをすべて削除する。自動ログインはせず `/login?reset=done` に戻す。リンクの発行（`user.password.reset.issue`）と再設定の完了（`user.password.reset`）は変更の記録に残す。
 - **シングルサインオン（OpenID Connect）**: `lib/auth/oidc.ts`（プロトコルの処理は `openid-client` v6 に任せ、自前で JWT を検証しない）。設定は `OidcSettings`（id=1、クライアントシークレットはデータ鍵で暗号化）、IdP の利用者との対応は `User.oidcIssuer`＋`oidcSubject`（組で一意。初回ログインのコールバックで保存し、すでに別の sub がある既存アカウントへの結び付けは拒否）。表示名は `OidcSettings.nameClaim`（ID トークン→UserInfo の順、作成時のみ）。流れは `/auth/oidc/start`（state・nonce・PKCE をデータ鍵で暗号化した Cookie に入れて IdP へ）→ `/auth/oidc/callback`（`finishLogin()`：sub で結び付け済み → 確認済みメールで未結び付けの既存アカウント → ドメインが許可されていれば作成）。リダイレクト URI は必ず `getPublicUrl()` から作り、リダイレクトは相対パスで返す（プロキシの内側のホスト名を使わない）。ログイン画面のエラーは `?sso_error=<コード>` で、表示する文はコードから引く（URL の文字列をそのまま表示しない）。http の Issuer は localhost / 127.0.0.1 だけ許可（開発用）。パスワードログインの可否は `passwordLoginAllowed()`。
 - **公開 URL**: メールや招待リンクなど、サイトの外に出るリンクは必ず `getPublicUrl()`（`apps/web/src/lib/site-url.ts`）で組み立てる。Host ヘッダーはクライアントが自由に変えられるので、リクエストから組み立てない（`getRequestOrigin()` は入力欄の初期値と、未設定のときの代わりにだけ使う）。
 - **メール送信**: `apps/web/src/lib/mail.ts`（nodemailer 10。型は本体に同梱されているので `@types/nodemailer` は入れない）。設定は `MailSettings`（id=1 の1行だけ）、SMTP パスワードはデータ鍵で暗号化。送信は `sendMail()`、未設定なら `MailNotConfiguredError`。
+- **本番用イメージ**（`Dockerfile`）: build ステージで全依存を入れて `next build`、runtime ステージは `pnpm install --prod` に `.next` と TypeScript のソース（`packages/shared`、`apps/web/server`・`src`）をコピーする（カスタムサーバーと shared を tsx で動かすため、Next.js の standalone 出力は使っていない）。`prisma`・`tsx`・`dotenv` は起動時のマイグレーションと復旧コマンドで使うので、shared の dependencies に入れている（devDependencies に戻さないこと）。起動は `docker-entrypoint.sh`：`prisma migrate deploy` のあと `node --import tsx server/index.ts --prod`（tsx の CLI だと子プロセスになり、SIGTERM が届かず開いているドキュメントを保存できない）。引数を付けるとそのコマンドを実行する。`node` ユーザーで動かす。稼働確認は `GET /api/health`。`prisma.config.ts` は `DATABASE_URL` がないと generate も失敗するので、イメージにはダミーの値を入れている（実行時は環境変数で上書き）。`docker-compose.prod.yml` は `name: yosuga-prod` で開発用（プロジェクト名 `yosuga`）とコンテナ・ボリュームを分けている。
 - **カスタムサーバー**（`apps/web/server/`）: `index.ts` が Next.js と共同編集を1つの HTTP サーバーで動かす。`env.ts` を必ず最初に import する（NODE_ENV と .env の読み込み）。`collab.ts` は Next.js にバンドルされないので、アプリ側（`src/lib/db.ts`）とは別の PrismaClient を持つ。Next.js は最初のリクエストで自前の upgrade リスナーを付け、開発時のホットリロード（`/_next/`）だけを処理し、ルートに一致しないパスの WebSocket には触らない。**`/collab` にページやルートを作らないこと**（作ると Next.js がその接続を切る）。tsx で動かすのは、`packages/shared` を TypeScript のまま使っているため。開発モードの Next.js は同じフォルダで2つ起動できない（2つ目はエラーで終了する）。
 - **collabの認証**: エディタは接続のたびに Server Action `getCollabToken()` で5分有効の署名付きトークン（ユーザー＋ページ）を受け取る。署名鍵は `YOSUGA_SERVER_KEY` から HKDF で導出（`packages/shared/src/collab-token.ts`）。collab の `onAuthenticate` は署名・期限・ページ一致を確認したうえで、DB でページの権限を再確認する。閲覧のみなら読み取り専用。エディタは接続を拒否されても（トークン取得の失敗を含む）1・2・4秒おきに3回までやり直し、それでもだめなら「開けませんでした」を出す（`collaborative-editor.tsx` の `RETRY_DELAYS_MS`）。
 
 ## 現在の状況
 
 完了:
-- モノレポ構成、Prismaスキーマ（User / KnowledgeRoot / Page / PageGrant / Group ほか）、Docker Compose
-- BlockNote + Yjs + Hocuspocus のエンドツーエンド疎通（ブラウザとNodeクライアントの双方で、編集がCRDTでマージされPostgresに保存されることを確認済み）
-- `pnpm build`（web / shared）が通る
-- 初回アクセス時のマスターパスワード設定と、データ鍵の生成・ページ本文の暗号化（`/setup`、`pnpm rotate-server-key`）
-- ユーザーのログイン（招待制）、collab の認証（署名付きトークン＋ページ権限の確認、閲覧のみは読み取り専用）
-- メール送信の設定（SMTP）とテスト送信（`/admin`）
-- サイト全体のグループと、組み込みの「サイト管理者」グループ（自分のアカウント＋TOTP で /admin に入れる）
-- 管理画面 `/admin`: マスターパスワード＋TOTP、ログイン回数制限、管理画面専用セッション、IP 制限、復旧コマンド `pnpm admin:recover`
+- モノレポ構成、Prismaスキーマ、開発用の Docker Compose（Postgres / Redis / SeaweedFS）
+- BlockNote + Yjs + Hocuspocus の共同編集（Next.js のカスタムサーバーに統合し、1プロセス・1ポート）
+- 初回セットアップ（マスターパスワード）と暗号化（データ鍵・`pnpm rotate-server-key`）。ページ本文・履歴・添付ファイル・子ページテーブルの値・検索索引を暗号化
+- ユーザー認証: 招待、ユーザーによるアカウント登録、シングルサインオン（OpenID Connect）、パスワードの再設定（メール／管理画面からのリンク発行）
+- 管理画面 `/admin`: マスターパスワード／アカウント＋TOTP、ロール（サイト管理者・コンテンツ管理者・一般ユーザー）、ユーザーの無効化、グループ、IP 制限、回数制限、変更の記録、メール送信（SMTP）、ファイル保存（S3 互換）、アップロード上限、テーマ、公開 URL、復旧コマンド `pnpm admin:recover`
+- ナレッジルートとページ: 作成・移動（`MAX_PAGE_DEPTH`・循環の確認）・削除（ごみ箱・復元）、グループ単位の権限、共有画面、子ページ一覧／子ページテーブル
+- ページの履歴（版の保存・復元・機密情報のマスク）、暗号化した索引による全文検索、ファイル添付
+- 本番用の Docker イメージ（`Dockerfile`、`docker-compose.prod.yml`。ビルド・起動・マイグレーション・ヘルスチェック・停止時の保存を確認済み）
 
 未着手（次の候補）:
-- ページ作成・一覧・階層のCRUD APIルート（`apps/web`）
-- パスワードの再設定（メール送信は実装済み。再設定メールの送信と、メール未設定時に管理画面から再設定リンクを発行する手段）
-- ページの作成・移動・削除（作成・移動では `MAX_PAGE_DEPTH` と循環の確認、削除では添付ファイルの扱いも）
-- ページの作成・一覧・階層の CRUD
-- ナレッジルートの権限モデル
+- ごみ箱からの完全削除（添付ファイル・子ページテーブルの値・版の扱いを決める必要がある。版は監査のため削除しない方針との整合も）
 - 添付ファイルの掃除（ブロックを消したファイルの削除）と、大きいファイル向けのストリーミング暗号化
-- 本番用のDockerイメージ（1つのイメージで足りる）
+- 古い版の自動削除（「版は削除しない」方針との整合を先に決める）
+- ログイン中のユーザーが自分でパスワードを変更する画面
