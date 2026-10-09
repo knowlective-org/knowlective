@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { showConfirm } from "@/components/dialog";
 import styles from "@/styles/ui.module.css";
 
 export type RowMenuItem = {
@@ -9,7 +10,7 @@ export type RowMenuItem = {
   // Hidden inputs posted with the action (e.g. { userId }).
   fields: Record<string, string>;
   danger?: boolean;
-  // Shown in a confirm() dialog before submitting.
+  // Asked (showConfirm) before submitting.
   confirm?: string;
 };
 
@@ -20,6 +21,7 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const open = pos !== null;
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
     if (!open) return;
@@ -74,8 +76,15 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
               data-ui="RowMenu.itemForm"
               action={item.action}
               onSubmit={(e) => {
-                if (item.confirm && !window.confirm(item.confirm)) e.preventDefault();
-                else setPos(null);
+                setPos(null);
+                if (!item.confirm) return;
+                // The menu (and this form) closes now, so the action is
+                // called directly once confirmed.
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                void showConfirm(item.confirm, { title: item.label, confirmLabel: item.label, danger: item.danger }).then(
+                  (ok) => ok && startTransition(() => item.action(formData)),
+                );
               }}
             >
               {Object.entries(item.fields).map(([name, value]) => (

@@ -17,7 +17,7 @@ import {
   verifyCollabToken,
 } from "shared";
 import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
-import { CHILDREN_CHANGED, PAGE_DELETED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
+import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 
@@ -212,6 +212,15 @@ export async function createCollab() {
         const document = hocuspocus.documents.get(id);
         if (!document) continue;
         document.broadcastStateless(JSON.stringify({ type: PAGE_DELETED }));
+        hocuspocus.closeConnections(id);
+      }
+    },
+    // Same, for pages that moved: the editors reconnect by themselves.
+    reconnectDocuments(pageIds) {
+      for (const id of pageIds) {
+        const document = hocuspocus.documents.get(id);
+        if (!document) continue;
+        document.broadcastStateless(JSON.stringify({ type: PAGE_MOVED }));
         hocuspocus.closeConnections(id);
       }
     },

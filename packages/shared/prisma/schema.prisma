@@ -114,6 +114,9 @@ model Page {
   parentId String?
   parent   Page?   @relation("PageToPage", fields: [parentId], references: [id])
   children Page[]  @relation("PageToPage")
+  // Position among its siblings (ascending; ties by createdAt). Set to the
+  // end on creation, renumbered for all siblings when a page is dragged in.
+  sortOrder Int @default(0)
 
   createdById String
   createdBy   User   @relation("PageCreatedBy", fields: [createdById], references: [id])
@@ -134,7 +137,7 @@ model Page {
   searchIndex    PageSearchIndex?
 
   @@index([rootId])
-  @@index([parentId])
+  @@index([parentId, sortOrder])
 }
 
 // Persisted Yjs document state for a page, written by the collab (Hocuspocus) server.

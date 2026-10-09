@@ -1,4 +1,4 @@
-import type { PageAccess, PrismaClient } from "@prisma/client";
+import type { PageAccess, Prisma, PrismaClient } from "@prisma/client";
 
 // Page permissions. Access comes only from group grants (PageGrant):
 //
@@ -75,6 +75,10 @@ async function userGroupIds(prisma: PrismaClient, userId: string): Promise<Set<s
   return ids;
 }
 
+// Sibling order: the user-set position, then creation order for ties.
+// Every tree is loaded in this order, so children come out sorted.
+export const PAGE_ORDER = [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }] satisfies Prisma.PageOrderByWithRelationInput[];
+
 // Non-deleted pages of one knowledge root. Descendants of a deleted page
 // are dropped too, because the tree walk starts from parentless pages and
 // never passes through a deleted one.
@@ -82,7 +86,7 @@ async function loadTree(prisma: PrismaClient, rootId: string) {
   return prisma.page.findMany({
     where: { rootId, deletedAt: null },
     select: { id: true, parentId: true, title: true, icon: true, createdAt: true },
-    orderBy: { createdAt: "asc" },
+    orderBy: PAGE_ORDER,
   });
 }
 
@@ -185,7 +189,7 @@ export async function getTreeWithAccess(prisma: PrismaClient, userId: string, ro
       deletedAt: true,
       deletedById: true,
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: PAGE_ORDER,
   });
   const grants = !user || user.disabledAt ? [] : await loadGrants(prisma, rootId, groupIds);
   const access = computeTreeAccess(pages, grants, groupIds, MAX_PAGE_DEPTH);
@@ -288,7 +292,7 @@ export async function getTrash(
   return { items, destinations };
 }
 
-// Live pages the user can edit, depth-first in creation order, with their
+// Live pages the user can edit, depth-first in sibling order, with their
 // depth below the root page (for an indented picker).
 export function restoreDestinations(tree: Awaited<ReturnType<typeof getTreeWithAccess>>): RestoreDestination[] {
   const { pages, access, live } = tree;
@@ -316,7 +320,7 @@ export type VisiblePage = {
 export type VisibleTree = {
   rootId: string;
   rootPageId: string | null;
-  // Pages the user can open, in creation order.
+  // Pages the user can open, in sibling order (PAGE_ORDER).
   pages: VisiblePage[];
   // Visible pages whose parent isn't visible: where the user's view of this
   // tree starts. The root page, if visible, is always one of them.

@@ -10,6 +10,7 @@ import {
   saveStorage,
   testStorageConnection,
 } from "./actions";
+import { confirmBeforeSubmit } from "@/components/dialog";
 
 const STEP_LABELS = { write: "書き込み", read: "読み出し", delete: "削除" } as const;
 
@@ -164,7 +165,7 @@ export function StorageSettingsForm({
               fileCount > 0
                 ? `同梱のストレージに戻します。保存済みのファイル（${fileCount}件）は自動では移行されません。移行済みですか？`
                 : "同梱のストレージに戻しますか？";
-            if (!window.confirm(msg)) e.preventDefault();
+            confirmBeforeSubmit(e, msg, { title: "ファイル保存", confirmLabel: "同梱のストレージに戻す", danger: true });
           }}
         >
           <button data-ui="StorageSettingsForm.resetButton" type="submit" className={styles.danger}>

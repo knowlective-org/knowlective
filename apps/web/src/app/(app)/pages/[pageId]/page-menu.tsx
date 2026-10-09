@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { showAlert, showConfirm, showCopyText } from "@/components/dialog";
 import { displayTitle } from "@/lib/page-title";
+import { MoveDialog } from "./move-dialog";
 import { checkDeletePage, deletePage, loadPageInfo, type PageInfo } from "./page-actions";
 import styles from "./page-view.module.css";
 
@@ -47,7 +49,7 @@ export function ShareButton({ url }: { url: string }) {
       title="このページの URL をコピー"
       onClick={async () => {
         if (await copyText(url)) setCopied(true);
-        else window.prompt("この URL をコピーしてください", url);
+        else void showCopyText("この URL をコピーしてください。", url, { title: "URL のコピー" });
       }}
     >
       {copied ? "URL をコピーしました" : "共有"}
@@ -73,6 +75,7 @@ export function PageMenu({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const [info, setInfo] = useState<PageInfo | null | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -163,6 +166,22 @@ export function PageMenu({
               <button
                 type="button"
                 role="menuitem"
+                className={styles.menuItem}
+                data-ui="PageMenu.move"
+                onClick={() => {
+                  setOpen(false);
+                  setMoveOpen(true);
+                }}
+              >
+                移動
+              </button>
+            ) : (
+              <PlannedItem label="移動" note={isRootPage ? "ナレッジルートは移動不可" : "編集の権限が必要"} />
+            )}
+            {canEdit && !isRootPage ? (
+              <button
+                type="button"
+                role="menuitem"
                 className={styles.menuItemDanger}
                 data-ui="PageMenu.delete"
                 disabled={deleting}
@@ -171,15 +190,18 @@ export function PageMenu({
                   try {
                     const check = await checkDeletePage(pageId);
                     if ("error" in check) {
-                      window.alert(check.error);
+                      await showAlert(check.error, { title: "削除できません" });
                       return;
                     }
                     const children = check.descendants > 0 ? `と、その下の${check.descendants}ページ` : "";
-                    if (!window.confirm(`「${displayTitle(title)}」${children}をごみ箱に移動しますか？
-ごみ箱から元に戻せます。`)) return;
+                    const ok = await showConfirm(
+                      `「${displayTitle(title)}」${children}をごみ箱に移動しますか？\nごみ箱から元に戻せます。`,
+                      { title: "ページの削除", confirmLabel: "ごみ箱に移動", danger: true },
+                    );
+                    if (!ok) return;
                     const result = await deletePage(pageId);
                     if ("error" in result) {
-                      window.alert(result.error);
+                      await showAlert(result.error, { title: "削除できません" });
                       return;
                     }
                     setOpen(false);
@@ -198,6 +220,7 @@ export function PageMenu({
           </div>
         </div>
       )}
+      {moveOpen && <MoveDialog pageId={pageId} title={title} onClose={() => setMoveOpen(false)} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { atLeast, getPageAccess, getUsersWithPageAccess, getVisibleTree, loadDataKey } from "shared";
+import { PAGE_ORDER, atLeast, getPageAccess, getUsersWithPageAccess, getVisibleTree, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { notifyChildrenChanged } from "@/lib/collab-events";
@@ -83,7 +83,7 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
     prisma.pagePropertyDef.findMany({ where: { pageId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
     prisma.page.findMany({
       where: { id: { in: childIds } },
-      orderBy: { createdAt: "asc" },
+      orderBy: PAGE_ORDER,
       select: { id: true, title: true, icon: true, createdAt: true, updatedAt: true, createdById: true, updatedById: true },
     }),
     prisma.pagePropertyValue.findMany({ where: { pageId: { in: childIds }, def: { pageId } } }),

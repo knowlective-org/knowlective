@@ -8,6 +8,7 @@ import styles from "@/styles/ui.module.css";
 import { loadVersion, restorePageVersion } from "./actions";
 import historyStyles from "./history.module.css";
 import { MaskPanel } from "./mask-panel";
+import { showAlert, showConfirm } from "@/components/dialog";
 
 // BlockNote touches `window`, so the preview never renders on the server.
 const VersionPreview = dynamic(
@@ -164,14 +165,15 @@ export function HistoryView({
                     className={styles.button}
                     disabled={restoring}
                     data-ui="HistoryView.restoreButton"
-                    onClick={() => {
+                    onClick={async () => {
                       const when = dateTimeFormat.format(
                         new Date(current.createdAt),
                       );
                       if (
-                        !window.confirm(
+                        !(await showConfirm(
                           `ページの内容を ${when} の版に戻しますか？\n今の内容も版として残るので、あとから戻せます。`,
-                        )
+                          { title: "版に戻す", confirmLabel: "この版に戻す" },
+                        ))
                       )
                         return;
                       startRestore(async () => {
@@ -180,7 +182,7 @@ export function HistoryView({
                           current.id,
                         );
                         if (result.error) {
-                          window.alert(result.error);
+                          await showAlert(result.error, { title: "版に戻せません" });
                           return;
                         }
                         router.push(`/pages/${pageId}`);

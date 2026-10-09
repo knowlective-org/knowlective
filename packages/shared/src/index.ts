@@ -56,6 +56,7 @@ export {
   getUsersWithPageAccess,
   getVisibleTree,
   getVisibleTrees,
+  PAGE_ORDER,
 } from "./permissions";
 export {
   MIN_PASSWORD_LENGTH,

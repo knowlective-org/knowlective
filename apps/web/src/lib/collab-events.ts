@@ -13,10 +13,15 @@ export const CHILDREN_CHANGED = "children-changed";
 // that document's channel on the shared socket, and the provider doesn't
 // reconnect it, so the editor would silently stop saving.)
 export const PAGE_DELETED = "page-deleted";
+// Sent to a page's editors right before the server closes them because the
+// page moved under another parent: its access may have changed, so the
+// editor reconnects (access is checked again) and the screen refreshes.
+export const PAGE_MOVED = "page-moved";
 
 type CollabBridge = {
   notifyChildrenChanged(parentPageId: string): void;
   closeDocuments(pageIds: string[]): void;
+  reconnectDocuments(pageIds: string[]): void;
   restoreVersion(pageId: string, versionId: string, userId: string): Promise<void>;
   liveState(pageId: string): Uint8Array | null;
 };
@@ -42,6 +47,13 @@ export function notifyChildrenChanged(parentPageId: string | null | undefined) {
 export function closeDocuments(pageIds: string[]) {
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   bridge?.closeDocuments(pageIds);
+}
+
+// Tells everyone editing these pages that they moved (PAGE_MOVED), then
+// disconnects them so they reconnect with their access checked again.
+export function reconnectDocuments(pageIds: string[]) {
+  const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
+  bridge?.reconnectDocuments(pageIds);
 }
 
 // Replaces a page's content with one of its saved versions (履歴表示).

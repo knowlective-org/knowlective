@@ -36,6 +36,7 @@ import {
 import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-blocks.module.css";
+import { showAlert, showConfirm } from "@/components/dialog";
 
 // 子ページテーブル: one row per child page. Columns (and their values) live
 // in the database, shared by every table on the same page; this block only
@@ -99,7 +100,7 @@ const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", ti
 
 async function run(action: Promise<{ error?: string }>) {
   const result = await action.catch(() => ({ error: "保存に失敗しました。" }));
-  if (result.error) window.alert(result.error);
+  if (result.error) await showAlert(result.error);
   return !result.error;
 }
 
@@ -295,10 +296,17 @@ function ChildTable({
                       toggleHidden(c.key);
                     }}
                     onDelete={() => {
-                      if (c.custom && window.confirm(`列「${c.label}」と、その列のすべての値を削除しますか？`)) {
+                      const custom = c.custom;
+                      if (!custom) return;
+                      void showConfirm(`列「${c.label}」と、その列のすべての値を削除しますか？`, {
+                        title: "列の削除",
+                        confirmLabel: "削除",
+                        danger: true,
+                      }).then((ok) => {
+                        if (!ok) return;
                         setMenu(null);
-                        void after(deleteColumn(c.custom.id));
-                      }
+                        void after(deleteColumn(custom.id));
+                      });
                     }}
                   />
                 </HeaderCell>
@@ -343,7 +351,7 @@ function ChildTable({
                     error: "ページを作成できませんでした。",
                   }));
                   if ("error" in result) {
-                    window.alert(result.error);
+                    void showAlert(result.error, { title: "ページを作成できません" });
                     return false;
                   }
                   void reload();

@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { notifyChildrenChanged } from "@/lib/collab-events";
 import { displayTitle } from "@/lib/page-title";
+import { nextSortOrder } from "@/lib/page-move";
 
 const CANNOT_RESTORE = "このページは元に戻せません。";
 
@@ -59,7 +60,8 @@ export async function restorePage(pageId: string, newParentId?: string): Promise
   const to = byId.get(newParentId)!;
   await prisma.page.update({
     where: { id: pageId },
-    data: { parentId: newParentId, deletedAt: null, deletedById: null },
+    // Last among its new siblings (its old position belonged to the old parent).
+    data: { parentId: newParentId, deletedAt: null, deletedById: null, sortOrder: await nextSortOrder(newParentId) },
   });
   await recordAudit(
     { userId: user.id, label: userLabel(user) },

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
@@ -12,10 +13,11 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlock
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { getCollabToken } from "@/app/(app)/actions";
-import { CHILDREN_CHANGED, PAGE_DELETED } from "@/lib/collab-events";
+import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED } from "@/lib/collab-events";
 import { MAX_TITLE_LENGTH, TITLE_FIELD, UNTITLED, displayTitle } from "@/lib/page-title";
 import { PageEditorContext, type PageEditorContextValue } from "./editor/page-context";
 import { customSlashMenuItems, editorSchema } from "./editor/schema";
+import { showAlert } from "./dialog";
 import { EditorPlaceholder } from "./editor-placeholder";
 import styles from "./collaborative-editor.module.css";
 
@@ -80,6 +82,7 @@ type Props = {
 const RETRY_DELAYS_MS = [1000, 2000, 4000];
 
 export function CollaborativeEditor(props: Props) {
+  const router = useRouter();
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
   // Bumped to replace the provider with a fresh one (new token, new socket).
   const [attempt, setAttempt] = useState(0);
@@ -117,8 +120,15 @@ export function CollaborativeEditor(props: Props) {
       },
       onStateless: ({ payload }) => {
         try {
-          if ((JSON.parse(payload) as { type?: string }).type === PAGE_DELETED) {
+          const type = (JSON.parse(payload) as { type?: string }).type;
+          if (type === PAGE_DELETED) {
             setFailure("このページはごみ箱に移動されました。");
+          } else if (type === PAGE_MOVED) {
+            // The server closes this connection next. Reconnect with a fresh
+            // token (access is checked again), and refresh the screen: the
+            // sidebar and this page's access may have changed.
+            retryTimer = setTimeout(() => setAttempt((n) => n + 1), 0);
+            router.refresh();
           }
         } catch {
           // Not ours.
@@ -132,7 +142,7 @@ export function CollaborativeEditor(props: Props) {
       clearTimeout(retryTimer);
       p.destroy();
     };
-  }, [props.pageId, attempt]);
+  }, [props.pageId, attempt, router]);
 
   if (failure) return <EditorPlaceholder message={failure} />;
   if (!provider || synced !== provider) return <EditorPlaceholder />;
@@ -149,7 +159,7 @@ async function uploadFile(pageId: string, file: File): Promise<string> {
   const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
   if (!res.ok || !data?.url) {
     const message = data?.error ?? "ファイルのアップロードに失敗しました。";
-    window.alert(message);
+    void showAlert(message, { title: "アップロードできません" });
     throw new Error(message);
   }
   return data.url;

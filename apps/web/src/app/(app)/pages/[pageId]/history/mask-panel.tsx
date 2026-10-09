@@ -5,6 +5,7 @@ import { MASK, MAX_MASK_STRINGS, MIN_MASK_LENGTH } from "@/lib/version-mask";
 import styles from "@/styles/ui.module.css";
 import { applyMask, checkMask } from "./actions";
 import historyStyles from "./history.module.css";
+import { showConfirm } from "@/components/dialog";
 
 type Check = { versions: number; matches: number; inCurrent: boolean };
 
@@ -98,9 +99,13 @@ export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => vo
           className={styles.danger}
           disabled={busy || !current || current.inCurrent || current.versions === 0}
           data-ui="MaskPanel.applyButton"
-          onClick={() => {
+          onClick={async () => {
             if (!current) return;
-            if (!window.confirm(`${current.versions}個の版の${current.matches}か所をマスクします。マスクした版には戻せなくなります。よろしいですか？`)) return;
+            const ok = await showConfirm(
+              `${current.versions}個の版の${current.matches}か所をマスクします。マスクした版には戻せなくなります。よろしいですか？`,
+              { title: "機密情報のマスク", confirmLabel: "マスクする", danger: true },
+            );
+            if (!ok) return;
             startTransition(async () => {
               const result = await applyMask(pageId, strings);
               if ("error" in result) {

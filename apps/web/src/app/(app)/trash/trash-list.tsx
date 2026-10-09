@@ -7,6 +7,7 @@ import { displayTitle } from "@/lib/page-title";
 import styles from "@/styles/ui.module.css";
 import { restorePage } from "./actions";
 import trashStyles from "./trash-list.module.css";
+import { showAlert, showConfirm } from "@/components/dialog";
 
 export type TrashListItem = {
   id: string;
@@ -47,19 +48,19 @@ export function TrashList({
     );
   }
 
-  const restore = (item: TrashListItem, newParentId?: string) => {
+  const restore = async (item: TrashListItem, newParentId?: string) => {
     if (newParentId) {
       const to = destinations[item.rootId]?.find((d) => d.id === newParentId);
       const from = item.parent ? `元の親「${displayTitle(item.parent.title)}」` : "元の親ページ";
       const message =
         `「${displayTitle(item.title)}」を「${displayTitle(to?.title ?? "")}」の下に戻します（${from}はごみ箱にあるため）。\n` +
         `ページの権限は、戻した場所から引き継がれます。よろしいですか？`;
-      if (!window.confirm(message)) return;
+      if (!(await showConfirm(message, { title: "ページを戻す", confirmLabel: "戻す" }))) return;
     }
     setBusy(item.id);
     startTransition(async () => {
       const result = await restorePage(item.id, newParentId);
-      if (result.error) window.alert(result.error);
+      if (result.error) void showAlert(result.error, { title: "元に戻せません" });
       else setPicking(null);
       // Refreshes this list and the sidebar (the page is back in the tree).
       router.refresh();

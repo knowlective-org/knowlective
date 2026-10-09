@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { notifyChildrenChanged } from "@/lib/collab-events";
 import { normalizeTitle } from "@/lib/page-title";
+import { nextSortOrder } from "@/lib/page-move";
 import { reindexPage } from "@/lib/search-index";
 import { endUserSession, requireUser } from "@/lib/auth/session";
 
@@ -55,7 +56,8 @@ async function insertChildPage(
   const page = await prisma.page.create({
     // An empty title shows as 無題 until renamed. The collab server seeds the
     // document's title from this when the page is first opened.
-    data: { title, rootId: parentAccess.rootId, parentId, createdById: userId },
+    // Last among its siblings.
+    data: { title, rootId: parentAccess.rootId, parentId, createdById: userId, sortOrder: await nextSortOrder(parentId) },
     select: { id: true },
   });
   // Findable by title right away, before anyone opens it.

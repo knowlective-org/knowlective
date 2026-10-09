@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
+import { DialogHost } from "@/components/dialog";
 import { getTheme } from "@/lib/theme";
 import { themeCss } from "@/lib/theme-tokens";
 import "./globals.css";
@@ -30,7 +31,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         {/* Overrides the defaults in globals.css. Values are validated #rrggbb only. */}
         <style id="yosuga-theme" dangerouslySetInnerHTML={{ __html: themeCss(theme) }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Shows showAlert / showConfirm / showCopyText (components/dialog.tsx). */}
+        <DialogHost />
+      </body>
     </html>
   );
 }
