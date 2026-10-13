@@ -23,6 +23,14 @@
   }
 }
 
+/* Phone width: AppShell's menu button sits at the top left, over this bar. */
+@media (max-width: 599.98px) {
+  .toolbar {
+    margin-top: -56px;
+    padding-left: 60px;
+  }
+}
+
 /* 保存中…: shown while an edit is on its way to the server. */
 .saving {
   margin-right: auto;

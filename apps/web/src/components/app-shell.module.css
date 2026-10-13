@@ -43,6 +43,103 @@
   }
 }
 
+/* The drawer's controls: only on phone-width screens (below). */
+.menuButton,
+.closeButton,
+.backdrop {
+  display: none;
+}
+
+/* Phone width: the sidebar is a drawer, slid in over the content by the menu
+   button at the top left (app-shell.tsx). */
+@media (max-width: 599.98px) {
+  .menuButton {
+    position: fixed;
+    top: 4px;
+    left: 8px;
+    z-index: 40;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    color: var(--color-primary);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    display: block;
+    background: rgba(0, 0, 0, 0.35);
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    width: min(84vw, 300px);
+    /* The full height of the screen (the grid's align-self: start would
+       otherwise shrink it to its content). */
+    align-self: stretch;
+    height: auto;
+    max-height: none;
+    padding-top: 48px;
+    overflow-y: auto;
+    border-right: 1px solid var(--color-border);
+    border-bottom: 0;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
+    /* Closed: off screen, and out of the tab order. */
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition:
+      transform 0.18s ease,
+      visibility 0s linear 0.18s;
+  }
+
+  .sidebar[data-open] {
+    visibility: visible;
+    transform: none;
+    transition: transform 0.18s ease;
+  }
+
+  .closeButton {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    color: var(--color-primary);
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  /* Room for the menu button above the content. */
+  .main {
+    padding-top: 56px;
+  }
+}
+
+@media (max-width: 599.98px) and (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar[data-open] {
+    transition: none;
+  }
+}
+
 /* Printing (Ctrl+P, and the page menu's PDF export): the content only, across
    the paper's width. */
 @media print {
@@ -51,7 +148,9 @@
     min-height: 0;
   }
 
-  .sidebar {
+  .sidebar,
+  .menuButton,
+  .backdrop {
     display: none;
   }
 
