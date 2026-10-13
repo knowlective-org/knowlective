@@ -44,6 +44,7 @@ model User {
   pages           Page[]          @relation("PageCreatedBy")
   updatedPages    Page[]          @relation("PageUpdatedBy")
   deletedPages    Page[]          @relation("PageDeletedBy")
+  lockedPages     Page[]          @relation("PageLockedBy")
   sessions        UserSession[]
   usedInvitations Invitation[]
   passwordResets  PasswordResetToken[]
@@ -124,6 +125,14 @@ model Page {
   // value). Null for pages nobody has edited since this column was added.
   updatedById String?
   updatedBy   User?   @relation("PageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  // Set while the page is locked: read-only for everyone until unlocked by
+  // someone with EDIT on it. With lockSubtree, everything under the page is
+  // locked too (packages/shared/src/permissions.ts, computeLocks).
+  lockedAt    DateTime?
+  lockedById  String?
+  lockedBy    User?     @relation("PageLockedBy", fields: [lockedById], references: [id], onDelete: SetNull)
+  lockSubtree Boolean   @default(false)
 
   document       PageDocument?
   grants         PageGrant[]
@@ -266,6 +275,21 @@ model InstanceConfig {
   // is used. Capped by MAX_FILE_SIZE_MB_LIMIT in apps/web/src/lib/storage.ts.
   maxUploadSizeMb Int @default(100)
 
+  // File name extensions (lowercase, no dot) that may be attached.
+  // Empty = no restriction. The default is RECOMMENDED_EXTENSIONS in
+  // apps/web/src/lib/upload-types.ts; keep the two the same.
+  uploadAllowedExtensions String[] @default(["avif", "bmp", "csv", "doc", "docx", "gif", "heic", "heif", "jpeg", "jpg", "json", "m4a", "markdown", "md", "mov", "mp3", "mp4", "odp", "ods", "odt", "ogg", "pdf", "png", "ppt", "pptx", "rtf", "tsv", "txt", "wav", "webm", "webp", "xls", "xlsx", "zip"])
+
+  // リンクのプレビュー: whether the server fetches the pages of pasted URLs,
+  // whether private (intranet) addresses are fetched too, and the forward
+  // proxy to fetch through (URL without credentials; the password is
+  // encrypted with the DEK). apps/web/src/lib/link-preview-settings.ts.
+  linkPreviewEnabled          Boolean @default(true)
+  linkPreviewAllowPrivate     Boolean @default(false)
+  linkPreviewProxyUrl         String?
+  linkPreviewProxyUsername    String?
+  linkPreviewProxyPasswordEnc Bytes?
+
   // How accounts are created: by invitation only, or also by anyone who
   // confirms their email address at /signup (needs mail settings).
   signupMode SignupMode @default(INVITE_ONLY)
@@ -283,6 +307,8 @@ model InstanceConfig {
 enum AdminSessionStage {
   // Master password verified, but no authenticator enrolled yet.
   ENROLL_TOTP
+  // Account password verified; waiting for the authenticator code.
+  VERIFY_TOTP
   // Fully authenticated (master password + TOTP).
   ACTIVE
 }

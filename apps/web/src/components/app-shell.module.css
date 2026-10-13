@@ -42,3 +42,22 @@
     padding-top: 24px;
   }
 }
+
+/* Printing (Ctrl+P, and the page menu's PDF export): the content only, across
+   the paper's width. */
+@media print {
+  .layout {
+    display: block;
+    min-height: 0;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .main {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+}

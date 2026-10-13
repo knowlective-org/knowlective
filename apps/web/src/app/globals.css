@@ -93,3 +93,57 @@ a {
     --level: 26px;
   }
 }
+
+/* Printing (Ctrl+P, and the page menu's PDF export). The app's own parts
+   hide themselves in their CSS modules (app-shell, page-view, the editor's
+   blocks); this is the page as a whole and BlockNote. */
+@page {
+  margin: 16mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff;
+    /* Keep highlights, table headers and tag colors. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* The app's dialogs. */
+  dialog {
+    display: none;
+  }
+
+  /* The editor's side padding is for its block handles. */
+  .bn-root .bn-editor {
+    padding-inline: 0;
+  }
+
+  /* Floating controls, other people's cursors, and the "type here" hints of
+     empty blocks. */
+  .bn-side-menu,
+  .bn-toolbar,
+  .bn-suggestion-menu,
+  .bn-panel,
+  .bn-table-handle,
+  .bn-extend-button,
+  .bn-collaboration-cursor__caret,
+  .bn-add-file-button {
+    display: none !important;
+  }
+
+  .bn-root .bn-inline-content::before {
+    content: none !important;
+  }
+
+  .bn-root [data-content-type="heading"] {
+    break-after: avoid;
+  }
+
+  .bn-root [data-content-type="image"],
+  .bn-root [data-content-type="codeBlock"],
+  .bn-root tr {
+    break-inside: avoid;
+  }
+}

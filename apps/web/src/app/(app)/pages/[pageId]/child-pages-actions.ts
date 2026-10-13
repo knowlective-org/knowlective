@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { PAGE_ORDER, atLeast, getPageAccess, getUsersWithPageAccess, getVisibleTree, loadDataKey } from "shared";
+import { PAGE_ORDER, atLeast, canEditPage, getPageAccess, getUsersWithPageAccess, getVisibleTree, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { notifyChildrenChanged } from "@/lib/collab-events";
@@ -77,6 +77,8 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
   const tree = await visibleTreeOf(user.id, pageId);
   if (!tree) return null;
   const access = new Map(tree.pages.map((p) => [p.id, p.access]));
+  // Locked pages: their cells (and, for this page, its columns) can't be changed.
+  const locked = new Set(tree.pages.filter((p) => p.lock).map((p) => p.id));
   const childIds = tree.pages.filter((p) => p.parentId === pageId).map((p) => p.id);
 
   const [defs, children, values, assignees] = await Promise.all([
@@ -102,7 +104,7 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
     id: c.id,
     title: c.title,
     icon: c.icon,
-    canEdit: atLeast(access.get(c.id) ?? null, "EDIT"),
+    canEdit: atLeast(access.get(c.id) ?? null, "EDIT") && !locked.has(c.id),
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
     createdById: c.createdById,
@@ -129,7 +131,7 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
   }
 
   return {
-    canEditColumns: atLeast(access.get(pageId) ?? null, "EDIT"),
+    canEditColumns: atLeast(access.get(pageId) ?? null, "EDIT") && !locked.has(pageId),
     columns,
     rows,
     assignees: assignees.map((u) => ({ id: u.id, name: displayName(u) })),
@@ -143,13 +145,13 @@ async function editableColumn(userId: string, defId: unknown) {
   const def = await prisma.pagePropertyDef.findUnique({ where: { id: defId } });
   if (!def) return null;
   const access = await getPageAccess(prisma, userId, def.pageId);
-  return access && atLeast(access.access, "EDIT") ? def : null;
+  return canEditPage(access) ? def : null;
 }
 
 export async function addColumn(pageId: string, rawName: string, type: PropertyType): Promise<Result> {
   const user = await requireUser();
   const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
-  if (!access || !atLeast(access.access, "EDIT")) return { error: NOT_ALLOWED };
+  if (!canEditPage(access)) return { error: NOT_ALLOWED };
   const name = normalizeColumnName(rawName);
   if (!name) return { error: "列名を入力してください（50文字以内）。" };
   if (!PROPERTY_TYPES.includes(type)) return { error: "列の種類が不正です。" };
@@ -218,7 +220,7 @@ export async function setCellValue(childId: string, defId: string, value: string
     prisma.page.findUnique({ where: { id: childId }, select: { parentId: true } }),
     prisma.pagePropertyDef.findUnique({ where: { id: defId } }),
   ]);
-  if (!access || !atLeast(access.access, "EDIT") || !child || !def || def.pageId !== child.parentId) {
+  if (!canEditPage(access) || !child || !def || def.pageId !== child.parentId) {
     return { error: NOT_ALLOWED };
   }
   const key = await loadDataKey(prisma);

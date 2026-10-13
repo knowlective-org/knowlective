@@ -1,0 +1,104 @@
+/* PDF block inside the editor. */
+
+.block {
+  width: 100%;
+  max-width: 640px;
+  margin: 8px 0;
+  font-size: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.frame {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 120px;
+  background: var(--color-hover);
+}
+
+.page {
+  display: block;
+  max-width: 100%;
+  background: var(--color-surface);
+}
+
+.muted,
+.error {
+  margin: 0;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.error {
+  color: var(--color-danger);
+}
+
+.bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pager {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.pagerButton {
+  width: 28px;
+  height: 28px;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pagerButton:hover:not(:disabled) {
+  background: var(--color-hover);
+}
+
+.pagerButton:disabled {
+  color: color-mix(in srgb, var(--color-muted) 55%, transparent);
+  cursor: default;
+}
+
+.count {
+  min-width: 56px;
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Printed: the page being shown, with its number; no buttons. */
+@media print {
+  .pagerButton {
+    display: none;
+  }
+
+  .block {
+    break-inside: avoid;
+  }
+}

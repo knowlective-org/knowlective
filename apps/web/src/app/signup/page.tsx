@@ -9,7 +9,7 @@ import { SIGNUP_TTL_HOURS, getSignupSettings } from "@/lib/auth/signup";
 import styles from "@/styles/ui.module.css";
 import { SignupForm } from "./signup-form";
 
-export const metadata: Metadata = { title: "アカウント登録 | yosuga" };
+export const metadata: Metadata = { title: "アカウント登録 | YOSUGA" };
 
 // Self-registration: asks for an email address and mails a registration link
 // (lib/auth/signup.ts). Only when an admin has turned it on.

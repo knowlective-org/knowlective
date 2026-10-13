@@ -177,7 +177,7 @@ export function OidcSettingsForm({
             </option>
           </select>
           <span className={styles.note}>
-            yosuga
+            YOSUGA
             にアカウントがない人は、初めてのログインでアカウントが作られます（どのグループにも入りません）。
             すでにアカウントがある人は、確認済みのメールアドレスが一致すれば、そのアカウントでログインします。
           </span>

@@ -73,6 +73,81 @@
   letter-spacing: 0.2em;
 }
 
+/* A field with fixed text in front of it (e.g. "YOSUGA:"). */
+.prefixedField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.prefixedField .field {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+/* A field holding a list of short values as tags, each with a × to remove
+   it, followed by the input for the next one. */
+.tagField {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  margin-top: 4px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  cursor: text;
+}
+
+.tagField:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  border-color: var(--color-primary);
+}
+
+.tag {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  padding: 2px 2px 2px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  background: var(--color-primary-light);
+  border-radius: 4px;
+  cursor: default;
+}
+
+.tagRemove {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font: inherit;
+  line-height: 1;
+  color: var(--color-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tagRemove:hover {
+  color: var(--color-danger);
+  background: var(--color-danger-light);
+}
+
+.tagInput {
+  flex: 1;
+  min-width: 120px;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 16px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
 .field:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
   outline-offset: 0;

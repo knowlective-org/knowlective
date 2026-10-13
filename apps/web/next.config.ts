@@ -3,6 +3,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // packages/shared is consumed as TypeScript source (no build step).
   transpilePackages: ["shared"],
+  // Development only: Next.js rejects requests for its dev resources (hot
+  // reload, client chunks) from hosts other than localhost, which leaves the
+  // screens blank when the dev server is opened as http://127.0.0.1:3000.
+  allowedDevOrigins: ["127.0.0.1"],
+  // Development only: Next.js's indicator sits bottom-left by default, on top
+  // of the sidebar's footer links (account, trash, sign out).
+  devIndicators: { position: "bottom-right" },
   async headers() {
     return [
       {

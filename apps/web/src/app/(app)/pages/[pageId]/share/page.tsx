@@ -13,7 +13,7 @@ import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { removeGrant, setGrant } from "./actions";
 
-export const metadata: Metadata = { title: "権限設定 | yosuga" };
+export const metadata: Metadata = { title: "権限設定 | YOSUGA" };
 
 const ERRORS: Record<string, string> = {
   "last-manager": "ルートページには「管理」の権限を持つグループが最低1つ必要です。先に別のグループに「管理」を付けてください。",

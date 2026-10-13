@@ -141,3 +141,43 @@
   font-size: 11px;
   color: color-mix(in srgb, var(--color-muted) 60%, transparent);
 }
+
+/* Not printed: the share button and the page menu. */
+@media print {
+  .toolbar {
+    display: none;
+  }
+}
+
+/* Locked page: the mark next to the menu, and the notice above the title. */
+.locked {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.lockBanner {
+  margin: 0 54px 16px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border-radius: 6px;
+}
+
+.lockBanner a {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .lockBanner {
+    margin-inline: 16px;
+  }
+}
+
+@media print {
+  .lockBanner {
+    display: none;
+  }
+}

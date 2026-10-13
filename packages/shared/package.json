@@ -10,7 +10,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "rotate-server-key": "tsx scripts/rotate-server-key.ts",
-    "admin:recover": "tsx scripts/admin-recover.ts"
+    "admin:recover": "tsx scripts/admin-recover.ts",
+    "e2e:seed": "tsx scripts/e2e-seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^7.9.1",

@@ -70,7 +70,7 @@ export function ThemeForm({ current }: { current: ThemeColors }) {
 
       <div className={themeStyles.preview} style={previewVars} data-ui="ThemeForm.preview" aria-label="プレビュー">
         <div className={themeStyles.previewSidebar}>
-          <div className={themeStyles.previewBrand}>yosuga</div>
+          <div className={themeStyles.previewBrand}>YOSUGA</div>
           <div className={themeStyles.previewItemCurrent}>開いているページ</div>
           <div className={themeStyles.previewItem}>ほかのページ</div>
         </div>

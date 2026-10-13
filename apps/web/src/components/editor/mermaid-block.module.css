@@ -1,0 +1,87 @@
+/* Mermaid 図 block inside the editor. */
+
+.block {
+  width: 100%;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.diagram {
+  overflow-x: auto;
+  text-align: center;
+}
+
+.diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.muted {
+  margin: 0;
+  padding: 2px 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12px;
+  color: var(--color-danger);
+  white-space: pre-wrap;
+  background: var(--color-danger-light);
+  border-radius: 4px;
+}
+
+.tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.toolButton {
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.toolButton:hover {
+  background: var(--color-hover);
+}
+
+.code {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.code:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  outline-offset: 0;
+  border-color: var(--color-primary);
+}
+
+@media print {
+  .tools,
+  .code {
+    display: none;
+  }
+
+  .block {
+    break-inside: avoid;
+  }
+}

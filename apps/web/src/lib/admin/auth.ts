@@ -28,6 +28,7 @@ const COOKIE_PATH = "/admin";
 
 export const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 export const ABSOLUTE_TIMEOUT_MS = 12 * 60 * 60 * 1000;
+// Sessions that aren't fully signed in yet (ENROLL_TOTP / VERIFY_TOTP).
 const ENROLL_TIMEOUT_MS = 10 * 60 * 1000;
 // Don't write lastSeenAt on every request.
 const TOUCH_INTERVAL_MS = 60 * 1000;
@@ -200,6 +201,7 @@ export async function requireAdmin(allowed: SiteRole[] = ["SITE_ADMIN", "CONTENT
 
   const session = await getAdminSession();
   if (!session) redirect("/admin/login");
+  if (session.stage === "VERIFY_TOTP") redirect("/admin/login/verify");
   if (session.stage !== "ACTIVE") redirect("/admin/enroll");
 
   // Demoted or disabled since signing in: end the session now.

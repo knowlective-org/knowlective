@@ -7,7 +7,7 @@ import styles from "@/styles/ui.module.css";
 import { AdminSidebar, type AdminNavItem } from "./admin-sidebar";
 
 export const metadata: Metadata = {
-  title: "管理画面 | yosuga",
+  title: "管理画面 | YOSUGA",
   robots: { index: false, follow: false },
 };
 
@@ -16,6 +16,7 @@ const NAV: (AdminNavItem & { siteAdminOnly?: boolean })[] = [
   { href: "/admin", label: "概要", siteAdminOnly: true },
   { href: "/admin/users", label: "ユーザー" },
   { href: "/admin/groups", label: "グループ" },
+  { href: "/admin/files", label: "ファイル", siteAdminOnly: true },
   { href: "/admin/security", label: "セキュリティ", siteAdminOnly: true },
 ];
 

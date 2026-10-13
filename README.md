@@ -22,16 +22,16 @@ DBはPostgreSQL、水平スケール用にRedis pub/subを使用。
 ```bash
 cp .env.example .env
 pnpm gen:server-key        # 出力された値を .env の YOSUGA_SERVER_KEY に設定
-                           # SEAWEEDFS_ACCESS_KEY / SEAWEEDFS_SECRET_KEY も同じコマンドで作って設定
+pnpm gen:storage-key       # 2回実行し、.env の SEAWEEDFS_ACCESS_KEY / SEAWEEDFS_SECRET_KEY に設定（英数字だけの値）
 docker compose up -d      # Postgres + Redis + SeaweedFS（ファイル保存）
 pnpm install
+pnpm db:generate           # Prisma クライアントを生成
 pnpm db:migrate            # packages/shared の Prisma マイグレーション
 pnpm db:seed                # デモ用のナレッジルートとページ ("demo") を作成
 ```
 
-> Next.js は自分のディレクトリ（`apps/web`）の `.env*` しか読まないため、
-> ルートの `.env` とは別に `apps/web/.env.local` にも同じ値を置いている。
-> 値を変更したときは両方更新すること。
+> アプリはルートの `.env` を読む。`apps/web/.env.local` などを置いた場合は、そちらの値が優先される。
+> ルートの `.env` を変更したときは、開発サーバーを再起動すること。
 
 ## 初回セットアップと暗号化
 

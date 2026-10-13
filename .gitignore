@@ -10,3 +10,5 @@ build/
 /packages/shared/generated/
 .claude/scheduled_tasks.lock
 .env.production
+apps/web/e2e/.auth/
+apps/web/e2e/.results/

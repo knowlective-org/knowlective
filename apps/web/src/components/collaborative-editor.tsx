@@ -12,12 +12,30 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote } from "@blocknote/react";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
-import { getCollabToken } from "@/app/(app)/actions";
+import { getCollabToken, getUploadExtensions } from "@/app/(app)/actions";
+import { getLinkPreviewEnabled, loadLinkPreview } from "@/app/(app)/link-preview-actions";
+import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED } from "@/lib/collab-events";
+import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/page-export";
 import { MAX_TITLE_LENGTH, TITLE_FIELD, UNTITLED, displayTitle } from "@/lib/page-title";
+import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
+import { docxToHtml } from "./editor/docx-import";
+import { singleUrl } from "./editor/link-preview-block";
+import { parseVideoUrl } from "./editor/video-url";
+import { type ExportBlock, downloadBlob, hasChildPageBlocks, prepareBlocksForExport } from "./editor/markdown-export";
+import {
+  type ImportKind,
+  type ImportedBlock,
+  extractMermaid,
+  importKind,
+  mermaidFromCodeBlock,
+  prepareImportedBlocks,
+  readTextFile,
+  textToBlocks,
+} from "./editor/markdown-import";
 import { PageEditorContext, type PageEditorContextValue } from "./editor/page-context";
 import { customSlashMenuItems, editorSchema } from "./editor/schema";
-import { showAlert } from "./dialog";
+import { showAlert, showChoice } from "./dialog";
 import { EditorPlaceholder } from "./editor-placeholder";
 import styles from "./collaborative-editor.module.css";
 
@@ -153,15 +171,23 @@ export function CollaborativeEditor(props: Props) {
 // button; the returned URL becomes the block's src (served with a membership
 // check by /api/files/<id>).
 async function uploadFile(pageId: string, file: File): Promise<string> {
+  try {
+    return await postFile(pageId, file);
+  } catch (error) {
+    void showAlert((error as Error).message, { title: "アップロードできません" });
+    throw error;
+  }
+}
+
+class UploadError extends Error {}
+
+// Stores a file as an attachment of the page and returns its URL.
+async function postFile(pageId: string, file: File): Promise<string> {
   const body = new FormData();
   body.append("file", file);
   const res = await fetch(`/api/files?pageId=${encodeURIComponent(pageId)}`, { method: "POST", body });
   const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
-  if (!res.ok || !data?.url) {
-    const message = data?.error ?? "ファイルのアップロードに失敗しました。";
-    void showAlert(message, { title: "アップロードできません" });
-    throw new Error(message);
-  }
+  if (!res.ok || !data?.url) throw new UploadError(data?.error ?? "ファイルのアップロードに失敗しました。");
   return data.url;
 }
 
@@ -202,6 +228,217 @@ function shiftPastedHeadings(
   walk(editor.document as AnyBlock[]);
 }
 
+// The editor methods the paste / import helpers use, loosely typed: they
+// build blocks from parsed data rather than from literals.
+type BlockEditor = {
+  document: unknown;
+  getBlock: (id: string) => unknown;
+  getTextCursorPosition: () => { block: { id: string; type: string; content?: unknown } };
+  insertBlocks: (blocks: never[], reference: string, placement: "before" | "after") => unknown;
+  replaceBlocks: (remove: string[], insert: never[]) => unknown;
+  removeBlocks: (remove: string[]) => unknown;
+  updateBlock: (id: string, update: never) => unknown;
+  tryParseMarkdownToBlocks: (markdown: string) => unknown;
+  tryParseHTMLToBlocks: (html: string) => unknown;
+};
+
+// Pasted Markdown with ```mermaid fences arrives as code blocks; turn the
+// ones this paste brought in into diagrams.
+function convertPastedMermaid(editor: BlockEditor, before: Map<string, string>) {
+  const walk = (blocks: AnyBlock[]) => {
+    for (const block of blocks) {
+      const diagram = before.get(block.id) === "codeBlock:" ? null : mermaidFromCodeBlock(block);
+      if (diagram) editor.replaceBlocks([block.id], [diagram as never]);
+      else walk(block.children);
+    }
+  };
+  walk(editor.document as AnyBlock[]);
+}
+
+// Pasting Mermaid source on its own makes a diagram: into the current line if
+// it's empty, otherwise below it.
+function insertMermaid(editor: BlockEditor, code: string) {
+  const diagram = { type: "mermaid", props: { code } } as never;
+  const current = editor.getTextCursorPosition().block;
+  if (Array.isArray(current.content) && current.content.length === 0) editor.updateBlock(current.id, diagram);
+  else editor.insertBlocks([diagram], current.id, "after");
+}
+
+// Whether the administrators have link previews on (/admin). Asked when an
+// editor opens; until the answer arrives a pasted URL stays a plain link, so
+// nothing is fetched that shouldn't be.
+let linkPreviewEnabled = false;
+
+// A URL pasted into an empty line becomes a リンクのプレビュー card. The card
+// shows the URL at once; its title, description and image are filled in when
+// the server has fetched them (if it can). Returns false when the cursor
+// isn't on an empty paragraph: the URL is then pasted as an ordinary link.
+function insertLinkPreview(editor: BlockEditor, url: string): boolean {
+  if (!linkPreviewEnabled) return false;
+  const current = editor.getTextCursorPosition().block;
+  if (current.type !== "paragraph" || !Array.isArray(current.content) || current.content.length > 0) return false;
+  editor.updateBlock(current.id, { type: "linkPreview", props: { url } } as never);
+  void loadLinkPreview(url)
+    .then((preview) => {
+      if (!preview || !editor.getBlock(current.id)) return;
+      const { title, description, image, siteName } = preview;
+      editor.updateBlock(current.id, { props: { title, description, image, siteName } } as never);
+    })
+    .catch(() => {
+      // The card stays as it is, with the URL.
+    });
+  return true;
+}
+
+// A video's URL pasted into an empty line becomes a player: the site's own
+// for YouTube, Vimeo and ニコニコ動画, the browser's for a link to a video file.
+// Returns false for other URLs, and when the cursor isn't on an empty
+// paragraph.
+function insertVideo(editor: BlockEditor, url: string): boolean {
+  const source = parseVideoUrl(url);
+  if (!source) return false;
+  const current = editor.getTextCursorPosition().block;
+  if (current.type !== "paragraph" || !Array.isArray(current.content) || current.content.length > 0) return false;
+  const block = source.kind === "embed" ? { type: "videoEmbed", props: { url } } : { type: "video", props: { url } };
+  editor.updateBlock(current.id, block as never);
+  return true;
+}
+
+// For an uploadFile that ends without a file: BlockNote updates the file
+// block it has just created (`blockId`) with what uploadFile returns (nothing,
+// here) right after it resolves; remove the block once it has.
+function discardFileBlock(editor: BlockEditor, blockId: string): Record<string, never> {
+  setTimeout(() => {
+    if (editor.getBlock(blockId)) editor.removeBlocks([blockId]);
+  }, 0);
+  return {};
+}
+
+// Adds the content of a Markdown, text or Word file to the page, in place of
+// the file block BlockNote has just created for it (`blockId`).
+async function expandFile(
+  editor: BlockEditor,
+  pageId: string,
+  file: File,
+  kind: ImportKind,
+  blockId: string,
+): Promise<Record<string, never>> {
+  let blocks: ImportedBlock[];
+  let skippedImages = 0;
+  if (kind === "docx") {
+    try {
+      // The document's images become attachments of the page.
+      const result = await docxToHtml(file, (image) => postFile(pageId, image));
+      blocks = prepareImportedBlocks(editor.tryParseHTMLToBlocks(result.html) as ImportedBlock[]);
+      skippedImages = result.skippedImages;
+    } catch (error) {
+      void showAlert(
+        error instanceof UploadError
+          ? `画像をアップロードできなかったため、展開を中止しました。\n${error.message}`
+          : "この Word ファイルを読み込めませんでした。",
+        { title: "展開できません" },
+      );
+      return discardFileBlock(editor, blockId);
+    }
+  } else {
+    const text = await readTextFile(file);
+    blocks =
+      kind === "markdown"
+        ? prepareImportedBlocks(editor.tryParseMarkdownToBlocks(text) as ImportedBlock[])
+        : textToBlocks(text);
+  }
+  if (!editor.getBlock(blockId)) return {};
+  if (blocks.length > 0) editor.insertBlocks(blocks as never[], blockId, "after");
+  if (skippedImages > 0) {
+    void showAlert(`${skippedImages} 個の画像は、表示できない形式（EMF・WMF など）のため取り込めませんでした。`, {
+      title: "一部の画像を取り込めませんでした",
+    });
+  }
+  return discardFileBlock(editor, blockId);
+}
+
+const IMPORT_TITLES: Record<ImportKind, string> = {
+  markdown: "Markdown ファイル",
+  text: "テキストファイル",
+  docx: "Word ファイル",
+};
+
+// The editor of each connection, for uploadFile: it's set up before the
+// editor exists.
+const editors = new WeakMap<object, BlockEditor>();
+
+function isPdfFile(file: File): boolean {
+  return /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+}
+
+// A PDF is attached either way; the choice is how it's shown. Returns what
+// BlockNote updates the file block it has just created (`blockId`) with.
+async function attachOrEmbedPdf(editor: BlockEditor, pageId: string, file: File, blockId: string) {
+  const choice = await showChoice(
+    `「${file.name}」をファイルとして添付しますか？ それとも、ページをめくって読める表示で埋め込みますか？`,
+    [
+      { value: "attach", label: "ファイルとして添付" },
+      { value: "embed", label: "ページ送りで表示" },
+    ],
+    { title: "PDF ファイル" },
+  );
+  if (choice === null) return discardFileBlock(editor, blockId);
+  const url = await uploadFile(pageId, file);
+  return choice === "embed" ? { type: "pdf", props: { url, name: file.name } } : url;
+}
+
+// A Markdown, text or Word file (dropped, pasted, or chosen in a file block)
+// can be attached like any other file or expanded into the page, and a PDF
+// attached or shown page by page; the user chooses.
+//
+// A file of a type the administrators don't allow (/admin/files) is refused
+// first, expanding included. If the list can't be fetched, the upload route
+// still refuses the file.
+async function expandOrUpload(provider: object, pageId: string, file: File, blockId?: string) {
+  const editor = editors.get(provider);
+  const allowed = await getUploadExtensions().catch(() => []);
+  if (!isUploadAllowed(file.name, allowed)) {
+    const message = uploadRefusedMessage(file.name);
+    void showAlert(message, { title: "追加できないファイルです" });
+    if (editor && blockId) return discardFileBlock(editor, blockId);
+    throw new Error(message);
+  }
+  if (editor && blockId && isPdfFile(file)) return attachOrEmbedPdf(editor, pageId, file, blockId);
+  const kind = importKind(file);
+  if (!editor || !blockId || !kind) {
+    return uploadFile(pageId, file);
+  }
+  const choice = await showChoice(
+    `「${file.name}」をファイルとして添付しますか？ それとも、内容をこのページに展開しますか？` +
+      (kind === "docx"
+        ? "\n\n展開すると、見出し・リスト・表・画像などの構造だけが入ります。文字の色やレイアウトは再現されません。"
+        : ""),
+    [
+      { value: "attach", label: "ファイルとして添付" },
+      { value: "expand", label: "ページに展開" },
+    ],
+    { title: IMPORT_TITLES[kind] },
+  );
+  if (choice === "attach") return uploadFile(pageId, file);
+  if (choice === "expand") return expandFile(editor, pageId, file, kind, blockId);
+  return discardFileBlock(editor, blockId);
+}
+
+// BlockNote's uploadFile. When adding the file fails (the upload is refused or
+// breaks; uploadFile has already said why), the file block BlockNote created
+// for it is removed: left in place it has a name but no file, and shows
+// "Loading…" forever.
+async function addFile(provider: object, pageId: string, file: File, blockId?: string) {
+  try {
+    return await expandOrUpload(provider, pageId, file, blockId);
+  } catch (error) {
+    const editor = editors.get(provider);
+    if (!editor || !blockId) throw error;
+    console.error("[editor] adding a file failed", error);
+    return discardFileBlock(editor, blockId);
+  }
+}
+
 function EditorBody({
   pageId,
   readOnly,
@@ -218,7 +455,23 @@ function EditorBody({
       // under the page title. Copy and paste within yosuga (blocknote/html)
       // keeps the levels as they are.
       pasteHandler: ({ event, editor, defaultPasteHandler }) => {
-        if (event.clipboardData?.types.includes("blocknote/html")) return defaultPasteHandler();
+        const types = event.clipboardData?.types ?? [];
+        if (types.includes("blocknote/html")) return defaultPasteHandler();
+        const blockEditor = editor as unknown as BlockEditor;
+        // Mermaid source on its own becomes a diagram (not inside a code
+        // block, where it's meant as code).
+        if (!types.includes("Files") && blockEditor.getTextCursorPosition().block.type !== "codeBlock") {
+          const text = event.clipboardData?.getData("text/plain") ?? "";
+          const mermaid = extractMermaid(text);
+          if (mermaid !== null) {
+            insertMermaid(blockEditor, mermaid);
+            return true;
+          }
+          // A URL on its own, pasted into an empty line, becomes a preview card.
+          // (A video's URL becomes a player instead.)
+          const url = singleUrl(text);
+          if (url && (insertVideo(blockEditor, url) || insertLinkPreview(blockEditor, url))) return true;
+        }
         const before = blockKinds(editor.document as AnyBlock[]);
         pasting.add(editor);
         try {
@@ -226,10 +479,15 @@ function EditorBody({
         } finally {
           pasting.delete(editor);
           shiftPastedHeadings(editor, before);
+          convertPastedMermaid(blockEditor, before);
         }
       },
       // Guests can't add files; without uploadFile BlockNote ignores drops.
-      uploadFile: readOnly ? undefined : (file: File) => uploadFile(pageId, file),
+      // For Markdown, text and Word files, expandOrUpload asks whether to attach or expand.
+      uploadFile: readOnly
+        ? undefined
+        : (file: File, blockId?: string) =>
+            addFile(provider, pageId, file, blockId),
       collaboration: {
         fragment: provider.document.getXmlFragment("blocknote"),
         user: { name: user.name, color: colorFor(user.id) },
@@ -244,6 +502,9 @@ function EditorBody({
     }),
     [provider],
   );
+  useEffect(() => {
+    editors.set(provider, editor as unknown as BlockEditor);
+  }, [editor, provider]);
 
   // One H1 per page: the title. Turn H1s in the body into H2 — those already
   // in the page when it opens, and those this user's own changes bring in
@@ -318,6 +579,66 @@ function EditorBody({
     };
   }, [provider, events]);
 
+  useEffect(() => {
+    if (readOnly) return;
+    void getLinkPreviewEnabled()
+      .then((enabled) => {
+        linkPreviewEnabled = enabled;
+      })
+      .catch(() => {
+        linkPreviewEnabled = false;
+      });
+  }, [readOnly]);
+
+  // Markdown and PDF export, asked for from the page menu (lib/page-export.ts).
+  // Shown while a PDF is being built: the first one downloads the compiler
+  // and the fonts, which takes a while.
+  const [exportingPdf, setExportingPdf] = useState(false);
+  useEffect(() => {
+    let busy = false;
+    const run = async (format: "md" | "pdf") => {
+      if (busy) return;
+      busy = true;
+      if (format === "pdf") setExportingPdf(true);
+      try {
+        const blocks = editor.document as ExportBlock[];
+        const childPages = hasChildPageBlocks(blocks) ? await loadChildPages(pageId) : null;
+        const title = displayTitle(provider.document.getText(TITLE_FIELD).toString());
+        const prepared = prepareBlocksForExport(blocks, {
+          origin: window.location.origin,
+          pageId,
+          childPages,
+          mermaid: format === "pdf" ? "keep" : "code",
+        });
+        if (format === "md") {
+          const body = editor.blocksToMarkdownLossy(prepared as never[]);
+          const markdown = new Blob([`# ${title}\n\n${body}`], { type: "text/markdown;charset=utf-8" });
+          downloadBlob(exportFileName(title, "md"), markdown);
+        } else {
+          // Loaded on demand: the exporter isn't part of the editor's code.
+          const { exportPdf } = await import("./editor/pdf-export");
+          downloadBlob(exportFileName(title, "pdf"), await exportPdf(editorSchema, prepared, title));
+        }
+      } catch (error) {
+        console.error(`[export] ${format} failed`, error);
+        void showAlert(`${format === "pdf" ? "PDF" : "Markdown"} を書き出せませんでした。`, {
+          title: "エクスポートできません",
+        });
+      } finally {
+        busy = false;
+        setExportingPdf(false);
+      }
+    };
+    const onMarkdown = () => void run("md");
+    const onPdf = () => void run("pdf");
+    window.addEventListener(EXPORT_MARKDOWN_EVENT, onMarkdown);
+    window.addEventListener(EXPORT_PDF_EVENT, onPdf);
+    return () => {
+      window.removeEventListener(EXPORT_MARKDOWN_EVENT, onMarkdown);
+      window.removeEventListener(EXPORT_PDF_EVENT, onPdf);
+    };
+  }, [editor, provider, pageId]);
+
   return (
     <>
       <TitleField
@@ -336,6 +657,11 @@ function EditorBody({
           />
         </BlockNoteView>
       </PageEditorContext.Provider>
+      {exportingPdf && (
+        <p className={styles.exportStatus} role="status" data-ui="EditorBody.status">
+          PDF を作成しています…
+        </p>
+      )}
     </>
   );
 }
@@ -392,7 +718,7 @@ function TitleField({
 
   useEffect(() => {
     onChange?.(value);
-    document.title = `${displayTitle(value)} | yosuga`;
+    document.title = `${displayTitle(value)} | YOSUGA`;
     // Grow with the text instead of scrolling inside the field.
     const el = ref.current;
     if (el) {
@@ -402,6 +728,11 @@ function TitleField({
   }, [value, onChange]);
 
   return (
+    <>
+    {/* Printed instead of the field, whose height is fitted to the screen's width. */}
+    <div className={styles.printTitle} aria-hidden>
+      {displayTitle(value)}
+    </div>
     <textarea
       ref={ref}
       className={styles.title}
@@ -443,5 +774,6 @@ function TitleField({
         setValue(next);
       }}
     />
+    </>
   );
 }

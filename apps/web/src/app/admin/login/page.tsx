@@ -7,7 +7,7 @@ import styles from "@/styles/ui.module.css";
 import { AccountLoginForm, MasterLoginForm } from "./login-form";
 
 export const metadata: Metadata = {
-  title: "管理画面ログイン | yosuga",
+  title: "管理画面ログイン | YOSUGA",
   robots: { index: false, follow: false },
 };
 
@@ -19,6 +19,7 @@ export default async function AdminLoginPage({ searchParams }: PageProps<"/admin
   const session = await getAdminSession();
   if (session?.stage === "ACTIVE") redirect("/admin");
   if (session?.stage === "ENROLL_TOTP") redirect("/admin/enroll");
+  if (session?.stage === "VERIFY_TOTP") redirect("/admin/login/verify");
 
   const master = (await searchParams).mode === "master";
   if (master) {
@@ -36,6 +37,11 @@ export default async function AdminLoginPage({ searchParams }: PageProps<"/admin
             アカウントでログインする
           </Link>
         </p>
+        <p className={styles.note} style={{ marginTop: 8 }}>
+          <Link href="/" data-ui="AdminLoginPage.appLink" style={{ textDecoration: "underline" }}>
+            アプリに戻る
+          </Link>
+        </p>
       </main>
     );
   }
@@ -43,11 +49,19 @@ export default async function AdminLoginPage({ searchParams }: PageProps<"/admin
   return (
     <main className={styles.narrow} data-ui="AdminLoginPage">
       <h1 className={styles.title}>管理画面ログイン</h1>
-      <p className={styles.lead}>「サイト管理者」または「コンテンツ管理者」のロールを持つアカウントでログインします。</p>
+      <p className={styles.lead}>
+        「サイト管理者」または「コンテンツ管理者」のロールを持つアカウントでログインします。
+        パスワードを確認したあと、認証アプリのコードを入力します。初めてログインするときは、ここで認証アプリを登録します。
+      </p>
       <AccountLoginForm />
       <p className={styles.note} style={{ marginTop: 24 }}>
         <Link href="/admin/login?mode=master" data-ui="AdminLoginPage.masterLoginLink" style={{ textDecoration: "underline" }}>
           マスターパスワードでログインする（初期設定・復旧用）
+        </Link>
+      </p>
+      <p className={styles.note} style={{ marginTop: 8 }}>
+        <Link href="/" data-ui="AdminLoginPage.appLink" style={{ textDecoration: "underline" }}>
+          アプリに戻る
         </Link>
       </p>
     </main>

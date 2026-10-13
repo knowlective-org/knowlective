@@ -40,6 +40,7 @@ export async function restorePageVersion(pageId: string, versionId: string): Pro
   const user = await requireUser();
   const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
   if (!access || !atLeast(access.access, "EDIT")) return { error: "この版に戻す権限がありません。" };
+  if (access.lock) return { error: "このページはロックされているため、版に戻せません。先にロックを解除してください。" };
   const version = await findVersion(pageId, versionId);
   if (!version) return { error: "この版は見つかりません。" };
   if (version.maskedAt) return { error: "マスクした版には戻せません。" };

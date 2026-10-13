@@ -16,7 +16,7 @@ async function main() {
   await rewrapWithServerKey(prisma, masterPassword, newServerKey);
 
   console.log("\nThe data encryption key is now wrapped with a new server key.");
-  console.log("Replace YOSUGA_SERVER_KEY in .env and apps/web/.env.local, then restart web and collab:\n");
+  console.log("Replace YOSUGA_SERVER_KEY in .env, then restart the app:\n");
   console.log(`YOSUGA_SERVER_KEY="${newServerKey.toString("base64")}"`);
   await prisma.$disconnect();
 }

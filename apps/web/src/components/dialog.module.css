@@ -29,6 +29,7 @@
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
 }
@@ -37,4 +38,19 @@
   line-height: 1.7;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* A confirmation that asks for a code to be typed back (showTypedConfirm). */
+.codeLabel {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.code {
+  margin-left: 6px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 18px;
+  letter-spacing: 0.15em;
+  user-select: all;
 }

@@ -16,6 +16,8 @@ export async function findAccessiblePage(userId: string, pageId: string) {
     id: page.id,
     title: page.title,
     access: result.access,
+    // The lock applying to the page, if it's locked (see canEditPage).
+    lock: result.lock,
     isRootPage: page.root.rootPageId === page.id,
     root: page.root,
   };

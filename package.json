@@ -14,8 +14,11 @@
     "db:migrate": "pnpm --filter shared prisma migrate dev",
     "db:seed": "pnpm --filter shared prisma:seed",
     "gen:server-key": "node -e \"console.log(require('node:crypto').randomBytes(32).toString('base64'))\"",
+    "gen:storage-key": "node -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\"",
     "rotate-server-key": "pnpm --filter shared rotate-server-key",
-    "admin:recover": "pnpm --filter shared admin:recover"
+    "admin:recover": "pnpm --filter shared admin:recover",
+    "e2e:seed": "pnpm --filter shared e2e:seed",
+    "e2e": "pnpm e2e:seed && pnpm --filter web e2e"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

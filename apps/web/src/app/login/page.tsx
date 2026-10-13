@@ -10,7 +10,7 @@ import styles from "@/styles/ui.module.css";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
-  title: "ログイン | yosuga",
+  title: "ログイン | YOSUGA",
 };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
@@ -29,7 +29,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   return (
     <main className={styles.narrow} data-ui="LoginPage">
-      <h1 className={styles.title}>yosuga にログイン</h1>
+      <h1 className={styles.title}>YOSUGA にログイン</h1>
       {passwordReset && (
         <p className={styles.success} data-ui="LoginPage.passwordResetStatus" style={{ marginBottom: 16 }}>
           パスワードを再設定しました。新しいパスワードでログインしてください。

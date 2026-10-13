@@ -25,6 +25,9 @@ import {
   sendMail,
 } from "@/lib/mail";
 import { invitationMail } from "@/lib/mail-templates";
+import { MAX_ALLOWED_EXTENSIONS, parseExtensions } from "@/lib/upload-types";
+import { parseProxyUrl } from "@/lib/link-preview";
+import { getLinkPreviewSettings, saveLinkPreviewSettings as storeLinkPreviewSettings } from "@/lib/link-preview-settings";
 import {
   MAX_FILE_SIZE_MB_LIMIT,
   type StorageTestResult,
@@ -154,7 +157,7 @@ export async function issueInvitation(
       to: email,
       ...invitationMail({
         link,
-        inviterName: actorLabel === "マスターパスワード" ? "yosuga の管理者" : actorLabel,
+        inviterName: actorLabel === "マスターパスワード" ? "YOSUGA の管理者" : actorLabel,
         siteRoleLabel: SITE_ROLE_LABELS[siteRole as SiteRole],
         groupNames: groups.map((g) => g.name),
         ttlDays: INVITATION_TTL_DAYS,
@@ -247,8 +250,8 @@ export async function sendTestMail(
   try {
     await sendMail({
       to: to.trim(),
-      subject: "yosuga テストメール",
-      text: "yosuga の管理画面から送信したテストメールです。\nこのメールが届いていれば、メール送信の設定は正しく動いています。",
+      subject: "YOSUGA テストメール",
+      text: "YOSUGA の管理画面から送信したテストメールです。\nこのメールが届いていれば、メール送信の設定は正しく動いています。",
     });
   } catch (err) {
     if (err instanceof MailNotConfiguredError) return { error: "先にメール送信の設定を保存してください。" };
@@ -360,6 +363,79 @@ export async function saveUploadLimit(_prev: UploadLimitState, formData: FormDat
     return { error: `1〜${MAX_FILE_SIZE_MB_LIMIT} MB の整数で入力してください。` };
   }
   await prisma.instanceConfig.update({ where: { id: 1 }, data: { maxUploadSizeMb: value } });
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+export type UploadTypesState = { error?: string; saved?: boolean; extensions?: string[] };
+
+// Which files may be attached, by extension. Empty = no restriction.
+export async function saveUploadTypes(_prev: UploadTypesState, formData: FormData): Promise<UploadTypesState> {
+  await requireAdmin(["SITE_ADMIN"]);
+  const text = formData.get("extensions");
+  const parsed = parseExtensions(typeof text === "string" ? text : "");
+  if ("invalid" in parsed) {
+    return { error: `拡張子として使えないものがあります：${parsed.invalid.slice(0, 10).join("、")}（英数字と - _ + で、16文字まで）` };
+  }
+  if (parsed.extensions.length > MAX_ALLOWED_EXTENSIONS) {
+    return { error: `拡張子は ${MAX_ALLOWED_EXTENSIONS} 個までです。` };
+  }
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { uploadAllowedExtensions: parsed.extensions } });
+  revalidatePath("/admin", "layout");
+  return { saved: true, extensions: parsed.extensions };
+}
+
+export type LinkPreviewSettingsState = { error?: string; saved?: boolean };
+
+// Whether the server fetches the pages of pasted URLs, from where, and
+// through which proxy.
+export async function saveLinkPreviewSettings(
+  _prev: LinkPreviewSettingsState,
+  formData: FormData,
+): Promise<LinkPreviewSettingsState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const before = await getLinkPreviewSettings();
+  const enabled = formData.get("enabled") === "on";
+  // The other fields are disabled (and so not sent) while previews are off:
+  // keep what was saved.
+  const allowPrivate = enabled ? formData.get("allowPrivate") === "on" : before.allowPrivate;
+
+  let proxyUrl = before.proxyUrl;
+  let proxyUsername = before.proxyUsername;
+  let proxyPassword: string | undefined;
+  if (enabled) {
+    const rawProxy = formData.get("proxyUrl");
+    const rawUser = formData.get("proxyUsername");
+    const rawPassword = formData.get("proxyPassword");
+    if (typeof rawProxy !== "string" || rawProxy.trim() === "") {
+      proxyUrl = null;
+      proxyUsername = null;
+    } else {
+      const parsed = parseProxyUrl(rawProxy);
+      if (!parsed) return { error: "プロキシは http://ホスト名:ポート の形式で入力してください。" };
+      if (parsed.username || parsed.password) {
+        return { error: "プロキシのユーザー名とパスワードは、URL に書かずに下の欄に入力してください。" };
+      }
+      proxyUrl = parsed.origin;
+      proxyUsername = typeof rawUser === "string" && rawUser.trim() !== "" ? rawUser.trim().slice(0, 200) : null;
+      if (typeof rawPassword === "string" && rawPassword !== "") proxyPassword = rawPassword.slice(0, 500);
+    }
+  }
+
+  await storeLinkPreviewSettings({ enabled, allowPrivate, proxyUrl, proxyUsername, proxyPassword });
+
+  const describe = (s: { enabled: boolean; allowPrivate: boolean; proxyUrl: string | null }) =>
+    s.enabled
+      ? `使う（${s.allowPrivate ? "社内のサイトも対象" : "公開サイトのみ"}、${s.proxyUrl ? `プロキシ ${s.proxyUrl}` : "プロキシなし"}）`
+      : "使わない";
+  const from = describe(before);
+  const to = describe({ enabled, allowPrivate, proxyUrl });
+  if (from !== to || proxyPassword !== undefined || proxyUsername !== before.proxyUsername) {
+    await recordAudit(actor, "link-preview.settings", `リンクのプレビューの設定を「${from}」から「${to}」に変更`, {
+      from: { enabled: before.enabled, allowPrivate: before.allowPrivate, proxyUrl: before.proxyUrl },
+      to: { enabled, allowPrivate, proxyUrl },
+    });
+  }
   revalidatePath("/admin", "layout");
   return { saved: true };
 }

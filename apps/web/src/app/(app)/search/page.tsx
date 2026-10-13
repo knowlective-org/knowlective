@@ -10,7 +10,7 @@ import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import searchStyles from "./search.module.css";
 
-export const metadata: Metadata = { title: "検索 | yosuga" };
+export const metadata: Metadata = { title: "検索 | YOSUGA" };
 
 const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" });
 

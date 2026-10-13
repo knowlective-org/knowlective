@@ -10,3 +10,7 @@ packages/shared/generated
 .git
 .claude
 **/.DS_Store
+# End-to-end tests: not part of the image (and e2e/.auth holds signed-in sessions).
+apps/web/e2e
+apps/web/playwright.config.ts
+packages/shared/scripts/e2e-seed.ts

@@ -1,13 +1,15 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { TOTP_DIGITS, TOTP_STEP_SECONDS } from "./otpauth";
 
 // RFC 6238 TOTP (SHA-1, 6 digits, 30s step) — the parameters every
 // authenticator app (Google Authenticator, 1Password, Authy, ...) supports.
 
-const STEP_SECONDS = 30;
-const DIGITS = 6;
+const STEP_SECONDS = TOTP_STEP_SECONDS;
+const DIGITS = TOTP_DIGITS;
 // Accept the previous and next step too, to tolerate clock drift.
 const WINDOW = 1;
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 export function generateTotpSecret(): Buffer {
   return randomBytes(20);
@@ -29,16 +31,13 @@ export function toBase32(buf: Uint8Array): string {
   return out;
 }
 
-export function otpauthUri(secret: Uint8Array, accountName: string, issuer = "yosuga"): string {
-  const label = encodeURIComponent(`${issuer}:${accountName}`);
-  const params = new URLSearchParams({
-    secret: toBase32(secret),
-    issuer,
-    algorithm: "SHA1",
-    digits: String(DIGITS),
-    period: String(STEP_SECONDS),
-  });
-  return `otpauth://totp/${label}?${params}`;
+// Default name for the authenticator entry of the master password, which has
+// no account to name it after (accounts default to their email address):
+// 6 random characters of Crockford's Base32. Only shown in the authenticator
+// app; never stored.
+export function randomAuthenticatorName(): string {
+  // 256 is a multiple of 32, so masking each byte stays uniform.
+  return Array.from(randomBytes(6), (byte) => CROCKFORD_ALPHABET[byte & 31]).join("");
 }
 
 function hotp(secret: Uint8Array, counter: number): string {

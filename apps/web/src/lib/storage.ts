@@ -60,10 +60,21 @@ export function normalizeKeyPrefix(raw: string): string {
   return p && !p.endsWith("/") ? `${p}/` : p;
 }
 
+let warnedAccessKey = false;
+
 function bundledConfig(): StorageConfig | null {
   const accessKeyId = process.env.SEAWEEDFS_ACCESS_KEY;
   const secretAccessKey = process.env.SEAWEEDFS_SECRET_KEY;
   if (!accessKeyId || !secretAccessKey) return null;
+  // The access key is part of the request signature's "<key>/<date>/…": with
+  // a "/" in it (e.g. a base64 value) the storage rejects every request.
+  if (!/^[A-Za-z0-9]+$/.test(accessKeyId) && !warnedAccessKey) {
+    warnedAccessKey = true;
+    console.error(
+      "[files] SEAWEEDFS_ACCESS_KEY must be letters and digits only; uploads will fail. " +
+        "Generate a new one with `pnpm gen:storage-key`, recreate the seaweedfs container and restart.",
+    );
+  }
   return {
     source: "bundled",
     endpoint: process.env.YOSUGA_BUNDLED_S3_ENDPOINT || "http://localhost:8333",
@@ -149,6 +160,13 @@ export async function saveStorageSettings(input: StorageSettingsInput): Promise<
 export async function getMaxUploadSizeMb(): Promise<number> {
   const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { maxUploadSizeMb: true } });
   return Math.min(config?.maxUploadSizeMb ?? DEFAULT_MAX_UPLOAD_SIZE_MB, MAX_FILE_SIZE_MB_LIMIT);
+}
+
+// Extensions of the files an editor may attach (lib/upload-types.ts). Empty =
+// any file.
+export async function getAllowedUploadExtensions(): Promise<string[]> {
+  const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { uploadAllowedExtensions: true } });
+  return config?.uploadAllowedExtensions ?? [];
 }
 
 // Back to the bundled SeaweedFS.

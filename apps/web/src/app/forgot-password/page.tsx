@@ -10,7 +10,7 @@ import { isMailConfigured } from "@/lib/mail";
 import styles from "@/styles/ui.module.css";
 import { ForgotPasswordForm } from "./forgot-password-form";
 
-export const metadata: Metadata = { title: "パスワードの再設定 | yosuga" };
+export const metadata: Metadata = { title: "パスワードの再設定 | YOSUGA" };
 
 // Asks for an email address and mails a reset link (lib/auth/password-reset.ts).
 export default async function ForgotPasswordPage() {

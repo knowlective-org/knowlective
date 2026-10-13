@@ -75,8 +75,8 @@ export function queryTokens(key: Buffer, query: string): { terms: string[]; toke
   return { terms, tokens: [...set].map((p) => token(key, p)) };
 }
 
-// Plain text of a page body (BlockNote's Yjs fragment): text runs in
-// document order, one line per block.
+// Plain text of a page body (BlockNote's Yjs fragment): text runs (and the
+// source of Mermaid diagrams) in document order, one line per block.
 export function documentText(doc: Y.Doc): string {
   const lines: string[] = [];
   let line = "";
@@ -84,6 +84,18 @@ export function documentText(doc: Y.Doc): string {
     if (node instanceof Y.XmlText) {
       for (const op of node.toDelta() as { insert: unknown }[]) if (typeof op.insert === "string") line += op.insert;
       return;
+    }
+    // A Mermaid 図 block keeps its source in a prop, not in text.
+    if (node instanceof Y.XmlElement && node.nodeName === "mermaid") {
+      const code = node.getAttribute("code") as unknown;
+      if (typeof code === "string") line += code.replace(/\s+/g, " ");
+    }
+    // A リンクのプレビュー block is found by its title, description and URL.
+    if (node instanceof Y.XmlElement && node.nodeName === "linkPreview") {
+      for (const key of ["title", "description", "url"]) {
+        const value = node.getAttribute(key) as unknown;
+        if (typeof value === "string" && value) line += `${value.replace(/\s+/g, " ")} `;
+      }
     }
     for (const child of node.toArray()) visit(child as Y.XmlElement | Y.XmlText);
     if (node instanceof Y.XmlElement && node.nodeName === "blockContainer" && line) {

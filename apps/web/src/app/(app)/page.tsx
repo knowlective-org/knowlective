@@ -29,7 +29,7 @@ export default async function Home() {
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={null} />}>
       <div style={{ padding: "0 54px" }} data-ui="EmptyHome">
-        <h1 className={styles.title}>yosuga へようこそ</h1>
+        <h1 className={styles.title}>YOSUGA へようこそ</h1>
         <p className={styles.lead}>
           {sidebar.canCreateRoot
             ? "見られるページはまだありません。左の「＋ 新しいナレッジルート」から作成できます。"

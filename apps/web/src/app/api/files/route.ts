@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { reindexPage } from "@/lib/search-index";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getMaxUploadSizeMb, getStorageConfig, putFile } from "@/lib/storage";
+import { getAllowedUploadExtensions, getMaxUploadSizeMb, getStorageConfig, putFile } from "@/lib/storage";
+import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 
 // POST /api/files?pageId=<id>  (multipart, field "file")
 // Upload from the editor (BlockNote's uploadFile). Returns { url }.
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
   const page = pageId ? await findAccessiblePage(user.id, pageId) : null;
   if (!page) return json(404, { error: "ページが見つかりません。" });
   if (!atLeast(page.access, "EDIT")) return json(403, { error: "閲覧のみの権限ではファイルを追加できません。" });
+  if (page.lock) return json(423, { error: "このページはロックされているため、ファイルを追加できません。" });
 
   const config = await getStorageConfig();
   if (!config) return json(503, { error: "ファイル保存が設定されていません。管理者に連絡してください。" });
@@ -61,6 +63,10 @@ export async function POST(req: NextRequest) {
   }
   if (!(file instanceof File)) return json(400, { error: "ファイルが送られていません。" });
   if (file.size > maxBytes) return json(413, tooLarge);
+  // The editor checks this too, but only this check counts.
+  if (!isUploadAllowed(file.name, await getAllowedUploadExtensions())) {
+    return json(415, { error: uploadRefusedMessage(file.name) });
+  }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
   // The row comes first: its id is the object key and the encryption AAD.

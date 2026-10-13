@@ -78,6 +78,16 @@ export async function planMove(
     }
   }
 
+  // A locked page stays where it is, also among its siblings. A page locked
+  // on its own doesn't stop its child pages being reordered or others being
+  // moved under it; a lock covering its child pages does.
+  if (source.locks.has(pageId)) {
+    return { error: "このページはロックされているため、移動できません。先にロックを解除してください。" };
+  }
+  if (dest.locks.get(parentId)?.coversChildren) {
+    return { error: "移動先は子ページも含めてロックされているため、そこには移動できません。" };
+  }
+
   const childrenOf = new Map<string, string[]>();
   for (const p of source.pages) {
     if (p.parentId) childrenOf.set(p.parentId, [...(childrenOf.get(p.parentId) ?? []), p.id]);
@@ -100,6 +110,9 @@ export async function planMove(
     }
     if (liveDescendantIds.some((id) => !atLeast(source.access.get(id) ?? null, "EDIT"))) {
       return { error: "編集の権限がない子ページが含まれているため、移動できません。" };
+    }
+    if (liveDescendantIds.some((id) => source.locks.has(id))) {
+      return { error: "ロックされている子ページが含まれているため、移動できません。" };
     }
     if (subtreeIds.includes(parentId)) {
       return { error: "ページを、そのページ自身やその下のページの中には移動できません。" };

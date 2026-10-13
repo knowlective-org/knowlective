@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { showAlert, showConfirm, showCopyText } from "@/components/dialog";
+import { showAlert, showChoice, showConfirm, showCopyText, showTypedConfirm } from "@/components/dialog";
+import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT } from "@/lib/page-export";
 import { displayTitle } from "@/lib/page-title";
 import { MoveDialog } from "./move-dialog";
-import { checkDeletePage, deletePage, loadPageInfo, type PageInfo } from "./page-actions";
+import { checkDeletePage, deletePage, loadPageInfo, lockPage, type PageInfo, unlockPage } from "./page-actions";
 import styles from "./page-view.module.css";
 
 const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" });
@@ -62,13 +63,17 @@ export function PageMenu({
   pageId,
   title,
   canEdit,
+  lock,
   canManage,
   isRootPage,
 }: {
   pageId: string;
   // Current (live) title, for the delete confirmation.
   title: string;
+  // EDIT access to the page.
   canEdit: boolean;
+  // Set while the page is locked; `own` if the lock is on this very page.
+  lock: { own: boolean } | null;
   canManage: boolean;
   isRootPage: boolean;
 }) {
@@ -76,6 +81,7 @@ export function PageMenu({
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [locking, setLocking] = useState(false);
   const [info, setInfo] = useState<PageInfo | null | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -148,7 +154,67 @@ export function PageMenu({
             <Link href={`/pages/${pageId}/history`} role="menuitem" className={styles.menuItem} data-ui="PageMenu.history">
               履歴表示
             </Link>
-            <PlannedItem label="ロック" />
+            {!canEdit ? (
+              <PlannedItem label={lock ? "ロック解除" : "ロック"} note="編集の権限が必要" />
+            ) : !lock ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                data-ui="PageMenu.lock"
+                disabled={locking}
+                onClick={async () => {
+                  setOpen(false);
+                  const scope = await showChoice(
+                    `「${displayTitle(title)}」をロックしますか？\nロック中は、解除するまで誰も編集できません（閲覧はできます）。ロックの解除は、編集の権限があれば誰でもできます。`,
+                    [
+                      { value: "subtree", label: "子ページもロック" },
+                      { value: "page", label: "このページだけロック" },
+                    ],
+                    { title: "ページのロック" },
+                  );
+                  if (!scope) return;
+                  setLocking(true);
+                  try {
+                    const result = await lockPage(pageId, scope === "subtree");
+                    if (result.error) await showAlert(result.error, { title: "ロックできません" });
+                    router.refresh();
+                  } finally {
+                    setLocking(false);
+                  }
+                }}
+              >
+                ロック
+              </button>
+            ) : lock.own ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                data-ui="PageMenu.unlock"
+                disabled={locking}
+                onClick={async () => {
+                  setOpen(false);
+                  const ok = await showTypedConfirm(
+                    `「${displayTitle(title)}」のロックを解除しますか？\n解除すると、編集の権限がある人は再び編集できるようになります。`,
+                    { title: "ロックの解除", confirmLabel: "ロックを解除" },
+                  );
+                  if (!ok) return;
+                  setLocking(true);
+                  try {
+                    const result = await unlockPage(pageId);
+                    if (result.error) await showAlert(result.error, { title: "解除できません" });
+                    router.refresh();
+                  } finally {
+                    setLocking(false);
+                  }
+                }}
+              >
+                ロック解除
+              </button>
+            ) : (
+              <PlannedItem label="ロック解除" note="上位のページで解除" />
+            )}
             {canManage ? (
               <Link
                 href={`/pages/${pageId}/share`}
@@ -161,8 +227,34 @@ export function PageMenu({
             ) : (
               <PlannedItem label="権限設定" note="管理の権限が必要" />
             )}
-            <PlannedItem label="エクスポート" />
-            {canEdit && !isRootPage ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              data-ui="PageMenu.exportMarkdown"
+              onClick={() => {
+                setOpen(false);
+                // The editor holds the content and writes the file.
+                window.dispatchEvent(new Event(EXPORT_MARKDOWN_EVENT));
+              }}
+            >
+              <span>Markdown で書き出す</span>
+              <span className={styles.menuNote}>.md</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              data-ui="PageMenu.exportPdf"
+              onClick={() => {
+                setOpen(false);
+                window.dispatchEvent(new Event(EXPORT_PDF_EVENT));
+              }}
+            >
+              <span>PDF で書き出す</span>
+              <span className={styles.menuNote}>.pdf</span>
+            </button>
+            {canEdit && !isRootPage && !lock ? (
               <button
                 type="button"
                 role="menuitem"
@@ -176,9 +268,9 @@ export function PageMenu({
                 移動
               </button>
             ) : (
-              <PlannedItem label="移動" note={isRootPage ? "ナレッジルートは移動不可" : "編集の権限が必要"} />
+              <PlannedItem label="移動" note={isRootPage ? "ナレッジルートは移動不可" : lock && canEdit ? "ロック中" : "編集の権限が必要"} />
             )}
-            {canEdit && !isRootPage ? (
+            {canEdit && !isRootPage && !lock ? (
               <button
                 type="button"
                 role="menuitem"
@@ -215,7 +307,7 @@ export function PageMenu({
                 <span className={styles.menuNote}>ごみ箱へ</span>
               </button>
             ) : (
-              <PlannedItem label="削除" danger note={isRootPage ? "ナレッジルートは削除不可" : "編集の権限が必要"} />
+              <PlannedItem label="削除" danger note={isRootPage ? "ナレッジルートは削除不可" : lock && canEdit ? "ロック中" : "編集の権限が必要"} />
             )}
           </div>
         </div>

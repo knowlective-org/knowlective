@@ -21,8 +21,13 @@ export type DocTreeNode = {
   title: string;
   icon: string | null;
   parentId: string | null;
-  // The user can edit this page, so may add child pages under it.
+  // The user has EDIT on this page.
   canEdit: boolean;
+  // The page is locked (read-only for everyone until unlocked).
+  locked: boolean;
+  // Child pages can be added under it: EDIT, and no lock covering its
+  // child pages.
+  canAddChild: boolean;
 };
 
 // The visible part of one knowledge root's page tree. It starts at the
@@ -251,7 +256,10 @@ export function DocTree({
               aria-expanded={isOpen}
               onClick={() => toggle(node.id)}
             >
-              {isOpen ? "▾" : "▸"}
+              {/* Drawn, not a "▸" character: those come out tiny and differ by font. Turned by CSS when open. */}
+              <svg className={styles.chevron} viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+                <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           ) : (
             <span className={styles.toggleSpacer} />
@@ -268,7 +276,12 @@ export function DocTree({
             {node.icon ? `${node.icon} ` : ""}
             {displayTitle(title)}
           </Link>
-          {node.canEdit && (
+          {node.locked && (
+            <span className={styles.lock} title="ロック中" aria-label="ロック中" data-ui="DocTree.lockStatus" data-id={node.id}>
+              🔒
+            </span>
+          )}
+          {node.canAddChild && (
             <button
               type="button"
               className={styles.add}

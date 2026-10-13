@@ -2,19 +2,20 @@
 
 import { useActionState } from "react";
 import styles from "@/styles/ui.module.css";
-import { type LoginState, loginWithAccount, loginWithMasterPassword } from "./actions";
+import { type LoginState, loginWithAccount, loginWithMasterPassword, verifyAccountCode } from "./actions";
 
 const initialState: LoginState = {};
 
-function CodeField({ required, hint }: { required: boolean; hint?: string }) {
+function CodeField({ required, autoFocus }: { required: boolean; autoFocus?: boolean }) {
   return (
     <label data-ui="CodeField">
-      認証コード（6桁）{hint}
+      認証コード（6桁）
       <input
         data-ui="CodeField.input"
         type="text"
         name="code"
         required={required}
+        autoFocus={autoFocus}
         inputMode="numeric"
         pattern="\d{6}"
         maxLength={6}
@@ -53,12 +54,27 @@ export function AccountLoginForm() {
           className={styles.field}
         />
       </label>
-      {/* Not required: an account that hasn't enrolled yet has no code. */}
-      <CodeField required={false} hint="※初回ログイン時は空欄" />
       <p aria-live="polite" className={styles.error} data-ui="AccountLoginForm.error">
         {state.error}
       </p>
       <button type="submit" disabled={pending} className={styles.button} data-ui="AccountLoginForm.submitButton">
+        {pending ? "確認しています…" : "次へ"}
+      </button>
+    </form>
+  );
+}
+
+// Second step of the account sign-in.
+export function VerifyCodeForm() {
+  const [state, formAction, pending] = useActionState(verifyAccountCode, initialState);
+
+  return (
+    <form action={formAction} className={styles.form} data-ui="VerifyCodeForm">
+      <CodeField required autoFocus />
+      <p aria-live="polite" className={styles.error} data-ui="VerifyCodeForm.error">
+        {state.error}
+      </p>
+      <button type="submit" disabled={pending} className={styles.button} data-ui="VerifyCodeForm.submitButton">
         {pending ? "確認しています…" : "ログイン"}
       </button>
     </form>

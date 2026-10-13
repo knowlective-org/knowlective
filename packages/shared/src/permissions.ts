@@ -61,6 +61,55 @@ export function computeTreeAccess(
 
 export const MAX_PAGE_DEPTH = 50;
 
+// Page locks (Page.lockedAt / lockSubtree). A locked page is read-only for
+// everyone — editors included — until someone with EDIT on the page holding
+// the lock unlocks it. A lock set "with child pages" applies to everything
+// under that page too, pages created or moved there later included.
+export type PageLockState = {
+  // The page whose lock applies: the outermost one, so unlocking it is what
+  // makes a difference first.
+  holderId: string;
+  // The lock is on this very page (it can be unlocked here).
+  own: boolean;
+  // The pages under this one are locked as well.
+  coversChildren: boolean;
+};
+
+type LockPage = TreePage & { lockedAt: Date | null; lockSubtree: boolean };
+
+// The lock applying to each locked page of one tree. Pages missing from the
+// result aren't locked.
+export function computeLocks(pages: LockPage[]): Map<string, PageLockState> {
+  const childrenOf = new Map<string | null, LockPage[]>();
+  for (const p of pages) childrenOf.set(p.parentId, [...(childrenOf.get(p.parentId) ?? []), p]);
+  const result = new Map<string, PageLockState>();
+  const seen = new Set<string>();
+  // `inherited`: the nearest-to-root ancestor whose lock covers this page.
+  const visit = (page: LockPage, inherited: string | null, depth: number) => {
+    if (depth > MAX_PAGE_DEPTH || seen.has(page.id)) return; // depth cap / cycle guard
+    seen.add(page.id);
+    const own = page.lockedAt !== null;
+    const passedDown = inherited ?? (own && page.lockSubtree ? page.id : null);
+    if (inherited !== null || own) {
+      result.set(page.id, {
+        holderId: inherited ?? page.id,
+        own: inherited === null,
+        coversChildren: passedDown !== null,
+      });
+    }
+    for (const child of childrenOf.get(page.id) ?? []) visit(child, passedDown, depth + 1);
+  };
+  for (const root of childrenOf.get(null) ?? []) visit(root, null, 0);
+  return result;
+}
+
+// EDIT access to a page that isn't locked: what changing the page needs.
+// (Things that aren't changes to the page's content — its grants, unlocking —
+// check the access alone.)
+export function canEditPage(page: { access: PageAccess; lock: PageLockState | null } | null): boolean {
+  return page !== null && atLeast(page.access, "EDIT") && page.lock === null;
+}
+
 // Built-in group every enabled user implicitly belongs to (no GroupMember rows).
 export const ALL_USERS_GROUP = "all_users";
 
@@ -85,7 +134,7 @@ export const PAGE_ORDER = [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "as
 async function loadTree(prisma: PrismaClient, rootId: string) {
   return prisma.page.findMany({
     where: { rootId, deletedAt: null },
-    select: { id: true, parentId: true, title: true, icon: true, createdAt: true },
+    select: { id: true, parentId: true, title: true, icon: true, createdAt: true, lockedAt: true, lockSubtree: true },
     orderBy: PAGE_ORDER,
   });
 }
@@ -98,12 +147,13 @@ async function loadGrants(prisma: PrismaClient, rootId: string, groupIds: Set<st
   });
 }
 
-// The user's access to one page, or null. Disabled users get null.
+// The user's access to one page (and the lock on it, if any), or null.
+// Disabled users get null.
 export async function getPageAccess(
   prisma: PrismaClient,
   userId: string,
   pageId: string,
-): Promise<{ access: PageAccess; rootId: string } | null> {
+): Promise<{ access: PageAccess; rootId: string; lock: PageLockState | null } | null> {
   const [page, user] = await Promise.all([
     prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, deletedAt: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { disabledAt: true } }),
@@ -114,7 +164,7 @@ export async function getPageAccess(
   const [tree, grants] = await Promise.all([loadTree(prisma, page.rootId), loadGrants(prisma, page.rootId, groupIds)]);
   if (grants.length === 0) return null;
   const access = computeTreeAccess(tree, grants, groupIds, MAX_PAGE_DEPTH).get(pageId);
-  return access ? { access, rootId: page.rootId } : null;
+  return access ? { access, rootId: page.rootId, lock: computeLocks(tree).get(pageId) ?? null } : null;
 }
 
 // Each group's effective access to `pageId`: its grant nearest the page,
@@ -188,11 +238,14 @@ export async function getTreeWithAccess(prisma: PrismaClient, userId: string, ro
       createdAt: true,
       deletedAt: true,
       deletedById: true,
+      lockedAt: true,
+      lockSubtree: true,
     },
     orderBy: PAGE_ORDER,
   });
   const grants = !user || user.disabledAt ? [] : await loadGrants(prisma, rootId, groupIds);
   const access = computeTreeAccess(pages, grants, groupIds, MAX_PAGE_DEPTH);
+  const locks = computeLocks(pages);
   // Live = not deleted and every ancestor live (what the app shows).
   const byId = new Map(pages.map((p) => [p.id, p]));
   const live = new Set<string>();
@@ -205,7 +258,7 @@ export async function getTreeWithAccess(prisma: PrismaClient, userId: string, ro
     return ok;
   };
   for (const p of pages) isLive(p.id);
-  return { pages, access, live };
+  return { pages, access, live, locks };
 }
 
 export type TrashItem = {
@@ -315,6 +368,8 @@ export type VisiblePage = {
   title: string;
   icon: string | null;
   access: PageAccess;
+  // The lock applying to the page, if it's locked.
+  lock: PageLockState | null;
 };
 
 export type VisibleTree = {
@@ -371,9 +426,17 @@ async function buildVisibleTree(
 ): Promise<VisibleTree | null> {
   const [tree, grants] = await Promise.all([loadTree(prisma, root.id), loadGrants(prisma, root.id, groupIds)]);
   const access = computeTreeAccess(tree, grants, groupIds, MAX_PAGE_DEPTH);
+  const locks = computeLocks(tree);
   const pages = tree
     .filter((p) => access.has(p.id))
-    .map((p) => ({ id: p.id, parentId: p.parentId, title: p.title, icon: p.icon, access: access.get(p.id)! }));
+    .map((p) => ({
+      id: p.id,
+      parentId: p.parentId,
+      title: p.title,
+      icon: p.icon,
+      access: access.get(p.id)!,
+      lock: locks.get(p.id) ?? null,
+    }));
   if (pages.length === 0) return null;
   const visible = new Set(pages.map((p) => p.id));
   return {

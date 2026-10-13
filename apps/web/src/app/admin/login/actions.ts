@@ -8,7 +8,9 @@ import {
   createAdminSession,
   decryptTotpSecret,
   encryptTotpSecret,
+  endAdminSession,
   getAdminConfig,
+  getAdminSession,
   getLockState,
   recordLoginAttempt,
 } from "@/lib/admin/auth";
@@ -46,12 +48,13 @@ async function failure(ctx: RequestContext, message: string, email?: string): Pr
   return { error: `${message}（あと${remaining}回でロックされます）。`, email };
 }
 
-// Normal sign-in: a SITE_ADMIN or CONTENT_MANAGER account, plus TOTP.
+// Normal sign-in: a SITE_ADMIN or CONTENT_MANAGER account, plus TOTP. First
+// step: the password. Then either the code (verifyAccountCode) or, for an
+// account without an authenticator yet, enrollment.
 export async function loginWithAccount(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const ctx = await getRequestContext();
   const rawEmail = formData.get("email");
   const password = formData.get("password");
-  const code = formData.get("code");
   if (typeof rawEmail !== "string" || typeof password !== "string" || !rawEmail || !password) {
     return { error: "メールアドレスとパスワードを入力してください。" };
   }
@@ -61,7 +64,7 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, passwordHash: true, totpSecret: true, totpLastStep: true },
+    select: { id: true, passwordHash: true, totpSecret: true },
   });
   // Same cost whether or not the account exists.
   const passwordOk = user
@@ -70,36 +73,74 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
   // Not saying "not an admin" separately: it would confirm the password.
   const allowed = passwordOk && user !== null && (await getAdminConsoleRole(user.id)) !== null;
 
-  let totpOk = false;
-  if (allowed && user.totpSecret) {
-    const secret = await decryptTotpSecret(user.totpSecret, user.id);
-    const step = typeof code === "string" ? verifyTotp(secret, code, user.totpLastStep) : null;
-    secret.fill(0);
-    if (step !== null) {
-      // Conditional update so two concurrent requests can't both use one code.
-      const { count } = await prisma.user.updateMany({
-        where: { id: user.id, OR: [{ totpLastStep: null }, { totpLastStep: { lt: step } }] },
-        data: { totpLastStep: step },
-      });
-      totpOk = count === 1;
-    }
+  if (!allowed) {
+    return failure(ctx, "メールアドレスまたはパスワードが正しくないか、管理者権限がありません", email);
   }
 
-  if (!allowed || (user.totpSecret && !totpOk)) {
-    return failure(ctx, "メールアドレス・パスワード・認証コードのいずれかが正しくないか、管理者権限がありません", email);
-  }
-
-  await recordLoginAttempt(ctx, true, undefined, email);
   if (user.totpSecret) {
-    await createAdminSession(ctx, "ACTIVE", { userId: user.id });
-    redirect("/admin");
+    // Second step: the authenticator code. Not recorded as a success yet —
+    // a success resets the failure count, which would give someone who knows
+    // the password unlimited guesses at the code.
+    await createAdminSession(ctx, "VERIFY_TOTP", { userId: user.id });
+    redirect("/admin/login/verify");
   }
   // First admin sign-in for this account: enroll an authenticator app.
+  await recordLoginAttempt(ctx, true, undefined, email);
   await createAdminSession(ctx, "ENROLL_TOTP", {
     userId: user.id,
     pendingTotp: await encryptTotpSecret(generateTotpSecret(), user.id),
   });
   redirect("/admin/enroll");
+}
+
+// Second step of the account sign-in: the code from the authenticator app.
+export async function verifyAccountCode(_prev: LoginState, formData: FormData): Promise<LoginState> {
+  const ctx = await getRequestContext();
+  const session = await getAdminSession();
+  if (!session || session.stage !== "VERIFY_TOTP" || !session.userId || !session.user) {
+    redirect("/admin/login");
+  }
+  const userId = session.userId;
+  const email = session.user.email;
+  const blocked = await precheck(ctx, email);
+  if (blocked) return blocked;
+
+  // Demoted, disabled, or the authenticator was reset since the password step.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { totpSecret: true, totpLastStep: true },
+  });
+  if (!user?.totpSecret || (await getAdminConsoleRole(userId)) === null) {
+    await endAdminSession();
+    redirect("/admin/login");
+  }
+
+  const code = formData.get("code");
+  const secret = await decryptTotpSecret(user.totpSecret, userId);
+  const step = typeof code === "string" ? verifyTotp(secret, code, user.totpLastStep) : null;
+  secret.fill(0);
+  let totpOk = false;
+  if (step !== null) {
+    // Conditional update so two concurrent requests can't both use one code.
+    const { count } = await prisma.user.updateMany({
+      where: { id: userId, OR: [{ totpLastStep: null }, { totpLastStep: { lt: step } }] },
+      data: { totpLastStep: step },
+    });
+    totpOk = count === 1;
+  }
+  if (!totpOk) return failure(ctx, "認証コードが正しくありません", email);
+
+  await recordLoginAttempt(ctx, true, undefined, email);
+  // Issue a fresh token for the fully authenticated session.
+  await endAdminSession();
+  await createAdminSession(ctx, "ACTIVE", { userId });
+  redirect("/admin");
+}
+
+// Leave the code step (e.g. to sign in with another account).
+export async function cancelAccountLogin(): Promise<void> {
+  await endAdminSession();
+  redirect("/admin/login");
 }
 
 // Bootstrap / recovery: the master password plus the instance's TOTP.

@@ -101,6 +101,9 @@ export function Sidebar({
         <span className={styles.user} title={userName}>
           {userName}
         </span>
+        <Link href="/account" className={styles.footerLink} data-ui="Sidebar.accountLink">
+          アカウント
+        </Link>
         <Link href="/trash" className={styles.footerLink} data-ui="Sidebar.trashLink">
           ごみ箱
         </Link>

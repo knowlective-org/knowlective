@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { normalizeConfirmCode, randomConfirmCode } from "@/lib/confirm-code";
 import ui from "@/styles/ui.module.css";
 import styles from "./dialog.module.css";
 
@@ -15,8 +16,18 @@ import styles from "./dialog.module.css";
 type Base = { id: number; title?: string; message: string };
 type Request =
   | (Base & { kind: "alert"; resolve: () => void })
-  | (Base & { kind: "confirm"; confirmLabel: string; danger: boolean; resolve: (ok: boolean) => void })
-  | (Base & { kind: "copy"; value: string; resolve: () => void });
+  | (Base & {
+      kind: "confirm";
+      confirmLabel: string;
+      danger: boolean;
+      // Shown for the person to type back before the action can be confirmed.
+      code?: string;
+      resolve: (ok: boolean) => void;
+    })
+  | (Base & { kind: "copy"; value: string; resolve: () => void })
+  | (Base & { kind: "choice"; choices: Choice[]; resolve: (value: string | null) => void });
+
+type Choice = { value: string; label: string };
 
 type NewRequest = Request extends infer R ? (R extends Request ? Omit<R, "id"> : never) : never;
 
@@ -55,10 +66,48 @@ export function showConfirm(
   );
 }
 
+// OK / cancel, where OK only works once a short code shown in the dialog has
+// been typed back: for actions that should never happen by a stray click.
+// The code is a confirmation, not a secret (lib/confirm-code.ts).
+export function showTypedConfirm(
+  message: string,
+  options: { title?: string; confirmLabel?: string } = {},
+): Promise<boolean> {
+  return new Promise((resolve) =>
+    enqueue({
+      kind: "confirm",
+      message,
+      title: options.title,
+      confirmLabel: options.confirmLabel ?? "OK",
+      danger: false,
+      code: randomConfirmCode(),
+      resolve,
+    }),
+  );
+}
+
 // A selected, read-only text to copy by hand (for when the clipboard API
 // isn't available, e.g. plain-http intranet installs).
 export function showCopyText(message: string, value: string, options: { title?: string } = {}): Promise<void> {
   return new Promise((resolve) => enqueue({ kind: "copy", message, value, title: options.title, resolve }));
+}
+
+// One of several ways to go on, or cancel (null). The last choice is the
+// suggested one: it's the filled button and gets the initial focus.
+export function showChoice<T extends string>(
+  message: string,
+  choices: { value: T; label: string }[],
+  options: { title?: string } = {},
+): Promise<T | null> {
+  return new Promise((resolve) =>
+    enqueue({
+      kind: "choice",
+      message,
+      title: options.title,
+      choices,
+      resolve: resolve as (value: string | null) => void,
+    }),
+  );
 }
 
 // For <form onSubmit>: asks first, and submits only if confirmed. The form
@@ -105,17 +154,22 @@ export function DialogHost() {
 function AppDialog({ request, onDone }: { request: Request; onDone: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const done = useRef(false);
+  // For a confirmation with a code: what has been typed so far.
+  const [typed, setTyped] = useState("");
+  const code = request.kind === "confirm" ? request.code : undefined;
+  const codeMatches = code === undefined || normalizeConfirmCode(typed) === code;
 
   useEffect(() => {
     const dialog = ref.current;
     if (dialog && !dialog.open) dialog.showModal();
   }, []);
 
-  const finish = (ok: boolean) => {
+  const finish = (ok: boolean, choice: string | null = null) => {
     if (done.current) return;
     done.current = true;
     ref.current?.close();
     if (request.kind === "confirm") request.resolve(ok);
+    else if (request.kind === "choice") request.resolve(choice);
     else request.resolve();
     onDone();
   };
@@ -160,6 +214,30 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
             onFocus={(e) => e.currentTarget.select()}
           />
         )}
+        {code !== undefined && (
+          <label className={styles.codeLabel}>
+            <span>
+              確認のため、次の文字を入力してください：
+              <strong className={styles.code} data-ui="AppDialog.code">
+                {code}
+              </strong>
+            </span>
+            <input
+              className={ui.code}
+              data-ui="AppDialog.codeInput"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing && codeMatches) finish(true);
+              }}
+              autoFocus
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              maxLength={code.length + 4}
+            />
+          </label>
+        )}
         <div className={styles.actions}>
           {request.kind === "confirm" ? (
             <>
@@ -176,11 +254,39 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
                 type="button"
                 className={request.danger ? ui.danger : ui.button}
                 data-ui="AppDialog.confirmButton"
-                autoFocus={!request.danger}
+                autoFocus={!request.danger && code === undefined}
+                disabled={!codeMatches}
                 onClick={() => finish(true)}
               >
                 {request.confirmLabel}
               </button>
+            </>
+          ) : request.kind === "choice" ? (
+            <>
+              <button
+                type="button"
+                className={ui.buttonSecondary}
+                data-ui="AppDialog.cancelButton"
+                onClick={() => finish(false)}
+              >
+                キャンセル
+              </button>
+              {request.choices.map((choice, i) => {
+                const suggested = i === request.choices.length - 1;
+                return (
+                  <button
+                    key={choice.value}
+                    type="button"
+                    className={suggested ? ui.button : ui.buttonSecondary}
+                    data-ui="AppDialog.choiceButton"
+                    data-id={choice.value}
+                    autoFocus={suggested}
+                    onClick={() => finish(true, choice.value)}
+                  >
+                    {choice.label}
+                  </button>
+                );
+              })}
             </>
           ) : (
             <button

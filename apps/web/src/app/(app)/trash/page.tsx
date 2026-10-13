@@ -9,7 +9,7 @@ import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { TrashList } from "./trash-list";
 
-export const metadata: Metadata = { title: "ごみ箱 | yosuga" };
+export const metadata: Metadata = { title: "ごみ箱 | YOSUGA" };
 
 // Pages the user deleted or could restore (EDIT on them), across all
 // knowledge roots.

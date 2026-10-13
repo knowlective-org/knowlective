@@ -8,7 +8,7 @@ import { atLeast } from "shared";
 import { loadSidebar } from "@/lib/sidebar-data";
 import { getPublicUrl } from "@/lib/site-url";
 import { displayTitle } from "@/lib/page-title";
-import { PageView } from "./page-view";
+import { type PageLockView, PageView } from "./page-view";
 
 // Shared by generateMetadata and the page within one request.
 const loadPage = cache(async (pageId: string) => {
@@ -19,7 +19,7 @@ const loadPage = cache(async (pageId: string) => {
 
 export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">): Promise<Metadata> {
   const { page } = await loadPage((await params).pageId);
-  return { title: page ? `${displayTitle(page.title)} | yosuga` : "yosuga" };
+  return { title: page ? `${displayTitle(page.title)} | YOSUGA` : "YOSUGA" };
 }
 
 export default async function PageEditorRoute({ params }: PageProps<"/pages/[pageId]">) {
@@ -36,13 +36,34 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
     }),
   ]);
 
+  // Who locked the page and when; the locking page's title only if it's this
+  // page or one the viewer can open.
+  let lock: PageLockView | null = null;
+  if (page.lock) {
+    const [holder, holderAccess] = await Promise.all([
+      prisma.page.findUnique({
+        where: { id: page.lock.holderId },
+        select: { id: true, title: true, lockedAt: true, lockSubtree: true, lockedBy: { select: { name: true, email: true } } },
+      }),
+      page.lock.own ? null : findAccessiblePage(user.id, page.lock.holderId),
+    ]);
+    lock = {
+      own: page.lock.own,
+      withChildren: holder?.lockSubtree ?? false,
+      lockedBy: holder?.lockedBy ? holder.lockedBy.name || holder.lockedBy.email : null,
+      lockedAt: holder?.lockedAt?.toISOString() ?? null,
+      holder: !page.lock.own && holder && holderAccess ? { id: holder.id, title: holder.title } : null,
+    };
+  }
+
   return (
     <PageView
       // Remount per page so the editor's collab connection is replaced cleanly.
       key={page.id}
       pageId={page.id}
       initialTitle={page.title}
-      readOnly={!atLeast(page.access, "EDIT")}
+      canEdit={atLeast(page.access, "EDIT")}
+      lock={lock}
       canManage={atLeast(page.access, "MANAGE")}
       isRootPage={page.isRootPage}
       shareUrl={`${publicUrl}/pages/${page.id}`}

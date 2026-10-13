@@ -14,7 +14,7 @@ import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { HistoryView } from "./history-view";
 
-export const metadata: Metadata = { title: "履歴 | yosuga" };
+export const metadata: Metadata = { title: "履歴 | YOSUGA" };
 
 // Saved versions of a page (newest first) with a read-only preview, and
 // "restore this version" for editors.

@@ -7,7 +7,7 @@ import { Redis } from "@hocuspocus/extension-redis";
 import crossws from "crossws/adapters/node";
 import * as Y from "yjs";
 import {
-  atLeast,
+  canEditPage,
   createPrismaClient,
   getPageAccess,
   decrypt,
@@ -168,8 +168,9 @@ export async function createCollab() {
       if (!result) {
         throw new Error("No access to this page");
       }
-      // VIEW: the server drops any update this connection sends.
-      if (!atLeast(result.access, "EDIT")) {
+      // VIEW, or a locked page: the server drops any update this connection
+      // sends.
+      if (!canEditPage(result)) {
         connectionConfig.readOnly = true;
       }
       return { userId: payload.u };

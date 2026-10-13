@@ -365,3 +365,14 @@
   outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
   outline-offset: -2px;
 }
+
+/* Not printed: the blocks' controls. */
+@media print {
+  .inlineSelect,
+  .toolButton,
+  .primaryButton,
+  .dangerButton,
+  .newRowButton {
+    display: none;
+  }
+}

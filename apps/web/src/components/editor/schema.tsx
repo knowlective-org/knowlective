@@ -9,6 +9,10 @@ import {
 import type { DefaultReactSuggestionItem } from "@blocknote/react";
 import { childPagesBlock } from "./child-pages-block";
 import { childTableBlock } from "./child-table-block";
+import { linkPreviewBlock } from "./link-preview-block";
+import { mermaidBlock } from "./mermaid-block";
+import { pdfBlock } from "./pdf-block";
+import { videoEmbedBlock } from "./video-embed-block";
 
 // The editor's block types: BlockNote's defaults plus yosuga's own. Block
 // types are saved in page documents, so a custom type must never be removed
@@ -26,6 +30,10 @@ export const editorSchema = BlockNoteSchema.create({
     heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
     childPages: childPagesBlock(),
     childTable: childTableBlock(),
+    mermaid: mermaidBlock(),
+    pdf: pdfBlock(),
+    linkPreview: linkPreviewBlock(),
+    videoEmbed: videoEmbedBlock(),
   },
 });
 
@@ -49,6 +57,14 @@ export function customSlashMenuItems(editor: YosugaEditor): DefaultReactSuggesti
       group,
       icon: <span aria-hidden>📊</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childTable" }),
+    },
+    {
+      title: "Mermaid 図",
+      subtext: "Mermaid の記法からフローチャートなどの図を描く",
+      aliases: ["mermaid", "diagram", "flowchart", "chart", "zu", "図", "フローチャート", "マーメイド"],
+      group: "図",
+      icon: <span aria-hidden>🧜</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "mermaid" }),
     },
   ];
 }

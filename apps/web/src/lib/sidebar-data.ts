@@ -18,6 +18,8 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
         icon: p.icon,
         parentId: p.parentId,
         canEdit: atLeast(p.access, "EDIT"),
+        locked: p.lock !== null,
+        canAddChild: atLeast(p.access, "EDIT") && !p.lock?.coversChildren,
       })),
     })),
     maxDepth: MAX_PAGE_DEPTH,

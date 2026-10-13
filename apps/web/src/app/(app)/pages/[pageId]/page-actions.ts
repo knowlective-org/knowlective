@@ -3,7 +3,9 @@
 import { atLeast, getGroupAccessForPage, getPageAccess, getTreeWithAccess } from "shared";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
-import { closeDocuments, notifyChildrenChanged } from "@/lib/collab-events";
+import { recordAudit, userLabel } from "@/lib/audit";
+import { closeDocuments, notifyChildrenChanged, reconnectDocuments } from "@/lib/collab-events";
+import { displayTitle } from "@/lib/page-title";
 
 export type PageInfo = {
   createdBy: string;
@@ -87,10 +89,14 @@ async function deletionTarget(
   if (typeof pageId !== "string") return { error: CANNOT_DELETE };
   const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, parentId: true } });
   if (!page) return { error: CANNOT_DELETE };
-  const { pages, access, live } = await getTreeWithAccess(prisma, userId, page.rootId);
+  const { pages, access, live, locks } = await getTreeWithAccess(prisma, userId, page.rootId);
   if (!live.has(pageId) || !atLeast(access.get(pageId) ?? null, "EDIT")) return { error: CANNOT_DELETE };
   if (!page.parentId) return { error: "ナレッジルートのページは削除できません。" };
   const descendants = liveDescendants(pages, live, pageId);
+  if (locks.has(pageId)) return { error: "このページはロックされているため、削除できません。先にロックを解除してください。" };
+  if (descendants.some((id) => locks.has(id))) {
+    return { error: "ロックされている子ページが含まれているため、削除できません。" };
+  }
   if (descendants.some((id) => !atLeast(access.get(id) ?? null, "EDIT"))) {
     return { error: "編集の権限がない子ページが含まれているため、削除できません。" };
   }
@@ -108,3 +114,65 @@ export async function deletePage(pageId: string): Promise<{ parentId: string } |
   return { parentId: target.parentId };
 }
 
+const CANNOT_LOCK = "このページはロックできません。";
+
+// Locks the page: read-only for everyone, editors included, until unlocked.
+// `withChildren` extends the lock to everything under it, now and later.
+// Needs EDIT on the page — and, with child pages, on all of them, so a lock
+// can't freeze pages the caller couldn't edit anyway.
+export async function lockPage(pageId: string, withChildren: boolean): Promise<{ error?: string }> {
+  const user = await requireUser();
+  if (typeof pageId !== "string" || typeof withChildren !== "boolean") return { error: CANNOT_LOCK };
+  const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, title: true } });
+  if (!page) return { error: CANNOT_LOCK };
+  const { pages, access, live, locks } = await getTreeWithAccess(prisma, user.id, page.rootId);
+  if (!live.has(pageId) || !atLeast(access.get(pageId) ?? null, "EDIT")) return { error: CANNOT_LOCK };
+  if (locks.has(pageId)) return { error: "このページはすでにロックされています。" };
+  const descendants = liveDescendants(pages, live, pageId);
+  if (withChildren && descendants.some((id) => !atLeast(access.get(id) ?? null, "EDIT"))) {
+    return { error: "編集の権限がない子ページが含まれているため、子ページも含めたロックはできません。" };
+  }
+  // Written with SQL: a lock isn't an edit, so 更新日時 must not change.
+  await prisma.$executeRaw`
+    UPDATE "Page" SET "lockedAt" = now(), "lockedById" = ${user.id}, "lockSubtree" = ${withChildren}
+    WHERE "id" = ${pageId} AND "lockedAt" IS NULL`;
+  await recordAudit(
+    { userId: user.id, label: userLabel(user) },
+    "page.lock",
+    `ページ「${displayTitle(page.title)}」をロック${withChildren ? "（子ページも含む）" : ""}`,
+    { pageId, withChildren },
+  );
+  // Open editors reconnect and come back read-only.
+  reconnectDocuments(withChildren ? [pageId, ...descendants] : [pageId]);
+  return {};
+}
+
+// Unlocks the page. Needs EDIT on it; anyone with EDIT may, not only the
+// person who locked it. Only works on the page that holds the lock: a page
+// locked through a page above it is unlocked there.
+export async function unlockPage(pageId: string): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const CANNOT_UNLOCK = "このページのロックは解除できません。";
+  if (typeof pageId !== "string") return { error: CANNOT_UNLOCK };
+  const page = await prisma.page.findUnique({
+    where: { id: pageId },
+    select: { rootId: true, title: true, lockedAt: true, lockSubtree: true },
+  });
+  if (!page) return { error: CANNOT_UNLOCK };
+  const { pages, access, live, locks } = await getTreeWithAccess(prisma, user.id, page.rootId);
+  if (!live.has(pageId) || !atLeast(access.get(pageId) ?? null, "EDIT")) return { error: CANNOT_UNLOCK };
+  if (!locks.has(pageId)) return { error: "このページはロックされていません。" };
+  if (!page.lockedAt) {
+    return { error: "上位のページのロックが効いています。ロックしているページで解除してください。" };
+  }
+  await prisma.$executeRaw`
+    UPDATE "Page" SET "lockedAt" = NULL, "lockedById" = NULL, "lockSubtree" = false WHERE "id" = ${pageId}`;
+  await recordAudit(
+    { userId: user.id, label: userLabel(user) },
+    "page.unlock",
+    `ページ「${displayTitle(page.title)}」のロックを解除`,
+    { pageId, withChildren: page.lockSubtree },
+  );
+  reconnectDocuments(page.lockSubtree ? [pageId, ...liveDescendants(pages, live, pageId)] : [pageId]);
+  return {};
+}

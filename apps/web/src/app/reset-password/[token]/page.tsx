@@ -9,7 +9,7 @@ import styles from "@/styles/ui.module.css";
 import { ResetPasswordForm } from "./reset-password-form";
 
 export const metadata: Metadata = {
-  title: "パスワードの再設定 | yosuga",
+  title: "パスワードの再設定 | YOSUGA",
   robots: { index: false, follow: false },
 };
 

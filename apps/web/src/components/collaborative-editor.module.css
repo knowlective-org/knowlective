@@ -54,3 +54,53 @@
     padding: 0 16px;
   }
 }
+
+/* The title as printed (TitleField): the textarea's height is fitted to the
+   screen's width, so on paper a plain block takes its place. */
+.printTitle {
+  display: none;
+}
+
+@media print {
+  .title:is(textarea) {
+    display: none;
+  }
+
+  .printTitle {
+    display: block;
+    margin: 0 0 16px;
+    font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Open Sans",
+      "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+      "Helvetica Neue", sans-serif;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .title:is(div),
+  .loading {
+    padding: 0;
+  }
+}
+
+/* "PDF を作成しています…" while an export runs. */
+.exportStatus {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1000;
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+@media print {
+  .exportStatus {
+    display: none;
+  }
+}

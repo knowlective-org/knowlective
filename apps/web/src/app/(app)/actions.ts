@@ -9,6 +9,7 @@ import { normalizeTitle } from "@/lib/page-title";
 import { nextSortOrder } from "@/lib/page-move";
 import { reindexPage } from "@/lib/search-index";
 import { endUserSession, requireUser } from "@/lib/auth/session";
+import { getAllowedUploadExtensions } from "@/lib/storage";
 
 export async function logout(): Promise<void> {
   await endUserSession();
@@ -25,6 +26,14 @@ export async function getCollabToken(pageId: string): Promise<string> {
   return createCollabToken(user.id, pageId);
 }
 
+// Extensions of the files that may be added to a page (empty = any), so the
+// editor can refuse a file before asking what to do with it. The upload route
+// checks again.
+export async function getUploadExtensions(): Promise<string[]> {
+  await requireUser();
+  return getAllowedUploadExtensions();
+}
+
 // Creates a child page under `parentId`. Needs EDIT on the parent; the child
 // inherits the parent's grants, so no grant is added.
 async function insertChildPage(
@@ -36,6 +45,11 @@ async function insertChildPage(
   // Same message for missing and forbidden, so page ids can't be probed.
   if (typeof parentId !== "string" || !parentAccess || !atLeast(parentAccess.access, "EDIT")) {
     return { error: "このページの下にはページを作成できません。" };
+  }
+  // A lock on the parent alone doesn't stop pages being added under it; one
+  // that covers its child pages does (the new page would be born locked).
+  if (parentAccess.lock?.coversChildren) {
+    return { error: "子ページも含めてロックされているため、この下にはページを作成できません。" };
   }
 
   // Depth of the parent (root page = 0), walked in memory over the root's
