@@ -26,7 +26,7 @@ test.describe("ページ", () => {
     await trashOpenPage(page);
     await expect(page.locator(`[data-ui="DocTree.link"][data-id="${id}"]`)).toHaveCount(0);
 
-    await page.goto("/trash");
+    await page.goto("trash");
     await expect(page.getByText(title)).toBeVisible();
   });
 

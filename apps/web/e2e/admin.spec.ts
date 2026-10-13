@@ -3,7 +3,7 @@ import { ACCOUNTS, PASSWORD, adminTotpCode, authFile } from "./accounts";
 
 test.describe("管理画面", () => {
   test("サイト管理者は、パスワードと認証コードの2段階でログインできる", async ({ page }) => {
-    await page.goto("/admin");
+    await page.goto("admin");
     await expect(page).toHaveURL(/\/admin\/login/);
     await expect(page.getByTestId("AdminLoginPage.appLink")).toBeVisible();
 
@@ -14,7 +14,7 @@ test.describe("管理画面", () => {
     await expect(page).toHaveURL(/\/admin\/login\/verify/);
     await page.getByTestId("CodeField.input").fill(adminTotpCode());
     await page.getByTestId("VerifyCodeForm.submitButton").click();
-    await page.waitForURL((url) => url.pathname === "/admin");
+    await page.waitForURL((url) => url.pathname.endsWith("/admin"));
 
     // Users: the test accounts are listed.
     await page.getByTestId("AdminSidebar.navLink").filter({ hasText: "ユーザー" }).click();
@@ -61,7 +61,7 @@ test.describe("管理画面", () => {
     test.use({ storageState: authFile("editor") });
 
     test("管理者でないアカウントは、パスワードが正しくても入れない", async ({ page }) => {
-      await page.goto("/admin/login");
+      await page.goto("admin/login");
       await page.getByTestId("AccountLoginForm.emailInput").fill(ACCOUNTS.editor.email);
       await page.getByTestId("AccountLoginForm.passwordInput").fill(PASSWORD);
       await page.getByTestId("AccountLoginForm.submitButton").click();

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { BASE_PATH } from "@/lib/base-path";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { User } from "shared";
@@ -11,6 +12,8 @@ import type { RequestContext } from "@/lib/request";
 // itself — layouts don't run for Server Actions.
 
 const COOKIE_NAME = "yosuga_session";
+// Only sent to this app: under its base path if it shares the host with others.
+const COOKIE_PATH = BASE_PATH || "/";
 
 const IDLE_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 const ABSOLUTE_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000;
@@ -85,7 +88,7 @@ export async function createUserSession(ctx: RequestContext, userId: string): Pr
     // Lax (not Strict) so following a link to yosuga from elsewhere still
     // arrives logged in. Server Actions have their own Origin check.
     sameSite: "lax",
-    path: "/",
+    path: COOKIE_PATH,
     expires: expiresAt,
   });
 }
@@ -136,5 +139,5 @@ export async function endUserSession(): Promise<void> {
   if (token) {
     await prisma.userSession.deleteMany({ where: { tokenHash: hashToken(token) } });
   }
-  store.delete(COOKIE_NAME);
+  store.delete({ name: COOKIE_NAME, path: COOKIE_PATH });
 }

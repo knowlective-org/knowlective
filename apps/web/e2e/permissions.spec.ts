@@ -19,9 +19,9 @@ test.describe("権限", () => {
     test.use({ storageState: authFile("outsider") });
 
     test("ページを開くと 404 になり、サイドバーにも出ない", async ({ page }) => {
-      const response = await page.goto(`/pages/${HOME_PAGE_ID}`);
+      const response = await page.goto(`pages/${HOME_PAGE_ID}`);
       expect(response?.status()).toBe(404);
-      await page.goto("/");
+      await page.goto("./");
       await expect(page.locator(`[data-ui="DocTree.link"][data-id="${HOME_PAGE_ID}"]`)).toHaveCount(0);
     });
   });

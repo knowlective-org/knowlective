@@ -15,6 +15,7 @@ import "@blocknote/mantine/style.css";
 import { getCollabToken, getUploadExtensions } from "@/app/(app)/actions";
 import { getLinkPreviewEnabled, loadLinkPreview } from "@/app/(app)/link-preview-actions";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
+import { BASE_PATH, resolveAppUrl, withBasePath } from "@/lib/base-path";
 import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED } from "@/lib/collab-events";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/page-export";
 import { beginSaving } from "@/lib/saving-status";
@@ -46,7 +47,7 @@ const CURSOR_COLORS = ["#5b8def", "#e5484d", "#30a46c", "#f76b15", "#8e4ec6", "#
 // app (server/collab.ts, COLLAB_PATH), so no separate URL needs configuring.
 function collabUrl(): string {
   const { protocol, host } = window.location;
-  return `${protocol === "https:" ? "wss" : "ws"}://${host}/collab`;
+  return `${protocol === "https:" ? "wss" : "ws"}://${host}${withBasePath("/collab")}`;
 }
 
 // Stable per-user cursor color.
@@ -186,7 +187,7 @@ class UploadError extends Error {}
 async function postFile(pageId: string, file: File): Promise<string> {
   const body = new FormData();
   body.append("file", file);
-  const res = await fetch(`/api/files?pageId=${encodeURIComponent(pageId)}`, { method: "POST", body });
+  const res = await fetch(withBasePath(`/api/files?pageId=${encodeURIComponent(pageId)}`), { method: "POST", body });
   const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
   if (!res.ok || !data?.url) throw new UploadError(data?.error ?? "ファイルのアップロードに失敗しました。");
   return data.url;
@@ -485,6 +486,8 @@ function EditorBody({
       },
       // Guests can't add files; without uploadFile BlockNote ignores drops.
       // For Markdown, text and Word files, expandOrUpload asks whether to attach or expand.
+      // Files are stored as "/api/files/<id>", without the base path.
+      resolveFileUrl: async (url: string) => resolveAppUrl(url),
       uploadFile: readOnly
         ? undefined
         : (file: File, blockId?: string) =>
@@ -625,7 +628,8 @@ function EditorBody({
         const childPages = hasChildPageBlocks(blocks) ? await loadChildPages(pageId) : null;
         const title = displayTitle(provider.document.getText(TITLE_FIELD).toString());
         const prepared = prepareBlocksForExport(blocks, {
-          origin: window.location.origin,
+          // Links in the export are full URLs, base path included.
+          origin: window.location.origin + BASE_PATH,
           pageId,
           childPages,
           mermaid: format === "pdf" ? "keep" : "code",

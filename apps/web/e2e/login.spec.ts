@@ -16,7 +16,7 @@ test.describe("ログイン", () => {
   });
 
   test("ログインしていないと、ページは開けずログイン画面になる", async ({ page }) => {
-    await page.goto("/pages/e2e-home");
+    await page.goto("pages/e2e-home");
     await expect(page).toHaveURL(/\/login/);
   });
 });

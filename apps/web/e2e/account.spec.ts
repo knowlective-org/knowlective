@@ -13,7 +13,7 @@ test.describe("アカウント", () => {
   });
 
   test("パスワードの再設定は、メール送信の設定に応じて出し分けられる", async ({ page }) => {
-    await page.goto("/account");
+    await page.goto("account");
     const section = page.getByTestId("AccountPage.passwordSection");
     await expect(section).toBeVisible();
     // The development database may or may not have mail set up: one of the
@@ -34,7 +34,7 @@ test.describe("アカウント", () => {
     // told otherwise.
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();
-    await page.goto("/account");
+    await page.goto("account");
     await expect(page).toHaveURL(/\/login\?next=%2Faccount/);
     await context.close();
   });

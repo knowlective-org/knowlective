@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { withBasePath } from "@/lib/base-path";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/(app)/actions";
 import { DocTree, type DocTreeNode } from "./doc-tree";
@@ -47,7 +48,7 @@ export function Sidebar({
     <div className={styles.sidebar}>
       <div className={styles.brand}>YOSUGA</div>
       {/* A plain GET form, so it works before hydration too. */}
-      <form action="/search" role="search" className={styles.search} data-ui="Sidebar.searchForm">
+      <form action={withBasePath("/search")} role="search" className={styles.search} data-ui="Sidebar.searchForm">
         <input
           type="search"
           name="q"

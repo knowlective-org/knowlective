@@ -1,3 +1,4 @@
+import { withBasePath } from "@/lib/base-path";
 import type { ExportBlock } from "./markdown-export";
 import { loadMermaid } from "./mermaid-block";
 import { buildPdf } from "./pdf-build";
@@ -6,7 +7,7 @@ import { buildPdf } from "./pdf-build";
 // how images are loaded and how Mermaid diagrams are drawn. Imported only
 // when someone exports (it pulls in the exporter), never with the editor.
 
-const asset = (name: string) => `/api/export-assets/${name}`;
+const asset = (name: string) => withBasePath(`/api/export-assets/${name}`);
 
 // Formats the Typst compiler reads as they are.
 const TYPST_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/svg+xml"];

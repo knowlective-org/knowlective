@@ -33,6 +33,8 @@ services:
       SEAWEEDFS_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY}
       YOSUGA_BUNDLED_S3_ENDPOINT: http://seaweedfs:8333
       YOSUGA_TRUSTED_PROXY_HOPS: ${YOSUGA_TRUSTED_PROXY_HOPS:-1}
+      # Sub-path the app is served under, e.g. /yosuga ("" = the root).
+      YOSUGA_BASE_PATH: ${YOSUGA_BASE_PATH:-}
       YOSUGA_SOURCE_URL: ${YOSUGA_SOURCE_URL:-}
       TZ: ${TZ:-Asia/Tokyo}
     ports:

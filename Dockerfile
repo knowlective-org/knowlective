@@ -24,9 +24,13 @@ COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile
 COPY . .
+# Built with a placeholder for the base path (YOSUGA_BASE_PATH): the real one
+# is set when the container starts (docker/apply-base-path.mjs). The check
+# fails the build if some form of the placeholder couldn't be replaced.
 RUN pnpm db:generate \
-  && pnpm --filter web build \
-  && rm -rf apps/web/.next/cache
+  && YOSUGA_BASE_PATH=/__YOSUGA_BASE_PATH__ pnpm --filter web build \
+  && rm -rf apps/web/.next/cache \
+  && node docker/apply-base-path.mjs apps/web/.next /tmp/base-path-check --check
 
 # ---- Runtime: production dependencies only ----------------------------------
 FROM base AS runtime
@@ -50,12 +54,16 @@ COPY apps/web/server apps/web/server
 COPY apps/web/src apps/web/src
 COPY apps/web/public apps/web/public
 COPY apps/web/next.config.ts apps/web/tsconfig.json apps/web/
-# Owned by the app user: Next.js writes its cache under .next at runtime.
-COPY --from=build --chown=node:node /app/apps/web/.next apps/web/.next
+# The build output is a template: at start, docker/apply-base-path.mjs copies
+# it to .next with the base path set. .next is owned by the app user (the
+# copy, and Next.js's cache at runtime, are written there).
+COPY --from=build /app/apps/web/.next apps/web/.next-template
+COPY docker/apply-base-path.mjs docker/apply-base-path.mjs
+RUN mkdir apps/web/.next && chown node:node apps/web/.next
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+(process.env.YOSUGA_BASE_PATH||'').replace(/\/+$/,'')+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 ENTRYPOINT ["docker-entrypoint.sh"]

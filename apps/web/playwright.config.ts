@@ -6,8 +6,14 @@ import { defineConfig, devices } from "@playwright/test";
 //   pnpm e2e            (from the repository root: seeds, then runs)
 //
 // A server that is already running is used as it is; otherwise `pnpm dev` is
-// started for the run. Set E2E_BASE_URL to test another address.
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+// started for the run. Set E2E_BASE_URL to test another address (the origin,
+// e.g. http://localhost:3100).
+// E2E_BASE_PATH: the sub-path the server under test is served from (its
+// YOSUGA_BASE_PATH), e.g. "/yosuga". The tests address pages relative to the
+// base URL ("login", not "/login"), so they run the same either way.
+const origin = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+const basePath = (process.env.E2E_BASE_PATH ?? "").replace(/\/+$/, "");
+const baseURL = `${origin}${basePath}/`;
 
 export default defineConfig({
   testDir: "e2e",
@@ -36,7 +42,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm dev",
-    url: `${baseURL}/api/health`,
+    url: `${baseURL}api/health`,
     reuseExistingServer: true,
     timeout: 180_000,
   },

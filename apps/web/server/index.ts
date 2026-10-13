@@ -2,10 +2,11 @@
 import { appDir, dev } from "./env";
 import { createServer, type IncomingMessage } from "node:http";
 import next from "next";
+import { BASE_PATH } from "../src/lib/base-path";
 import { COLLAB_PATH, createCollab } from "./collab";
 
 // One process, one port: the Next.js app (pages, Server Actions) and the
-// collaboration WebSocket at /collab. Runs via tsx because packages/shared is
+// collaboration WebSocket at /collab (both under YOSUGA_BASE_PATH, if set). Runs via tsx because packages/shared is
 // consumed as TypeScript source.
 //   pnpm dev    → tsx watch server/index.ts
 //   pnpm start  → tsx server/index.ts --prod   (after `pnpm build`)
@@ -34,7 +35,7 @@ async function main() {
   httpServer.on("upgrade", (req, socket, head) => {
     const pathname = pathnameOf(req);
     if (pathname !== COLLAB_PATH) {
-      if (!pathname.startsWith("/_next/")) socket.destroy();
+      if (!pathname.startsWith(`${BASE_PATH}/_next/`)) socket.destroy();
       return;
     }
     collab.handleUpgrade(req, socket, head).catch((err) => {
@@ -44,7 +45,7 @@ async function main() {
   });
 
   httpServer.listen(port, () => {
-    console.log(`> yosuga ready on http://localhost:${port} (${dev ? "development" : "production"})`);
+    console.log(`> yosuga ready on http://localhost:${port}${BASE_PATH} (${dev ? "development" : "production"})`);
     console.log(`> collaboration WebSocket at ws://localhost:${port}${COLLAB_PATH}`);
   });
 

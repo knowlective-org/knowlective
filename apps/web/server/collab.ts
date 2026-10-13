@@ -16,6 +16,7 @@ import {
   loadDataKey,
   verifyCollabToken,
 } from "shared";
+import { BASE_PATH } from "../src/lib/base-path";
 import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
 import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
@@ -26,7 +27,7 @@ import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 // HTTP upgrade here; everything else (including Next's dev HMR socket) goes
 // to Next.js.
 
-export const COLLAB_PATH = "/collab";
+export const COLLAB_PATH = `${BASE_PATH}/collab`;
 
 type ClientConnection = ReturnType<Hocuspocus["handleConnection"]>;
 

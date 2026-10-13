@@ -2,7 +2,7 @@ import { type Locator, type Page, expect } from "@playwright/test";
 import { HOME_PAGE_ID, PASSWORD } from "./accounts";
 
 export async function signIn(page: Page, email: string, password = PASSWORD) {
-  await page.goto("/login");
+  await page.goto("login");
   await page.getByTestId("LoginForm.emailInput").fill(email);
   await page.getByTestId("LoginForm.passwordInput").fill(password);
   await page.getByTestId("LoginForm.submitButton").click();
@@ -14,7 +14,7 @@ export function editorBody(page: Page): Locator {
 }
 
 export async function openPage(page: Page, pageId: string) {
-  await page.goto(`/pages/${pageId}`);
+  await page.goto(`pages/${pageId}`);
   await expect(editorBody(page)).toBeVisible();
 }
 

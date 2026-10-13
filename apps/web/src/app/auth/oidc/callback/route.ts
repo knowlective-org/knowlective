@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { withBasePath } from "@/lib/base-path";
 import type { NextRequest } from "next/server";
 import { OIDC_START_PATH, OIDC_STATE_COOKIE, OidcLoginError, finishLogin } from "@/lib/auth/oidc";
 import { createUserSession } from "@/lib/auth/session";
@@ -7,13 +8,16 @@ import { getRequestContext } from "@/lib/request";
 // GET /auth/oidc/callback — where the IdP sends the browser back. Register
 // `<public URL>/auth/oidc/callback` as the redirect URI at the IdP.
 // Relative Location: behind the reverse proxy, request.url's host may be internal.
-const redirect = (location: string) => new Response(null, { status: 303, headers: { Location: location } });
+// `location` is a path inside the app; a Route Handler's own Location header
+// doesn't get the base path added.
+const redirect = (location: string) =>
+  new Response(null, { status: 303, headers: { Location: withBasePath(location) } });
 
 export async function GET(request: NextRequest) {
   const jar = await cookies();
   const stateCookie = jar.get(OIDC_STATE_COOKIE)?.value;
   // Single use, whatever happens next.
-  jar.delete({ name: OIDC_STATE_COOKIE, path: OIDC_START_PATH.replace("/start", "") });
+  jar.delete({ name: OIDC_STATE_COOKIE, path: withBasePath(OIDC_START_PATH.replace("/start", "")) });
 
   try {
     const { userId, next } = await finishLogin(request.nextUrl.search, stateCookie);

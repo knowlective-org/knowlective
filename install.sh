@@ -277,6 +277,22 @@ while :; do
   [[ "$YOSUGA_TRUSTED_PROXY_HOPS" =~ ^[1-9][0-9]*$ ]] && break
   info "1 以上の数字を入力してください。"
 done
+# サブパス（空でよい）。前回の値があれば初期値にし、消すときは - を入力する。
+default_base=$(existing YOSUGA_BASE_PATH)
+info "リバースプロキシで https://example.com/yosuga/ のようにサブパスで公開する場合は、そのパス（例: /yosuga）を入力してください。"
+info "ルート（https://yosuga.example.com/）で公開する場合は、空のまま Enter を押します。"
+while :; do
+  if [ -n "$default_base" ]; then
+    ask YOSUGA_BASE_PATH "サブパス（なしにするには - を入力）" "$default_base"
+    [ "$YOSUGA_BASE_PATH" = "-" ] && YOSUGA_BASE_PATH=""
+  else
+    ask YOSUGA_BASE_PATH "サブパス（なければ空のまま）"
+  fi
+  YOSUGA_BASE_PATH=${YOSUGA_BASE_PATH%/}
+  [ -z "$YOSUGA_BASE_PATH" ] && break
+  [[ "$YOSUGA_BASE_PATH" =~ ^(/[A-Za-z0-9._~-]+)+$ ]] && break
+  info "/ で始まる英数字のパスを入力してください（例: /yosuga、/tools/yosuga）。"
+done
 
 section "その他"
 default_tz=$(existing TZ); default_tz=${default_tz:-Asia/Tokyo}
@@ -305,6 +321,7 @@ info "サーバー鍵        : $(mask "$YOSUGA_SERVER_KEY")"
 info "ファイル保存      : 同梱の SeaweedFS（認証情報は自動作成。外部の S3 は管理画面で設定）"
 info "ポート            : 127.0.0.1:${YOSUGA_PORT}"
 info "プロキシの段数    : ${YOSUGA_TRUSTED_PROXY_HOPS}"
+info "サブパス          : ${YOSUGA_BASE_PATH:-（なし。ルートで公開）}"
 info "タイムゾーン      : ${TZ_VALUE}"
 info "ソースコードの URL: ${YOSUGA_SOURCE_URL:-（公式のリポジトリ）}"
 echo
@@ -339,6 +356,9 @@ fi
     echo
     echo "YOSUGA_PORT='$YOSUGA_PORT'"
     echo "YOSUGA_TRUSTED_PROXY_HOPS='$YOSUGA_TRUSTED_PROXY_HOPS'"
+    if [ -n "$YOSUGA_BASE_PATH" ]; then
+      echo "YOSUGA_BASE_PATH='$YOSUGA_BASE_PATH'"
+    fi
     echo "TZ='$TZ_VALUE'"
     if [ -n "$YOSUGA_SOURCE_URL" ]; then
       echo "YOSUGA_SOURCE_URL='$YOSUGA_SOURCE_URL'"

@@ -271,6 +271,17 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 - プロキシは `X-Forwarded-For` に接続元を**追記**し、`X-Forwarded-Proto` を渡すこと（nginx なら `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` と `proxy_set_header X-Forwarded-Proto $scheme;`）。`X-Forwarded-Proto: https` が届かないと、管理画面の Cookie に Secure が付かない。
 - プロキシが2段以上（例: CDN → nginx）なら、`YOSUGA_TRUSTED_PROXY_HOPS` にその段数を設定する。
 
+### サブパスでの公開（`YOSUGA_BASE_PATH`）
+
+`https://example.com/yosuga/` のように、ホストのルートではなくサブパスで公開する場合は、環境変数 `YOSUGA_BASE_PATH` にそのパス（例: `/yosuga`）を設定する。既定は空（ルートで公開）。
+
+- ページ・管理画面（`/yosuga/admin`）・API・共同編集の WebSocket（`/yosuga/collab`）のすべてが、このパスの下になる。稼働確認も `/yosuga/api/health`。
+- **リバースプロキシは、パスを削らずにそのままアプリへ渡すこと**（`/yosuga/login` を `/yosuga/login` のまま転送する）。nginx なら `location /yosuga/ { proxy_pass http://127.0.0.1:3000; }`（`proxy_pass` の末尾に `/` を付けない）。WebSocket の Upgrade もこの location で通す。
+- 管理画面の「公開 URL」には、サブパスを含めずにオリジンだけ（`https://example.com`）を入力する。招待メールなどのリンクには、サブパスが自動で付く。管理画面の「概要」で今の値を確認できる。
+- 値は起動時に反映される。Docker では `.env.production` を書き換えて `docker compose … up -d` し直す（イメージの作り直しは不要）。Docker を使わない場合は、`pnpm build` の前に設定する（ビルドに埋め込まれる）。
+- SSO を使っている場合は、IdP に登録するリダイレクト URI も `https://example.com/yosuga/auth/oidc/callback` に変える。
+- サブパスを変えると、ログイン中の人はログインし直しになる（Cookie の有効範囲がパスごとのため）。ページの内容や添付ファイルはそのまま使える。
+
 ## 本番での起動
 
 ### Docker Compose（推奨）
@@ -296,7 +307,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 - アプリは `127.0.0.1:3000`（`YOSUGA_PORT` で変更）で待ち受ける。外からはリバースプロキシ（下記）経由で公開し、`https://<公開 URL>` で開いて初回セットアップを行う
 - 起動するたびに、未適用のデータベースのマイグレーションを適用してから起動する（`YOSUGA_SKIP_MIGRATIONS=1` で止められる）。更新は `git pull` してから同じ `up -d --build` を実行する
 - 停止時（`docker compose stop` など）は、開いているドキュメントを保存してから終了する
-- 稼働確認は `GET /api/health`（DB に接続できれば 200）。コンテナにもヘルスチェックを設定している
+- 稼働確認は `GET /api/health`（DB に接続できれば 200。サブパスで公開している場合は `<サブパス>/api/health`）。コンテナにもヘルスチェックを設定している
 - 復旧コマンドはコンテナの中で実行する: `docker compose -f docker-compose.prod.yml --env-file .env.production exec app pnpm admin:recover --clear-lockout`（`rotate-server-key` も同様）
 - **バックアップ**: PostgreSQL（`pg_dump`）と SeaweedFS のボリューム（`yosuga-prod_seaweedfs_data`）、それに `.env.production`（`YOSUGA_SERVER_KEY`）。中身は暗号化されているので、鍵がないとバックアップから復元できない
 - Redis は複数のアプリのコンテナで共同編集を中継するときだけ必要なので、同梱していない（1台なら不要）。使う場合は `REDIS_URL` を設定する
@@ -311,7 +322,7 @@ pnpm --filter shared exec prisma migrate deploy
 pnpm start         # NODE_ENV=production で起動。ポートは PORT（既定 3000）
 ```
 
-リバースプロキシでは、`/collab` への WebSocket（Upgrade ヘッダー）も通すこと。
+リバースプロキシでは、`/collab` への WebSocket（Upgrade ヘッダー）も通すこと（サブパスで公開する場合は `<サブパス>/collab`）。
 
 ## 開発
 

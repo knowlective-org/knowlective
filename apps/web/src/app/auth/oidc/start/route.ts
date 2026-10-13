@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { withBasePath } from "@/lib/base-path";
 import { isSetupComplete } from "shared";
 import { prisma } from "@/lib/db";
 import { OIDC_START_PATH, OIDC_STATE_COOKIE, OIDC_STATE_MAX_AGE, beginLogin } from "@/lib/auth/oidc";
@@ -9,7 +10,10 @@ import { getRequestContext } from "@/lib/request";
 // browser to the IdP with a fresh state / nonce / PKCE challenge, kept in an
 // encrypted cookie for the callback.
 // Relative Location: behind the reverse proxy, request.url's host may be internal.
-const redirect = (location: string) => new Response(null, { status: 303, headers: { Location: location } });
+// `location` is a path inside the app; a Route Handler's own Location header
+// doesn't get the base path added.
+const redirect = (location: string) =>
+  new Response(null, { status: 303, headers: { Location: withBasePath(location) } });
 
 export async function GET(request: NextRequest) {
   if (!(await isSetupComplete(prisma))) return redirect("/setup");
@@ -28,7 +32,7 @@ export async function GET(request: NextRequest) {
   const cookie = [
     `${OIDC_STATE_COOKIE}=${started.cookie}`,
     // Only the callback needs it. Lax: sent on the IdP's top-level redirect back.
-    `Path=${OIDC_START_PATH.replace("/start", "")}`,
+    `Path=${withBasePath(OIDC_START_PATH.replace("/start", ""))}`,
     `Max-Age=${OIDC_STATE_MAX_AGE}`,
     "HttpOnly",
     "SameSite=Lax",

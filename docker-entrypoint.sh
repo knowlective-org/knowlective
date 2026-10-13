@@ -18,6 +18,9 @@ if [ "$YOSUGA_SKIP_MIGRATIONS" != "1" ]; then
   (cd /app/packages/shared && ./node_modules/.bin/prisma migrate deploy)
 fi
 
+# The built app, with the base path (YOSUGA_BASE_PATH, possibly none) set.
+node /app/docker/apply-base-path.mjs /app/apps/web/.next-template /app/apps/web/.next
+
 cd /app/apps/web
 # tsx as a loader in this process (not the tsx CLI, which runs a child
 # process), so SIGTERM from `docker stop` reaches the server and open

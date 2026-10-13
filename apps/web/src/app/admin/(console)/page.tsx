@@ -1,4 +1,5 @@
 import { isInsecurePublicUrl } from "shared";
+import { BASE_PATH } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getMailSettings } from "@/lib/mail";
@@ -44,6 +45,18 @@ export default async function AdminOverviewPage() {
           </p>
         )}
         <PublicUrlForm current={site.publicUrl} suggested={requestOrigin} />
+        <p className={styles.note} style={{ marginTop: 16 }} data-ui="AdminOverviewPage.basePath">
+          サブパス：{BASE_PATH ? <code>{BASE_PATH}</code> : "なし（ルートで公開）"}
+          {site.publicUrl !== null && BASE_PATH && (
+            <>
+              {" "}
+              — 外部に出すリンクは <code>{site.publicUrl + BASE_PATH}</code> から始まります。
+            </>
+          )}
+          <br />
+          サブパスは、サーバーの環境変数 <code>YOSUGA_BASE_PATH</code>（例: <code>/yosuga</code>）で指定し、再起動すると反映されます。この画面からは変更できません。
+          公開 URL には、サブパスを含めずに入力してください。
+        </p>
       </section>
 
       <section className={styles.section} data-ui="AdminOverviewPage.themeSection">

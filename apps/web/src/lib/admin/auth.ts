@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { AdminSession } from "shared";
 import { decrypt, encrypt, loadDataKey } from "shared";
+import { withBasePath } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
 import type { SiteRole } from "shared";
 import { getAdminConsoleRole } from "@/lib/roles";
@@ -24,7 +25,8 @@ import { type RequestContext, getRequestContext } from "@/lib/request";
 // Server Actions are separate POST entry points that don't run them.
 
 const COOKIE_NAME = "yosuga_admin";
-const COOKIE_PATH = "/admin";
+// Only sent to the admin console (under the base path, if there is one).
+const COOKIE_PATH = withBasePath("/admin");
 
 export const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 export const ABSOLUTE_TIMEOUT_MS = 12 * 60 * 60 * 1000;

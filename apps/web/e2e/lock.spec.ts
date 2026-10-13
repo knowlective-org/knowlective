@@ -39,7 +39,7 @@ test.describe("ページのロック", () => {
     await expect(page.getByTestId("TitleField")).toHaveAttribute("readonly", "");
     await expect(page.locator(`[data-ui="DocTree.lockStatus"][data-id="${id}"]`)).toBeVisible();
     // The server refuses too, not only the screen: a file can't be added.
-    const upload = await page.request.post(`/api/files?pageId=${id}`, {
+    const upload = await page.request.post(`api/files?pageId=${id}`, {
       multipart: { file: { name: "a.txt", mimeType: "text/plain", buffer: Buffer.from("x") } },
     });
     expect(upload.status()).toBe(423);
@@ -79,7 +79,7 @@ test.describe("ページのロック", () => {
 
     await openPage(page, childId);
     await expect(page.getByTestId("PageView.lockBanner")).toContainText("上位のページ");
-    await expect(page.getByTestId("PageView.lockHolderLink")).toHaveAttribute("href", `/pages/${parent.id}`);
+    await expect(page.getByTestId("PageView.lockHolderLink")).toHaveAttribute("href", new RegExp(`/pages/${parent.id}$`));
     await expect(editorBody(page)).toHaveAttribute("contenteditable", "false");
     // It can't be unlocked from the child.
     await page.getByTestId("PageMenu.button").click();

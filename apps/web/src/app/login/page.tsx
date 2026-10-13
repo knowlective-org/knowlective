@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { withBasePath } from "@/lib/base-path";
 import { redirect } from "next/navigation";
 import { isSetupComplete } from "shared";
 import { prisma } from "@/lib/db";
@@ -42,7 +43,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       )}
       {oidc.enabled && (
         <a
-          href={`${OIDC_START_PATH}?next=${encodeURIComponent(next)}`}
+          // A plain link (a Route Handler, not a page): the base path by hand.
+          href={withBasePath(`${OIDC_START_PATH}?next=${encodeURIComponent(next)}`)}
           className={styles.button}
           style={{ display: "block", textAlign: "center", marginBottom: 24 }}
           data-ui="LoginPage.ssoButton"

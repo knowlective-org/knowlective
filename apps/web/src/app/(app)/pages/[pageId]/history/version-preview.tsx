@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { resolveAppUrl } from "@/lib/base-path";
 import * as Y from "yjs";
 import { ja } from "@blocknote/core/locales";
 import { withCollaboration } from "@blocknote/core/yjs";
@@ -26,6 +27,7 @@ export function VersionPreview({ pageId, state }: { pageId: string; state: strin
     withCollaboration({
       schema: editorSchema,
       dictionary: ja,
+      resolveFileUrl: async (url: string) => resolveAppUrl(url),
       collaboration: { fragment: doc.getXmlFragment("blocknote"), user: { name: "", color: "#000000" } },
     }),
     [doc],

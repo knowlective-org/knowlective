@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { withBasePath } from "@/lib/base-path";
 import Link from "next/link";
 import { connection } from "next/server";
 import { requireUser } from "@/lib/auth/session";
@@ -26,7 +27,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={null} searchQuery={query} />}>
       <div className={styles.pane} data-ui="SearchPage">
         <h1 className={styles.title}>検索</h1>
-        <form action="/search" className={searchStyles.form} role="search">
+        <form action={withBasePath("/search")} className={searchStyles.form} role="search">
           <input
             type="search"
             name="q"

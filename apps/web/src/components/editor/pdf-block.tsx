@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
+import { resolveAppUrl, withBasePath } from "@/lib/base-path";
 import styles from "./pdf-block.module.css";
 
 // The tallest a page is drawn, so a portrait page doesn't fill the screen.
@@ -12,7 +13,7 @@ type PdfDocument = Awaited<ReturnType<PdfJs["getDocument"]>["promise"]>;
 let pdfjsLoading: Promise<PdfJs> | undefined;
 
 // The worker and the data pdf.js fetches on demand come from /api/pdfjs.
-const assetUrl = (pdfjs: PdfJs, dir: string) => `/api/pdfjs/${pdfjs.version}/${dir}`;
+const assetUrl = (pdfjs: PdfJs, dir: string) => withBasePath(`/api/pdfjs/${pdfjs.version}/${dir}`);
 
 // pdf.js is large, so it's only downloaded once a page shows a PDF.
 function loadPdfJs(): Promise<PdfJs> {
@@ -36,7 +37,8 @@ export const pdfBlock = createReactBlockSpec(
     content: "none",
   },
   {
-    render: ({ block }) => <PdfViewer url={block.props.url} name={block.props.name} />,
+    // The file is stored as "/api/files/<id>", without the base path.
+    render: ({ block }) => <PdfViewer url={resolveAppUrl(block.props.url)} name={block.props.name} />,
   },
 );
 
