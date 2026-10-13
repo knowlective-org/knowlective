@@ -16,6 +16,7 @@ import {
   sealValue,
   validateValue,
 } from "@/lib/page-properties";
+import { OPTION_COLORS } from "@/lib/page-property-types";
 import type {
   ChildPageItem,
   ChildTableData,
@@ -172,6 +173,38 @@ export async function addColumn(pageId: string, rawName: string, type: PropertyT
   });
   notifyChildrenChanged(pageId);
   return {};
+}
+
+// The column a 子ページボード starts with when the page has no 選択肢 column
+// yet: ステータス, with three options to group the cards by.
+const DEFAULT_STATUS = { name: "ステータス", options: ["未着手", "進行中", "完了"] };
+
+export async function addStatusColumn(pageId: string): Promise<{ id: string } | { error: string }> {
+  const user = await requireUser();
+  const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
+  if (!canEditPage(access)) return { error: NOT_ALLOWED };
+  const existing = await prisma.pagePropertyDef.aggregate({ where: { pageId }, _count: true, _max: { position: true } });
+  if (existing._count >= MAX_COLUMNS) return { error: `列は${MAX_COLUMNS}個までです。` };
+
+  const id = randomUUID();
+  const key = await loadDataKey(prisma);
+  const options = DEFAULT_STATUS.options.map((name, i) => ({
+    id: randomUUID(),
+    name,
+    color: OPTION_COLORS[(i * 2 + 1) % OPTION_COLORS.length],
+  }));
+  await prisma.pagePropertyDef.create({
+    data: {
+      id,
+      pageId,
+      type: "SELECT",
+      name: sealColumnName(key, id, DEFAULT_STATUS.name),
+      options: sealOptions(key, id, options),
+      position: (existing._max.position ?? -1) + 1,
+    },
+  });
+  notifyChildrenChanged(pageId);
+  return { id };
 }
 
 export async function renameColumn(defId: string, rawName: string): Promise<Result> {

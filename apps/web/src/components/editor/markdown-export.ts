@@ -25,7 +25,11 @@ const block = (type: string, content: unknown[], extra: Partial<ExportBlock> = {
 
 export function hasChildPageBlocks(blocks: ExportBlock[]): boolean {
   return blocks.some(
-    (b) => b.type === "childPages" || b.type === "childTable" || hasChildPageBlocks(b.children ?? []),
+    (b) =>
+      b.type === "childPages" ||
+      b.type === "childTable" ||
+      b.type === "childBoard" ||
+      hasChildPageBlocks(b.children ?? []),
   );
 }
 
@@ -47,8 +51,8 @@ function childPageList(pages: ChildPageItem[], parentId: string, levels: number,
 // - PDF → a link to the file
 // - リンクのプレビュー → a link with the page's title
 // - 動画の埋め込み → a link to the video
-// - 子ページ一覧 / 子ページテーブル → a list of links to the child pages the
-//   exporting user can see (the table's columns are left out)
+// - 子ページ一覧 / 子ページテーブル / 子ページボード → a list of links to the child pages the
+//   exporting user can see (the table's columns and the board's lanes are left out)
 // and with links to attachments made absolute, so they work outside the site.
 export function prepareBlocksForExport(
   blocks: ExportBlock[],
@@ -82,7 +86,8 @@ export function prepareBlocksForExport(
         return [block("paragraph", [link(url, url)]), ...children];
       }
       case "childPages":
-      case "childTable": {
+      case "childTable":
+      case "childBoard": {
         const levels = b.type === "childPages" ? Number(b.props?.depth ?? 1) : 1;
         const title = String(b.props?.title ?? "");
         return [

@@ -8,6 +8,7 @@ import {
 } from "@blocknote/core";
 import type { DefaultReactSuggestionItem } from "@blocknote/react";
 import { childPagesBlock } from "./child-pages-block";
+import { childBoardBlock } from "./child-board-block";
 import { childTableBlock } from "./child-table-block";
 import { linkPreviewBlock } from "./link-preview-block";
 import { mermaidBlock } from "./mermaid-block";
@@ -30,6 +31,7 @@ export const editorSchema = BlockNoteSchema.create({
     heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
     childPages: childPagesBlock(),
     childTable: childTableBlock(),
+    childBoard: childBoardBlock(),
     mermaid: mermaidBlock(),
     pdf: pdfBlock(),
     linkPreview: linkPreviewBlock(),
@@ -57,6 +59,14 @@ export function customSlashMenuItems(editor: YosugaEditor): DefaultReactSuggesti
       group,
       icon: <span aria-hidden>📊</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childTable" }),
+    },
+    {
+      title: "子ページボード（カンバン）",
+      subtext: "子ページをカードにして、ステータスなどの列に並べる",
+      aliases: ["kanban", "board", "child", "children", "subpage", "status", "kanban board", "カンバン", "かんばん", "ボード", "子ページ"],
+      group,
+      icon: <span aria-hidden>🗂️</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childBoard" }),
     },
     {
       title: "Mermaid 図",

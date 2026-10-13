@@ -1,0 +1,196 @@
+/* 子ページボード (kanban) block inside the editor. */
+
+.block {
+  width: 100%;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.header {
+  composes: header from "./child-blocks.module.css";
+}
+
+.inlineSelect {
+  composes: inlineSelect from "./child-blocks.module.css";
+}
+
+.primaryButton {
+  composes: primaryButton from "./child-blocks.module.css";
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.muted {
+  margin: 0;
+  padding: 2px 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.empty {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+/* Lanes side by side; the board scrolls sideways when they don't fit. */
+.board {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding-bottom: 4px;
+  overflow-x: auto;
+}
+
+.lane,
+.laneOver {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  width: 232px;
+  padding: 8px;
+  background: var(--color-hover);
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+/* A card is being dragged over this lane. */
+.laneOver {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+.laneHeader {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 24px;
+}
+
+.laneName {
+  max-width: 100%;
+  padding: 1px 8px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 4px;
+}
+
+.count {
+  font-size: 12px;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 8px;
+}
+
+.card,
+.cardDragging {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.card[draggable="true"] {
+  cursor: grab;
+}
+
+.cardDragging {
+  opacity: 0.4;
+}
+
+.cardLink {
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.cardLink:hover {
+  text-decoration: underline;
+}
+
+.cardSelect {
+  justify-self: start;
+  max-width: 100%;
+  padding: 0 2px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cardSelect:hover,
+.cardSelect:focus-visible {
+  border-color: var(--color-border-strong);
+}
+
+.addLane {
+  flex: none;
+  width: 160px;
+}
+
+.addButton {
+  width: 100%;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.addButton:hover {
+  color: var(--color-primary);
+  background: var(--color-selected);
+}
+
+.addInput {
+  width: 100%;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+
+/* On paper: the cards only, lanes wrapping instead of scrolling. */
+@media print {
+  .board {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .lane {
+    break-inside: avoid;
+  }
+
+  .inlineSelect,
+  .cardSelect,
+  .addButton,
+  .addInput,
+  .addLane,
+  .primaryButton {
+    display: none;
+  }
+}
