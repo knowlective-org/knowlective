@@ -17,6 +17,7 @@ import { getLinkPreviewEnabled, loadLinkPreview } from "@/app/(app)/link-preview
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED } from "@/lib/collab-events";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/page-export";
+import { beginSaving } from "@/lib/saving-status";
 import { MAX_TITLE_LENGTH, TITLE_FIELD, UNTITLED, displayTitle } from "@/lib/page-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 import { docxToHtml } from "./editor/docx-import";
@@ -589,6 +590,25 @@ function EditorBody({
         linkPreviewEnabled = false;
       });
   }, [readOnly]);
+
+  // 保存中 at the top of the page: while this connection has changes the
+  // server hasn't acknowledged (typing, or offline with edits waiting).
+  useEffect(() => {
+    let finish: (() => void) | null = null;
+    const update = () => {
+      if (provider.hasUnsyncedChanges) finish ??= beginSaving();
+      else {
+        finish?.();
+        finish = null;
+      }
+    };
+    update();
+    provider.on("unsyncedChanges", update);
+    return () => {
+      provider.off("unsyncedChanges", update);
+      finish?.();
+    };
+  }, [provider]);
 
   // Markdown and PDF export, asked for from the page menu (lib/page-export.ts).
   // Shown while a PDF is being built: the first one downloads the compiler

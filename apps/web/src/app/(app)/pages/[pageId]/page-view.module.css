@@ -1,10 +1,33 @@
+/* Share button, page menu and status marks. Stays at the top of the window
+   while the page scrolls under it: a bar in the page's background color, as
+   wide as the content column. The negative margin puts it in the space
+   AppShell leaves above the content (56px). */
 .toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
-  margin: -32px 54px 16px;
+  min-height: 48px;
+  margin: -56px 0 24px;
+  padding: 8px 54px;
+  background: var(--color-background);
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    margin-top: -24px;
+    padding-inline: 16px;
+  }
+}
+
+/* 保存中…: shown while an edit is on its way to the server. */
+.saving {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--color-muted);
 }
 
 .share {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { displayTitle } from "@/lib/page-title";
+import { useSaving } from "@/lib/saving-status";
 import { AppShell } from "@/components/app-shell";
 import { InitialTitleContext } from "@/components/editor-placeholder";
 import { Sidebar, type SidebarTree } from "@/components/sidebar";
@@ -62,11 +63,18 @@ export function PageView({
 }) {
   const [liveTitle, setLiveTitle] = useState<string | undefined>(undefined);
   const readOnly = !canEdit || lock !== null;
+  // Edits on their way to the server (the editor and its blocks report them).
+  const saving = useSaving();
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={pageId} currentTitle={liveTitle} />}>
       <div data-ui="PageView">
-        <div className={styles.toolbar}>
+        <div className={styles.toolbar} data-ui="PageView.toolbar">
+          {saving && (
+            <span className={styles.saving} role="status" data-ui="PageView.status">
+              保存中…
+            </span>
+          )}
           {lock ? (
             <span className={styles.locked} data-ui="PageView.lockStatus">
               🔒 ロック中

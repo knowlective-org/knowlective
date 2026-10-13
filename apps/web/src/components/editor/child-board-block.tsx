@@ -13,6 +13,7 @@ import {
 import { createChildPageInPlace } from "@/app/(app)/actions";
 import { showAlert } from "@/components/dialog";
 import { displayTitle } from "@/lib/page-title";
+import { useReportSaving } from "@/lib/saving-status";
 import { OPTION_COLORS, type ChildTableRow, type PropertyColumn, type SelectOption } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
@@ -82,6 +83,7 @@ function ChildBoard({
 
   // A move is shown at once and saved after: 保存中 until the server has it.
   const saving = Object.keys(moved).length > 0;
+  useReportSaving(saving);
 
   const selects = data?.columns.filter((c) => c.type === "SELECT") ?? [];
   const column = selects.find((c) => c.id === groupBy) ?? selects[0] ?? null;
