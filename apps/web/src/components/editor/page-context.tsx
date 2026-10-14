@@ -33,24 +33,43 @@ export function useChildrenData<T>(load: (pageId: string) => Promise<T | null>) 
 
   // One request at a time; a change arriving mid-request triggers exactly
   // one more, so bursts of notifications don't pile up requests.
-  const state = useRef({ running: false, again: false, alive: true });
-  const reload = useCallback(async () => {
-    const s = state.current;
-    if (s.running) {
-      s.again = true;
-      return;
-    }
-    s.running = true;
-    try {
-      do {
-        s.again = false;
-        const result = await loadRef.current(pageId).catch(() => undefined);
-        if (s.alive && result !== undefined) setData(result);
-      } while (s.again && s.alive);
-    } finally {
-      s.running = false;
-    }
-  }, [pageId]);
+  //
+  // reload() resolves once data loaded *after* the call has been applied. A
+  // request already under way when it's called may have started before the
+  // caller's change was saved, so the caller waits for the next one. (Callers
+  // that show a change before it's saved drop that overlay when reload()
+  // resolves; resolving on the earlier, older answer briefly showed the
+  // change undone.)
+  const state = useRef({ running: false, again: false, alive: true, waiting: [] as (() => void)[] });
+  const reload = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        const s = state.current;
+        s.waiting.push(resolve);
+        if (s.running) {
+          s.again = true;
+          return;
+        }
+        s.running = true;
+        void (async () => {
+          try {
+            do {
+              s.again = false;
+              // Answered by this request: whoever was waiting when it started.
+              const answered = s.waiting.splice(0);
+              const result = await loadRef.current(pageId).catch(() => undefined);
+              if (s.alive && result !== undefined) setData(result);
+              answered.forEach((done) => done());
+            } while (s.again && s.alive);
+          } finally {
+            s.running = false;
+            // Unmounted mid-way: nobody is left to wait for.
+            s.waiting.splice(0).forEach((done) => done());
+          }
+        })();
+      }),
+    [pageId],
+  );
 
   useEffect(() => {
     const s = state.current;
