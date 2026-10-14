@@ -21,6 +21,7 @@ import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/p
 import { beginSaving } from "@/lib/saving-status";
 import { MAX_TITLE_LENGTH, TITLE_FIELD, UNTITLED, displayTitle } from "@/lib/page-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
+import { EditorFormattingToolbar, EditorSideMenu } from "./editor/block-type-menu";
 import { docxToHtml } from "./editor/docx-import";
 import { singleUrl } from "./editor/link-preview-block";
 import { parseVideoUrl } from "./editor/video-url";
@@ -672,7 +673,17 @@ function EditorBody({
         onEnter={() => editor.focus()}
       />
       <PageEditorContext.Provider value={pageContext}>
-        <BlockNoteView editor={editor} editable={!readOnly} theme="light" slashMenu={false} data-ui="EditorBody.editor">
+        <BlockNoteView
+          editor={editor}
+          editable={!readOnly}
+          theme="light"
+          slashMenu={false}
+          sideMenu={false}
+          formattingToolbar={false}
+          data-ui="EditorBody.editor"
+        >
+          <EditorFormattingToolbar />
+          <EditorSideMenu />
           <SuggestionMenuController
             triggerCharacter="/"
             getItems={async (query) =>

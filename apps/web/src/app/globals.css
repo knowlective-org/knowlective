@@ -94,6 +94,14 @@ a {
   }
 }
 
+/* BlockNote's floating UI (z-index 20 and so on, inline) sits below the
+   page's sticky top bar (30), which hid the top of a menu opening upward
+   from a block near it, e.g. the ⋮⋮ menu's "種類を変更". While a menu is
+   open, its floating element goes above the bar (the dialogs stay above). */
+[data-floating-ui-portal] > div:has(.bn-menu-dropdown) {
+  z-index: 35 !important;
+}
+
 /* Printing (Ctrl+P, and the page menu's PDF export). The app's own parts
    hide themselves in their CSS modules (app-shell, page-view, the editor's
    blocks); this is the page as a whole and BlockNote. */
