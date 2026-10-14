@@ -7,6 +7,7 @@ import { useSaving } from "@/lib/saving-status";
 import { AppShell } from "@/components/app-shell";
 import { InitialTitleContext } from "@/components/editor-placeholder";
 import { Sidebar, type SidebarTree } from "@/components/sidebar";
+import { Breadcrumb } from "./breadcrumb";
 import { EditorLoader } from "./editor-loader";
 import { PageMenu, ShareButton } from "./page-menu";
 import styles from "./page-view.module.css";
@@ -70,6 +71,7 @@ export function PageView({
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={pageId} currentTitle={liveTitle} />}>
       <div data-ui="PageView">
         <div className={styles.toolbar} data-ui="PageView.toolbar">
+          <Breadcrumb trees={sidebar.trees} pageId={pageId} currentTitle={liveTitle} />
           {saving && (
             <span className={styles.saving} role="status" data-ui="PageView.status">
               保存中…

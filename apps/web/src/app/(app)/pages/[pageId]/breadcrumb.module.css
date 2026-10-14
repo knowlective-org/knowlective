@@ -1,0 +1,84 @@
+/* Path of the open page, at the left of the page's top bar. */
+
+.breadcrumb {
+  flex: 1;
+  min-width: 0;
+  margin-right: auto;
+  font-size: 13px;
+}
+
+.list {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each step gives up width before the page's own name does. */
+.item {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+.item:last-child {
+  flex-shrink: 0;
+  max-width: 50%;
+}
+
+.link,
+.current {
+  max-width: 220px;
+  padding: 2px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 4px;
+}
+
+.link {
+  color: var(--color-muted);
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--color-primary);
+  background: var(--color-hover);
+}
+
+.current {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.more {
+  flex: none;
+  padding: 0 6px;
+  font: inherit;
+  color: var(--color-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.more:hover {
+  color: var(--color-primary);
+  background: var(--color-hover);
+}
+
+.separator {
+  flex: none;
+  padding: 0 2px;
+  color: color-mix(in srgb, var(--color-muted) 60%, transparent);
+}
+
+/* Phone width: no room for the whole path; the parent and the page only. */
+@media (max-width: 599.98px) {
+  .item:not(:nth-last-child(-n + 2)) {
+    display: none;
+  }
+}

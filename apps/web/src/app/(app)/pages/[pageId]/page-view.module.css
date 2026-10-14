@@ -33,7 +33,7 @@
 
 /* 保存中…: shown while an edit is on its way to the server. */
 .saving {
-  margin-right: auto;
+  flex: none;
   font-size: 13px;
   color: var(--color-muted);
 }
