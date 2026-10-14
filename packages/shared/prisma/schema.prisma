@@ -40,6 +40,10 @@ model User {
   // Page opened most recently; "/" reopens it (if still accessible). No
   // foreign key: a deleted page simply falls back to the first visible one.
   lastPageId   String?
+  // The order this user wants their knowledge roots in, in the sidebar
+  // (KnowledgeRoot ids). Roots not listed follow, oldest first. Empty = all
+  // in creation order.
+  rootOrder    String[]  @default([])
 
   pages           Page[]          @relation("PageCreatedBy")
   updatedPages    Page[]          @relation("PageUpdatedBy")

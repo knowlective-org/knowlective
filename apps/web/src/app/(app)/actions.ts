@@ -34,6 +34,23 @@ export async function getUploadExtensions(): Promise<string[]> {
   return getAllowedUploadExtensions();
 }
 
+// The order of the knowledge roots in this user's sidebar (ids, first
+// first). Only the user's own preference: it changes nothing for anyone
+// else, and ids of roots they can't see are simply never shown. [] goes back
+// to creation order.
+export async function saveRootOrder(rootIds: string[]): Promise<{ error?: string }> {
+  const user = await requireUser();
+  if (
+    !Array.isArray(rootIds) ||
+    rootIds.length > 500 ||
+    !rootIds.every((id) => typeof id === "string" && /^[a-z0-9]{1,40}$/i.test(id))
+  ) {
+    return { error: "並び順が不正です。" };
+  }
+  await prisma.user.update({ where: { id: user.id }, data: { rootOrder: [...new Set(rootIds)] } });
+  return {};
+}
+
 // Creates a child page under `parentId`. Needs EDIT on the parent; the child
 // inherits the parent's grants, so no grant is added.
 async function insertChildPage(

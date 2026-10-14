@@ -13,6 +13,8 @@ type DropZone = "before" | "after" | "into";
 type MoveTarget = { parentId: string; beforeId: string | null };
 
 const DRAG_TYPE = "application/x-yosuga-page";
+// A knowledge root being reordered (rootReorder): not a page move.
+const ROOT_DRAG_TYPE = "application/x-yosuga-root";
 // Hovering a collapsed page this long while dragging expands it.
 const EXPAND_DELAY_MS = 600;
 
@@ -43,6 +45,7 @@ export function DocTree({
   currentPageId,
   currentTitle,
   maxDepth,
+  rootReorder,
 }: {
   nodes: DocTreeNode[];
   entryIds: string[];
@@ -51,6 +54,11 @@ export function DocTree({
   // Live title of the open page, so renaming shows here before it's saved.
   currentTitle?: string;
   maxDepth: number;
+  // Set when the knowledge roots can be reordered (Sidebar): the root page's
+  // row is then dragged to move the whole root among the others — not to
+  // move the page, which a root page can't be — and Alt+↑/↓ on its link does
+  // the same from the keyboard. Where it lands is up to the Sidebar.
+  rootReorder?: { onDragStart: () => void; onDragEnd: () => void; onKeyMove: (by: -1 | 1) => void };
 }) {
   const { byId, childrenOf } = useMemo(() => {
     const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -240,9 +248,22 @@ export function DocTree({
           data-ui="DocTree.row"
           data-id={node.id}
           data-drop={dropZone ?? undefined}
-          draggable={canDrag(node)}
-          onDragStart={(e) => onDragStart(e, node, title)}
-          onDragEnd={onDragEnd}
+          draggable={canDrag(node) || (node.parentId === null && !!rootReorder)}
+          title={node.parentId === null && rootReorder ? "ドラッグしてナレッジルートを並び替え（Alt+↑↓ でも）" : undefined}
+          onDragStart={(e) => {
+            if (node.parentId === null && rootReorder) {
+              e.dataTransfer.effectAllowed = "move";
+              // Needed for the drag to start in Firefox; the value isn't used.
+              e.dataTransfer.setData(ROOT_DRAG_TYPE, node.id);
+              rootReorder.onDragStart();
+              return;
+            }
+            onDragStart(e, node, title);
+          }}
+          onDragEnd={() => {
+            onDragEnd();
+            rootReorder?.onDragEnd();
+          }}
           onDragOver={(e) => onDragOver(e, node, children.length > 0)}
           onDragLeave={(e) => onDragLeave(e, node)}
           onDrop={(e) => onDrop(e, node)}
@@ -270,6 +291,12 @@ export function DocTree({
             data-ui="DocTree.link"
             data-id={node.id}
             aria-current={isCurrent ? "page" : undefined}
+            onKeyDown={(e) => {
+              if (node.parentId !== null || !rootReorder || !e.altKey) return;
+              if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+              e.preventDefault();
+              rootReorder.onKeyMove(e.key === "ArrowUp" ? -1 : 1);
+            }}
             // The row is dragged, not the link (that would drag its URL).
             draggable={false}
           >

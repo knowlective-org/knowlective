@@ -17,6 +17,7 @@ const PASSWORD = "e2e-Password-2026";
 // The admin's authenticator secret (20 bytes, "e2e-totp-secret-1234").
 const ADMIN_TOTP_SECRET = Buffer.from("e2e-totp-secret-1234", "utf8");
 const HOME_PAGE_ID = "e2e-home";
+const SECOND_HOME_PAGE_ID = "e2e-second-home";
 
 const USERS = [
   { email: "e2e-admin@example.com", name: "E2E 管理者", siteRole: "SITE_ADMIN", group: "E2E 管理" },
@@ -42,7 +43,8 @@ async function main() {
 
   const users = new Map<string, string>();
   for (const u of USERS) {
-    const base = { name: u.name, passwordHash, siteRole: u.siteRole, disabledAt: null };
+    // rootOrder: the sidebar starts in creation order on every run.
+    const base = { name: u.name, passwordHash, siteRole: u.siteRole, disabledAt: null, rootOrder: [] };
     const user = await prisma.user.upsert({
       where: { email: u.email },
       create: { email: u.email, ...base },
@@ -94,6 +96,21 @@ async function main() {
       });
     });
   }
+  // A second knowledge root with the same access, made after the first, so
+  // there is an order of roots to change (the sidebar reordering test).
+  if (!(await prisma.page.findUnique({ where: { id: SECOND_HOME_PAGE_ID }, select: { id: true } }))) {
+    const adminId = users.get("e2e-admin@example.com")!;
+    await prisma.$transaction(async (tx) => {
+      const { rootId, rootPageId } = await createKnowledgeRoot(tx, { title: "E2E サブ", createdById: adminId });
+      for (const g of GROUPS) {
+        await tx.pageGrant.create({ data: { pageId: rootPageId, groupId: groups.get(g.name)!, access: g.access } });
+      }
+      await tx.page.create({
+        data: { id: SECOND_HOME_PAGE_ID, title: "E2E サブのホーム", rootId, parentId: rootPageId, createdById: adminId },
+      });
+    });
+  }
+
   // Restored if a test (or a person) moved it to the trash.
   await prisma.page.update({ where: { id: HOME_PAGE_ID }, data: { deletedAt: null, deletedById: null } });
 
@@ -101,7 +118,7 @@ async function main() {
   await prisma.adminLoginAttempt.deleteMany({ where: { email: { in: USERS.map((u) => u.email) } } });
   await prisma.userLoginAttempt.deleteMany({ where: { email: { in: USERS.map((u) => u.email) } } });
 
-  console.log(`Seeded ${USERS.length} E2E accounts, ${GROUPS.length} groups and the E2E knowledge root.`);
+  console.log(`Seeded ${USERS.length} E2E accounts, ${GROUPS.length} groups and the E2E knowledge roots.`);
   await prisma.$disconnect();
 }
 
