@@ -7,6 +7,7 @@ import {
   loadDataKey,
   type PasswordLoginMode,
   type SiteRole,
+  ensurePersonalRoot,
 } from "shared";
 import { prisma } from "@/lib/db";
 import { recordAudit } from "@/lib/audit";
@@ -344,6 +345,8 @@ export async function finishLogin(
       oidcSubject: subject,
     },
   });
+  // Every person's account comes with its own personal knowledge root.
+  await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id));
   await recordAudit(
     { userId: user.id, label: name ? `${name}（${email}）` : email },
     "user.create.oidc",

@@ -24,6 +24,7 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
     trees: trees.map((t) => ({
       rootId: t.rootId,
       rootPageId: t.rootPageId,
+      personal: t.personal,
       entryIds: t.entryIds,
       pages: t.pages.map((p) => ({
         id: p.id,

@@ -6,6 +6,7 @@ import {
   atLeast,
   getGroupAccessForPage,
   getTreeWithAccess,
+  isPersonalRoot,
 } from "shared";
 import { prisma } from "@/lib/db";
 
@@ -76,6 +77,13 @@ export async function planMove(
     if (!before || before.parentId !== parentId || !dest.live.has(beforeId) || beforeId === pageId) {
       return { error: STALE };
     }
+  }
+
+  // A personal root's pages stay in it, and nothing comes in from outside:
+  // moving would share them, or take pages away from the people who could
+  // see them.
+  if (parent.rootId !== page.rootId && ((await isPersonalRoot(prisma, page.rootId)) || (await isPersonalRoot(prisma, parent.rootId)))) {
+    return { error: "自分専用のナレッジルートとほかのナレッジルートの間では、ページを移動できません。" };
   }
 
   // A locked page stays where it is, also among its siblings. A page locked

@@ -66,6 +66,7 @@ export function PageMenu({
   lock,
   canManage,
   isRootPage,
+  personal,
 }: {
   pageId: string;
   // Current (live) title, for the delete confirmation.
@@ -76,6 +77,8 @@ export function PageMenu({
   lock: { own: boolean } | null;
   canManage: boolean;
   isRootPage: boolean;
+  // In the user's personal knowledge root: there's nothing to share.
+  personal: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -225,7 +228,7 @@ export function PageMenu({
                 権限設定
               </Link>
             ) : (
-              <PlannedItem label="権限設定" note="管理の権限が必要" />
+              <PlannedItem label="権限設定" note={personal ? "自分専用（共有できません）" : "管理の権限が必要"} />
             )}
             <button
               type="button"

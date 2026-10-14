@@ -2,7 +2,7 @@ import path from "node:path";
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: path.resolve(__dirname, "../../../.env") });
 
-import { createKnowledgeRoot, createPrismaClient } from "../src/index";
+import { createKnowledgeRoot, createPrismaClient, ensurePersonalRoot } from "../src/index";
 
 async function main() {
   const prisma = createPrismaClient();
@@ -12,6 +12,7 @@ async function main() {
     create: { email: "demo@example.com", name: "Demo User", passwordHash: "unset" },
     update: {},
   });
+  await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id));
 
   // Idempotent: the demo page (fixed id "demo", used by /pages/demo) marks
   // that the demo knowledge root already exists.

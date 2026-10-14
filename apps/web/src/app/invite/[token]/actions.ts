@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, hashPassword } from "shared";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, hashPassword, ensurePersonalRoot } from "shared";
 import { prisma } from "@/lib/db";
 import {
   InvitationUnavailableError,
@@ -69,6 +69,8 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
         data: { email, name: name.trim(), passwordHash, siteRole },
       });
       await consumeInvitation(tx, invitation.id, user.id);
+      // Every person's account comes with its own personal knowledge root.
+      await ensurePersonalRoot(tx, user.id);
       return user.id;
     });
   } catch (err) {

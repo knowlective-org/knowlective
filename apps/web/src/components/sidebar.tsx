@@ -21,6 +21,8 @@ const rank = (order: string[], id: string) => {
 export type SidebarTree = {
   rootId: string;
   rootPageId: string | null;
+  // The user's own personal knowledge root.
+  personal: boolean;
   pages: DocTreeNode[];
   entryIds: string[];
 };
@@ -153,6 +155,7 @@ export function Sidebar({
               currentPageId={currentPageId}
               currentTitle={currentTitle}
               maxDepth={maxDepth}
+              rootBadge={t.personal ? "自分専用" : undefined}
               rootReorder={
                 reorderable
                   ? {

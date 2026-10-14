@@ -8,6 +8,7 @@ import crossws from "crossws/adapters/node";
 import * as Y from "yjs";
 import {
   canEditPage,
+  ensurePersonalRoots,
   createPrismaClient,
   getPageAccess,
   decrypt,
@@ -293,9 +294,13 @@ export async function createCollab() {
   // on the first document load. Before setup there is no key to check yet.
   if (await isSetupComplete(prisma)) {
     await loadDataKey(prisma);
-    // Catch up the search index (pages edited before it existed, or while
+    // Personal knowledge roots for accounts made before they existed, then
+    // catch up the search index (pages edited before it existed, or while
     // indexing failed) without delaying startup.
-    void reindexStalePages(prisma)
+    void ensurePersonalRoots(prisma)
+      .then((n) => n > 0 && console.log(`[accounts] made ${n} personal knowledge root(s)`))
+      .catch((err) => console.error("[accounts] making personal knowledge roots failed", err))
+      .then(() => reindexStalePages(prisma))
       .then((n) => n > 0 && console.log(`[search] indexed ${n} page(s)`))
       .catch((err) => console.error("[search] catching up the index failed", err));
   }

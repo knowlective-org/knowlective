@@ -37,7 +37,7 @@ export type {
   PasswordLoginMode,
 } from "@prisma/client";
 export { encrypt, decrypt, generateKey, parseServerKey } from "./crypto";
-export { createKnowledgeRoot } from "./knowledge-root";
+export { PERSONAL_ROOT_TITLE, createKnowledgeRoot, ensurePersonalRoot, ensurePersonalRoots } from "./knowledge-root";
 export {
   ACCESS_RANK,
   ALL_USERS_GROUP,
@@ -59,6 +59,7 @@ export {
   getUsersWithPageAccess,
   getVisibleTree,
   getVisibleTrees,
+  isPersonalRoot,
   PAGE_ORDER,
 } from "./permissions";
 export {

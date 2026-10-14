@@ -2,7 +2,7 @@ import path from "node:path";
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: path.resolve(__dirname, "../../../.env") });
 
-import { createKnowledgeRoot, createPrismaClient, encrypt, hashPassword, loadDataKey } from "../src/index";
+import { createKnowledgeRoot, createPrismaClient, ensurePersonalRoot, encrypt, hashPassword, loadDataKey } from "../src/index";
 
 // Test accounts and a knowledge root for the end-to-end tests
 // (apps/web/e2e). Safe to run again: it resets the accounts' passwords, roles
@@ -52,6 +52,8 @@ async function main() {
       select: { id: true },
     });
     users.set(u.email, user.id);
+    // A person's account comes with a personal knowledge root.
+    await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id));
     // The admin signs in to /admin with a code from this secret; the others
     // have no authenticator. A used code can't be used again, so the last
     // accepted step is cleared too.

@@ -49,6 +49,7 @@ model User {
   updatedPages    Page[]          @relation("PageUpdatedBy")
   deletedPages    Page[]          @relation("PageDeletedBy")
   lockedPages     Page[]          @relation("PageLockedBy")
+  personalRoot    KnowledgeRoot?  @relation("PersonalRoot")
   sessions        UserSession[]
   usedInvitations Invitation[]
   passwordResets  PasswordResetToken[]
@@ -86,6 +87,12 @@ model KnowledgeRoot {
   rootPageId String?  @unique
   rootPage   Page?    @relation("KnowledgeRootPage", fields: [rootPageId], references: [id], onDelete: Restrict)
   createdAt  DateTime @default(now())
+  // Set on a user's personal knowledge root (one per account, made with it):
+  // only this user can open its pages, and grants are never used for it
+  // (packages/shared/src/permissions.ts). Removed with the account
+  // (deletePersonalRoot), so no foreign-key action here.
+  ownerId    String?  @unique
+  owner      User?    @relation("PersonalRoot", fields: [ownerId], references: [id], onDelete: Restrict)
 
   // Every page in the tree, including the root page.
   pages Page[]       @relation("KnowledgeRootPages")

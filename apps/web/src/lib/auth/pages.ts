@@ -9,7 +9,7 @@ export async function findAccessiblePage(userId: string, pageId: string) {
   if (!result) return null;
   const page = await prisma.page.findUnique({
     where: { id: pageId },
-    select: { id: true, title: true, root: { select: { id: true, rootPageId: true } } },
+    select: { id: true, title: true, root: { select: { id: true, rootPageId: true, ownerId: true } } },
   });
   if (!page) return null;
   return {
@@ -19,6 +19,8 @@ export async function findAccessiblePage(userId: string, pageId: string) {
     // The lock applying to the page, if it's locked (see canEditPage).
     lock: result.lock,
     isRootPage: page.root.rootPageId === page.id,
+    // In someone's personal knowledge root (theirs: nobody else gets here).
+    personal: page.root.ownerId !== null,
     root: page.root,
   };
 }

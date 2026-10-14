@@ -46,6 +46,7 @@ export function DocTree({
   currentTitle,
   maxDepth,
   rootReorder,
+  rootBadge,
 }: {
   nodes: DocTreeNode[];
   entryIds: string[];
@@ -59,6 +60,8 @@ export function DocTree({
   // move the page, which a root page can't be — and Alt+↑/↓ on its link does
   // the same from the keyboard. Where it lands is up to the Sidebar.
   rootReorder?: { onDragStart: () => void; onDragEnd: () => void; onKeyMove: (by: -1 | 1) => void };
+  // A label after the root page's title (e.g. 自分専用 for a personal root).
+  rootBadge?: string;
 }) {
   const { byId, childrenOf } = useMemo(() => {
     const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -303,6 +306,11 @@ export function DocTree({
             {node.icon ? `${node.icon} ` : ""}
             {displayTitle(title)}
           </Link>
+          {node.parentId === null && rootBadge && (
+            <span className={styles.badge} data-ui="DocTree.rootBadge">
+              {rootBadge}
+            </span>
+          )}
           {node.locked && (
             <span className={styles.lock} title="ロック中" aria-label="ロック中" data-ui="DocTree.lockStatus" data-id={node.id}>
               🔒

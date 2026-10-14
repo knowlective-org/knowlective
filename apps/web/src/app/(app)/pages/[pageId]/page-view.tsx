@@ -43,6 +43,7 @@ export function PageView({
   lock,
   canManage,
   isRootPage,
+  personal,
   shareUrl,
   user,
   sidebar,
@@ -57,6 +58,8 @@ export function PageView({
   // MANAGE access: may change this page's group grants.
   canManage: boolean;
   isRootPage: boolean;
+  // In the user's personal knowledge root: never shared.
+  personal: boolean;
   // This page's URL on the site's public URL, for the share button.
   shareUrl: string;
   user: { id: string; name: string };
@@ -92,6 +95,7 @@ export function PageView({
             lock={lock ? { own: lock.own } : null}
             canManage={canManage}
             isRootPage={isRootPage}
+            personal={personal}
           />
         </div>
         {lock && (
