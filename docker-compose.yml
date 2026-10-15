@@ -21,6 +21,28 @@ services:
       - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
       - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
 
+  # Vectors for semantic search (pgvector), in an instance of its own: they
+  # can't be encrypted by the app (the database computes distances on them)
+  # and say roughly what pages are about, so they're kept apart from the
+  # content database and encrypted on disk the same way. Holds nothing that
+  # can't be rebuilt from the content database (no backup needed).
+  vectordb:
+    image: percona/percona-distribution-postgresql:17.11
+    restart: unless-stopped
+    user: "0"
+    entrypoint: ["bash", "/yosuga/tde-entrypoint.sh"]
+    environment:
+      POSTGRES_USER: yosuga
+      POSTGRES_PASSWORD: yosuga
+      POSTGRES_DB: yosuga_vectors
+    ports:
+      - "5433:5432"
+    volumes:
+      - vectordb_tde_data:/data/db
+      - vectordb_tde_keys:/tde
+      - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
+      - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -56,5 +78,7 @@ volumes:
   # The encryption keys: back up apart from the data. Without them the
   # database can't be read.
   postgres_tde_keys:
+  vectordb_tde_data:
+  vectordb_tde_keys:
   redis_data:
   seaweedfs_data:

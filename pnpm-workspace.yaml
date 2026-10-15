@@ -7,3 +7,8 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: true
+  # The CPU runtime is in the package; its postinstall only downloads the
+  # CUDA (GPU) libraries, which semantic search doesn't use.
+  onnxruntime-node: false
+  # Only prints a version notice.
+  protobufjs: false

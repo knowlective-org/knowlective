@@ -28,13 +28,18 @@ test.describe("ナレッジルートの並び順", () => {
     await page.mouse.move(from.x + 64, from.y + from.height / 2 - 4, { steps: 5 });
     await page.mouse.move(to.x + 60, to.y + 4, { steps: 15 });
     await page.mouse.up();
-    await expect.poll(async () => (await rootNames(page))[0]).toBe("E2E サブ");
+    // Now right before E2E (other roots, like マイページ, may come first).
+    const subFirst = async () => {
+      const now = await rootNames(page);
+      return now.indexOf("E2E サブ") === now.indexOf("E2E") - 1;
+    };
+    await expect.poll(subFirst).toBe(true);
     // The page tree inside was left alone.
     await expect(page.locator(`[data-ui="DocTree.link"][data-id="${HOME_PAGE_ID}"]`)).toBeVisible();
 
     // Kept on the server.
     await page.reload();
-    await expect.poll(async () => (await rootNames(page))[0]).toBe("E2E サブ");
+    await expect.poll(subFirst).toBe(true);
 
     // Someone else's sidebar is unchanged.
     const viewerContext = await browser.newContext({ storageState: authFile("viewer") });

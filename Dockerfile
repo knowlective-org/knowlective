@@ -43,6 +43,12 @@ COPY packages/shared/package.json packages/shared/
 # hard-links to the store).
 RUN pnpm install --frozen-lockfile --prod \
   && rm -rf "$(pnpm store path)" /root/.cache/pnpm
+# The embedding model of semantic search (~130MB), built in so that the
+# server never downloads anything. Early, so the layer stays cached.
+COPY apps/web/server/semantic-model.ts apps/web/server/download-model.ts apps/web/server/
+ENV YOSUGA_MODEL_DIR=/app/models
+RUN cd apps/web && node --import tsx server/download-model.ts
+ENV YOSUGA_MODEL_OFFLINE=1
 # packages/shared is used as TypeScript source (by the app via tsx, and by
 # the migrate / recovery commands).
 COPY packages/shared/prisma packages/shared/prisma

@@ -242,6 +242,20 @@ else
   done
 fi
 
+# ---- 意味での検索 ----------------------------------------------------------
+
+section "意味での検索"
+info "語が一致しなくても、意味の近いページを探せるようにします。検索語や本文はこのサーバーの中で処理し、外部には送りません。"
+info "同梱のベクトル用データベースと、イメージに入れた約 130MB のモデルを使います（メモリを数百 MB 余分に使います）。"
+default_vector=y
+[ -f "$ENV_FILE" ] && [ -z "$(existing VECTORDB_PASSWORD)" ] && default_vector=n
+VECTORDB_PASSWORD=""
+if ask_yes_no "意味での検索を使いますか" "$default_vector"; then
+  VECTORDB_PASSWORD=$(existing VECTORDB_PASSWORD)
+  [ -n "$VECTORDB_PASSWORD" ] || VECTORDB_PASSWORD=$(rand_hex 32)
+  COMPOSE_PROFILES="${COMPOSE_PROFILES:+$COMPOSE_PROFILES,}bundled-vectordb"
+fi
+
 # ---- サーバー鍵 ------------------------------------------------------------
 
 section "サーバー鍵（YOSUGA_SERVER_KEY）"
@@ -327,6 +341,7 @@ if [ "$DB_CHOICE" = 1 ]; then
 else
   info "データベース      : $(display_url "$DATABASE_URL")"
 fi
+info "意味での検索      : $([ -n "$VECTORDB_PASSWORD" ] && echo "使う（同梱のベクトル用データベース）" || echo "使わない")"
 info "サーバー鍵        : $(mask "$YOSUGA_SERVER_KEY")"
 info "ファイル保存      : 同梱の SeaweedFS（認証情報は自動作成。外部の S3 は管理画面で設定）"
 info "ポート            : 127.0.0.1:${YOSUGA_PORT}"
@@ -352,12 +367,19 @@ fi
     echo "# 秘密の値を含みます。共有・コミットせず、安全な場所にバックアップしてください。"
     echo
     if [ -n "$COMPOSE_PROFILES" ]; then
-      echo "# 同梱の PostgreSQL を使う"
+      echo "# 同梱して動かすもの（bundled-db: PostgreSQL、bundled-vectordb: 意味での検索のデータベース）"
       echo "COMPOSE_PROFILES='$COMPOSE_PROFILES'"
+    fi
+    if [ "$DB_CHOICE" = 1 ]; then
+      echo "# 同梱の PostgreSQL を使う"
       echo "POSTGRES_PASSWORD='$POSTGRES_PASSWORD'"
     else
       echo "# 別途用意した PostgreSQL"
       echo "DATABASE_URL='$DATABASE_URL'"
+    fi
+    if [ -n "$VECTORDB_PASSWORD" ]; then
+      echo "# 意味での検索（同梱のベクトル用データベース）"
+      echo "VECTORDB_PASSWORD='$VECTORDB_PASSWORD'"
     fi
     echo
     echo "YOSUGA_SERVER_KEY='$YOSUGA_SERVER_KEY'"

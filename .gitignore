@@ -12,3 +12,6 @@ build/
 .env.production
 apps/web/e2e/.auth/
 apps/web/e2e/.results/
+
+# Embedding model for semantic search (downloaded on first use)
+apps/web/.models/

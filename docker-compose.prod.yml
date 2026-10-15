@@ -25,9 +25,16 @@ services:
         required: false
       seaweedfs:
         condition: service_started
+      vectordb:
+        condition: service_healthy
+        required: false
     environment:
       # External database if set, otherwise the bundled one.
       DATABASE_URL: ${DATABASE_URL:-postgresql://yosuga:${POSTGRES_PASSWORD:?set DATABASE_URL, or POSTGRES_PASSWORD for the bundled database}@postgres:5432/yosuga}
+      # Semantic search: the bundled vector database if VECTORDB_PASSWORD is
+      # set (with COMPOSE_PROFILES including bundled-vectordb), or your own
+      # PostgreSQL + pgvector. Unset = search by words only.
+      VECTOR_DATABASE_URL: ${VECTOR_DATABASE_URL:-${VECTORDB_PASSWORD:+postgresql://yosuga:${VECTORDB_PASSWORD}@vectordb:5432/yosuga_vectors}}
       YOSUGA_SERVER_KEY: ${YOSUGA_SERVER_KEY:?set YOSUGA_SERVER_KEY}
       SEAWEEDFS_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:?set SEAWEEDFS_ACCESS_KEY}
       SEAWEEDFS_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY}
@@ -68,6 +75,32 @@ services:
       - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
       - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
 
+  # Bundled vector database for semantic search: only with COMPOSE_PROFILES
+  # including bundled-vectordb. Same image and on-disk encryption as the
+  # bundled database (see docker-compose.yml). Holds nothing that can't be
+  # rebuilt from the content database: no backup needed (if lost, delete
+  # both of its volumes and the app fills it again).
+  vectordb:
+    image: percona/percona-distribution-postgresql:17.11
+    profiles: [bundled-vectordb]
+    restart: unless-stopped
+    user: "0"
+    entrypoint: ["bash", "/yosuga/tde-entrypoint.sh"]
+    environment:
+      POSTGRES_USER: yosuga
+      POSTGRES_PASSWORD: ${VECTORDB_PASSWORD:-}
+      POSTGRES_DB: yosuga_vectors
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yosuga -d yosuga_vectors"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - vectordb_tde_data:/data/db
+      - vectordb_tde_keys:/tde
+      - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
+      - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
+
   # Same setup as in docker-compose.yml, but only reachable by the app.
   seaweedfs:
     image: chrislusf/seaweedfs:4.48
@@ -88,4 +121,6 @@ services:
 volumes:
   postgres_tde_data:
   postgres_tde_keys:
+  vectordb_tde_data:
+  vectordb_tde_keys:
   seaweedfs_data:

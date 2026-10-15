@@ -23,6 +23,7 @@ import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
 import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
+import { startSemanticSearch } from "./semantic-search";
 
 // Real-time collaboration (Yjs over WebSocket), served by the same process
 // and port as the Next.js app at COLLAB_PATH. server/index.ts routes the
@@ -309,6 +310,8 @@ export async function createCollab() {
       .then((n) => n > 0 && console.log(`[search] indexed ${n} page(s)`))
       .catch((err) => console.error("[search] catching up the index failed", err));
   }
+  // Semantic search keeps its vectors up to date from the search index.
+  const semantic = startSemanticSearch(prisma);
 
   return {
     handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
@@ -335,6 +338,7 @@ export async function createCollab() {
         hocuspocus.closeConnections();
         hocuspocus.flushPendingStores();
       });
+      await semantic.stop();
       await prisma.$disconnect();
     },
   };

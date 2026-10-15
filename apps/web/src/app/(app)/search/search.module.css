@@ -16,8 +16,32 @@
   color: var(--color-muted);
 }
 
+/* Which search was used, and the link to the other. */
+.mode {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.mode a {
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
 .results {
   list-style: none;
+}
+
+/* "意味が近い": found by meaning, not by the words. */
+.badge {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--color-muted);
+  vertical-align: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
 }
 
 .result {
