@@ -30,6 +30,8 @@ pnpm db:migrate            # packages/shared の Prisma マイグレーション
 pnpm db:seed                # デモ用のナレッジルートとページ ("demo") を作成
 ```
 
+> 開発用の PostgreSQL も pg_tde で暗号化している（本番の同梱 DB と同じ構成）。以前の開発用 DB（PostgreSQL 16、ボリューム `yosuga_postgres_data`）があれば、`bash docker/postgres/move-to-tde.sh` で移す。
+>
 > アプリはルートの `.env` を読む。`apps/web/.env.local` などを置いた場合は、そちらの値が優先される。
 > ルートの `.env` を変更したときは、開発サーバーを再起動すること。
 
@@ -42,6 +44,8 @@ pnpm db:seed                # デモ用のナレッジルートとページ ("de
   - マスターパスワードから導出した鍵（scrypt）で暗号化したもの … 復旧・鍵の入れ替え用
   - サーバーの鍵 `YOSUGA_SERVER_KEY` で暗号化したもの … 起動時に自動で鍵を取り出す用
 - ページ本文（Yjs の状態）は AES-256-GCM で暗号化して保存する。DB やバックアップだけが漏れても内容は読めない。
+- メールアドレスと変更の記録（誰が何を変えたか）も暗号化して保存する。ログイン・招待などでアドレスを探すときは、アドレスそのものではなく、データ鍵から作った鍵によるハッシュで照合する。
+- 同梱の PostgreSQL は、DB 全体も暗号化する（Percona Server for PostgreSQL の pg_tde。テーブル・インデックス・WAL）。アプリで暗号化していない部分（ページのタイトル・ファイル名・グループ名など）も、ディスクやボリュームのコピーからは読めない。鍵はデータとは別のボリューム（`postgres_tde_keys`）にあり、**データとは別にバックアップする**（なくすと DB を読めない）。DB に接続できる人には平文で見えるので、アプリでの暗号化の代わりにはならない。別途用意した PostgreSQL では、この暗号化は各自の環境に任せる。
 - `YOSUGA_SERVER_KEY` を失った・漏れた・入れ替えたいときは、マスターパスワードを使って新しいサーバー鍵を発行できる。
 
   ```bash
@@ -294,7 +298,7 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 
 `install.sh` が設定を対話式で聞いて `.env.production` を作り、ビルドと起動まで行う（Docker と Docker Compose v2、bash が必要）。
 
-- データベースは「同梱の PostgreSQL」か「別途用意した PostgreSQL」（16 以上を推奨）を選ぶ。別途用意する場合は、データベースとユーザーを先に作り、ユーザーにテーブルを作る権限を付けておく（起動時のマイグレーションでテーブルを作る）。接続先を入力すると、コンテナから実際に接続できるかを確認できる。コンテナの中から見た `localhost` はコンテナ自身なので、同じサーバーの PostgreSQL でもサーバーのアドレスを指定する
+- データベースは「同梱の PostgreSQL」（Percona Server for PostgreSQL 17。pg_tde で DB 全体を暗号化する）か「別途用意した PostgreSQL」（16 以上を推奨）を選ぶ。別途用意する場合は、データベースとユーザーを先に作り、ユーザーにテーブルを作る権限を付けておく（起動時のマイグレーションでテーブルを作る）。接続先を入力すると、コンテナから実際に接続できるかを確認できる。コンテナの中から見た `localhost` はコンテナ自身なので、同じサーバーの PostgreSQL でもサーバーのアドレスを指定する
 - サーバー鍵（`YOSUGA_SERVER_KEY`）は新しく作るか、移行・復元なら既存の鍵を入力する。同梱の SeaweedFS の認証情報と同梱の PostgreSQL のパスワードは自動で作る
 - もう一度実行すると、今の `.env.production` の値を初期値にして作り直す（元のファイルは `.env.production.bak.<日時>` に残す）。サーバー鍵と同梱の PostgreSQL のパスワードは引き継ぐ（変えるとデータを読めない・接続できないため）
 
@@ -309,7 +313,10 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 - 停止時（`docker compose stop` など）は、開いているドキュメントを保存してから終了する
 - 稼働確認は `GET /api/health`（DB に接続できれば 200。サブパスで公開している場合は `<サブパス>/api/health`）。コンテナにもヘルスチェックを設定している
 - 復旧コマンドはコンテナの中で実行する: `docker compose -f docker-compose.prod.yml --env-file .env.production exec app pnpm admin:recover --clear-lockout`（`rotate-server-key` も同様）
-- **バックアップ**: PostgreSQL（`pg_dump`）と SeaweedFS のボリューム（`yosuga-prod_seaweedfs_data`）、それに `.env.production`（`YOSUGA_SERVER_KEY`）。中身は暗号化されているので、鍵がないとバックアップから復元できない
+- **バックアップ**: PostgreSQL と SeaweedFS のボリューム（`yosuga-prod_seaweedfs_data`）、それに `.env.production`（`YOSUGA_SERVER_KEY`）。中身は暗号化されているので、鍵がないとバックアップから復元できない
+  - 同梱の PostgreSQL は、DB の暗号化の鍵（ボリューム `yosuga-prod_postgres_tde_keys`）も必要。**データ（`yosuga-prod_postgres_tde_data`）とは別の場所に**保管する（一緒に置くと、DB 全体の暗号化の意味がなくなる）
+  - `pg_dump` の出力は DB 全体の暗号化が外れた状態（アプリで暗号化した列は暗号化されたまま）なので、ファイルを暗号化して保管する
+- **同梱の PostgreSQL を暗号化する前のデータからの更新**: 以前の同梱 DB（PostgreSQL 16、ボリューム `yosuga-prod_postgres_data`）は、`git pull` のあと `bash docker/postgres/move-to-tde.sh prod` で暗号化した DB へ移す（中身を `pg_dump` から `pg_restore` へ直接流し、暗号化されていないダンプをファイルに残さない）。動作を確かめたら、古いボリュームを `docker volume rm yosuga-prod_postgres_data` で削除する
 - Redis は複数のアプリのコンテナで共同編集を中継するときだけ必要なので、同梱していない（1台なら不要）。使う場合は `REDIS_URL` を設定する
 
 イメージだけを作る場合は `docker build -t yosuga .`。必要な環境変数は `DATABASE_URL`・`YOSUGA_SERVER_KEY`・（同梱の SeaweedFS を使うなら）`SEAWEEDFS_ACCESS_KEY`・`SEAWEEDFS_SECRET_KEY`・`YOSUGA_BUNDLED_S3_ENDPOINT`。

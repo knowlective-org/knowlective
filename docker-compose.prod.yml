@@ -42,11 +42,15 @@ services:
     # Time to save open documents on `docker compose stop` / down.
     stop_grace_period: 30s
 
-  # Bundled database: only with COMPOSE_PROFILES=bundled-db.
+  # Bundled database: only with COMPOSE_PROFILES=bundled-db. Encrypted on
+  # disk with pg_tde (see docker-compose.yml); the keys are in the
+  # postgres_tde_keys volume — back it up apart from the data.
   postgres:
-    image: postgres:16-alpine
+    image: percona/percona-distribution-postgresql:17.11
     profiles: [bundled-db]
     restart: unless-stopped
+    user: "0"
+    entrypoint: ["bash", "/yosuga/tde-entrypoint.sh"]
     environment:
       POSTGRES_USER: yosuga
       # Not ":?": compose checks variables of disabled services too. The image
@@ -59,7 +63,10 @@ services:
       timeout: 5s
       retries: 10
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_tde_data:/data/db
+      - postgres_tde_keys:/tde
+      - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
+      - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
 
   # Same setup as in docker-compose.yml, but only reachable by the app.
   seaweedfs:
@@ -79,5 +86,6 @@ services:
       - seaweedfs_data:/data
 
 volumes:
-  postgres_data:
+  postgres_tde_data:
+  postgres_tde_keys:
   seaweedfs_data:

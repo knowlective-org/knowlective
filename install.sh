@@ -11,7 +11,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 ENV_FILE=".env.production"
 COMPOSE_FILE_NAME="docker-compose.prod.yml"
-PG_IMAGE="postgres:16-alpine"
+# The bundled database's image (pg_tde); its psql also checks an external one.
+PG_IMAGE="percona/percona-distribution-postgresql:17.11"
 
 # ---- 表示と入力 ------------------------------------------------------------
 
@@ -178,11 +179,20 @@ if [ "$DB_CHOICE" = 1 ]; then
   else
     POSTGRES_PASSWORD=$(rand_hex 32)
     note "パスワードを自動で作成しました。"
-    if docker volume inspect yosuga-prod_postgres_data >/dev/null 2>&1; then
-      warn "同梱の PostgreSQL のデータ（ボリューム yosuga-prod_postgres_data）がすでにあります。"
+    if docker volume inspect yosuga-prod_postgres_tde_data >/dev/null 2>&1; then
+      warn "同梱の PostgreSQL のデータ（ボリューム yosuga-prod_postgres_tde_data）がすでにあります。"
       warn "新しいパスワードでは接続できません。以前の $ENV_FILE を戻すか、不要ならボリュームを削除してください。"
       ask_yes_no "このまま続けますか" n || { info "中止しました。"; exit 1; }
     fi
+  fi
+  # Data from before the bundled database was encrypted (pg_tde).
+  if docker volume inspect yosuga-prod_postgres_data >/dev/null 2>&1 &&
+    ! docker volume inspect yosuga-prod_postgres_tde_data >/dev/null 2>&1; then
+    warn "暗号化する前の同梱の PostgreSQL のデータ（ボリューム yosuga-prod_postgres_data）があります。"
+    warn "このデータは、暗号化したデータベースへ移す必要があります。$ENV_FILE を作ったあと、起動はせずに"
+    warn "  bash docker/postgres/move-to-tde.sh prod"
+    warn "を実行してください（移したうえで起動します）。移さずに起動すると、空のデータベースで始まります。"
+    ask_yes_no "このまま続けますか" y || { info "中止しました。"; exit 1; }
   fi
 elif [ -n "$(existing DATABASE_URL)" ] &&
   ask_yes_no "今の接続先（$(display_url "$(existing DATABASE_URL)")）を引き継ぎますか" y; then
@@ -407,4 +417,8 @@ info "  1. リバースプロキシで公開用のドメインから 127.0.0.1:$
 info "     （/collab の WebSocket も通し、X-Forwarded-For と X-Forwarded-Proto を渡す）"
 info "  2. https://<公開用のドメイン>/ を開き、初回セットアップ（マスターパスワードの設定）を行う"
 info "  3. $ENV_FILE をバックアップする"
+if [ "$DB_CHOICE" = 1 ]; then
+  info "  4. データベースの暗号化の鍵（ボリューム yosuga-prod_postgres_tde_keys）を、データとは別にバックアップする"
+  info "     （鍵がないとデータベースを読めません）"
+fi
 info "ログ: ${COMPOSE[*]} logs -f app"

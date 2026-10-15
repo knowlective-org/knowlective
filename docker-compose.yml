@@ -1,7 +1,14 @@
 services:
+  # PostgreSQL with transparent data encryption: Percona Server for
+  # PostgreSQL + pg_tde (docker/postgres/). Tables, indexes and the WAL are
+  # encrypted on disk with keys kept in a volume of their own
+  # (postgres_tde_keys); the data volume alone can't be read.
   postgres:
-    image: postgres:16-alpine
+    image: percona/percona-distribution-postgresql:17.11
     restart: unless-stopped
+    # Root only to prepare the key directory; the image then runs as postgres.
+    user: "0"
+    entrypoint: ["bash", "/yosuga/tde-entrypoint.sh"]
     environment:
       POSTGRES_USER: yosuga
       POSTGRES_PASSWORD: yosuga
@@ -9,7 +16,10 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_tde_data:/data/db
+      - postgres_tde_keys:/tde
+      - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
+      - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
 
   redis:
     image: redis:7-alpine
@@ -42,6 +52,9 @@ services:
       - seaweedfs_data:/data
 
 volumes:
-  postgres_data:
+  postgres_tde_data:
+  # The encryption keys: back up apart from the data. Without them the
+  # database can't be read.
+  postgres_tde_keys:
   redis_data:
   seaweedfs_data:
