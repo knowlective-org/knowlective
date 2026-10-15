@@ -2,8 +2,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { BASE_PATH } from "@/lib/base-path";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import type { User } from "shared";
+import { normalizeEmail, type User } from "shared";
 import { prisma } from "@/lib/db";
+import { emailWhere, withEmail } from "@/lib/emails";
 import type { RequestContext } from "@/lib/request";
 
 // Regular user authentication (email + password), separate from /admin.
@@ -24,15 +25,14 @@ const MAX_FAILURES_PER_IP = 10;
 const MAX_FAILURES_PER_EMAIL = 10;
 export const LOCK_WINDOW_MS = 15 * 60 * 1000;
 
-export type CurrentUser = Pick<User, "id" | "email" | "name" | "siteRole">;
+export type CurrentUser = Pick<User, "id" | "name" | "siteRole"> & { email: string };
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
+// Shared with the seeds and the stored hash (shared/src/personal-data.ts).
+export { normalizeEmail };
 
 // Only same-origin absolute paths, so ?next= can't send users off-site.
 export function safeNextPath(next: unknown, fallback = "/"): string {
@@ -47,7 +47,7 @@ export async function isLoginLocked(ip: string, email: string): Promise<boolean>
   const since = new Date(Date.now() - LOCK_WINDOW_MS);
   const [byIp, byEmail] = await Promise.all([
     prisma.userLoginAttempt.count({ where: { ip, success: false, createdAt: { gte: since } } }),
-    prisma.userLoginAttempt.count({ where: { email, success: false, createdAt: { gte: since } } }),
+    prisma.userLoginAttempt.count({ where: { ...(await emailWhere(email)), success: false, createdAt: { gte: since } } }),
   ]);
   return byIp >= MAX_FAILURES_PER_IP || byEmail >= MAX_FAILURES_PER_EMAIL;
 }
@@ -58,7 +58,7 @@ export async function recordLoginAttempt(
   success: boolean,
 ): Promise<void> {
   await prisma.userLoginAttempt.create({
-    data: { ip: ctx.ip, email, success, userAgent: ctx.userAgent },
+    data: { ip: ctx.ip, ...(await emailWhere(email)), success, userAgent: ctx.userAgent },
   });
 }
 
@@ -98,7 +98,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!token) return null;
   const session = await prisma.userSession.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, email: true, name: true, siteRole: true, disabledAt: true } } },
+    include: { user: { select: { id: true, emailEnc: true, name: true, siteRole: true, disabledAt: true } } },
   });
   if (!session) return null;
 
@@ -118,7 +118,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       data: { lastSeenAt: new Date() },
     });
   }
-  const { id, email, name, siteRole } = session.user;
+  const { id, email, name, siteRole } = await withEmail(session.user);
   return { id, email, name, siteRole };
 }
 

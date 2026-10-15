@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { hashPassword } from "shared";
 import { prisma } from "@/lib/db";
+import { withEmail } from "@/lib/emails";
 
 // Password reset links: /reset-password/<token>. Same token scheme as
 // invitations (only the SHA-256 hash is stored, single use).
@@ -69,12 +70,12 @@ export async function createPasswordReset(
 export async function findValidPasswordReset(token: string) {
   const reset = await prisma.passwordResetToken.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, email: true, name: true, siteRole: true, disabledAt: true } } },
+    include: { user: { select: { id: true, emailEnc: true, name: true, siteRole: true, disabledAt: true } } },
   });
   if (!reset || reset.usedAt || reset.expiresAt.getTime() <= Date.now() || reset.user.disabledAt) {
     return null;
   }
-  return reset;
+  return { ...reset, user: await withEmail(reset.user) };
 }
 
 export class PasswordResetUnavailableError extends Error {

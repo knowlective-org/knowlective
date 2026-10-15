@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SiteRole } from "shared";
 import { prisma } from "@/lib/db";
+import { withEmail } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
 import { ADMIN_CONSOLE_ROLES, SITE_ROLES, SITE_ROLE_LABELS, countOtherActiveSiteAdmins } from "@/lib/roles";
 import { type AuditActor, recordAudit, userLabel } from "@/lib/audit";
@@ -14,8 +15,8 @@ import { passwordResetMail } from "@/lib/mail-templates";
 import { getPublicUrl } from "@/lib/site-url";
 
 async function audit(actor: AuditActor, action: string, userId: string, summary: (who: string) => string) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
-  if (user) await recordAudit(actor, action, summary(userLabel(user)), { userId });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, emailEnc: true } });
+  if (user) await recordAudit(actor, action, summary(userLabel(await withEmail(user))), { userId });
 }
 
 // Site admins only. Never leave the instance without an enabled site admin:
@@ -112,10 +113,11 @@ export async function issuePasswordReset(
   const userId = formData.get("userId");
   if (typeof userId !== "string") return { error: "入力内容が不正です。" };
   if (userId === session.userId) return { error: "自分のパスワードは、ここでは再設定できません。" };
-  const user = await prisma.user.findUnique({
+  const found = await prisma.user.findUnique({
     where: { id: userId },
-    select: { email: true, name: true, siteRole: true, disabledAt: true },
+    select: { emailEnc: true, name: true, siteRole: true, disabledAt: true },
   });
+  const user = found && (await withEmail(found));
   if (!user) return { error: "ユーザーが見つかりません。" };
   if (user.disabledAt) return { error: "無効なユーザーのリンクは発行できません。先に有効にしてください。" };
   if (!(await passwordLoginAllowed(user.siteRole))) {

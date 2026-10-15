@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { withEmail } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
 import { userLabel } from "@/lib/audit";
 import { ADMIN_PASSWORD_RESET_TTL_HOURS } from "@/lib/auth/password-reset";
@@ -13,10 +14,11 @@ import { PasswordResetIssueForm } from "./password-reset-form";
 export default async function AdminPasswordResetPage({ params }: PageProps<"/admin/users/[userId]/password-reset">) {
   const { session } = await requireAdmin(["SITE_ADMIN"]);
   const { userId } = await params;
-  const user = await prisma.user.findUnique({
+  const found = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, siteRole: true, disabledAt: true },
+    select: { id: true, emailEnc: true, name: true, siteRole: true, disabledAt: true },
   });
+  const user = found && (await withEmail(found));
   if (!user || user.id === session.userId) notFound();
   const [mailConfigured, passwordAllowed] = await Promise.all([
     isMailConfigured(),

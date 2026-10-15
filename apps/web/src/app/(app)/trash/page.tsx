@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { getTrash } from "shared";
 import { prisma } from "@/lib/db";
+import { displayName } from "@/lib/emails";
 import { requireUser } from "@/lib/auth/session";
 import { loadSidebar } from "@/lib/sidebar-data";
 import { AppShell } from "@/components/app-shell";
@@ -18,8 +19,8 @@ export default async function TrashPage() {
   const user = await requireUser("/trash");
   const [sidebar, { items, destinations }] = await Promise.all([loadSidebar(user), getTrash(prisma, user.id)]);
   const deleterIds = [...new Set(items.map((i) => i.deletedById).filter((id): id is string => !!id))];
-  const deleters = await prisma.user.findMany({ where: { id: { in: deleterIds } }, select: { id: true, name: true, email: true } });
-  const names = new Map(deleters.map((u) => [u.id, u.name || u.email]));
+  const deleters = await prisma.user.findMany({ where: { id: { in: deleterIds } }, select: { id: true, name: true, emailEnc: true } });
+  const names = new Map(await Promise.all(deleters.map(async (u) => [u.id, await displayName(u)] as const)));
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={null} />}>

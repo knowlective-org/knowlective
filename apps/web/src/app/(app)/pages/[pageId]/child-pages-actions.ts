@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { PAGE_ORDER, atLeast, canEditPage, getPageAccess, getUsersWithPageAccess, getVisibleTree, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
+import { displayName } from "@/lib/emails";
 import { requireUser } from "@/lib/auth/session";
 import { notifyChildrenChanged } from "@/lib/collab-events";
 import {
@@ -71,7 +72,7 @@ export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | 
   return result.map((p) => ({ ...p, updatedAt: updatedAt.get(p.id) ?? "" }));
 }
 
-const displayName = (u: { name: string | null; email: string }) => u.name || u.email;
+const nameOf = (u: { name: string | null; email: string }) => u.name || u.email;
 
 export async function loadChildTable(pageId: string): Promise<ChildTableData | null> {
   const user = await requireUser();
@@ -124,18 +125,18 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
     for (const [defId, v] of Object.entries(r.values)) if (userColumns.has(defId)) referenced.add(v);
   }
   const userNames: Record<string, string> = {};
-  for (const u of assignees) userNames[u.id] = displayName(u);
+  for (const u of assignees) userNames[u.id] = nameOf(u);
   const missing = [...referenced].filter((id) => !(id in userNames));
   if (missing.length > 0) {
-    const others = await prisma.user.findMany({ where: { id: { in: missing } }, select: { id: true, name: true, email: true } });
-    for (const u of others) userNames[u.id] = displayName(u);
+    const others = await prisma.user.findMany({ where: { id: { in: missing } }, select: { id: true, name: true, emailEnc: true } });
+    for (const u of others) userNames[u.id] = await displayName(u);
   }
 
   return {
     canEditColumns: atLeast(access.get(pageId) ?? null, "EDIT") && !locked.has(pageId),
     columns,
     rows,
-    assignees: assignees.map((u) => ({ id: u.id, name: displayName(u) })),
+    assignees: assignees.map((u) => ({ id: u.id, name: nameOf(u) })),
     userNames,
   };
 }

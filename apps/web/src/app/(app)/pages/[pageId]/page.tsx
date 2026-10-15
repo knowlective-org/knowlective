@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
+import { displayName } from "@/lib/emails";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { requireUser } from "@/lib/auth/session";
 import { atLeast } from "shared";
@@ -43,14 +44,14 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
     const [holder, holderAccess] = await Promise.all([
       prisma.page.findUnique({
         where: { id: page.lock.holderId },
-        select: { id: true, title: true, lockedAt: true, lockSubtree: true, lockedBy: { select: { name: true, email: true } } },
+        select: { id: true, title: true, lockedAt: true, lockSubtree: true, lockedBy: { select: { name: true, emailEnc: true } } },
       }),
       page.lock.own ? null : findAccessiblePage(user.id, page.lock.holderId),
     ]);
     lock = {
       own: page.lock.own,
       withChildren: holder?.lockSubtree ?? false,
-      lockedBy: holder?.lockedBy ? holder.lockedBy.name || holder.lockedBy.email : null,
+      lockedBy: holder?.lockedBy ? await displayName(holder.lockedBy) : null,
       lockedAt: holder?.lockedAt?.toISOString() ?? null,
       holder: !page.lock.own && holder && holderAccess ? { id: holder.id, title: holder.title } : null,
     };

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, hashPassword, ensurePersonalRoot } from "shared";
 import { prisma } from "@/lib/db";
+import { emailColumns, emailWhere } from "@/lib/emails";
 import {
   InvitationUnavailableError,
   consumeInvitation,
@@ -55,18 +56,19 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
   }
   if (password !== confirm) return { error: "確認用のパスワードが一致しません。" };
 
-  if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
+  if (await prisma.user.findUnique({ where: await emailWhere(email), select: { id: true } })) {
     return {
       error: "このメールアドレスはすでに登録されています。ログインしてから、もう一度このリンクを開いてください。",
     };
   }
 
   const passwordHash = await hashPassword(password);
+  const emailData = await emailColumns(email);
   let userId: string;
   try {
     userId = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { email, name: name.trim(), passwordHash, siteRole },
+        data: { ...emailData, name: name.trim(), passwordHash, siteRole },
       });
       await consumeInvitation(tx, invitation.id, user.id);
       // Every person's account comes with its own personal knowledge root.

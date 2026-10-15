@@ -29,7 +29,14 @@ enum PageAccess {
 
 model User {
   id           String    @id @default(cuid())
-  email        String    @unique
+  // Email address, encrypted with the DEK (src/personal-data.ts). emailHash
+  // (keyed HMAC of the normalized address) is what lookups and uniqueness
+  // use. Set on every account except the seed's demo user (no address).
+  emailHash    Bytes?    @unique
+  emailEnc     Bytes?
+  // Plaintext address of an account from before the encryption; the server
+  // moves it into the columns above at startup and clears it.
+  legacyEmail  String?
   name         String?
   passwordHash String
   createdAt    DateTime  @default(now())
@@ -348,8 +355,11 @@ model AdminSession {
 model AdminLoginAttempt {
   id        String   @id @default(cuid())
   ip        String
-  // Email entered for an account login; null for master password logins.
-  email     String?
+  // Email entered for an account login (encrypted, see User); null for
+  // master password logins.
+  emailHash   Bytes?
+  emailEnc    Bytes?
+  legacyEmail String?
   success   Boolean
   // e.g. "bad_credentials", "locked", "ip_denied"
   reason    String?
@@ -386,8 +396,11 @@ enum SignupMode {
 model Invitation {
   id        String  @id @default(cuid())
   tokenHash String  @unique
-  // If set, only this email address may use the invitation.
-  email     String?
+  // If set, only this email address may use the invitation (encrypted, see
+  // User).
+  emailHash   Bytes?
+  emailEnc    Bytes?
+  legacyEmail String?
 
   // Groups the invitee joins on accepting. Page access comes only from these.
   groups InvitationGroup[]
@@ -415,13 +428,15 @@ model Invitation {
 model UserLoginAttempt {
   id        String   @id @default(cuid())
   ip        String
-  email     String
+  // The address entered, as its keyed hash only (see User): counted, never shown.
+  emailHash   Bytes?
+  legacyEmail String?
   success   Boolean
   userAgent String?
   createdAt DateTime @default(now())
 
   @@index([ip, createdAt])
-  @@index([email, createdAt])
+  @@index([emailHash, createdAt])
 }
 
 // Password reset links: /reset-password/<token>. Mailed to the user from
@@ -577,13 +592,17 @@ model AuditLog {
   id         String   @id @default(cuid())
   // Null for the master password login.
   actorId    String?
-  // Name/email at the time, or "マスターパスワード".
-  actorLabel String
   // e.g. "user.role", "user.disable", "group.member.add", "page.grant.set"
   action     String
-  // Human-readable summary, rendered as-is.
-  summary    String
-  detail     Json?
+  // The entry's text, encrypted with the DEK (AuditText in
+  // src/personal-data.ts): actorLabel (name/email at the time, or
+  // "マスターパスワード"), summary (human-readable, rendered as-is), detail.
+  sealed     Bytes?
+  // Plaintext of an entry from before the encryption; the server seals it
+  // at startup and clears these.
+  legacyActorLabel String?
+  legacySummary    String?
+  legacyDetail     Json?
   createdAt  DateTime @default(now())
 
   @@index([createdAt])

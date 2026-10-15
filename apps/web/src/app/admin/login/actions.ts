@@ -3,6 +3,7 @@
 import { notFound, redirect } from "next/navigation";
 import { verifyMasterPassword, verifyPassword, verifyPasswordAgainstDummy } from "shared";
 import { prisma } from "@/lib/db";
+import { emailWhere } from "@/lib/emails";
 import {
   LOCK_WINDOW_MS,
   createAdminSession,
@@ -63,7 +64,7 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
   if (blocked) return blocked;
 
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: await emailWhere(email),
     select: { id: true, passwordHash: true, totpSecret: true },
   });
   // Same cost whether or not the account exists.

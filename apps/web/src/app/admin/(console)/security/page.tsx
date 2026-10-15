@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { listAuditLogs } from "@/lib/audit";
+import { openOptionalEmail } from "@/lib/emails";
 import {
   ABSOLUTE_TIMEOUT_MS,
   IDLE_TIMEOUT_MS,
@@ -16,8 +18,10 @@ export default async function AdminSecurityPage() {
   const { ctx, config, session } = await requireAdmin(["SITE_ADMIN"]);
   const [sessions, attempts, auditLogs] = await Promise.all([
     listActiveAdminSessions(),
-    prisma.adminLoginAttempt.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),
-    prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.adminLoginAttempt
+      .findMany({ orderBy: { createdAt: "desc" }, take: 30 })
+      .then((rows) => Promise.all(rows.map(async (a) => ({ ...a, email: await openOptionalEmail(a.emailEnc) })))),
+    listAuditLogs(100),
   ]);
 
   return (

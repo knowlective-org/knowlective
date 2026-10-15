@@ -10,6 +10,7 @@ import {
   ensurePersonalRoot,
 } from "shared";
 import { prisma } from "@/lib/db";
+import { emailColumns, emailWhere } from "@/lib/emails";
 import { recordAudit } from "@/lib/audit";
 import { isDomainAllowed } from "@/lib/auth/signup";
 import { getPublicUrl } from "@/lib/site-url";
@@ -303,7 +304,7 @@ export async function finishLogin(
   // 2. Existing account with this (verified) email: store the subject on it
   // (first sign-in through the IdP).
   const existing = await prisma.user.findUnique({
-    where: { email },
+    where: await emailWhere(email),
     select: { id: true, disabledAt: true, oidcIssuer: true, oidcSubject: true },
   });
   if (existing) {
@@ -337,7 +338,7 @@ export async function finishLogin(
   );
   const user = await prisma.user.create({
     data: {
-      email,
+      ...(await emailColumns(email)),
       name,
       passwordHash,
       siteRole: role,

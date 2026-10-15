@@ -1,5 +1,6 @@
 import type { SiteRole } from "shared";
 import { prisma } from "@/lib/db";
+import { withEmails } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
 import { dateFormat } from "@/lib/admin/format";
 import { INVITATION_TTL_DAYS, listPendingInvitations } from "@/lib/auth/invitations";
@@ -63,7 +64,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
-            email: true,
+            emailEnc: true,
             name: true,
             siteRole: true,
             createdAt: true,
@@ -71,6 +72,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
             groups: { select: { group: { select: { name: true } } } },
           },
         })
+      .then(withEmails)
       : Promise.resolve([]),
     isMailConfigured(),
     getSignupSettings(),

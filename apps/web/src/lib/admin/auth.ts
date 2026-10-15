@@ -5,6 +5,7 @@ import type { AdminSession } from "shared";
 import { decrypt, encrypt, loadDataKey } from "shared";
 import { withBasePath } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
+import { emailColumns, withEmail } from "@/lib/emails";
 import type { SiteRole } from "shared";
 import { getAdminConsoleRole } from "@/lib/roles";
 import { userLabel } from "@/lib/audit";
@@ -98,7 +99,7 @@ export async function recordLoginAttempt(
   email?: string,
 ): Promise<void> {
   await prisma.adminLoginAttempt.create({
-    data: { ip: ctx.ip, success, reason, email, userAgent: ctx.userAgent },
+    data: { ip: ctx.ip, success, reason, ...(email ? await emailColumns(email) : {}), userAgent: ctx.userAgent },
   });
 }
 
@@ -148,7 +149,7 @@ export async function createAdminSession(
   });
 }
 
-const sessionInclude = { user: { select: { id: true, email: true, name: true } } } as const;
+const sessionInclude = { user: { select: { id: true, emailEnc: true, name: true } } } as const;
 export type AdminSessionWithUser = AdminSession & {
   user: { id: string; email: string; name: string | null } | null;
 };
@@ -167,11 +168,11 @@ export async function getAdminSession(): Promise<AdminSessionWithUser | null> {
     await prisma.adminSession.deleteMany({ where: { tokenHash: session.tokenHash } });
     return null;
   }
-  return session;
+  return withSessionUser(session);
 }
 
 export async function listActiveAdminSessions(): Promise<AdminSessionWithUser[]> {
-  return prisma.adminSession.findMany({
+  const sessions = await prisma.adminSession.findMany({
     include: sessionInclude,
     where: {
       stage: "ACTIVE",
@@ -180,6 +181,14 @@ export async function listActiveAdminSessions(): Promise<AdminSessionWithUser[]>
     },
     orderBy: { lastSeenAt: "desc" },
   });
+  return Promise.all(sessions.map(withSessionUser));
+}
+
+// The session's user with their address opened.
+async function withSessionUser<T extends { user: { id: string; emailEnc: Uint8Array | null; name: string | null } | null }>(
+  session: T,
+): Promise<Omit<T, "user"> & { user: { id: string; email: string; name: string | null } | null }> {
+  return { ...session, user: session.user ? await withEmail(session.user) : null };
 }
 
 // Must be called from a Server Action.

@@ -75,6 +75,16 @@ export {
   createCollabToken,
   verifyCollabToken,
 } from "./collab-token";
+export {
+  type AuditText,
+  emailHash,
+  encryptLegacyPersonalData,
+  normalizeEmail,
+  openAudit,
+  openEmail,
+  sealAudit,
+  sealEmail,
+} from "./personal-data";
 export { InvalidPublicUrlError, isInsecurePublicUrl, normalizePublicUrl } from "./public-url";
 export {
   MIN_MASTER_PASSWORD_LENGTH,

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { withEmail } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getVisibleTrees } from "shared";
 import { ACCESS_LABELS, dateFormat } from "@/lib/admin/format";
@@ -21,12 +22,13 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
     include: {
       members: {
         orderBy: { createdAt: "asc" },
-        include: { user: { select: { id: true, email: true, name: true, disabledAt: true } } },
+        include: { user: { select: { id: true, emailEnc: true, name: true, disabledAt: true } } },
       },
       grants: { include: { page: { select: { id: true, title: true, deletedAt: true } } } },
     },
   });
   if (!group) notFound();
+  const members = await Promise.all(group.members.map(async (m) => ({ ...m, user: await withEmail(m.user) })));
   // Page titles are only shown for pages the viewer itself can see: a site
   // admin manages groups without being able to read their pages.
   const visible = new Set(
@@ -80,8 +82,8 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
       ) : (
         <>
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>メンバー（{group.members.length}人）</h2>
-        {group.members.length > 0 && (
+        <h2 className={styles.sectionTitle}>メンバー（{members.length}人）</h2>
+        {members.length > 0 && (
           <div className={styles.tableWrap} style={{ marginBottom: 24 }}>
             <table className={styles.table}>
               <thead>
@@ -93,7 +95,7 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
                 </tr>
               </thead>
               <tbody>
-                {group.members.map(({ user, createdAt }) => (
+                {members.map(({ user, createdAt }) => (
                   <tr data-ui="AdminGroupPage.memberRow" data-id={user.id} key={user.id} className={user.disabledAt ? styles.disabledRow : undefined}>
                     <td>
                       {user.name ?? "-"}

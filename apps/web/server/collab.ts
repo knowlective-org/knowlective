@@ -8,6 +8,7 @@ import crossws from "crossws/adapters/node";
 import * as Y from "yjs";
 import {
   canEditPage,
+  encryptLegacyPersonalData,
   ensurePersonalRoots,
   createPrismaClient,
   getPageAccess,
@@ -293,7 +294,11 @@ export async function createCollab() {
   // Fail fast on a missing or mismatched YOSUGA_SERVER_KEY instead of erroring
   // on the first document load. Before setup there is no key to check yet.
   if (await isSetupComplete(prisma)) {
-    await loadDataKey(prisma);
+    const dataKey = await loadDataKey(prisma);
+    // Addresses and audit log entries from before they were encrypted: done
+    // before the server takes requests, which read only the encrypted columns.
+    const converted = await encryptLegacyPersonalData(prisma, dataKey);
+    if (converted > 0) console.log(`[accounts] encrypted the personal data of ${converted} row(s)`);
     // Personal knowledge roots for accounts made before they existed, then
     // catch up the search index (pages edited before it existed, or while
     // indexing failed) without delaying startup.

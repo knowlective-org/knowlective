@@ -2,7 +2,7 @@ import path from "node:path";
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: path.resolve(__dirname, "../../../.env") });
 
-import { createPrismaClient, verifyMasterPassword } from "../src/index";
+import { createPrismaClient, emailHash, loadDataKey, verifyMasterPassword } from "../src/index";
 import { promptHidden } from "./prompt";
 
 // Recovery for an admin locked out of /admin. Requires shell access to the
@@ -41,9 +41,10 @@ async function main() {
     });
     console.log("Authenticator removed. The next admin login will enroll a new one.");
   }
+  const dataKey = userTotpEmails.length > 0 ? await loadDataKey(prisma) : null;
   for (const email of userTotpEmails) {
     const { count } = await prisma.user.updateMany({
-      where: { email },
+      where: { emailHash: emailHash(dataKey!, email) },
       data: { totpSecret: null, totpLastStep: null },
     });
     console.log(

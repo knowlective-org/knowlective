@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { emailWhere, withEmail } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
 import { normalizeEmail } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
@@ -91,7 +92,7 @@ export async function addGroupMember(_prev: AddMemberState, formData: FormData):
   const email = normalizeEmail(rawEmail);
   const [group, user] = await Promise.all([
     prisma.group.findUnique({ where: { id: groupId }, select: { id: true, name: true, builtIn: true } }),
-    prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true } }),
+    prisma.user.findUnique({ where: await emailWhere(email), select: { id: true, name: true, emailEnc: true } }),
   ]);
   if (!group) return { error: "グループが見つかりません。" };
   if (group.builtIn) return { error: "このグループのメンバーは自動で決まるため、追加できません。" };
@@ -104,7 +105,7 @@ export async function addGroupMember(_prev: AddMemberState, formData: FormData):
   });
   if (!existing) {
     await prisma.groupMember.create({ data: { groupId, userId: user.id } });
-    await recordAudit(actor, "group.member.add", `${userLabel(user)} をグループ「${group.name}」に追加`, {
+    await recordAudit(actor, "group.member.add", `${userLabel(await withEmail(user))} をグループ「${group.name}」に追加`, {
       groupId,
       userId: user.id,
     });
@@ -121,12 +122,12 @@ export async function removeGroupMember(formData: FormData): Promise<void> {
   if (!(await canManageGroup(actor, groupId))) return;
   const [group, user] = await Promise.all([
     prisma.group.findUnique({ where: { id: groupId }, select: { name: true, builtIn: true } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true, emailEnc: true } }),
   ]);
   if (group?.builtIn) return;
   const { count } = await prisma.groupMember.deleteMany({ where: { groupId, userId } });
   if (count > 0 && group && user) {
-    await recordAudit(actor, "group.member.remove", `${userLabel(user)} をグループ「${group.name}」から削除`, {
+    await recordAudit(actor, "group.member.remove", `${userLabel(await withEmail(user))} をグループ「${group.name}」から削除`, {
       groupId,
       userId,
     });

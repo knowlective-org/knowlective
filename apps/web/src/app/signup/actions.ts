@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db";
+import { emailWhere } from "@/lib/emails";
 import { normalizeEmail } from "@/lib/auth/session";
 import {
   SIGNUP_TTL_HOURS,
@@ -37,7 +38,7 @@ export async function requestSignup(_prev: SignupState, formData: FormData): Pro
   }
 
   const base = await getPublicUrl();
-  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  const existing = await prisma.user.findUnique({ where: await emailWhere(email), select: { id: true } });
   // Counted for rate limiting either way (a link for an existing account is never usable).
   const token = await createSignupInvitation(email, ip, settings.siteRole);
   try {

@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db";
+import { emailWhere } from "@/lib/emails";
 import { normalizeEmail } from "@/lib/auth/session";
 import { passwordLoginAllowed } from "@/lib/auth/oidc";
 import {
@@ -35,7 +36,7 @@ export async function requestPasswordReset(
 
   const { ip } = await getRequestContext();
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: await emailWhere(email),
     select: { id: true, disabledAt: true, siteRole: true },
   });
   if (

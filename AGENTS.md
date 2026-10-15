@@ -98,6 +98,7 @@ pnpm e2e           # テスト用のアカウントを作り直してから、�
 - **pnpm 11**: ビルドスクリプトはデフォルトでブロックされる。`pnpm-workspace.yaml` の `allowBuilds` で、`@prisma/client`・`@prisma/engines`・`esbuild`・`prisma`・`unrs-resolver` を許可している。新しいネイティブ依存を足したら、同様に許可が必要。
 - **外部キー制約**: `PageDocument.pageId` は `Page.id` への外部キー。`Page` 行が存在しないドキュメントは、collabサーバーがPostgresに保存できない（エラーログが出て、ドキュメントはメモリに残るだけ）。ページ作成APIを作るときは、エディタを開く前に `Page` を作成すること。
 - **初回セットアップと暗号化**: `InstanceConfig`（id=1 の1行だけ）がない間は、`apps/web/src/app/(app)/layout.tsx` が全画面を `/setup` に飛ばし、collab は接続を拒否する。データ鍵（DEK）はマスターパスワード由来の鍵と `YOSUGA_SERVER_KEY` の2通りで暗号化して保存する（`packages/shared/src/instance.ts`）。`PageDocument.state` は DEK で暗号化され、pageId を AAD に入れている（別ページの行にコピーしても復号できない）。暗号化前の古いデータは復号できないため、DBを作り直すこと。
+- **メールアドレスと変更の記録の暗号化**: `packages/shared/src/personal-data.ts`。メールアドレス（`User`・`Invitation`・`AdminLoginAttempt`・`UserLoginAttempt`）は平文で持たない：`emailEnc`（データ鍵で暗号化）と `emailHash`（正規化したアドレスの HMAC。鍵はデータ鍵から HKDF で導出）の2列で、**検索・一意性・回数制限は `emailHash` で行う**（`UserLoginAttempt` は数えるだけなので `emailHash` だけ）。web では `lib/emails.ts` の `emailWhere()`（where 用）・`emailColumns()`（書き込み用）・`withEmail(s)()` / `displayName()`（`emailEnc` を select して開く）を使う。アドレスで並べ替える SQL は書けないので、必要なら開いてから並べる（`getUsersWithPageAccess()`）。変更の記録（`AuditLog`）は、操作した人・内容・詳細をまとめて `sealed` に暗号化する（AAD は記録の id なので、`recordAudit()` が id を決めてから書く。読むのは `listAuditLogs()`）。暗号化より前の行は `legacy*` 列に平文が残っていて、サーバーの起動時（受け付けを始める前）に `encryptLegacyPersonalData()` が暗号化して消す（データ鍵が要るので SQL のマイグレーションではできない）。シードのデモユーザーはセットアップ前に作るので、アドレスを持たない（id は `demo-user`）。**メールアドレスや人の名前を新しい列に保存するときも、同じように暗号化すること。**
 - **Next.js 16 の事前レンダリング**: DB を読む Server Component では先に `await connection()` を呼ぶ。呼ばないとビルド時に事前レンダリングされてしまう。
 - **shared の import**: `packages/shared` 内の相対 import は拡張子なしで書く。`.js` を付けると Turbopack が解決できない。
 - **管理画面（`/admin`）の認証**: `apps/web/src/lib/admin/auth.ts`。**管理画面のページと Server Action は、それぞれの中で `requireAdmin()` を呼ぶこと。** layout は守りにならない（Server Action は layout を通らずに直接 POST される）。ログイン画面と認証アプリの登録画面は、IP 制限・セッションの段階を個別に確認している。
@@ -159,7 +160,7 @@ pnpm e2e           # テスト用のアカウントを作り直してから、�
 完了:
 - モノレポ構成、Prismaスキーマ、開発用の Docker Compose（Postgres / Redis / SeaweedFS）
 - BlockNote + Yjs + Hocuspocus の共同編集（Next.js のカスタムサーバーに統合し、1プロセス・1ポート）
-- 初回セットアップ（マスターパスワード）と暗号化（データ鍵・`pnpm rotate-server-key`）。ページ本文・履歴・添付ファイル・子ページテーブルの値・検索索引を暗号化
+- 初回セットアップ（マスターパスワード）と暗号化（データ鍵・`pnpm rotate-server-key`）。ページ本文・履歴・添付ファイル・子ページテーブルの値・検索索引・メールアドレス・変更の記録を暗号化
 - ユーザー認証: 招待、ユーザーによるアカウント登録、シングルサインオン（OpenID Connect）、パスワードの再設定（メール／管理画面からのリンク発行）
 - 管理画面 `/admin`: マスターパスワード／アカウント＋TOTP、ロール（サイト管理者・コンテンツ管理者・一般ユーザー）、ユーザーの無効化、グループ、IP 制限、回数制限、変更の記録、メール送信（SMTP）、ファイル保存（S3 互換）、アップロード上限、テーマ、公開 URL、復旧コマンド `pnpm admin:recover`
 - ナレッジルートとページ: 作成・移動（サイドバーのドラッグ＆ドロップとページメニュー。別のナレッジルートへも）・並び替え・削除（ごみ箱・復元）、グループ単位の権限、共有画面、子ページ一覧／子ページテーブル

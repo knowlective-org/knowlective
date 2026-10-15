@@ -1,4 +1,6 @@
 import type { PageAccess, Prisma, PrismaClient } from "@prisma/client";
+import { loadDataKey } from "./instance";
+import { openEmail } from "./personal-data";
 
 // Page permissions. Access comes only from group grants (PageGrant):
 //
@@ -244,20 +246,34 @@ export async function getUsersWithPageAccess(
   // A personal root: its owner alone.
   const owner = await prisma.page.findUnique({
     where: { id: pageId },
-    select: { root: { select: { owner: { select: { id: true, name: true, email: true, disabledAt: true } } } } },
+    select: { root: { select: { owner: { select: { id: true, name: true, emailEnc: true, disabledAt: true } } } } },
   });
   const personal = owner?.root.owner;
-  if (personal) return personal.disabledAt ? [] : [{ id: personal.id, name: personal.name, email: personal.email }];
-  const groupAccess = await getGroupAccessForPage(prisma, pageId);
-  const groupIds = [...groupAccess.keys()];
-  if (groupIds.length === 0) return [];
-  const allUsers = await prisma.group.findUnique({ where: { builtIn: ALL_USERS_GROUP }, select: { id: true } });
-  const everyone = allUsers !== null && groupAccess.has(allUsers.id);
-  return prisma.user.findMany({
-    where: { disabledAt: null, ...(everyone ? {} : { groups: { some: { groupId: { in: groupIds } } } }) },
-    select: { id: true, name: true, email: true },
-    orderBy: [{ name: "asc" }, { email: "asc" }],
-  });
+  let users: { id: string; name: string | null; emailEnc: Uint8Array | null }[];
+  if (personal) {
+    users = personal.disabledAt ? [] : [personal];
+  } else {
+    const groupAccess = await getGroupAccessForPage(prisma, pageId);
+    const groupIds = [...groupAccess.keys()];
+    if (groupIds.length === 0) return [];
+    const allUsers = await prisma.group.findUnique({ where: { builtIn: ALL_USERS_GROUP }, select: { id: true } });
+    const everyone = allUsers !== null && groupAccess.has(allUsers.id);
+    users = await prisma.user.findMany({
+      where: { disabledAt: null, ...(everyone ? {} : { groups: { some: { groupId: { in: groupIds } } } }) },
+      select: { id: true, name: true, emailEnc: true },
+    });
+  }
+  if (users.length === 0) return [];
+  // Addresses are encrypted, so sorted here: by name (none last), then address.
+  const key = await loadDataKey(prisma);
+  return users
+    .map((u) => ({ id: u.id, name: u.name, email: u.emailEnc ? openEmail(key, u.emailEnc) : "" }))
+    .sort(
+      (a, b) =>
+        Number(a.name === null) - Number(b.name === null) ||
+        (a.name ?? "").localeCompare(b.name ?? "") ||
+        a.email.localeCompare(b.email),
+    );
 }
 
 // One knowledge root's whole tree, deleted pages included, with the user's

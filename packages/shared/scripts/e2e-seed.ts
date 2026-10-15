@@ -2,7 +2,17 @@ import path from "node:path";
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: path.resolve(__dirname, "../../../.env") });
 
-import { createKnowledgeRoot, createPrismaClient, ensurePersonalRoot, encrypt, hashPassword, loadDataKey } from "../src/index";
+import {
+  createKnowledgeRoot,
+  createPrismaClient,
+  emailHash,
+  encrypt,
+  encryptLegacyPersonalData,
+  ensurePersonalRoot,
+  hashPassword,
+  loadDataKey,
+  sealEmail,
+} from "../src/index";
 
 // Test accounts and a knowledge root for the end-to-end tests
 // (apps/web/e2e). Safe to run again: it resets the accounts' passwords, roles
@@ -40,14 +50,18 @@ async function main() {
   const prisma = createPrismaClient();
   const dataKey = await loadDataKey(prisma);
   const passwordHash = await hashPassword(PASSWORD);
+  // Accounts from before email encryption would otherwise be made again
+  // (the server does this at startup too; the seed may run first).
+  await encryptLegacyPersonalData(prisma, dataKey);
 
   const users = new Map<string, string>();
   for (const u of USERS) {
     // rootOrder: the sidebar starts in creation order on every run.
     const base = { name: u.name, passwordHash, siteRole: u.siteRole, disabledAt: null, rootOrder: [] };
+    const email = sealEmail(dataKey, u.email);
     const user = await prisma.user.upsert({
-      where: { email: u.email },
-      create: { email: u.email, ...base },
+      where: { emailHash: email.emailHash },
+      create: { ...email, ...base },
       update: base,
       select: { id: true },
     });
@@ -117,8 +131,9 @@ async function main() {
   await prisma.page.update({ where: { id: HOME_PAGE_ID }, data: { deletedAt: null, deletedById: null } });
 
   // Earlier runs' failed sign-ins must not lock this one out.
-  await prisma.adminLoginAttempt.deleteMany({ where: { email: { in: USERS.map((u) => u.email) } } });
-  await prisma.userLoginAttempt.deleteMany({ where: { email: { in: USERS.map((u) => u.email) } } });
+  const hashes = USERS.map((u) => emailHash(dataKey, u.email));
+  await prisma.adminLoginAttempt.deleteMany({ where: { emailHash: { in: hashes } } });
+  await prisma.userLoginAttempt.deleteMany({ where: { emailHash: { in: hashes } } });
 
   console.log(`Seeded ${USERS.length} E2E accounts, ${GROUPS.length} groups and the E2E knowledge roots.`);
   await prisma.$disconnect();

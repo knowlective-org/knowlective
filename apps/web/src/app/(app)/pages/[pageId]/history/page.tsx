@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { atLeast } from "shared";
 import { prisma } from "@/lib/db";
+import { displayName } from "@/lib/emails";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { requireUser } from "@/lib/auth/session";
 import { loadSidebar } from "@/lib/sidebar-data";
@@ -34,8 +35,8 @@ export default async function PageHistoryRoute({ params }: PageProps<"/pages/[pa
     }),
   ]);
   const editorIds = [...new Set(versions.flatMap((v) => v.editorIds))];
-  const editors = await prisma.user.findMany({ where: { id: { in: editorIds } }, select: { id: true, name: true, email: true } });
-  const names = new Map(editors.map((u) => [u.id, u.name || u.email]));
+  const editors = await prisma.user.findMany({ where: { id: { in: editorIds } }, select: { id: true, name: true, emailEnc: true } });
+  const names = new Map(await Promise.all(editors.map(async (u) => [u.id, await displayName(u)] as const)));
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={page.id} />}>

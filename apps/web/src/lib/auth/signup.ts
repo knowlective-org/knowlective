@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { SignupMode, SiteRole } from "shared";
 import { prisma } from "@/lib/db";
+import { emailColumns, emailWhere } from "@/lib/emails";
 import { isMailConfigured } from "@/lib/mail";
 
 // Self-registration (/signup). Off by default: accounts come from admin
@@ -74,7 +75,7 @@ export async function isSignupRateLimited(ip: string, email: string): Promise<bo
   const since = new Date(Date.now() - RATE_WINDOW_MS);
   const [byIp, byEmail] = await Promise.all([
     prisma.invitation.count({ where: { selfSignup: true, requestedIp: ip, createdAt: { gt: since } } }),
-    prisma.invitation.count({ where: { selfSignup: true, email, createdAt: { gt: since } } }),
+    prisma.invitation.count({ where: { selfSignup: true, ...(await emailWhere(email)), createdAt: { gt: since } } }),
   ]);
   return byIp >= MAX_REQUESTS_PER_IP || byEmail >= MAX_REQUESTS_PER_EMAIL;
 }
@@ -88,7 +89,7 @@ export async function createSignupInvitation(email: string, ip: string, siteRole
   await prisma.invitation.create({
     data: {
       tokenHash: createHash("sha256").update(token).digest("hex"),
-      email,
+      ...(await emailColumns(email)),
       siteRole,
       selfSignup: true,
       requestedIp: ip,

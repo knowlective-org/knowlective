@@ -2,6 +2,7 @@
 
 import { atLeast, getGroupAccessForPage, getPageAccess, getTreeWithAccess } from "shared";
 import { prisma } from "@/lib/db";
+import { displayName } from "@/lib/emails";
 import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { closeDocuments, notifyChildrenChanged, reconnectDocuments } from "@/lib/collab-events";
@@ -16,7 +17,7 @@ export type PageInfo = {
   ownerGroups: string[];
 };
 
-const displayName = (u: { name: string | null; email: string } | null) => (u ? u.name || u.email : null);
+const nameOf = (u: { name: string | null; emailEnc: Uint8Array | null } | null) => (u ? displayName(u) : null);
 
 // Shown in the page menu. Loaded when the menu opens, so the times are
 // current even after a long editing session.
@@ -28,8 +29,8 @@ export async function loadPageInfo(pageId: string): Promise<PageInfo | null> {
     select: {
       createdAt: true,
       updatedAt: true,
-      createdBy: { select: { name: true, email: true } },
-      updatedBy: { select: { name: true, email: true } },
+      createdBy: { select: { name: true, emailEnc: true } },
+      updatedBy: { select: { name: true, emailEnc: true } },
     },
   });
   if (!page) return null;
@@ -41,10 +42,10 @@ export async function loadPageInfo(pageId: string): Promise<PageInfo | null> {
     orderBy: { name: "asc" },
   });
   return {
-    createdBy: displayName(page.createdBy) ?? "",
+    createdBy: (await nameOf(page.createdBy)) ?? "",
     createdAt: page.createdAt.toISOString(),
     // Not edited since it was created: the creator was the last to touch it.
-    updatedBy: displayName(page.updatedBy) ?? displayName(page.createdBy),
+    updatedBy: (await nameOf(page.updatedBy)) ?? (await nameOf(page.createdBy)),
     updatedAt: page.updatedAt.toISOString(),
     ownerGroups: owners.map((g) => g.name),
   };

@@ -4,22 +4,26 @@ loadEnv({ path: path.resolve(__dirname, "../../../.env") });
 
 import { createKnowledgeRoot, createPrismaClient, ensurePersonalRoot } from "../src/index";
 
+const DEMO_USER_ID = "demo-user";
+
 async function main() {
   const prisma = createPrismaClient();
 
-  const user = await prisma.user.upsert({
-    where: { email: "demo@example.com" },
-    create: { email: "demo@example.com", name: "Demo User", passwordHash: "unset" },
-    update: {},
-  });
-  await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id));
-
   // Idempotent: the demo page (fixed id "demo", used by /pages/demo) marks
-  // that the demo knowledge root already exists.
+  // that the demo data already exists.
   if (await prisma.page.findUnique({ where: { id: "demo" }, select: { id: true } })) {
     console.log("Demo data already exists; nothing to do.");
     return;
   }
+
+  // Owns the demo pages; can't sign in, and has no email address (this runs
+  // before setup, when there is no data key to encrypt one with).
+  const user = await prisma.user.upsert({
+    where: { id: DEMO_USER_ID },
+    create: { id: DEMO_USER_ID, name: "Demo User", passwordHash: "unset" },
+    update: {},
+  });
+  await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id));
 
   await prisma.$transaction(async (tx) => {
     const { rootId, rootPageId } = await createKnowledgeRoot(tx, {
