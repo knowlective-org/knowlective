@@ -7,9 +7,18 @@ import { type PublicPagesSettingState, savePublicPagesSetting } from "./actions"
 
 const checkRow = { display: "flex", gap: 8, alignItems: "flex-start" } as const;
 
-export function PublicPagesForm({ allowed, publicCount }: { allowed: boolean; publicCount: number }) {
+export function PublicPagesForm({
+  allowed,
+  searchEnginesAllowed,
+  publicCount,
+}: {
+  allowed: boolean;
+  searchEnginesAllowed: boolean;
+  publicCount: number;
+}) {
   const [state, formAction, pending] = useActionState(savePublicPagesSetting, {} as PublicPagesSettingState);
   const [checked, setChecked] = useState(allowed);
+  const [noindex, setNoindex] = useState(!searchEnginesAllowed);
 
   return (
     // Submitted by hand (see LinkPreviewSettingsForm): an action form would
@@ -44,6 +53,24 @@ export function PublicPagesForm({ allowed, publicCount }: { allowed: boolean; pu
             許可すると、ページの「権限設定」に「インターネットに公開」が出て、「管理」の権限を持つ人がページを公開できます。
             公開したページ（と、その下のページ）は、ログインしていない人も閲覧だけできます。自分専用のナレッジルート（マイページ）は公開できません。
             許可をやめると、公開しているページはすぐにログインしないと見られなくなります（公開の設定は残り、もう一度許可すると元に戻ります）。
+          </span>
+        </span>
+      </label>
+      <label style={checkRow}>
+        <input
+          type="checkbox"
+          name="noindex"
+          checked={noindex}
+          onChange={(e) => setNoindex(e.target.checked)}
+          data-ui="PublicPagesForm.noindexCheckbox"
+        />
+        <span>
+          検索エンジンに載せない
+          <span className={styles.note} style={{ display: "block" }}>
+            オンの間は、サイトのすべてのページと添付ファイルに「検索結果に載せない」という指示（X-Robots-Tag: noindex）を付けます。
+            公開したページは検索では見つからず、URL を知っている人やリンクをたどってきた人だけが開くことになります。
+            主な検索エンジンはこの指示に従いますが、従うかどうかは検索エンジン次第です（見られたくないページは公開しないでください）。
+            オフにすると、公開したページが Google などの検索結果に出ることがあります。
           </span>
         </span>
       </label>

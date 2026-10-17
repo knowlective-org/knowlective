@@ -19,7 +19,7 @@ export default async function AdminOverviewPage() {
   await requireAdmin(["SITE_ADMIN"]);
   const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicCount] = await Promise.all([
     getMailSettings(),
-    prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true, publicPagesAllowed: true } }),
+    prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true, publicPagesAllowed: true, searchEnginesAllowed: true } }),
     getRequestOrigin(),
     prisma.user.count({ where: { siteRole: "SITE_ADMIN", disabledAt: null } }),
     getTheme(),
@@ -95,7 +95,11 @@ export default async function AdminOverviewPage() {
         <p className={styles.note} style={{ marginBottom: 16 }}>
           ページを、ログインしていない人にも見せられるようにするかどうかです。「全ユーザー」（登録している人全員）よりも広い公開範囲です。
         </p>
-        <PublicPagesForm allowed={site.publicPagesAllowed} publicCount={publicCount} />
+        <PublicPagesForm
+          allowed={site.publicPagesAllowed}
+          searchEnginesAllowed={site.searchEnginesAllowed}
+          publicCount={publicCount}
+        />
       </section>
 
     </>

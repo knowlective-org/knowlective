@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import next from "next";
 import { BASE_PATH } from "../src/lib/base-path";
 import { COLLAB_PATH, createCollab } from "./collab";
+import { createRobots } from "./robots";
 
 // One process, one port: the Next.js app (pages, Server Actions) and the
 // collaboration WebSocket at /collab (both under KNOWLECTIVE_BASE_PATH, if set). Runs via tsx because packages/shared is
@@ -22,10 +23,12 @@ async function main() {
   const app = next({ dev, dir: appDir, port, hostname: "localhost", httpServer });
   const handle = app.getRequestHandler();
   const collab = await createCollab();
+  const robots = createRobots();
   await app.prepare();
 
   httpServer.on("request", (req, res) => {
-    handle(req, res);
+    // Search engines kept out unless allowed in /admin (server/robots.ts).
+    void robots.apply(res).finally(() => handle(req, res));
   });
 
   // Next.js attaches its own "upgrade" listener on the first request and

@@ -13,6 +13,7 @@ import { SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
 import { recordAudit } from "@/lib/audit";
 import { reconnectDocuments } from "@/lib/collab-events";
 import { publicPageIds } from "@/lib/public-pages";
+import { searchEngineSettingChanged } from "@/lib/search-engines";
 import { manageableGroupIds } from "@/lib/group-access";
 import { saveTheme as storeTheme } from "@/lib/theme";
 import { getSignupSettings, isSignupRole, parseDomains } from "@/lib/auth/signup";
@@ -399,16 +400,31 @@ export async function savePublicPagesSetting(
 ): Promise<PublicPagesSettingState> {
   const { actor } = await requireAdmin(["SITE_ADMIN"]);
   const allowed = formData.get("allowed") === "on";
-  const before = await prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicPagesAllowed: true } });
-  if (before.publicPagesAllowed === allowed) return { saved: true };
-  await prisma.instanceConfig.update({ where: { id: 1 }, data: { publicPagesAllowed: allowed } });
-  await recordAudit(
-    actor,
-    "public-pages.settings",
-    allowed ? "ページの公開（ログインなしでの閲覧）を許可" : "ページの公開（ログインなしでの閲覧）を禁止",
-    { allowed },
-  );
-  if (!allowed) reconnectDocuments(await publicPageIds());
+  // The form's checkbox is "検索エンジンに載せない".
+  const searchEnginesAllowed = formData.get("noindex") !== "on";
+  const before = await prisma.instanceConfig.findUniqueOrThrow({
+    where: { id: 1 },
+    select: { publicPagesAllowed: true, searchEnginesAllowed: true },
+  });
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { publicPagesAllowed: allowed, searchEnginesAllowed } });
+  if (before.publicPagesAllowed !== allowed) {
+    await recordAudit(
+      actor,
+      "public-pages.settings",
+      allowed ? "ページの公開（ログインなしでの閲覧）を許可" : "ページの公開（ログインなしでの閲覧）を禁止",
+      { allowed },
+    );
+    if (!allowed) reconnectDocuments(await publicPageIds());
+  }
+  if (before.searchEnginesAllowed !== searchEnginesAllowed) {
+    await recordAudit(
+      actor,
+      "search-engines.settings",
+      searchEnginesAllowed ? "検索エンジンに載ることを許可" : "検索エンジンに載せないように変更",
+      { allowed: searchEnginesAllowed },
+    );
+    searchEngineSettingChanged();
+  }
   revalidatePath("/", "layout");
   return { saved: true };
 }

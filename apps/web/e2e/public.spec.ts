@@ -34,6 +34,11 @@ async function freshAdminCode(): Promise<string> {
 }
 
 async function setPublicPagesAllowed(page: Page, allowed: boolean) {
+  await setPublicSettings(page, { allowed });
+}
+
+// The 「ページの公開」 settings in /admin (概要). Leaves out what isn't given.
+async function setPublicSettings(page: Page, settings: { allowed?: boolean; noindex?: boolean }) {
   await page.goto("admin");
   // Signed in to /admin already (an earlier call), or not yet.
   if (new URL(page.url()).pathname.includes("/admin/login")) {
@@ -46,12 +51,17 @@ async function setPublicPagesAllowed(page: Page, allowed: boolean) {
     await page.waitForURL((url) => url.pathname.endsWith("/admin"));
   }
 
-  const checkbox = page.getByTestId("PublicPagesForm.allowedCheckbox");
-  if ((await checkbox.isChecked()) === allowed) return;
-  await checkbox.setChecked(allowed);
+  const allowedBox = page.getByTestId("PublicPagesForm.allowedCheckbox");
+  const noindexBox = page.getByTestId("PublicPagesForm.noindexCheckbox");
+  const wasAllowed = await allowedBox.isChecked();
+  const allowedChanges = settings.allowed !== undefined && settings.allowed !== wasAllowed;
+  const noindexChanges = settings.noindex !== undefined && settings.noindex !== (await noindexBox.isChecked());
+  if (!allowedChanges && !noindexChanges) return;
+  if (allowedChanges) await allowedBox.setChecked(settings.allowed!);
+  if (noindexChanges) await noindexBox.setChecked(settings.noindex!);
   await page.getByTestId("PublicPagesForm.submitButton").click();
-  // Allowing asks first.
-  if (allowed) await page.getByTestId("AppDialog.confirmButton").click();
+  // Allowing public pages asks first.
+  if (allowedChanges && settings.allowed) await page.getByTestId("AppDialog.confirmButton").click();
   await expect(page.getByTestId("PublicPagesForm.status")).toHaveText("保存しました。");
 }
 
@@ -80,8 +90,10 @@ test.describe("ページの公開", () => {
       await page.getByTestId("AppDialog.confirmButton").click();
       await expect(page.getByTestId("UnpublishForm.submitButton")).toBeVisible();
 
-      // Someone not logged in reads it, read-only.
-      await guest.goto(`pages/${id}`);
+      // Someone not logged in reads it, read-only. Search engines are told
+      // to keep it out (the default).
+      const response = await guest.goto(`pages/${id}`);
+      expect(response?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
       await expect(editorBody(guest)).toContainText("誰でも読める文章");
       await expect(guest.getByTestId("PageView.readOnlyBadge")).toHaveText("公開ページ（閲覧のみ）");
       await expect(guest.getByTestId("TitleField")).toHaveValue(title);
@@ -94,6 +106,12 @@ test.describe("ページの公開", () => {
       // A page that isn't public: the login screen, as before.
       await guest.goto(`pages/${HOME_PAGE_ID}`);
       await expect(guest).toHaveURL(/\/login/);
+
+      // Search engines allowed: no noindex from the next request on.
+      await setPublicSettings(page, { noindex: false });
+      expect((await guest.goto(`pages/${id}`))?.headers()["x-robots-tag"]).toBeUndefined();
+      await setPublicSettings(page, { noindex: true });
+      expect((await guest.goto(`pages/${id}`))?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
 
       // Not allowed any more: the page needs a login again at once.
       await setPublicPagesAllowed(page, false);
