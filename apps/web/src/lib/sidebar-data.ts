@@ -21,24 +21,41 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
   const trees = orderRoots(visible, prefs?.rootOrder ?? []);
   const isManager = user.siteRole === "SITE_ADMIN" || user.siteRole === "CONTENT_MANAGER";
   return {
-    trees: trees.map((t) => ({
-      rootId: t.rootId,
-      rootPageId: t.rootPageId,
-      personal: t.personal,
-      entryIds: t.entryIds,
-      pages: t.pages.map((p) => ({
-        id: p.id,
-        title: p.title,
-        icon: p.icon,
-        parentId: p.parentId,
-        canEdit: atLeast(p.access, "EDIT"),
-        locked: p.lock !== null,
-        canAddChild: atLeast(p.access, "EDIT") && !p.lock?.coversChildren,
-      })),
-    })),
+    trees: trees.map(sidebarTree),
     maxDepth: MAX_PAGE_DEPTH,
     userName: user.name ?? user.email,
     canCreateRoot: isManager,
     canOpenAdmin: isManager,
+    guest: false,
+  };
+}
+
+// The sidebar of someone not logged in: the public pages only.
+export async function loadPublicSidebar(): Promise<SidebarInfo> {
+  return {
+    trees: (await getVisibleTrees(prisma, null)).map(sidebarTree),
+    maxDepth: MAX_PAGE_DEPTH,
+    userName: "",
+    canCreateRoot: false,
+    canOpenAdmin: false,
+    guest: true,
+  };
+}
+
+function sidebarTree(t: Awaited<ReturnType<typeof getVisibleTrees>>[number]) {
+  return {
+    rootId: t.rootId,
+    rootPageId: t.rootPageId,
+    personal: t.personal,
+    entryIds: t.entryIds,
+    pages: t.pages.map((p) => ({
+      id: p.id,
+      title: p.title,
+      icon: p.icon,
+      parentId: p.parentId,
+      canEdit: atLeast(p.access, "EDIT"),
+      locked: p.lock !== null,
+      canAddChild: atLeast(p.access, "EDIT") && !p.lock?.coversChildren,
+    })),
   };
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { MAX_PAGE_DEPTH, atLeast, getVisibleTree } from "shared";
+import { MAX_PAGE_DEPTH, PUBLIC_GROUP, atLeast, getVisibleTree } from "shared";
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { requireUser } from "@/lib/auth/session";
@@ -12,12 +12,15 @@ import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { removeGrant, setGrant } from "./actions";
+import { PublishForm, UnpublishForm } from "./public-forms";
+import { publicPagesAllowed } from "@/lib/public-pages";
 
 export const metadata: Metadata = { title: "権限設定 | KNOWLECTIVE" };
 
 const ERRORS: Record<string, string> = {
   "last-manager": "ルートページには「管理」の権限を持つグループが最低1つ必要です。先に別のグループに「管理」を付けてください。",
   invalid: "入力内容が不正です。",
+  "public-not-allowed": "ページの公開は、管理画面で許可されていません。",
 };
 
 function AccessSelect({ defaultValue }: { defaultValue?: string }) {
@@ -47,7 +50,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
     ancestors.push({ id: p.id, title: p.title });
     cursor = p.parentId;
   }
-  const [own, inherited, groups, tree, sidebar] = await Promise.all([
+  const [allOwn, allInherited, groups, tree, sidebar, publicAllowed] = await Promise.all([
     prisma.pageGrant.findMany({
       where: { pageId },
       orderBy: { createdAt: "asc" },
@@ -55,12 +58,20 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
     }),
     prisma.pageGrant.findMany({
       where: { pageId: { in: ancestors.map((a) => a.id) } },
-      include: { group: { select: { id: true, name: true } } },
+      include: { group: { select: { id: true, name: true, builtIn: true } } },
     }),
-    prisma.group.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
+    prisma.group.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true, builtIn: true } }),
     getVisibleTree(prisma, user.id, page.root.id),
     loadSidebar(user),
+    publicPagesAllowed(),
   ]);
+  // The public group has a section of its own (「インターネットに公開」).
+  const isPublic = (g: { builtIn: string | null }) => g.builtIn === PUBLIC_GROUP;
+  const own = allOwn.filter((g) => !isPublic(g.group));
+  const inherited = allInherited.filter((g) => !isPublic(g.group));
+  const ownPublic = allOwn.some((g) => isPublic(g.group));
+  // The nearest page above made public, if any.
+  const publicAbove = ancestors.find((a) => allInherited.some((g) => g.pageId === a.id && isPublic(g.group))) ?? null;
   // Don't reveal titles of ancestors the manager itself can't see.
   const visible = new Set(tree?.pages.map((p) => p.id) ?? []);
   const ancestorTitle = (id: string) => {
@@ -75,7 +86,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
       if (!ownGroupIds.has(g.groupId) && !inheritedByGroup.has(g.groupId)) inheritedByGroup.set(g.groupId, g);
     }
   }
-  const addable = groups.filter((g) => !ownGroupIds.has(g.id));
+  const addable = groups.filter((g) => !ownGroupIds.has(g.id) && !isPublic(g));
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={pageId} />}>
@@ -180,6 +191,22 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
             </form>
           )}
         </section>
+
+        {/* Only where it can apply: allowed by a site admin, or already set. */}
+        {!page.personal && (publicAllowed || ownPublic || publicAbove) && (
+          <section className={styles.section} data-ui="SharePage.publicSection">
+            <h2 className={styles.sectionTitle}>インターネットに公開</h2>
+            <p className={styles.note} style={{ marginBottom: 12 }} data-ui="SharePage.publicStatus">
+              {ownPublic
+                ? "このページと、その下のすべてのページを公開しています。ログインしていない人も、URL を知っていれば閲覧できます。"
+                : publicAbove
+                  ? `上位のページ${ancestorTitle(publicAbove.id)}の公開により、このページも公開されています。公開をやめるには、そのページの権限設定で行います。`
+                  : "公開すると、このページと、その下のすべてのページを、ログインしていない人も閲覧できるようになります（編集はできません）。"}
+              {!publicAllowed && (ownPublic || publicAbove) && " ただし、今は管理画面でページの公開が許可されていないため、公開されていません。"}
+            </p>
+            {ownPublic ? <UnpublishForm pageId={pageId} /> : !publicAbove && publicAllowed && <PublishForm pageId={pageId} />}
+          </section>
+        )}
       </div>
     </AppShell>
   );

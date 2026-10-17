@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 // The page plus the viewer's access to it (from group grants), or null if the
 // page doesn't exist, is deleted, or none of the user's groups grants it.
 // Callers should treat null as "not found" so page ids can't be probed.
-export async function findAccessiblePage(userId: string, pageId: string) {
+// userId null: someone not logged in (public pages only, VIEW).
+export async function findAccessiblePage(userId: string | null, pageId: string) {
   const result = await getPageAccess(prisma, userId, pageId);
   if (!result) return null;
   const page = await prisma.page.findUnique({

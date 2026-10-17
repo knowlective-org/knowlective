@@ -4,18 +4,22 @@ import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
 import { findAccessiblePage } from "@/lib/auth/pages";
-import { requireUser } from "@/lib/auth/session";
+import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { atLeast } from "shared";
-import { loadSidebar } from "@/lib/sidebar-data";
+import { loadPublicSidebar, loadSidebar } from "@/lib/sidebar-data";
 import { getPublicUrl } from "@/lib/site-url";
 import { displayTitle } from "@/lib/page-title";
 import { type PageLockView, PageView } from "./page-view";
 
-// Shared by generateMetadata and the page within one request.
+// Shared by generateMetadata and the page within one request. Someone not
+// logged in may view a public page; any other page sends them to the login
+// screen, as before (so it doesn't tell which pages exist).
 const loadPage = cache(async (pageId: string) => {
-  const user = await requireUser(`/pages/${encodeURIComponent(pageId)}`);
-  const page = await findAccessiblePage(user.id, pageId);
-  return { user, page };
+  const user = await getCurrentUser();
+  if (user) return { user, page: await findAccessiblePage(user.id, pageId) };
+  const page = await findAccessiblePage(null, pageId);
+  if (!page) await requireUser(`/pages/${encodeURIComponent(pageId)}`);
+  return { user: null, page };
 });
 
 export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">): Promise<Metadata> {
@@ -28,13 +32,14 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
   if (!page) notFound();
 
   const [sidebar, publicUrl] = await Promise.all([
-    loadSidebar(user),
+    user ? loadSidebar(user) : loadPublicSidebar(),
     getPublicUrl(),
     // "/" reopens the page opened last.
-    prisma.user.updateMany({
-      where: { id: user.id, OR: [{ lastPageId: null }, { lastPageId: { not: page.id } }] },
-      data: { lastPageId: page.id },
-    }),
+    user &&
+      prisma.user.updateMany({
+        where: { id: user.id, OR: [{ lastPageId: null }, { lastPageId: { not: page.id } }] },
+        data: { lastPageId: page.id },
+      }),
   ]);
 
   // Who locked the page and when; the locking page's title only if it's this
@@ -46,12 +51,13 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
         where: { id: page.lock.holderId },
         select: { id: true, title: true, lockedAt: true, lockSubtree: true, lockedBy: { select: { name: true, emailEnc: true } } },
       }),
-      page.lock.own ? null : findAccessiblePage(user.id, page.lock.holderId),
+      page.lock.own ? null : findAccessiblePage(user?.id ?? null, page.lock.holderId),
     ]);
     lock = {
       own: page.lock.own,
       withChildren: holder?.lockSubtree ?? false,
-      lockedBy: holder?.lockedBy ? await displayName(holder.lockedBy) : null,
+      // Not shown to someone not logged in: people's names aren't public.
+      lockedBy: user && holder?.lockedBy ? await displayName(holder.lockedBy) : null,
       lockedAt: holder?.lockedAt?.toISOString() ?? null,
       holder: !page.lock.own && holder && holderAccess ? { id: holder.id, title: holder.title } : null,
     };
@@ -69,7 +75,7 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
       isRootPage={page.isRootPage}
       personal={page.personal}
       shareUrl={`${publicUrl}/pages/${page.id}`}
-      user={{ id: user.id, name: user.name ?? user.email }}
+      user={user ? { id: user.id, name: user.name ?? user.email } : null}
       sidebar={sidebar}
     />
   );

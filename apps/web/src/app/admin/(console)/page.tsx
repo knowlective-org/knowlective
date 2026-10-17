@@ -12,16 +12,19 @@ import { getTheme } from "@/lib/theme";
 import { ThemeForm } from "./theme-form";
 import { getLinkPreviewSettings } from "@/lib/link-preview-settings";
 import { LinkPreviewSettingsForm } from "./link-preview-settings-form";
+import { publicPageIds } from "@/lib/public-pages";
+import { PublicPagesForm } from "./public-pages-form";
 
 export default async function AdminOverviewPage() {
   await requireAdmin(["SITE_ADMIN"]);
-  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview] = await Promise.all([
+  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicCount] = await Promise.all([
     getMailSettings(),
-    prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true } }),
+    prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true, publicPagesAllowed: true } }),
     getRequestOrigin(),
     prisma.user.count({ where: { siteRole: "SITE_ADMIN", disabledAt: null } }),
     getTheme(),
     getLinkPreviewSettings(),
+    publicPageIds().then((ids) => ids.length),
   ]);
 
   return (
@@ -85,6 +88,14 @@ export default async function AdminOverviewPage() {
           タイトルなどは、貼り付けたときにこのサーバーが相手のサイトへ取りに行きます。
         </p>
         <LinkPreviewSettingsForm current={linkPreview} />
+      </section>
+
+      <section className={styles.section} data-ui="AdminOverviewPage.publicPagesSection">
+        <h2 className={styles.sectionTitle}>ページの公開</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          ページを、ログインしていない人にも見せられるようにするかどうかです。「全ユーザー」（登録している人全員）よりも広い公開範囲です。
+        </p>
+        <PublicPagesForm allowed={site.publicPagesAllowed} publicCount={publicCount} />
       </section>
 
     </>

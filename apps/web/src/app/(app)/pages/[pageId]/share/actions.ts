@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { atLeast, getPageAccess, type PageAccess } from "shared";
+import { PUBLIC_GROUP, atLeast, getPageAccess, type PageAccess } from "shared";
+import { reconnectDocuments } from "@/lib/collab-events";
+import { publicGroup, publicPagesAllowed, subtreeIds } from "@/lib/public-pages";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
@@ -46,8 +48,9 @@ export async function setGrant(formData: FormData): Promise<void> {
   const access = formData.get("access");
   const { user, page, isRootPage } = await requireManager(pageId);
   if (typeof groupId !== "string" || !ACCESS_VALUES.includes(access as PageAccess)) back(pageId, "invalid");
-  const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
-  if (!group) back(pageId, "invalid");
+  const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true, builtIn: true } });
+  // Made public with publishPage, never with another access level.
+  if (!group || group.builtIn === PUBLIC_GROUP) back(pageId, "invalid");
   if (isRootPage && !(await keepsRootManager(pageId, { groupId, access: access as PageAccess }))) {
     back(pageId, "last-manager");
   }
@@ -83,9 +86,10 @@ export async function removeGrant(formData: FormData): Promise<void> {
 
   const grant = await prisma.pageGrant.findUnique({
     where: { pageId_groupId: { pageId, groupId } },
-    select: { access: true, group: { select: { name: true } } },
+    select: { access: true, group: { select: { name: true, builtIn: true } } },
   });
   if (!grant) back(pageId);
+  if (grant.group.builtIn === PUBLIC_GROUP) back(pageId, "invalid");
   await prisma.pageGrant.delete({ where: { pageId_groupId: { pageId, groupId } } });
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
@@ -97,5 +101,51 @@ export async function removeGrant(formData: FormData): Promise<void> {
   // The actor may have just removed their own access to this page.
   const still = await getPageAccess(prisma, user.id, pageId);
   if (!still || !atLeast(still.access, "MANAGE")) redirect(still ? `/pages/${pageId}` : "/");
+  back(pageId);
+}
+
+// Makes the page, and every page under it, viewable without logging in (a
+// VIEW grant to the built-in public group). Only while a site admin allows
+// public pages, and never in a personal knowledge root.
+export async function publishPage(formData: FormData): Promise<void> {
+  const pageId = String(formData.get("pageId") ?? "");
+  const { user, page } = await requireManager(pageId);
+  const [allowed, group, root] = await Promise.all([
+    publicPagesAllowed(),
+    publicGroup(),
+    prisma.page.findUnique({ where: { id: pageId }, select: { root: { select: { ownerId: true } } } }),
+  ]);
+  if (!allowed || !group || root?.root.ownerId) back(pageId, "public-not-allowed");
+  const existing = await prisma.pageGrant.findUnique({ where: { pageId_groupId: { pageId, groupId: group.id } } });
+  if (existing) back(pageId);
+  await prisma.pageGrant.create({ data: { pageId, groupId: group.id, access: "VIEW" } });
+  await recordAudit(
+    { userId: user.id, label: userLabel(user) },
+    "page.public.set",
+    `ページ「${displayTitle(page.title)}」（とその下のページ）をインターネットに公開`,
+    { pageId },
+  );
+  revalidatePath(`/pages/${pageId}`, "layout");
+  back(pageId);
+}
+
+// Stops the page being public (the grant on this page; one inherited from
+// above has to be removed there). Editors open on it reconnect, so visitors
+// who aren't logged in stop receiving it at once.
+export async function unpublishPage(formData: FormData): Promise<void> {
+  const pageId = String(formData.get("pageId") ?? "");
+  const { user, page } = await requireManager(pageId);
+  const group = await publicGroup();
+  if (!group) back(pageId);
+  const { count } = await prisma.pageGrant.deleteMany({ where: { pageId, groupId: group.id } });
+  if (count === 0) back(pageId);
+  await recordAudit(
+    { userId: user.id, label: userLabel(user) },
+    "page.public.remove",
+    `ページ「${displayTitle(page.title)}」（とその下のページ）のインターネットへの公開をやめる`,
+    { pageId },
+  );
+  reconnectDocuments(await subtreeIds(pageId));
+  revalidatePath(`/pages/${pageId}`, "layout");
   back(pageId);
 }

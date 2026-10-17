@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { PAGE_ORDER, atLeast, canEditPage, getPageAccess, getUsersWithPageAccess, getVisibleTree, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
-import { requireUser } from "@/lib/auth/session";
+import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { notifyChildrenChanged } from "@/lib/collab-events";
 import {
   MAX_COLUMNS,
@@ -36,8 +36,9 @@ const NOT_ALLOWED = "この操作を行う権限がありません。";
 const PROPERTY_TYPES: PropertyType[] = ["TEXT", "DATE", "USER", "SELECT"];
 
 // The caller's visible pages in the tree containing `pageId`, or null if
-// they can't open `pageId` itself.
-async function visibleTreeOf(userId: string, pageId: unknown) {
+// they can't open `pageId` itself. userId null: someone not logged in
+// (public pages).
+async function visibleTreeOf(userId: string | null, pageId: unknown) {
   if (typeof pageId !== "string") return null;
   const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true } });
   if (!page) return null;
@@ -48,8 +49,9 @@ async function visibleTreeOf(userId: string, pageId: unknown) {
 // Every visible page below `pageId` that is reached through visible pages,
 // in creation order. The block decides how many levels to show.
 export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | null> {
-  const user = await requireUser();
-  const tree = await visibleTreeOf(user.id, pageId);
+  // Shown on public pages too.
+  const user = await getCurrentUser();
+  const tree = await visibleTreeOf(user?.id ?? null, pageId);
   if (!tree) return null;
   const below = new Set([pageId]);
   const result: Omit<ChildPageItem, "updatedAt">[] = [];
@@ -75,8 +77,9 @@ export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | 
 const nameOf = (u: { name: string | null; email: string }) => u.name || u.email;
 
 export async function loadChildTable(pageId: string): Promise<ChildTableData | null> {
-  const user = await requireUser();
-  const tree = await visibleTreeOf(user.id, pageId);
+  // Shown on public pages too, without anyone's name (see below).
+  const user = await getCurrentUser();
+  const tree = await visibleTreeOf(user?.id ?? null, pageId);
   if (!tree) return null;
   const access = new Map(tree.pages.map((p) => [p.id, p.access]));
   // Locked pages: their cells (and, for this page, its columns) can't be changed.
@@ -91,7 +94,7 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
       select: { id: true, title: true, icon: true, createdAt: true, updatedAt: true, createdById: true, updatedById: true },
     }),
     prisma.pagePropertyValue.findMany({ where: { pageId: { in: childIds }, def: { pageId } } }),
-    getUsersWithPageAccess(prisma, pageId),
+    user ? getUsersWithPageAccess(prisma, pageId) : [],
   ]);
   const key = await loadDataKey(prisma);
   const columns = defs.map((d) => openColumn(key, d));
@@ -127,7 +130,9 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
   const userNames: Record<string, string> = {};
   for (const u of assignees) userNames[u.id] = nameOf(u);
   const missing = [...referenced].filter((id) => !(id in userNames));
-  if (missing.length > 0) {
+  // Someone not logged in (a public page) gets no names: people's names and
+  // addresses aren't public.
+  if (user && missing.length > 0) {
     const others = await prisma.user.findMany({ where: { id: { in: missing } }, select: { id: true, name: true, emailEnc: true } });
     for (const u of others) userNames[u.id] = await displayName(u);
   }

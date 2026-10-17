@@ -41,6 +41,8 @@ export { PERSONAL_ROOT_TITLE, createKnowledgeRoot, ensurePersonalRoot, ensurePer
 export {
   ACCESS_RANK,
   ALL_USERS_GROUP,
+  PUBLIC_GROUP,
+  publicGroupId,
   MAX_PAGE_DEPTH,
   type VisiblePage,
   type VisibleTree,

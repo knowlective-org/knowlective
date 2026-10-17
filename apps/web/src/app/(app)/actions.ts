@@ -8,7 +8,7 @@ import { notifyChildrenChanged } from "@/lib/collab-events";
 import { normalizeTitle } from "@/lib/page-title";
 import { nextSortOrder } from "@/lib/page-move";
 import { reindexPage } from "@/lib/search-index";
-import { endUserSession, requireUser } from "@/lib/auth/session";
+import { endUserSession, getCurrentUser, requireUser } from "@/lib/auth/session";
 import { getAllowedUploadExtensions } from "@/lib/storage";
 
 export async function logout(): Promise<void> {
@@ -17,13 +17,15 @@ export async function logout(): Promise<void> {
 }
 
 // Called by the editor each time it (re)connects to the collab server, so the
-// short-lived token is always fresh and membership is re-checked.
+// short-lived token is always fresh and membership is re-checked. Someone not
+// logged in gets one for a public page, as user "" (the collab server checks
+// public access again and makes the connection read-only).
 export async function getCollabToken(pageId: string): Promise<string> {
-  const user = await requireUser();
-  if (typeof pageId !== "string" || !(await findAccessiblePage(user.id, pageId))) {
+  const user = await getCurrentUser();
+  if (typeof pageId !== "string" || !(await findAccessiblePage(user?.id ?? null, pageId))) {
     throw new Error("Page not found");
   }
-  return createCollabToken(user.id, pageId);
+  return createCollabToken(user?.id ?? "", pageId);
 }
 
 // Extensions of the files that may be added to a page (empty = any), so the

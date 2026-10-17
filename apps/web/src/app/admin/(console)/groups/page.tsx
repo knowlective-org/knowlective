@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PUBLIC_GROUP } from "shared";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
 import { manageableGroupIds } from "@/lib/group-access";
@@ -9,8 +10,13 @@ export default async function AdminGroupsPage() {
   const { actor } = await requireAdmin();
   const allowed = await manageableGroupIds(actor);
   const groups = await prisma.group.findMany({
-    // Content managers only see groups within trees they manage.
-    where: allowed === "all" ? {} : { id: { in: [...allowed] } },
+    // Content managers only see groups within trees they manage. The public
+    // group isn't one to manage here: pages are made public from their
+    // 権限設定, and the 概要 page allows it at all.
+    where: {
+      OR: [{ builtIn: null }, { builtIn: { not: PUBLIC_GROUP } }],
+      ...(allowed === "all" ? {} : { id: { in: [...allowed] } }),
+    },
     orderBy: { createdAt: "asc" },
     select: { id: true, name: true, description: true, builtIn: true, _count: { select: { members: true, grants: true } } },
   });

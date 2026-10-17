@@ -114,14 +114,32 @@ export function canEditPage(page: { access: PageAccess; lock: PageLockState | nu
 
 // Built-in group every enabled user implicitly belongs to (no GroupMember rows).
 export const ALL_USERS_GROUP = "all_users";
+// Built-in group everyone belongs to, logged in or not (public pages). Only
+// while a site admin allows public pages (InstanceConfig.publicPagesAllowed);
+// its grants are VIEW, whatever they say (loadGrants).
+export const PUBLIC_GROUP = "public";
 
-async function userGroupIds(prisma: PrismaClient, userId: string): Promise<Set<string>> {
+// The public group's id while public pages are allowed, otherwise null.
+export async function publicGroupId(prisma: PrismaClient): Promise<string | null> {
+  const [config, group] = await Promise.all([
+    prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { publicPagesAllowed: true } }),
+    prisma.group.findUnique({ where: { builtIn: PUBLIC_GROUP }, select: { id: true } }),
+  ]);
+  return config?.publicPagesAllowed && group ? group.id : null;
+}
+
+// The groups whose grants count for this viewer. null = someone not logged
+// in: the public group alone.
+async function userGroupIds(prisma: PrismaClient, userId: string | null): Promise<Set<string>> {
+  const publicId = await publicGroupId(prisma);
+  const ids = new Set<string>(publicId ? [publicId] : []);
+  if (userId === null) return ids;
   const [rows, user, allUsers] = await Promise.all([
     prisma.groupMember.findMany({ where: { userId }, select: { groupId: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { disabledAt: true } }),
     prisma.group.findUnique({ where: { builtIn: ALL_USERS_GROUP }, select: { id: true } }),
   ]);
-  const ids = new Set(rows.map((r) => r.groupId));
+  for (const r of rows) ids.add(r.groupId);
   if (allUsers && user && !user.disabledAt) ids.add(allUsers.id);
   return ids;
 }
@@ -141,12 +159,14 @@ async function loadTree(prisma: PrismaClient, rootId: string) {
   });
 }
 
-async function loadGrants(prisma: PrismaClient, rootId: string, groupIds: Set<string>) {
+async function loadGrants(prisma: PrismaClient, rootId: string, groupIds: Set<string>): Promise<Grant[]> {
   if (groupIds.size === 0) return [];
-  return prisma.pageGrant.findMany({
+  const grants = await prisma.pageGrant.findMany({
     where: { groupId: { in: [...groupIds] }, page: { rootId } },
-    select: { pageId: true, groupId: true, access: true },
+    select: { pageId: true, groupId: true, access: true, group: { select: { builtIn: true } } },
   });
+  // Public pages are read-only for everyone, however the grant was made.
+  return grants.map((g) => ({ pageId: g.pageId, groupId: g.groupId, access: g.group.builtIn === PUBLIC_GROUP ? "VIEW" : g.access }));
 }
 
 // Personal knowledge roots (KnowledgeRoot.ownerId): the owner can edit every
@@ -155,11 +175,12 @@ async function loadGrants(prisma: PrismaClient, rootId: string, groupIds: Set<st
 // owner is in, so the tree walk is the same as for any other root.
 const OWNER_GROUP = "__owner__";
 
-// The grants and groups that decide `userId`'s access to one root.
+// The grants and groups that decide `userId`'s access to one root (null:
+// someone not logged in).
 async function accessRules(
   prisma: PrismaClient,
   rootId: string,
-  userId: string,
+  userId: string | null,
   groupIds: Set<string>,
 ): Promise<{ grants: Grant[]; groupIds: Set<string> }> {
   const root = await prisma.knowledgeRoot.findUnique({ where: { id: rootId }, select: { ownerId: true, rootPageId: true } });
@@ -183,17 +204,19 @@ export async function isPersonalRoot(prisma: PrismaClient, rootId: string): Prom
 }
 
 // The user's access to one page (and the lock on it, if any), or null.
-// Disabled users get null.
+// Disabled users get null. userId null: someone not logged in (public pages
+// only, VIEW).
 export async function getPageAccess(
   prisma: PrismaClient,
-  userId: string,
+  userId: string | null,
   pageId: string,
 ): Promise<{ access: PageAccess; rootId: string; lock: PageLockState | null } | null> {
   const [page, user] = await Promise.all([
     prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, deletedAt: true } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { disabledAt: true } }),
+    userId === null ? null : prisma.user.findUnique({ where: { id: userId }, select: { disabledAt: true } }),
   ]);
-  if (!page || page.deletedAt || !user || user.disabledAt) return null;
+  if (!page || page.deletedAt) return null;
+  if (userId !== null && (!user || user.disabledAt)) return null;
   const rules = await accessRules(prisma, page.rootId, userId, await userGroupIds(prisma, userId));
   if (rules.grants.length === 0) return null;
   const tree = await loadTree(prisma, page.rootId);
@@ -256,8 +279,11 @@ export async function getUsersWithPageAccess(
     const groupAccess = await getGroupAccessForPage(prisma, pageId);
     const groupIds = [...groupAccess.keys()];
     if (groupIds.length === 0) return [];
-    const allUsers = await prisma.group.findUnique({ where: { builtIn: ALL_USERS_GROUP }, select: { id: true } });
-    const everyone = allUsers !== null && groupAccess.has(allUsers.id);
+    const [allUsers, publicId] = await Promise.all([
+      prisma.group.findUnique({ where: { builtIn: ALL_USERS_GROUP }, select: { id: true } }),
+      publicGroupId(prisma),
+    ]);
+    const everyone = (allUsers !== null && groupAccess.has(allUsers.id)) || (publicId !== null && groupAccess.has(publicId));
     users = await prisma.user.findMany({
       where: { disabledAt: null, ...(everyone ? {} : { groups: { some: { groupId: { in: groupIds } } } }) },
       select: { id: true, name: true, emailEnc: true },
@@ -446,8 +472,9 @@ export type VisibleTree = {
   entryIds: string[];
 };
 
-// Every page the user can open, grouped by knowledge root.
-export async function getVisibleTrees(prisma: PrismaClient, userId: string): Promise<VisibleTree[]> {
+// Every page the user can open, grouped by knowledge root. userId null:
+// someone not logged in (the public pages).
+export async function getVisibleTrees(prisma: PrismaClient, userId: string | null): Promise<VisibleTree[]> {
   const groupIds = await userGroupIds(prisma, userId);
   const rootIds =
     groupIds.size === 0
@@ -459,7 +486,7 @@ export async function getVisibleTrees(prisma: PrismaClient, userId: string): Pro
         });
   const roots = await prisma.knowledgeRoot.findMany({
     // The user's own personal root, and the roots their groups reach.
-    where: { OR: [{ id: { in: rootIds.map((r) => r.rootId) } }, { ownerId: userId }] },
+    where: { OR: [{ id: { in: rootIds.map((r) => r.rootId) } }, ...(userId ? [{ ownerId: userId }] : [])] },
     select: { id: true, rootPageId: true },
     orderBy: { createdAt: "asc" },
   });
@@ -475,7 +502,7 @@ export async function getVisibleTrees(prisma: PrismaClient, userId: string): Pro
 // The user's visible part of one knowledge root (for the page sidebar).
 export async function getVisibleTree(
   prisma: PrismaClient,
-  userId: string,
+  userId: string | null,
   rootId: string,
 ): Promise<VisibleTree | null> {
   const [groupIds, root] = await Promise.all([
@@ -489,7 +516,7 @@ export async function getVisibleTree(
 async function buildVisibleTree(
   prisma: PrismaClient,
   root: { id: string; rootPageId: string | null },
-  userId: string,
+  userId: string | null,
   groupIds: Set<string>,
 ): Promise<VisibleTree | null> {
   const [tree, rules] = await Promise.all([loadTree(prisma, root.id), accessRules(prisma, root.id, userId, groupIds)]);

@@ -168,16 +168,18 @@ export async function createCollab() {
       if (!payload || payload.p !== documentName) {
         throw new Error("Invalid collab token");
       }
-      const result = await getPageAccess(prisma, payload.u, documentName);
+      // User "": someone not logged in, on a public page (always VIEW).
+      const userId = payload.u || null;
+      const result = await getPageAccess(prisma, userId, documentName);
       if (!result) {
         throw new Error("No access to this page");
       }
       // VIEW, or a locked page: the server drops any update this connection
       // sends.
-      if (!canEditPage(result)) {
+      if (!canEditPage(result) || userId === null) {
         connectionConfig.readOnly = true;
       }
-      return { userId: payload.u };
+      return { userId: userId ?? undefined };
     },
     async onChange({ documentName, context }) {
       const userId = (context as { userId?: string } | undefined)?.userId;

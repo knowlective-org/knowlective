@@ -308,6 +308,11 @@ model InstanceConfig {
   linkPreviewProxyUsername    String?
   linkPreviewProxyPasswordEnc Bytes?
 
+  // Whether pages may be public: viewable without logging in, through the
+  // built-in "public" group (packages/shared/src/permissions.ts). Off: grants
+  // to that group count for nobody, and none can be added.
+  publicPagesAllowed Boolean @default(false)
+
   // How accounts are created: by invitation only, or also by anyone who
   // confirms their email address at /signup (needs mail settings).
   signupMode SignupMode @default(INVITE_ONLY)
@@ -494,8 +499,9 @@ model Group {
   name        String   @unique
   description String?
   // Set on built-in groups. "all_users": every enabled user is implicitly a
-  // member (no GroupMember rows); see permissions.ts. Built-in groups can't
-  // be deleted or have members edited.
+  // member (no GroupMember rows). "public": everyone, logged in or not, while
+  // InstanceConfig.publicPagesAllowed is on; VIEW only. See permissions.ts.
+  // Built-in groups can't be deleted or have members edited.
   builtIn     String?  @unique
   createdAt   DateTime @default(now())
 

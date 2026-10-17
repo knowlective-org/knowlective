@@ -11,6 +11,8 @@ import { getPublicUrl } from "@/lib/site-url";
 import { InvalidPublicUrlError, normalizePublicUrl, type SiteRole } from "shared";
 import { SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
 import { recordAudit } from "@/lib/audit";
+import { reconnectDocuments } from "@/lib/collab-events";
+import { publicPageIds } from "@/lib/public-pages";
 import { manageableGroupIds } from "@/lib/group-access";
 import { saveTheme as storeTheme } from "@/lib/theme";
 import { getSignupSettings, isSignupRole, parseDomains } from "@/lib/auth/signup";
@@ -383,6 +385,32 @@ export async function saveUploadTypes(_prev: UploadTypesState, formData: FormDat
   await prisma.instanceConfig.update({ where: { id: 1 }, data: { uploadAllowedExtensions: parsed.extensions } });
   revalidatePath("/admin", "layout");
   return { saved: true, extensions: parsed.extensions };
+}
+
+export type PublicPagesSettingState = { error?: string; saved?: boolean };
+
+// Whether pages may be made public (viewable without logging in). Turning it
+// off hides every public page at once — the grants stay, and count again if
+// it's turned back on — and makes the editors open on them reconnect, so a
+// visitor who isn't logged in stops receiving the page.
+export async function savePublicPagesSetting(
+  _prev: PublicPagesSettingState,
+  formData: FormData,
+): Promise<PublicPagesSettingState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const allowed = formData.get("allowed") === "on";
+  const before = await prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicPagesAllowed: true } });
+  if (before.publicPagesAllowed === allowed) return { saved: true };
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { publicPagesAllowed: allowed } });
+  await recordAudit(
+    actor,
+    "public-pages.settings",
+    allowed ? "ページの公開（ログインなしでの閲覧）を許可" : "ページの公開（ログインなしでの閲覧）を禁止",
+    { allowed },
+  );
+  if (!allowed) reconnectDocuments(await publicPageIds());
+  revalidatePath("/", "layout");
+  return { saved: true };
 }
 
 export type LinkPreviewSettingsState = { error?: string; saved?: boolean };

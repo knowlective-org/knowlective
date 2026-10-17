@@ -38,8 +38,8 @@ function contentDisposition(kind: "inline" | "attachment", name: string): string
 }
 
 export async function GET(_req: NextRequest, ctx: RouteContext<"/api/files/[fileId]">) {
+  // Not logged in: files of public pages only (getPageAccess with null).
   const user = await getCurrentUser();
-  if (!user) return notFound();
   const { fileId } = await ctx.params;
 
   const file = await prisma.fileObject.findUnique({
@@ -47,7 +47,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/files/[file
     select: { id: true, name: true, mimeType: true, pageId: true },
   });
   // A file whose page was deleted (pageId set to null) is no longer served.
-  if (!file?.pageId || !(await getPageAccess(prisma, user.id, file.pageId))) return notFound();
+  if (!file?.pageId || !(await getPageAccess(prisma, user?.id ?? null, file.pageId))) return notFound();
 
   const config = await getStorageConfig();
   if (!config) return new Response("File storage is not configured", { status: 503 });

@@ -38,6 +38,7 @@ export function Sidebar({
   userName,
   canCreateRoot,
   canOpenAdmin,
+  guest = false,
   searchQuery = "",
 }: {
   trees: SidebarTree[];
@@ -47,6 +48,8 @@ export function Sidebar({
   userName: string;
   canCreateRoot: boolean;
   canOpenAdmin: boolean;
+  // Someone not logged in, viewing public pages: no search, no account links.
+  guest?: boolean;
   // Prefills the search box (on the search screen).
   searchQuery?: string;
 }) {
@@ -62,7 +65,8 @@ export function Sidebar({
   const rootTrees = order
     ? [...listed].sort((a, b) => rank(order, a.rootId) - rank(order, b.rootId))
     : listed;
-  const reorderable = rootTrees.length > 1;
+  // The order is saved per user: not for someone not logged in.
+  const reorderable = rootTrees.length > 1 && !guest;
 
   const saveOrder = async (next: string[]) => {
     const previous = order;
@@ -96,6 +100,7 @@ export function Sidebar({
     <div className={styles.sidebar}>
       <div className={styles.brand}>KNOWLECTIVE</div>
       {/* A plain GET form, so it works before hydration too. */}
+      {!guest && (
       <form action={withBasePath("/search")} role="search" className={styles.search} data-ui="Sidebar.searchForm">
         <input
           type="search"
@@ -108,6 +113,7 @@ export function Sidebar({
           data-ui="Sidebar.searchInput"
         />
       </form>
+      )}
 
       <div className={styles.scroll}>
         {/* At the top so it stays reachable however many roots are listed. */}
@@ -172,7 +178,7 @@ export function Sidebar({
         ))}
         {shared.length > 0 && (
           <>
-            <div className={styles.sectionLabel}>共有されたページ</div>
+            <div className={styles.sectionLabel}>{guest ? "公開されているページ" : "共有されたページ"}</div>
             {shared.map((t) => (
               <DocTree
                 key={`shared-${t.rootId}`}
@@ -187,6 +193,17 @@ export function Sidebar({
         )}
       </div>
 
+      {guest ? (
+        <div className={styles.footer}>
+          <Link
+            href={`/login?next=${encodeURIComponent(pathname)}`}
+            className={styles.footerLink}
+            data-ui="Sidebar.loginLink"
+          >
+            ログイン
+          </Link>
+        </div>
+      ) : (
       <div className={styles.footer}>
         <span className={styles.user} title={userName}>
           {userName}
@@ -208,6 +225,7 @@ export function Sidebar({
           </button>
         </form>
       </div>
+      )}
     </div>
   );
 }

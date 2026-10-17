@@ -18,6 +18,8 @@ export type SidebarInfo = {
   userName: string;
   canCreateRoot: boolean;
   canOpenAdmin: boolean;
+  // Someone not logged in, viewing public pages.
+  guest: boolean;
 };
 
 // The page screen: sidebar with every visible knowledge root on the left,
@@ -33,6 +35,9 @@ export type PageLockView = {
   // For a lock from a page above: that page, if the viewer can open it.
   holder: { id: string; title: string } | null;
 };
+
+// How someone not logged in appears to the others on the page.
+const GUEST = { id: "guest", name: "ゲスト" };
 
 const lockDateFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" });
 
@@ -62,11 +67,12 @@ export function PageView({
   personal: boolean;
   // This page's URL on the site's public URL, for the share button.
   shareUrl: string;
-  user: { id: string; name: string };
+  // null: someone not logged in, on a public page.
+  user: { id: string; name: string } | null;
   sidebar: SidebarInfo;
 }) {
   const [liveTitle, setLiveTitle] = useState<string | undefined>(undefined);
-  const readOnly = !canEdit || lock !== null;
+  const readOnly = !canEdit || lock !== null || user === null;
   // Edits on their way to the server (the editor and its blocks report them).
   const saving = useSaving();
 
@@ -85,9 +91,14 @@ export function PageView({
               🔒 ロック中
             </span>
           ) : (
-            readOnly && <span className={styles.readOnly} data-ui="PageView.readOnlyBadge">閲覧のみ</span>
+            readOnly && (
+              <span className={styles.readOnly} data-ui="PageView.readOnlyBadge">
+                {user ? "閲覧のみ" : "公開ページ（閲覧のみ）"}
+              </span>
+            )
           )}
           <ShareButton url={shareUrl} />
+          {user && (
           <PageMenu
             pageId={pageId}
             title={liveTitle ?? initialTitle}
@@ -97,6 +108,7 @@ export function PageView({
             isRootPage={isRootPage}
             personal={personal}
           />
+          )}
         </div>
         {lock && (
           <p className={styles.lockBanner} data-ui="PageView.lockBanner">
@@ -123,7 +135,7 @@ export function PageView({
           </p>
         )}
         <InitialTitleContext.Provider value={initialTitle}>
-          <EditorLoader pageId={pageId} readOnly={readOnly} user={user} onTitleChange={setLiveTitle} />
+          <EditorLoader pageId={pageId} readOnly={readOnly} user={user ?? GUEST} onTitleChange={setLiveTitle} />
         </InitialTitleContext.Provider>
       </div>
     </AppShell>
