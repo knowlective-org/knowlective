@@ -3,7 +3,7 @@
 // its source). Shown in the admin console. Anyone running a modified yosuga
 // should point YOSUGA_SOURCE_URL at their own published source.
 
-export const UPSTREAM_SOURCE_URL = "https://github.com/hachibay/yosuga";
+export const UPSTREAM_SOURCE_URL = "https://github.com/knowlective-org/knowlective";
 
 export function getSourceUrl(): string {
   const configured = process.env.YOSUGA_SOURCE_URL?.trim();

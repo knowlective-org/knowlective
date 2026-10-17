@@ -356,5 +356,5 @@ yosuga は [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0-only）�
 
 - 自由に使用・改変・再配布できます。改変したものを配布する場合や、改変したものをネットワーク越しにサービスとして提供する場合は、その利用者に改変後のソースコードを AGPL-3.0 で提供する必要があります
 - 依存パッケージはそれぞれのライセンスに従います（BlockNote は MPL-2.0、そのほかは主に MIT / Apache-2.0）
-- 管理画面の左下に、ソースコードへのリンク（初期値は https://github.com/hachibay/yosuga ）を表示しています。改変したものを運用する場合は、環境変数 `YOSUGA_SOURCE_URL` を改変後のソースコードの公開先にしてください
+- 管理画面の左下に、ソースコードへのリンク（初期値は https://github.com/knowlective-org/knowlective ）を表示しています。改変したものを運用する場合は、環境変数 `YOSUGA_SOURCE_URL` を改変後のソースコードの公開先にしてください
 
