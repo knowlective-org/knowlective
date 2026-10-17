@@ -174,7 +174,7 @@ function get(url: URL, options: FetchOptions): Promise<Fetched> {
         headers: {
           Accept: "text/html,application/xhtml+xml",
           "Accept-Language": "ja,en;q=0.8",
-          "User-Agent": "Mozilla/5.0 (compatible; YOSUGA-link-preview)",
+          "User-Agent": "Mozilla/5.0 (compatible; KNOWLECTIVE-link-preview)",
         },
       },
       (response) => {

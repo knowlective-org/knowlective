@@ -272,7 +272,7 @@ function Board({
       dragged = card.dataset.card ?? null;
       e.dataTransfer.effectAllowed = "move";
       // Needed for the drag to start in Firefox; the value isn't used.
-      e.dataTransfer.setData("application/x-yosuga-card", dragged ?? "");
+      e.dataTransfer.setData("application/x-knowlective-card", dragged ?? "");
       setDragging(dragged);
     };
     const onDragOver = (e: DragEvent) => {

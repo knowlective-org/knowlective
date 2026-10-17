@@ -1,12 +1,12 @@
 // Where the running code's source can be obtained (AGPL-3.0 section 13:
 // users interacting with a modified version over a network must be offered
-// its source). Shown in the admin console. Anyone running a modified yosuga
-// should point YOSUGA_SOURCE_URL at their own published source.
+// its source). Shown in the admin console. Anyone running a modified knowlective
+// should point KNOWLECTIVE_SOURCE_URL at their own published source.
 
 export const UPSTREAM_SOURCE_URL = "https://github.com/knowlective-org/knowlective";
 
 export function getSourceUrl(): string {
-  const configured = process.env.YOSUGA_SOURCE_URL?.trim();
+  const configured = process.env.KNOWLECTIVE_SOURCE_URL?.trim();
   if (configured) {
     try {
       const url = new URL(configured);

@@ -6,7 +6,7 @@
 export const VERSION_INTERVAL_MS = 10 * 60 * 1000;
 
 // AAD for a version's encrypted Yjs state.
-export const versionAad = (pageId: string, versionId: string) => `yosuga:page-version:${pageId}:${versionId}`;
+export const versionAad = (pageId: string, versionId: string) => `knowlective:page-version:${pageId}:${versionId}`;
 
 export type PageVersionKind = "AUTO" | "INITIAL" | "BEFORE_RESTORE" | "RESTORED";
 

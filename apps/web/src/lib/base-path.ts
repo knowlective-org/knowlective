@@ -1,6 +1,6 @@
-// The sub-path the app is served under, e.g. "/yosuga" for
-// https://example.com/yosuga/ — "" (the default) when it's served from the
-// root. Set with the YOSUGA_BASE_PATH environment variable; everything is
+// The sub-path the app is served under, e.g. "/knowlective" for
+// https://example.com/knowlective/ — "" (the default) when it's served from the
+// root. Set with the KNOWLECTIVE_BASE_PATH environment variable; everything is
 // under it: pages, /admin, /api and the collaboration WebSocket.
 //
 // Next.js adds it by itself to <Link>, router.push(), redirect() and its own
@@ -15,7 +15,7 @@ export function normalizeBasePath(raw: string | undefined): string {
   const value = (raw ?? "").trim().replace(/\/+$/, "");
   if (value === "") return "";
   if (!/^(\/[A-Za-z0-9._~-]+)+$/.test(value)) {
-    throw new Error(`YOSUGA_BASE_PATH must look like "/yosuga" or "/tools/yosuga" (got "${raw}")`);
+    throw new Error(`KNOWLECTIVE_BASE_PATH must look like "/knowlective" or "/tools/knowlective" (got "${raw}")`);
   }
   return value;
 }
@@ -23,7 +23,7 @@ export function normalizeBasePath(raw: string | undefined): string {
 // In code Next.js bundles (browser and server), NEXT_PUBLIC_BASE_PATH is
 // written into the bundle at build time (next.config.ts). The custom server
 // isn't bundled and reads the environment variable itself.
-export const BASE_PATH = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH ?? process.env.YOSUGA_BASE_PATH);
+export const BASE_PATH = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH ?? process.env.KNOWLECTIVE_BASE_PATH);
 
 // `path`: an absolute path inside the app, e.g. "/api/files/abc".
 export function withBasePath(path: string): string {

@@ -7,7 +7,7 @@ import styles from "@/styles/ui.module.css";
 import { AccountLoginForm, MasterLoginForm } from "./login-form";
 
 export const metadata: Metadata = {
-  title: "管理画面ログイン | YOSUGA",
+  title: "管理画面ログイン | KNOWLECTIVE",
   robots: { index: false, follow: false },
 };
 

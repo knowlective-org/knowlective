@@ -41,7 +41,7 @@ export async function completeSetup(_prev: SetupState, formData: FormData): Prom
     console.error("[setup] failed", err);
     return {
       error:
-        "セットアップに失敗しました。サーバーの YOSUGA_SERVER_KEY が設定されているか確認してください。",
+        "セットアップに失敗しました。サーバーの KNOWLECTIVE_SERVER_KEY が設定されているか確認してください。",
     };
   }
 

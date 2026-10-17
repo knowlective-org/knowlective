@@ -56,7 +56,7 @@ export function AuthenticatorQr({
       </label>
       <p className={styles.note}>
         認証アプリの一覧で見分けるための名前です。QR
-        コードを読み取る前に変更してください。この名前は YOSUGA には保存されません。
+        コードを読み取る前に変更してください。この名前は KNOWLECTIVE には保存されません。
       </p>
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL, nothing to optimize */}
       <img src={qr} alt="認証アプリ登録用の QR コード" className={styles.qr} data-ui="AuthenticatorQr.qrCode" />

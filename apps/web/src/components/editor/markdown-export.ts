@@ -43,7 +43,7 @@ function childPageList(pages: ChildPageItem[], parentId: string, levels: number,
     );
 }
 
-// The page's blocks with YOSUGA's own block types replaced by standard ones
+// The page's blocks with KNOWLECTIVE's own block types replaced by standard ones
 // (the exporters have no equivalent, and BlockNote's Markdown export would
 // otherwise write out their on-screen controls):
 // - Mermaid 図 → a ```mermaid code block; with `mermaid: "keep"` it's left

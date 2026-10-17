@@ -44,7 +44,7 @@ const GROUPS = [
 ] as const;
 
 async function main() {
-  if (process.env.NODE_ENV === "production" && process.env.YOSUGA_E2E_SEED !== "1") {
+  if (process.env.NODE_ENV === "production" && process.env.KNOWLECTIVE_E2E_SEED !== "1") {
     throw new Error("e2e:seed creates accounts with public passwords; refusing to run in production.");
   }
   const prisma = createPrismaClient();
@@ -76,7 +76,7 @@ async function main() {
       data: {
         totpSecret:
           u.siteRole === "SITE_ADMIN"
-            ? Uint8Array.from(encrypt(dataKey, ADMIN_TOTP_SECRET, `yosuga:user-totp:${user.id}`))
+            ? Uint8Array.from(encrypt(dataKey, ADMIN_TOTP_SECRET, `knowlective:user-totp:${user.id}`))
             : null,
         totpLastStep: null,
       },

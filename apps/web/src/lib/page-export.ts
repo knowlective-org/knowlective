@@ -2,8 +2,8 @@
 // holds the page's content). They're separate components — the editor is
 // loaded on its own — so the request is a window event. No dependencies.
 
-export const EXPORT_MARKDOWN_EVENT = "yosuga:export-markdown";
-export const EXPORT_PDF_EVENT = "yosuga:export-pdf";
+export const EXPORT_MARKDOWN_EVENT = "knowlective:export-markdown";
+export const EXPORT_PDF_EVENT = "knowlective:export-pdf";
 
 // A page title as a file name: without the characters Windows, macOS or
 // Linux refuse.

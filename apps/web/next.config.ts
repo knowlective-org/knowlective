@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
-// YOSUGA_BASE_PATH, checked the same way as src/lib/base-path.ts (which can't
+// KNOWLECTIVE_BASE_PATH, checked the same way as src/lib/base-path.ts (which can't
 // be imported here).
-const basePath = (process.env.YOSUGA_BASE_PATH ?? "").trim().replace(/\/+$/, "");
+const basePath = (process.env.KNOWLECTIVE_BASE_PATH ?? "").trim().replace(/\/+$/, "");
 if (basePath !== "" && !/^(\/[A-Za-z0-9._~-]+)+$/.test(basePath)) {
-  throw new Error(`YOSUGA_BASE_PATH must look like "/yosuga" or "/tools/yosuga" (got "${process.env.YOSUGA_BASE_PATH}")`);
+  throw new Error(`KNOWLECTIVE_BASE_PATH must look like "/knowlective" or "/tools/knowlective" (got "${process.env.KNOWLECTIVE_BASE_PATH}")`);
 }
 
 const nextConfig: NextConfig = {

@@ -25,7 +25,7 @@ import { type RequestContext, getRequestContext } from "@/lib/request";
 // (or the login-specific checks) itself. Layouts are not a security boundary:
 // Server Actions are separate POST entry points that don't run them.
 
-const COOKIE_NAME = "yosuga_admin";
+const COOKIE_NAME = "knowlective_admin";
 // Only sent to the admin console (under the base path, if there is one).
 const COOKIE_PATH = withBasePath("/admin");
 
@@ -42,7 +42,7 @@ export const LOCK_WINDOW_MS = 15 * 60 * 1000;
 // The AAD binds each encrypted TOTP secret to its owner, so a secret can't be
 // copied from one account (or the master login) to another.
 const totpAad = (userId: string | null) =>
-  userId ? `yosuga:user-totp:${userId}` : "yosuga:admin-totp";
+  userId ? `knowlective:user-totp:${userId}` : "knowlective:admin-totp";
 
 export async function getAdminConfig() {
   const config = await prisma.instanceConfig.findUnique({

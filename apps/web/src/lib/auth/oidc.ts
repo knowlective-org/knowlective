@@ -19,7 +19,7 @@ import { getPublicUrl } from "@/lib/site-url";
 // nonce; client authenticated with its secret). The protocol work — discovery,
 // token request, ID token signature/issuer/audience/expiry/nonce checks — is
 // done by openid-client (a certified implementation); this module decides
-// who the person is in yosuga:
+// who the person is in knowlective:
 //
 // 1. A user whose oidcIssuer + oidcSubject match → that user.
 // 2. Otherwise a verified email matching an account not yet linked to any
@@ -32,10 +32,10 @@ import { getPublicUrl } from "@/lib/site-url";
 
 export const OIDC_CALLBACK_PATH = "/auth/oidc/callback";
 export const OIDC_START_PATH = "/auth/oidc/start";
-export const OIDC_STATE_COOKIE = "yosuga_oidc";
+export const OIDC_STATE_COOKIE = "knowlective_oidc";
 export const OIDC_STATE_MAX_AGE = 10 * 60;
-const STATE_AAD = "yosuga:oidc-login-state";
-const SECRET_AAD = "yosuga:oidc-client-secret";
+const STATE_AAD = "knowlective:oidc-login-state";
+const SECRET_AAD = "knowlective:oidc-client-secret";
 
 export const OIDC_ROLES = [
   "USER",

@@ -6,14 +6,14 @@ import { BlockList, isIP } from "node:net";
 // absent (`??=` in next/dist/server/base-server.js), so a client talking to
 // Next.js directly can send any value it likes. The trustworthy entry is the
 // one appended by the last reverse proxy we control: counting from the right,
-// skip YOSUGA_TRUSTED_PROXY_HOPS - 1 entries.
+// skip KNOWLECTIVE_TRUSTED_PROXY_HOPS - 1 entries.
 //
 // Default 1 is correct both for local dev (no proxy: Next.js adds the socket
 // address) and for a single reverse proxy (nginx/Caddy) in front. Exposing
 // Next.js directly to the internet makes the IP spoofable — always deploy
 // behind a reverse proxy.
 function trustedHops(): number {
-  const n = Number(process.env.YOSUGA_TRUSTED_PROXY_HOPS ?? 1);
+  const n = Number(process.env.KNOWLECTIVE_TRUSTED_PROXY_HOPS ?? 1);
   return Number.isInteger(n) && n >= 1 ? n : 1;
 }
 

@@ -12,7 +12,7 @@ import type { RequestContext } from "@/lib/request";
 // Every page and Server Action that needs a user must call requireUser()
 // itself — layouts don't run for Server Actions.
 
-const COOKIE_NAME = "yosuga_session";
+const COOKIE_NAME = "knowlective_session";
 // Only sent to this app: under its base path if it shares the host with others.
 const COOKIE_PATH = BASE_PATH || "/";
 
@@ -85,7 +85,7 @@ export async function createUserSession(ctx: RequestContext, userId: string): Pr
   (await cookies()).set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: ctx.secure,
-    // Lax (not Strict) so following a link to yosuga from elsewhere still
+    // Lax (not Strict) so following a link to knowlective from elsewhere still
     // arrives logged in. Server Actions have their own Origin check.
     sameSite: "lax",
     path: COOKIE_PATH,

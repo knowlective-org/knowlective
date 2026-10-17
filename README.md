@@ -1,4 +1,4 @@
-# yosuga
+# knowlective
 
 ブロックエディタとリアルタイム共同編集を備えた、セルフホスト可能なドキュメント・ナレッジ共有OSS（フルスクラッチ）。
 
@@ -21,7 +21,7 @@ DBはPostgreSQL、水平スケール用にRedis pub/subを使用。
 
 ```bash
 cp .env.example .env
-pnpm gen:server-key        # 出力された値を .env の YOSUGA_SERVER_KEY に設定
+pnpm gen:server-key        # 出力された値を .env の KNOWLECTIVE_SERVER_KEY に設定
 pnpm gen:storage-key       # 2回実行し、.env の SEAWEEDFS_ACCESS_KEY / SEAWEEDFS_SECRET_KEY に設定（英数字だけの値）
 docker compose up -d      # Postgres + 意味での検索用の Postgres（pgvector）+ Redis + SeaweedFS（ファイル保存）
 pnpm install
@@ -30,7 +30,7 @@ pnpm db:migrate            # packages/shared の Prisma マイグレーション
 pnpm db:seed                # デモ用のナレッジルートとページ ("demo") を作成
 ```
 
-> 開発用の PostgreSQL も pg_tde で暗号化している（本番の同梱 DB と同じ構成）。以前の開発用 DB（PostgreSQL 16、ボリューム `yosuga_postgres_data`）があれば、`bash docker/postgres/move-to-tde.sh` で移す。
+> 開発用の PostgreSQL も pg_tde で暗号化している（本番の同梱 DB と同じ構成）。以前の開発用 DB（PostgreSQL 16、ボリューム `knowlective_postgres_data`）があれば、`bash docker/postgres/move-to-tde.sh` で移す。
 >
 > アプリはルートの `.env` を読む。`apps/web/.env.local` などを置いた場合は、そちらの値が優先される。
 > ルートの `.env` を変更したときは、開発サーバーを再起動すること。
@@ -42,17 +42,17 @@ pnpm db:seed                # デモ用のナレッジルートとページ ("de
 
 - データ鍵は平文では保存せず、次の2通りで暗号化して DB に保存する（エンベロープ暗号化）。
   - マスターパスワードから導出した鍵（scrypt）で暗号化したもの … 復旧・鍵の入れ替え用
-  - サーバーの鍵 `YOSUGA_SERVER_KEY` で暗号化したもの … 起動時に自動で鍵を取り出す用
+  - サーバーの鍵 `KNOWLECTIVE_SERVER_KEY` で暗号化したもの … 起動時に自動で鍵を取り出す用
 - ページ本文（Yjs の状態）は AES-256-GCM で暗号化して保存する。DB やバックアップだけが漏れても内容は読めない。
 - メールアドレスと変更の記録（誰が何を変えたか）も暗号化して保存する。ログイン・招待などでアドレスを探すときは、アドレスそのものではなく、データ鍵から作った鍵によるハッシュで照合する。
 - 同梱の PostgreSQL は、DB 全体も暗号化する（Percona Server for PostgreSQL の pg_tde。テーブル・インデックス・WAL）。アプリで暗号化していない部分（ページのタイトル・ファイル名・グループ名など）も、ディスクやボリュームのコピーからは読めない。鍵はデータとは別のボリューム（`postgres_tde_keys`）にあり、**データとは別にバックアップする**（なくすと DB を読めない）。DB に接続できる人には平文で見えるので、アプリでの暗号化の代わりにはならない。別途用意した PostgreSQL では、この暗号化は各自の環境に任せる。
-- `YOSUGA_SERVER_KEY` を失った・漏れた・入れ替えたいときは、マスターパスワードを使って新しいサーバー鍵を発行できる。
+- `KNOWLECTIVE_SERVER_KEY` を失った・漏れた・入れ替えたいときは、マスターパスワードを使って新しいサーバー鍵を発行できる。
 
   ```bash
   pnpm rotate-server-key
   ```
 
-> **`YOSUGA_SERVER_KEY` とマスターパスワードを両方失うと、ページのデータは復旧できない。**
+> **`KNOWLECTIVE_SERVER_KEY` とマスターパスワードを両方失うと、ページのデータは復旧できない。**
 > どちらも安全な場所に保管すること。
 
 ## ナレッジルートとページ
@@ -151,7 +151,7 @@ pnpm db:seed                # デモ用のナレッジルートとページ ("de
 
 ### 見出し
 
-ページのタイトルがそのページ唯一の H1 なので、本文の見出しは H2〜H6 だけ使える（スラッシュメニューに見出し1はなく、`# ` も見出しにならない）。外から貼り付けた見出し（HTML・Markdown）は1段ずつ下がる（H1→H2 … H5→H6、H6 は H6 のまま）。yosuga 内でのコピー＆ペーストはそのまま。以前のページに残っている H1 は、編集できる人が開いたときに H2 に変わる。
+ページのタイトルがそのページ唯一の H1 なので、本文の見出しは H2〜H6 だけ使える（スラッシュメニューに見出し1はなく、`# ` も見出しにならない）。外から貼り付けた見出し（HTML・Markdown）は1段ずつ下がる（H1→H2 … H5→H6、H6 は H6 のまま）。knowlective 内でのコピー＆ペーストはそのまま。以前のページに残っている H1 は、編集できる人が開いたときに H2 に変わる。
 
 ### 子ページ一覧・子ページテーブル
 
@@ -171,7 +171,7 @@ pnpm db:seed                # デモ用のナレッジルートとページ ("de
 
 エディタにファイルをドラッグ＆ドロップ（または貼り付け）すると添付できる。画像・動画・音声はその場で表示され、それ以外はファイルとしてダウンロードできる。
 
-- 保存先は S3 互換ストレージ。初期状態では Docker Compose に同梱の SeaweedFS（`localhost:8333`）を使い、バケット `yosuga` は初回に自動で作られる。外部の S3（AWS・Cloudflare R2・MinIO など）は、管理画面の「概要」→「ファイル保存」で設定する
+- 保存先は S3 互換ストレージ。初期状態では Docker Compose に同梱の SeaweedFS（`localhost:8333`）を使い、バケット `knowlective` は初回に自動で作られる。外部の S3（AWS・Cloudflare R2・MinIO など）は、管理画面の「概要」→「ファイル保存」で設定する
 - ファイルはアプリがデータ鍵で暗号化してから保存する。ストレージ側には暗号化されたデータしか置かれない
 - 配信は `/api/files/<id>` 経由で、ファイルを添付したページを見られる人だけが取り出せる。画像・動画・音声以外（HTML・SVG・PDF なども含む）は、ブラウザで表示させずダウンロードさせる
 - 閲覧のみの権限では、ファイルを追加できない
@@ -228,7 +228,7 @@ pnpm db:seed                # デモ用のナレッジルートとページ ("de
 - パスワードでのログインは「併用」（初期値）か「シングルサインオンのみ」。後者でも、IdP の障害で締め出されないよう、サイト管理者はパスワードでログインできる
 - 無効にしたユーザーはシングルサインオンでもログインできない
 - 管理画面（`/admin`）へのログインは、これまでどおりパスワード＋認証アプリ。シングルサインオンで作られたアカウントには最初はパスワードがないので、管理画面には入れない（コンテンツ管理者として作った場合も）。ただし、パスワードでのログインが「併用」なら、パスワードの再設定でパスワードを設定できる
-- yosuga からログアウトしても、IdP からはログアウトしない
+- knowlective からログアウトしても、IdP からはログアウトしない
 
 ## 管理画面（`/admin`）
 
@@ -283,24 +283,24 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 接続元 IP は `X-Forwarded-For` から判定するため、**Next.js を直接インターネットに公開せず、必ずリバースプロキシ（Caddy / nginx など）の後ろに置くこと。** 直接公開すると IP を偽装でき、回数制限と IP 制限が効かなくなる。
 
 - プロキシは `X-Forwarded-For` に接続元を**追記**し、`X-Forwarded-Proto` を渡すこと（nginx なら `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` と `proxy_set_header X-Forwarded-Proto $scheme;`）。`X-Forwarded-Proto: https` が届かないと、管理画面の Cookie に Secure が付かない。
-- プロキシが2段以上（例: CDN → nginx）なら、`YOSUGA_TRUSTED_PROXY_HOPS` にその段数を設定する。
+- プロキシが2段以上（例: CDN → nginx）なら、`KNOWLECTIVE_TRUSTED_PROXY_HOPS` にその段数を設定する。
 
-### サブパスでの公開（`YOSUGA_BASE_PATH`）
+### サブパスでの公開（`KNOWLECTIVE_BASE_PATH`）
 
-`https://example.com/yosuga/` のように、ホストのルートではなくサブパスで公開する場合は、環境変数 `YOSUGA_BASE_PATH` にそのパス（例: `/yosuga`）を設定する。既定は空（ルートで公開）。
+`https://example.com/knowlective/` のように、ホストのルートではなくサブパスで公開する場合は、環境変数 `KNOWLECTIVE_BASE_PATH` にそのパス（例: `/knowlective`）を設定する。既定は空（ルートで公開）。
 
-- ページ・管理画面（`/yosuga/admin`）・API・共同編集の WebSocket（`/yosuga/collab`）のすべてが、このパスの下になる。稼働確認も `/yosuga/api/health`。
-- **リバースプロキシは、パスを削らずにそのままアプリへ渡すこと**（`/yosuga/login` を `/yosuga/login` のまま転送する）。nginx なら `location /yosuga/ { proxy_pass http://127.0.0.1:3000; }`（`proxy_pass` の末尾に `/` を付けない）。WebSocket の Upgrade もこの location で通す。
+- ページ・管理画面（`/knowlective/admin`）・API・共同編集の WebSocket（`/knowlective/collab`）のすべてが、このパスの下になる。稼働確認も `/knowlective/api/health`。
+- **リバースプロキシは、パスを削らずにそのままアプリへ渡すこと**（`/knowlective/login` を `/knowlective/login` のまま転送する）。nginx なら `location /knowlective/ { proxy_pass http://127.0.0.1:3000; }`（`proxy_pass` の末尾に `/` を付けない）。WebSocket の Upgrade もこの location で通す。
 - 管理画面の「公開 URL」には、サブパスを含めずにオリジンだけ（`https://example.com`）を入力する。招待メールなどのリンクには、サブパスが自動で付く。管理画面の「概要」で今の値を確認できる。
 - 値は起動時に反映される。Docker では `.env.production` を書き換えて `docker compose … up -d` し直す（イメージの作り直しは不要）。Docker を使わない場合は、`pnpm build` の前に設定する（ビルドに埋め込まれる）。
-- SSO を使っている場合は、IdP に登録するリダイレクト URI も `https://example.com/yosuga/auth/oidc/callback` に変える。
+- SSO を使っている場合は、IdP に登録するリダイレクト URI も `https://example.com/knowlective/auth/oidc/callback` に変える。
 - サブパスを変えると、ログイン中の人はログインし直しになる（Cookie の有効範囲がパスごとのため）。ページの内容や添付ファイルはそのまま使える。
 
 ## 本番での起動
 
 ### Docker Compose（推奨）
 
-アプリ（Next.js と共同編集を1つのコンテナで動かす）・SeaweedFS（ファイル保存）と、同梱の PostgreSQL（または別途用意した PostgreSQL）で動かす。開発用の `docker-compose.yml` とは別のプロジェクト（`yosuga-prod`）なので、同じマシンでもコンテナやボリュームは共有しない。
+アプリ（Next.js と共同編集を1つのコンテナで動かす）・SeaweedFS（ファイル保存）と、同梱の PostgreSQL（または別途用意した PostgreSQL）で動かす。開発用の `docker-compose.yml` とは別のプロジェクト（`knowlective-prod`）なので、同じマシンでもコンテナやボリュームは共有しない。
 
 ```bash
 ./install.sh
@@ -310,7 +310,7 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 
 - データベースは「同梱の PostgreSQL」（Percona Server for PostgreSQL 17。pg_tde で DB 全体を暗号化する）か「別途用意した PostgreSQL」（16 以上を推奨）を選ぶ。別途用意する場合は、データベースとユーザーを先に作り、ユーザーにテーブルを作る権限を付けておく（起動時のマイグレーションでテーブルを作る）。接続先を入力すると、コンテナから実際に接続できるかを確認できる。コンテナの中から見た `localhost` はコンテナ自身なので、同じサーバーの PostgreSQL でもサーバーのアドレスを指定する
 - 意味での検索を使うかを選ぶ。使う場合は、同梱のベクトル用データベース（`bundled-vectordb`）も起動する（メモリを数百 MB 余分に使う）
-- サーバー鍵（`YOSUGA_SERVER_KEY`）は新しく作るか、移行・復元なら既存の鍵を入力する。同梱の SeaweedFS の認証情報と同梱の PostgreSQL のパスワードは自動で作る
+- サーバー鍵（`KNOWLECTIVE_SERVER_KEY`）は新しく作るか、移行・復元なら既存の鍵を入力する。同梱の SeaweedFS の認証情報と同梱の PostgreSQL のパスワードは自動で作る
 - もう一度実行すると、今の `.env.production` の値を初期値にして作り直す（元のファイルは `.env.production.bak.<日時>` に残す）。サーバー鍵と同梱の PostgreSQL のパスワードは引き継ぐ（変えるとデータを読めない・接続できないため）
 
 手で設定する場合は、`.env.production.example` を `.env.production` にコピーして値を入れ、次のコマンドで起動する。
@@ -319,18 +319,18 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 
-- アプリは `127.0.0.1:3000`（`YOSUGA_PORT` で変更）で待ち受ける。外からはリバースプロキシ（下記）経由で公開し、`https://<公開 URL>` で開いて初回セットアップを行う
-- 起動するたびに、未適用のデータベースのマイグレーションを適用してから起動する（`YOSUGA_SKIP_MIGRATIONS=1` で止められる）。更新は `git pull` してから同じ `up -d --build` を実行する
+- アプリは `127.0.0.1:3000`（`KNOWLECTIVE_PORT` で変更）で待ち受ける。外からはリバースプロキシ（下記）経由で公開し、`https://<公開 URL>` で開いて初回セットアップを行う
+- 起動するたびに、未適用のデータベースのマイグレーションを適用してから起動する（`KNOWLECTIVE_SKIP_MIGRATIONS=1` で止められる）。更新は `git pull` してから同じ `up -d --build` を実行する
 - 停止時（`docker compose stop` など）は、開いているドキュメントを保存してから終了する
 - 稼働確認は `GET /api/health`（DB に接続できれば 200。サブパスで公開している場合は `<サブパス>/api/health`）。コンテナにもヘルスチェックを設定している
 - 復旧コマンドはコンテナの中で実行する: `docker compose -f docker-compose.prod.yml --env-file .env.production exec app pnpm admin:recover --clear-lockout`（`rotate-server-key` も同様）
-- **バックアップ**: PostgreSQL と SeaweedFS のボリューム（`yosuga-prod_seaweedfs_data`）、それに `.env.production`（`YOSUGA_SERVER_KEY`）。中身は暗号化されているので、鍵がないとバックアップから復元できない
-  - 同梱の PostgreSQL は、DB の暗号化の鍵（ボリューム `yosuga-prod_postgres_tde_keys`）も必要。**データ（`yosuga-prod_postgres_tde_data`）とは別の場所に**保管する（一緒に置くと、DB 全体の暗号化の意味がなくなる）
+- **バックアップ**: PostgreSQL と SeaweedFS のボリューム（`knowlective-prod_seaweedfs_data`）、それに `.env.production`（`KNOWLECTIVE_SERVER_KEY`）。中身は暗号化されているので、鍵がないとバックアップから復元できない
+  - 同梱の PostgreSQL は、DB の暗号化の鍵（ボリューム `knowlective-prod_postgres_tde_keys`）も必要。**データ（`knowlective-prod_postgres_tde_data`）とは別の場所に**保管する（一緒に置くと、DB 全体の暗号化の意味がなくなる）
   - `pg_dump` の出力は DB 全体の暗号化が外れた状態（アプリで暗号化した列は暗号化されたまま）なので、ファイルを暗号化して保管する
-- **同梱の PostgreSQL を暗号化する前のデータからの更新**: 以前の同梱 DB（PostgreSQL 16、ボリューム `yosuga-prod_postgres_data`）は、`git pull` のあと `bash docker/postgres/move-to-tde.sh prod` で暗号化した DB へ移す（中身を `pg_dump` から `pg_restore` へ直接流し、暗号化されていないダンプをファイルに残さない）。動作を確かめたら、古いボリュームを `docker volume rm yosuga-prod_postgres_data` で削除する
+- **同梱の PostgreSQL を暗号化する前のデータからの更新**: 以前の同梱 DB（PostgreSQL 16、ボリューム `knowlective-prod_postgres_data`）は、`git pull` のあと `bash docker/postgres/move-to-tde.sh prod` で暗号化した DB へ移す（中身を `pg_dump` から `pg_restore` へ直接流し、暗号化されていないダンプをファイルに残さない）。動作を確かめたら、古いボリュームを `docker volume rm knowlective-prod_postgres_data` で削除する
 - Redis は複数のアプリのコンテナで共同編集を中継するときだけ必要なので、同梱していない（1台なら不要）。使う場合は `REDIS_URL` を設定する
 
-イメージだけを作る場合は `docker build -t yosuga .`。必要な環境変数は `DATABASE_URL`・`YOSUGA_SERVER_KEY`・（同梱の SeaweedFS を使うなら）`SEAWEEDFS_ACCESS_KEY`・`SEAWEEDFS_SECRET_KEY`・`YOSUGA_BUNDLED_S3_ENDPOINT`。
+イメージだけを作る場合は `docker build -t knowlective .`。必要な環境変数は `DATABASE_URL`・`KNOWLECTIVE_SERVER_KEY`・（同梱の SeaweedFS を使うなら）`SEAWEEDFS_ACCESS_KEY`・`SEAWEEDFS_SECRET_KEY`・`KNOWLECTIVE_BUNDLED_S3_ENDPOINT`。
 
 ### Docker を使わない場合
 
@@ -352,9 +352,9 @@ pnpm dev           # http://localhost:3000（共同編集の WebSocket も同じ
 
 Copyright (C) 2026 hachibay
 
-yosuga は [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0-only）で公開しています。
+knowlective は [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0-only）で公開しています。
 
 - 自由に使用・改変・再配布できます。改変したものを配布する場合や、改変したものをネットワーク越しにサービスとして提供する場合は、その利用者に改変後のソースコードを AGPL-3.0 で提供する必要があります
 - 依存パッケージはそれぞれのライセンスに従います（BlockNote は MPL-2.0、そのほかは主に MIT / Apache-2.0）
-- 管理画面の左下に、ソースコードへのリンク（初期値は https://github.com/knowlective-org/knowlective ）を表示しています。改変したものを運用する場合は、環境変数 `YOSUGA_SOURCE_URL` を改変後のソースコードの公開先にしてください
+- 管理画面の左下に、ソースコードへのリンク（初期値は https://github.com/knowlective-org/knowlective ）を表示しています。改変したものを運用する場合は、環境変数 `KNOWLECTIVE_SOURCE_URL` を改変後のソースコードの公開先にしてください
 

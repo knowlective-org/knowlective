@@ -15,7 +15,7 @@ import { normalizeTitle } from "./page-title";
 // but not the key can't read the text — though pages sharing pieces of text
 // share tokens, which leaks some structure.
 
-const SEARCH_KEY_INFO = "yosuga:search-index:v1";
+const SEARCH_KEY_INFO = "knowlective:search-index:v1";
 
 export function searchKey(dataKey: Uint8Array): Buffer {
   return Buffer.from(hkdfSync("sha256", dataKey, Buffer.alloc(0), SEARCH_KEY_INFO, 32));

@@ -1,3 +1,7 @@
+# Development: the services the app needs (`docker compose up -d`). Named, so
+# containers and volumes don't take the checkout folder's name.
+name: knowlective
+
 services:
   # PostgreSQL with transparent data encryption: Percona Server for
   # PostgreSQL + pg_tde (docker/postgres/). Tables, indexes and the WAL are
@@ -8,17 +12,17 @@ services:
     restart: unless-stopped
     # Root only to prepare the key directory; the image then runs as postgres.
     user: "0"
-    entrypoint: ["bash", "/yosuga/tde-entrypoint.sh"]
+    entrypoint: ["bash", "/knowlective/tde-entrypoint.sh"]
     environment:
-      POSTGRES_USER: yosuga
-      POSTGRES_PASSWORD: yosuga
-      POSTGRES_DB: yosuga
+      POSTGRES_USER: knowlective
+      POSTGRES_PASSWORD: knowlective
+      POSTGRES_DB: knowlective
     ports:
       - "5432:5432"
     volumes:
       - postgres_tde_data:/data/db
       - postgres_tde_keys:/tde
-      - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
+      - ./docker/postgres/tde-entrypoint.sh:/knowlective/tde-entrypoint.sh:ro
       - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
 
   # Vectors for semantic search (pgvector), in an instance of its own: they
@@ -30,17 +34,17 @@ services:
     image: percona/percona-distribution-postgresql:17.11
     restart: unless-stopped
     user: "0"
-    entrypoint: ["bash", "/yosuga/tde-entrypoint.sh"]
+    entrypoint: ["bash", "/knowlective/tde-entrypoint.sh"]
     environment:
-      POSTGRES_USER: yosuga
-      POSTGRES_PASSWORD: yosuga
-      POSTGRES_DB: yosuga_vectors
+      POSTGRES_USER: knowlective
+      POSTGRES_PASSWORD: knowlective
+      POSTGRES_DB: knowlective_vectors
     ports:
       - "5433:5432"
     volumes:
       - vectordb_tde_data:/data/db
       - vectordb_tde_keys:/tde
-      - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
+      - ./docker/postgres/tde-entrypoint.sh:/knowlective/tde-entrypoint.sh:ro
       - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
 
   redis:
@@ -65,7 +69,7 @@ services:
     command:
       - |
         cat > /etc/seaweedfs-s3.json <<JSON
-        {"identities":[{"name":"yosuga","credentials":[{"accessKey":"$${S3_ACCESS_KEY}","secretKey":"$${S3_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+        {"identities":[{"name":"knowlective","credentials":[{"accessKey":"$${S3_ACCESS_KEY}","secretKey":"$${S3_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
         JSON
         exec weed server -dir=/data -ip.bind=0.0.0.0 -volume.max=0 -master.volumeSizeLimitMB=1024           -s3 -s3.port=8333 -s3.config=/etc/seaweedfs-s3.json
     ports:

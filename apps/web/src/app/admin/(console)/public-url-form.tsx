@@ -19,7 +19,7 @@ export function PublicUrlForm({ current, suggested }: { current: string | null; 
           name="publicUrl"
           required
           defaultValue={current ?? suggested}
-          placeholder="https://yosuga.example.com"
+          placeholder="https://knowlective.example.com"
           spellCheck={false}
           className={styles.field}
         />

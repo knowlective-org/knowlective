@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 // Outgoing mail over SMTP, configured from /admin (MailSettings).
 // The SMTP password is encrypted with the instance data key.
 
-const PASSWORD_AAD = "yosuga:smtp-password";
+const PASSWORD_AAD = "knowlective:smtp-password";
 // Fail fast instead of hanging a request on an unreachable server.
 const TIMEOUT_MS = 15_000;
 

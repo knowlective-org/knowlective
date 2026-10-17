@@ -4,7 +4,7 @@ import { getRequestOrigin } from "@/lib/request";
 
 // Base URL for links that leave the site (emails, invitation links): the
 // configured origin plus the base path the app is served under, without a
-// trailing slash ("https://example.com/yosuga").
+// trailing slash ("https://example.com/knowlective").
 // Falls back to the request's origin on instances set up before the setting
 // existed; /admin shows a warning until it's configured.
 export async function getPublicUrl(): Promise<string> {

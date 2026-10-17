@@ -28,7 +28,7 @@ export function SetupForm({ minLength, suggestedUrl }: { minLength: number; sugg
           name="publicUrl"
           required
           defaultValue={suggestedUrl}
-          placeholder="https://yosuga.example.com"
+          placeholder="https://knowlective.example.com"
           spellCheck={false}
           style={fieldStyle}
         />

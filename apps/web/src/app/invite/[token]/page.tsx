@@ -11,7 +11,7 @@ import styles from "@/styles/ui.module.css";
 import { AcceptForm, RegisterForm } from "./invite-forms";
 
 export const metadata: Metadata = {
-  title: "招待 | YOSUGA",
+  title: "招待 | KNOWLECTIVE",
   robots: { index: false, follow: false },
 };
 
@@ -67,7 +67,7 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
   }
   return (
     <main className={styles.narrow} data-ui="InvitePage">
-      <h1 className={styles.title}>YOSUGA への招待</h1>
+      <h1 className={styles.title}>KNOWLECTIVE への招待</h1>
       <p className={styles.lead}>{description}</p>
       {user ? (
         <>

@@ -10,7 +10,7 @@ import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { OwnPasswordResetForm } from "./password-reset-form";
 
-export const metadata: Metadata = { title: "アカウント | YOSUGA" };
+export const metadata: Metadata = { title: "アカウント | KNOWLECTIVE" };
 
 // The signed-in user's own account: who they are, and resetting their
 // password.

@@ -5,13 +5,13 @@
 
 SET pg_tde.cipher = 'aes_256';
 CREATE EXTENSION IF NOT EXISTS pg_tde;
-SELECT pg_tde_add_global_key_provider_file('yosuga-keyring', '/tde/keyring');
+SELECT pg_tde_add_global_key_provider_file('knowlective-keyring', '/tde/keyring');
 -- Tables and indexes of every database.
-SELECT pg_tde_create_key_using_global_key_provider('yosuga-default', 'yosuga-keyring');
-SELECT pg_tde_set_default_key_using_global_key_provider('yosuga-default', 'yosuga-keyring');
+SELECT pg_tde_create_key_using_global_key_provider('knowlective-default', 'knowlective-keyring');
+SELECT pg_tde_set_default_key_using_global_key_provider('knowlective-default', 'knowlective-keyring');
 -- The WAL.
-SELECT pg_tde_create_key_using_global_key_provider('yosuga-wal', 'yosuga-keyring');
-SELECT pg_tde_set_server_key_using_global_key_provider('yosuga-wal', 'yosuga-keyring');
+SELECT pg_tde_create_key_using_global_key_provider('knowlective-wal', 'knowlective-keyring');
+SELECT pg_tde_set_server_key_using_global_key_provider('knowlective-wal', 'knowlective-keyring');
 
 ALTER SYSTEM SET pg_tde.cipher = 'aes_256';
 -- New tables are encrypted, and an unencrypted one can't be made.

@@ -20,7 +20,7 @@ const loadPage = cache(async (pageId: string) => {
 
 export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">): Promise<Metadata> {
   const { page } = await loadPage((await params).pageId);
-  return { title: page ? `${displayTitle(page.title)} | YOSUGA` : "YOSUGA" };
+  return { title: page ? `${displayTitle(page.title)} | KNOWLECTIVE` : "KNOWLECTIVE" };
 }
 
 export default async function PageEditorRoute({ params }: PageProps<"/pages/[pageId]">) {

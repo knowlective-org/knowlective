@@ -292,7 +292,7 @@ export async function createCollab() {
     },
   });
 
-  // Fail fast on a missing or mismatched YOSUGA_SERVER_KEY instead of erroring
+  // Fail fast on a missing or mismatched KNOWLECTIVE_SERVER_KEY instead of erroring
   // on the first document load. Before setup there is no key to check yet.
   if (await isSetupComplete(prisma)) {
     const dataKey = await loadDataKey(prisma);

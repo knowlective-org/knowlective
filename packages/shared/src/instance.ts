@@ -15,8 +15,8 @@ import { normalizePublicUrl } from "./public-url";
 // See crypto.ts for the envelope encryption scheme.
 
 const INSTANCE_ID = 1;
-const AAD_BY_PASSWORD = "yosuga:dek:master-password";
-const AAD_BY_SERVER_KEY = "yosuga:dek:server-key";
+const AAD_BY_PASSWORD = "knowlective:dek:master-password";
+const AAD_BY_SERVER_KEY = "knowlective:dek:server-key";
 
 export const MIN_MASTER_PASSWORD_LENGTH = 12;
 
@@ -102,7 +102,7 @@ export async function verifyMasterPassword(
 }
 
 // Re-wraps the DEK with a new server key, using the master password to
-// unwrap it. For when YOSUGA_SERVER_KEY is lost, leaked, or being rotated.
+// unwrap it. For when KNOWLECTIVE_SERVER_KEY is lost, leaked, or being rotated.
 // Page data itself is untouched, since the DEK doesn't change.
 export async function rewrapWithServerKey(
   prisma: PrismaClient,
@@ -136,7 +136,7 @@ export async function rewrapWithServerKey(
 
 let cachedDataKey: Buffer | null = null;
 
-// Returns the DEK, unwrapped with YOSUGA_SERVER_KEY. Cached for the lifetime
+// Returns the DEK, unwrapped with KNOWLECTIVE_SERVER_KEY. Cached for the lifetime
 // of the process once setup has completed.
 export async function loadDataKey(prisma: PrismaClient): Promise<Buffer> {
   if (cachedDataKey) return cachedDataKey;
@@ -147,7 +147,7 @@ export async function loadDataKey(prisma: PrismaClient): Promise<Buffer> {
     cachedDataKey = decrypt(serverKey, config.dekByServerKey, AAD_BY_SERVER_KEY);
   } catch (err) {
     throw new Error(
-      "Failed to unlock the data encryption key. YOSUGA_SERVER_KEY does not match the key used at setup.",
+      "Failed to unlock the data encryption key. KNOWLECTIVE_SERVER_KEY does not match the key used at setup.",
       { cause: err },
     );
   }

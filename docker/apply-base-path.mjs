@@ -1,4 +1,4 @@
-// Sets the sub-path the app is served under (YOSUGA_BASE_PATH) in the built
+// Sets the sub-path the app is served under (KNOWLECTIVE_BASE_PATH) in the built
 // app, when the container starts. Run by docker-entrypoint.sh.
 //
 // Next.js fixes the base path when it builds: the value ends up inside the
@@ -17,14 +17,14 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statS
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const PLACEHOLDER = "/__YOSUGA_BASE_PATH__";
+export const PLACEHOLDER = "/__KNOWLECTIVE_BASE_PATH__";
 const NAME = PLACEHOLDER.slice(1);
 
 // Same rule as apps/web/src/lib/base-path.ts.
 function normalize(raw) {
   const value = (raw ?? "").trim().replace(/\/+$/, "");
   if (value !== "" && !/^(\/[A-Za-z0-9._~-]+)+$/.test(value)) {
-    throw new Error(`YOSUGA_BASE_PATH must look like "/yosuga" or "/tools/yosuga" (got "${raw}")`);
+    throw new Error(`KNOWLECTIVE_BASE_PATH must look like "/knowlective" or "/tools/knowlective" (got "${raw}")`);
   }
   return value;
 }
@@ -98,8 +98,8 @@ function main() {
     return;
   }
 
-  const basePath = normalize(process.env.YOSUGA_BASE_PATH);
-  const marker = path.join(target, ".yosuga-base-path");
+  const basePath = normalize(process.env.KNOWLECTIVE_BASE_PATH);
+  const marker = path.join(target, ".knowlective-base-path");
   const wanted = JSON.stringify({ basePath });
   // Already done for this value (the container was restarted, not recreated).
   if (existsSync(marker) && readFileSync(marker, "utf8") === wanted) return;

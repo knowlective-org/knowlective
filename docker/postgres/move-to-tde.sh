@@ -15,10 +15,10 @@ cd "$(dirname "$0")/../.."
 
 if [ "${1-}" = prod ]; then
   COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env.production)
-  PROJECT=yosuga-prod
+  PROJECT=knowlective-prod
 else
   COMPOSE=(docker compose)
-  PROJECT=yosuga
+  PROJECT=knowlective
 fi
 OLD_VOLUME="${PROJECT}_postgres_data"
 OLD_CONTAINER="${PROJECT}-move-to-tde"
@@ -26,7 +26,7 @@ OLD_CONTAINER="${PROJECT}-move-to-tde"
 die() { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 wait_ready() { # <command prefix...>
   for _ in $(seq 1 60); do
-    "$@" pg_isready -q -U yosuga -d yosuga && return 0
+    "$@" pg_isready -q -U knowlective -d knowlective && return 0
     sleep 2
   done
   return 1
@@ -52,20 +52,20 @@ echo "== 暗号化したデータベースを起動します（初回は鍵を�
 # The first start initializes the database on a temporary server, then
 # restarts it: WAL encryption is on only once that's done.
 for _ in $(seq 1 60); do
-  [ "$("${COMPOSE[@]}" exec -T postgres psql -U yosuga -d yosuga -tAc 'SHOW pg_tde.wal_encrypt' 2>/dev/null)" = on ] && break
+  [ "$("${COMPOSE[@]}" exec -T postgres psql -U knowlective -d knowlective -tAc 'SHOW pg_tde.wal_encrypt' 2>/dev/null)" = on ] && break
   sleep 2
 done
 wait_ready "${COMPOSE[@]}" exec -T postgres || die "暗号化したデータベースが起動しませんでした。"
-tables=$("${COMPOSE[@]}" exec -T postgres psql -U yosuga -d yosuga -tAc \
+tables=$("${COMPOSE[@]}" exec -T postgres psql -U knowlective -d knowlective -tAc \
   "SELECT count(*) FROM pg_tables WHERE schemaname = 'public'")
 [ "$tables" = 0 ] || die "暗号化したデータベースにすでにテーブルがあります（$tables 個）。移行済みではありませんか。"
 
 echo "== データを移します"
 # Tables get the default access method (tde_heap), not the dump's "heap".
-docker exec "$OLD_CONTAINER" pg_dump -U yosuga -d yosuga -Fc --no-owner |
-  "${COMPOSE[@]}" exec -T postgres pg_restore -U yosuga -d yosuga --no-owner --no-table-access-method --exit-on-error
+docker exec "$OLD_CONTAINER" pg_dump -U knowlective -d knowlective -Fc --no-owner |
+  "${COMPOSE[@]}" exec -T postgres pg_restore -U knowlective -d knowlective --no-owner --no-table-access-method --exit-on-error
 
-unencrypted=$("${COMPOSE[@]}" exec -T postgres psql -U yosuga -d yosuga -tAc \
+unencrypted=$("${COMPOSE[@]}" exec -T postgres psql -U knowlective -d knowlective -tAc \
   "SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND NOT pg_tde_is_encrypted(format('%I.%I', schemaname, tablename)::regclass)")
 [ "$unencrypted" = 0 ] || die "暗号化されていないテーブルがあります（$unencrypted 個）。"
 echo "移しました（テーブルはすべて暗号化されています）。"

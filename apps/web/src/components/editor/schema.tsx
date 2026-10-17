@@ -15,7 +15,7 @@ import { mermaidBlock } from "./mermaid-block";
 import { pdfBlock } from "./pdf-block";
 import { videoEmbedBlock } from "./video-embed-block";
 
-// The editor's block types: BlockNote's defaults plus yosuga's own. Block
+// The editor's block types: BlockNote's defaults plus knowlective's own. Block
 // types are saved in page documents, so a custom type must never be removed
 // or renamed once released — pages using it would no longer load.
 //
@@ -39,9 +39,9 @@ export const editorSchema = BlockNoteSchema.create({
   },
 });
 
-export type YosugaEditor = typeof editorSchema.BlockNoteEditor;
+export type KnowlectiveEditor = typeof editorSchema.BlockNoteEditor;
 
-export function customSlashMenuItems(editor: YosugaEditor): DefaultReactSuggestionItem[] {
+export function customSlashMenuItems(editor: KnowlectiveEditor): DefaultReactSuggestionItem[] {
   const group = "ページ";
   return [
     {

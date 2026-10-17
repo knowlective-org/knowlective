@@ -1,4 +1,4 @@
-# Production: yosuga + bundled SeaweedFS (file attachments), with either the
+# Production: knowlective + bundled SeaweedFS (file attachments), with either the
 # bundled PostgreSQL or one you run yourself. Put a reverse proxy (Caddy /
 # nginx) in front: the app only listens on 127.0.0.1:3000. See README「本番での起動」.
 #
@@ -11,12 +11,12 @@
 #
 # A separate project name, so it never shares containers or volumes with the
 # development stack (docker-compose.yml) on the same machine.
-name: yosuga-prod
+name: knowlective-prod
 
 services:
   app:
     build: .
-    image: yosuga:latest
+    image: knowlective:latest
     restart: unless-stopped
     depends_on:
       postgres:
@@ -30,22 +30,22 @@ services:
         required: false
     environment:
       # External database if set, otherwise the bundled one.
-      DATABASE_URL: ${DATABASE_URL:-postgresql://yosuga:${POSTGRES_PASSWORD:?set DATABASE_URL, or POSTGRES_PASSWORD for the bundled database}@postgres:5432/yosuga}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://knowlective:${POSTGRES_PASSWORD:?set DATABASE_URL, or POSTGRES_PASSWORD for the bundled database}@postgres:5432/knowlective}
       # Semantic search: the bundled vector database if VECTORDB_PASSWORD is
       # set (with COMPOSE_PROFILES including bundled-vectordb), or your own
       # PostgreSQL + pgvector. Unset = search by words only.
-      VECTOR_DATABASE_URL: ${VECTOR_DATABASE_URL:-${VECTORDB_PASSWORD:+postgresql://yosuga:${VECTORDB_PASSWORD}@vectordb:5432/yosuga_vectors}}
-      YOSUGA_SERVER_KEY: ${YOSUGA_SERVER_KEY:?set YOSUGA_SERVER_KEY}
+      VECTOR_DATABASE_URL: ${VECTOR_DATABASE_URL:-${VECTORDB_PASSWORD:+postgresql://knowlective:${VECTORDB_PASSWORD}@vectordb:5432/knowlective_vectors}}
+      KNOWLECTIVE_SERVER_KEY: ${KNOWLECTIVE_SERVER_KEY:?set KNOWLECTIVE_SERVER_KEY}
       SEAWEEDFS_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:?set SEAWEEDFS_ACCESS_KEY}
       SEAWEEDFS_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY}
-      YOSUGA_BUNDLED_S3_ENDPOINT: http://seaweedfs:8333
-      YOSUGA_TRUSTED_PROXY_HOPS: ${YOSUGA_TRUSTED_PROXY_HOPS:-1}
-      # Sub-path the app is served under, e.g. /yosuga ("" = the root).
-      YOSUGA_BASE_PATH: ${YOSUGA_BASE_PATH:-}
-      YOSUGA_SOURCE_URL: ${YOSUGA_SOURCE_URL:-}
+      KNOWLECTIVE_BUNDLED_S3_ENDPOINT: http://seaweedfs:8333
+      KNOWLECTIVE_TRUSTED_PROXY_HOPS: ${KNOWLECTIVE_TRUSTED_PROXY_HOPS:-1}
+      # Sub-path the app is served under, e.g. /knowlective ("" = the root).
+      KNOWLECTIVE_BASE_PATH: ${KNOWLECTIVE_BASE_PATH:-}
+      KNOWLECTIVE_SOURCE_URL: ${KNOWLECTIVE_SOURCE_URL:-}
       TZ: ${TZ:-Asia/Tokyo}
     ports:
-      - "127.0.0.1:${YOSUGA_PORT:-3000}:3000"
+      - "127.0.0.1:${KNOWLECTIVE_PORT:-3000}:3000"
     # Time to save open documents on `docker compose stop` / down.
     stop_grace_period: 30s
 
@@ -57,22 +57,22 @@ services:
     profiles: [bundled-db]
     restart: unless-stopped
     user: "0"
-    entrypoint: ["bash", "/yosuga/tde-entrypoint.sh"]
+    entrypoint: ["bash", "/knowlective/tde-entrypoint.sh"]
     environment:
-      POSTGRES_USER: yosuga
+      POSTGRES_USER: knowlective
       # Not ":?": compose checks variables of disabled services too. The image
       # itself refuses to initialize without a password.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
-      POSTGRES_DB: yosuga
+      POSTGRES_DB: knowlective
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U yosuga -d yosuga"]
+      test: ["CMD-SHELL", "pg_isready -U knowlective -d knowlective"]
       interval: 5s
       timeout: 5s
       retries: 10
     volumes:
       - postgres_tde_data:/data/db
       - postgres_tde_keys:/tde
-      - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
+      - ./docker/postgres/tde-entrypoint.sh:/knowlective/tde-entrypoint.sh:ro
       - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
 
   # Bundled vector database for semantic search: only with COMPOSE_PROFILES
@@ -85,20 +85,20 @@ services:
     profiles: [bundled-vectordb]
     restart: unless-stopped
     user: "0"
-    entrypoint: ["bash", "/yosuga/tde-entrypoint.sh"]
+    entrypoint: ["bash", "/knowlective/tde-entrypoint.sh"]
     environment:
-      POSTGRES_USER: yosuga
+      POSTGRES_USER: knowlective
       POSTGRES_PASSWORD: ${VECTORDB_PASSWORD:-}
-      POSTGRES_DB: yosuga_vectors
+      POSTGRES_DB: knowlective_vectors
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U yosuga -d yosuga_vectors"]
+      test: ["CMD-SHELL", "pg_isready -U knowlective -d knowlective_vectors"]
       interval: 5s
       timeout: 5s
       retries: 10
     volumes:
       - vectordb_tde_data:/data/db
       - vectordb_tde_keys:/tde
-      - ./docker/postgres/tde-entrypoint.sh:/yosuga/tde-entrypoint.sh:ro
+      - ./docker/postgres/tde-entrypoint.sh:/knowlective/tde-entrypoint.sh:ro
       - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
 
   # Same setup as in docker-compose.yml, but only reachable by the app.
@@ -112,7 +112,7 @@ services:
     command:
       - |
         cat > /etc/seaweedfs-s3.json <<JSON
-        {"identities":[{"name":"yosuga","credentials":[{"accessKey":"$${S3_ACCESS_KEY}","secretKey":"$${S3_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+        {"identities":[{"name":"knowlective","credentials":[{"accessKey":"$${S3_ACCESS_KEY}","secretKey":"$${S3_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
         JSON
         exec weed server -dir=/data -ip.bind=0.0.0.0 -volume.max=0 -master.volumeSizeLimitMB=1024 -s3 -s3.port=8333 -s3.config=/etc/seaweedfs-s3.json
     volumes:

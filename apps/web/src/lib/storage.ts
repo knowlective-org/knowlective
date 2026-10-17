@@ -21,14 +21,14 @@ import { prisma } from "@/lib/db";
 //   else, so moving storage is a plain bucket copy (an infrastructure task;
 //   the app never migrates objects itself).
 
-const SECRET_AAD = "yosuga:s3-secret";
-const fileAad = (id: string) => `yosuga:file:${id}`;
+const SECRET_AAD = "knowlective:s3-secret";
+const fileAad = (id: string) => `knowlective:file:${id}`;
 
 // Hard cap for the admin-configurable upload limit: files are encrypted in
 // memory as a whole, so this bounds per-request memory use.
 export const MAX_FILE_SIZE_MB_LIMIT = 500;
 export const DEFAULT_MAX_UPLOAD_SIZE_MB = 100;
-const BUNDLED_BUCKET = "yosuga";
+const BUNDLED_BUCKET = "knowlective";
 
 export type StorageConfig = {
   source: "custom" | "bundled";
@@ -77,7 +77,7 @@ function bundledConfig(): StorageConfig | null {
   }
   return {
     source: "bundled",
-    endpoint: process.env.YOSUGA_BUNDLED_S3_ENDPOINT || "http://localhost:8333",
+    endpoint: process.env.KNOWLECTIVE_BUNDLED_S3_ENDPOINT || "http://localhost:8333",
     region: "us-east-1",
     bucket: BUNDLED_BUCKET,
     accessKeyId,
@@ -247,7 +247,7 @@ export type StorageTestResult =
 // the already-uploaded files are present (catches an incomplete migration).
 export async function testStorage(config: StorageConfig): Promise<StorageTestResult> {
   const client = clientFor(config);
-  const key = `${config.keyPrefix}yosuga-connection-test-${randomBytes(6).toString("hex")}`;
+  const key = `${config.keyPrefix}knowlective-connection-test-${randomBytes(6).toString("hex")}`;
   const payload = randomBytes(32);
   let step: "write" | "read" | "delete" = "write";
   try {

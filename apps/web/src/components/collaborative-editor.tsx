@@ -453,9 +453,9 @@ function EditorBody({
     withCollaboration({
       schema: editorSchema,
       dictionary: ja,
-      // Headings pasted from outside yosuga (HTML or Markdown) move down one
+      // Headings pasted from outside knowlective (HTML or Markdown) move down one
       // level — H1→H2 … H5→H6, H6 stays — keeping their relative structure
-      // under the page title. Copy and paste within yosuga (blocknote/html)
+      // under the page title. Copy and paste within knowlective (blocknote/html)
       // keeps the levels as they are.
       pasteHandler: ({ event, editor, defaultPasteHandler }) => {
         const types = event.clipboardData?.types ?? [];
@@ -753,7 +753,7 @@ function TitleField({
 
   useEffect(() => {
     onChange?.(value);
-    document.title = `${displayTitle(value)} | YOSUGA`;
+    document.title = `${displayTitle(value)} | KNOWLECTIVE`;
     // Grow with the text instead of scrolling inside the field.
     const el = ref.current;
     if (el) {

@@ -14,9 +14,9 @@ import { decrypt, encrypt } from "./crypto";
 //                rate-limit counts. Without the DEK it can't be checked
 //                against a guessed address.
 
-const EMAIL_INDEX_INFO = "yosuga:email-index:v1";
-const EMAIL_AAD = "yosuga:email";
-const AUDIT_AAD = "yosuga:audit-log";
+const EMAIL_INDEX_INFO = "knowlective:email-index:v1";
+const EMAIL_AAD = "knowlective:email";
+const AUDIT_AAD = "knowlective:audit-log";
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();

@@ -28,7 +28,7 @@ type CollabBridge = {
 
 // The custom server and the Next.js bundle are separate module graphs in one
 // process, so the collab server registers itself on globalThis.
-const BRIDGE_KEY = Symbol.for("yosuga.collab-bridge");
+const BRIDGE_KEY = Symbol.for("knowlective.collab-bridge");
 
 export function registerCollabBridge(bridge: CollabBridge) {
   (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] = bridge;

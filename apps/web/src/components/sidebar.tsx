@@ -94,7 +94,7 @@ export function Sidebar({
 
   return (
     <div className={styles.sidebar}>
-      <div className={styles.brand}>YOSUGA</div>
+      <div className={styles.brand}>KNOWLECTIVE</div>
       {/* A plain GET form, so it works before hydration too. */}
       <form action={withBasePath("/search")} role="search" className={styles.search} data-ui="Sidebar.searchForm">
         <input

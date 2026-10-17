@@ -1,7 +1,7 @@
 # Production image: one container runs the Next.js app and the collaboration
 # WebSocket (/collab) on one port, like `pnpm start`. See README「本番での起動」.
 #
-#   docker build -t yosuga .
+#   docker build -t knowlective .
 
 FROM node:24-bookworm-slim AS base
 # openssl: Prisma's schema engine (used by `prisma migrate deploy`).
@@ -24,11 +24,11 @@ COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile
 COPY . .
-# Built with a placeholder for the base path (YOSUGA_BASE_PATH): the real one
+# Built with a placeholder for the base path (KNOWLECTIVE_BASE_PATH): the real one
 # is set when the container starts (docker/apply-base-path.mjs). The check
 # fails the build if some form of the placeholder couldn't be replaced.
 RUN pnpm db:generate \
-  && YOSUGA_BASE_PATH=/__YOSUGA_BASE_PATH__ pnpm --filter web build \
+  && KNOWLECTIVE_BASE_PATH=/__KNOWLECTIVE_BASE_PATH__ pnpm --filter web build \
   && rm -rf apps/web/.next/cache \
   && node docker/apply-base-path.mjs apps/web/.next /tmp/base-path-check --check
 
@@ -46,9 +46,9 @@ RUN pnpm install --frozen-lockfile --prod \
 # The embedding model of semantic search (~130MB), built in so that the
 # server never downloads anything. Early, so the layer stays cached.
 COPY apps/web/server/semantic-model.ts apps/web/server/download-model.ts apps/web/server/
-ENV YOSUGA_MODEL_DIR=/app/models
+ENV KNOWLECTIVE_MODEL_DIR=/app/models
 RUN cd apps/web && node --import tsx server/download-model.ts
-ENV YOSUGA_MODEL_OFFLINE=1
+ENV KNOWLECTIVE_MODEL_OFFLINE=1
 # packages/shared is used as TypeScript source (by the app via tsx, and by
 # the migrate / recovery commands).
 COPY packages/shared/prisma packages/shared/prisma
@@ -71,5 +71,5 @@ COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+(process.env.YOSUGA_BASE_PATH||'').replace(/\/+$/,'')+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+(process.env.KNOWLECTIVE_BASE_PATH||'').replace(/\/+$/,'')+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 ENTRYPOINT ["docker-entrypoint.sh"]

@@ -11,9 +11,9 @@ export function invitationMail(input: {
   ttlDays: number;
 }): Mail {
   return {
-    subject: "YOSUGA への招待",
+    subject: "KNOWLECTIVE への招待",
     text: [
-      `${input.inviterName} から、YOSUGA に${input.siteRoleLabel}として招待されました。`,
+      `${input.inviterName} から、KNOWLECTIVE に${input.siteRoleLabel}として招待されました。`,
       ...(input.groupNames.length > 0
         ? [`登録すると、次のグループに参加します: ${input.groupNames.join("、")}`]
         : []),
@@ -30,9 +30,9 @@ export function invitationMail(input: {
 // /signup: confirms the address and opens the registration page.
 export function signupMail(input: { link: string; ttlHours: number }): Mail {
   return {
-    subject: "YOSUGA アカウント登録のご案内",
+    subject: "KNOWLECTIVE アカウント登録のご案内",
     text: [
-      "YOSUGA のアカウント登録を受け付けました。",
+      "KNOWLECTIVE のアカウント登録を受け付けました。",
       "",
       "次のリンクを開いて、表示名とパスワードを設定してください。",
       input.link,
@@ -47,9 +47,9 @@ export function signupMail(input: { link: string; ttlHours: number }): Mail {
 // registration link, so the form itself never reveals who is registered.
 export function alreadyRegisteredMail(input: { loginLink: string }): Mail {
   return {
-    subject: "YOSUGA アカウント登録について",
+    subject: "KNOWLECTIVE アカウント登録について",
     text: [
-      "このメールアドレスで YOSUGA のアカウント登録が申し込まれましたが、すでにアカウントがあります。",
+      "このメールアドレスで KNOWLECTIVE のアカウント登録が申し込まれましたが、すでにアカウントがあります。",
       "",
       "次のリンクからログインしてください。",
       input.loginLink,
@@ -63,11 +63,11 @@ export function alreadyRegisteredMail(input: { loginLink: string }): Mail {
 // /forgot-password, or a link a site admin chose to mail from /admin/users.
 export function passwordResetMail(input: { link: string; ttl: string; byAdmin: boolean }): Mail {
   return {
-    subject: "YOSUGA パスワードの再設定",
+    subject: "KNOWLECTIVE パスワードの再設定",
     text: [
       input.byAdmin
-        ? "管理者が、YOSUGA のパスワード再設定用のリンクを発行しました。"
-        : "YOSUGA のパスワードの再設定を受け付けました。",
+        ? "管理者が、KNOWLECTIVE のパスワード再設定用のリンクを発行しました。"
+        : "KNOWLECTIVE のパスワードの再設定を受け付けました。",
       "",
       "次のリンクを開いて、新しいパスワードを設定してください。",
       input.link,

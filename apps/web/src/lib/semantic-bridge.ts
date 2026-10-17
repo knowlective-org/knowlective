@@ -18,7 +18,7 @@ type SemanticBridge = {
   search(query: string, pageIds: string[], limit: number): Promise<SemanticHit[]>;
 };
 
-const BRIDGE_KEY = Symbol.for("yosuga.semantic-search");
+const BRIDGE_KEY = Symbol.for("knowlective.semantic-search");
 
 export function registerSemanticSearch(bridge: SemanticBridge) {
   (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] = bridge;

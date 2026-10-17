@@ -10,9 +10,9 @@ export const MAX_COLUMN_NAME_LENGTH = 50;
 export const MAX_TEXT_LENGTH = 2000;
 export const MAX_SELECT_OPTIONS = 50;
 
-const nameAad = (defId: string) => `yosuga:prop-name:${defId}`;
-const optionsAad = (defId: string) => `yosuga:prop-options:${defId}`;
-const valueAad = (pageId: string, defId: string) => `yosuga:prop-value:${pageId}:${defId}`;
+const nameAad = (defId: string) => `knowlective:prop-name:${defId}`;
+const optionsAad = (defId: string) => `knowlective:prop-options:${defId}`;
+const valueAad = (pageId: string, defId: string) => `knowlective:prop-value:${pageId}:${defId}`;
 
 type Key = Uint8Array;
 

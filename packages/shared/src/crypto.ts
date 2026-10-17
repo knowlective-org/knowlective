@@ -6,7 +6,7 @@ import { createCipheriv, createDecipheriv, randomBytes, scrypt } from "node:cryp
 // - The DEK is never stored in plaintext. It is stored twice, wrapped by:
 //   1. a key derived from the instance master password (scrypt) — for recovery
 //      and re-keying, and
-//   2. the server key from the YOSUGA_SERVER_KEY env var — so processes can
+//   2. the server key from the KNOWLECTIVE_SERVER_KEY env var — so processes can
 //      unlock the DEK on startup without a human typing the master password.
 //
 // Ciphertext format (all AES-256-GCM): [version(1)] [iv(12)] [authTag(16)] [ciphertext]
@@ -66,15 +66,15 @@ export function deriveKeyFromPassword(
   });
 }
 
-export function parseServerKey(value = process.env.YOSUGA_SERVER_KEY): Buffer {
+export function parseServerKey(value = process.env.KNOWLECTIVE_SERVER_KEY): Buffer {
   if (!value) {
     throw new Error(
-      "YOSUGA_SERVER_KEY is not set. Generate one with `pnpm gen:server-key` and add it to .env",
+      "KNOWLECTIVE_SERVER_KEY is not set. Generate one with `pnpm gen:server-key` and add it to .env",
     );
   }
   const key = Buffer.from(value, "base64");
   if (key.length !== KEY_LENGTH) {
-    throw new Error(`YOSUGA_SERVER_KEY must be ${KEY_LENGTH} bytes, base64-encoded`);
+    throw new Error(`KNOWLECTIVE_SERVER_KEY must be ${KEY_LENGTH} bytes, base64-encoded`);
   }
   return key;
 }

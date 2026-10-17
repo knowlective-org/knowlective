@@ -7,7 +7,7 @@ import { cancelAccountLogin } from "../actions";
 import { VerifyCodeForm } from "../login-form";
 
 export const metadata: Metadata = {
-  title: "認証コードの入力 | YOSUGA",
+  title: "認証コードの入力 | KNOWLECTIVE",
   robots: { index: false, follow: false },
 };
 

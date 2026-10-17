@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# yosuga のインストール（本番用 Docker Compose）。
+# knowlective のインストール（本番用 Docker Compose）。
 # 設定を対話式で聞いて .env.production を作り、必要なら起動まで行う。
 #
 #   ./install.sh
@@ -101,7 +101,7 @@ rand_base64_32() {
   fi
 }
 
-# YOSUGA_SERVER_KEY の形式（base64 で 32 バイト）
+# KNOWLECTIVE_SERVER_KEY の形式（base64 で 32 バイト）
 valid_server_key() {
   [[ "$1" =~ ^[A-Za-z0-9+/]+=*$ ]] || return 1
   [ "$(printf '%s' "$1" | base64 --decode 2>/dev/null | wc -c | tr -d ' ')" = 32 ]
@@ -143,12 +143,12 @@ display_url() { printf '%s' "$1" | sed -E 's#^[a-z]+://##; s#^([^:@]*):[^@]*@#\1
 
 # ---- 事前の確認 ------------------------------------------------------------
 
-[ -f "$COMPOSE_FILE_NAME" ] || die "$COMPOSE_FILE_NAME が見つかりません。yosuga のディレクトリで実行してください。"
+[ -f "$COMPOSE_FILE_NAME" ] || die "$COMPOSE_FILE_NAME が見つかりません。knowlective のディレクトリで実行してください。"
 command -v docker >/dev/null 2>&1 || die "docker が見つかりません。Docker Engine（または Docker Desktop）をインストールしてください。"
 docker compose version >/dev/null 2>&1 || die "docker compose（v2）が使えません。Docker Compose プラグインをインストールしてください。"
 docker info >/dev/null 2>&1 || die "Docker に接続できません。Docker が起動しているか、このユーザーで docker を実行できるか確認してください。"
 
-info "${BOLD}yosuga のインストール${RESET}"
+info "${BOLD}knowlective のインストール${RESET}"
 info "質問に答えると $ENV_FILE を作成します。[ ] 内は初期値で、Enter だけでその値になります。"
 
 if [ -f "$ENV_FILE" ]; then
@@ -179,16 +179,16 @@ if [ "$DB_CHOICE" = 1 ]; then
   else
     POSTGRES_PASSWORD=$(rand_hex 32)
     note "パスワードを自動で作成しました。"
-    if docker volume inspect yosuga-prod_postgres_tde_data >/dev/null 2>&1; then
-      warn "同梱の PostgreSQL のデータ（ボリューム yosuga-prod_postgres_tde_data）がすでにあります。"
+    if docker volume inspect knowlective-prod_postgres_tde_data >/dev/null 2>&1; then
+      warn "同梱の PostgreSQL のデータ（ボリューム knowlective-prod_postgres_tde_data）がすでにあります。"
       warn "新しいパスワードでは接続できません。以前の $ENV_FILE を戻すか、不要ならボリュームを削除してください。"
       ask_yes_no "このまま続けますか" n || { info "中止しました。"; exit 1; }
     fi
   fi
   # Data from before the bundled database was encrypted (pg_tde).
-  if docker volume inspect yosuga-prod_postgres_data >/dev/null 2>&1 &&
-    ! docker volume inspect yosuga-prod_postgres_tde_data >/dev/null 2>&1; then
-    warn "暗号化する前の同梱の PostgreSQL のデータ（ボリューム yosuga-prod_postgres_data）があります。"
+  if docker volume inspect knowlective-prod_postgres_data >/dev/null 2>&1 &&
+    ! docker volume inspect knowlective-prod_postgres_tde_data >/dev/null 2>&1; then
+    warn "暗号化する前の同梱の PostgreSQL のデータ（ボリューム knowlective-prod_postgres_data）があります。"
     warn "このデータは、暗号化したデータベースへ移す必要があります。$ENV_FILE を作ったあと、起動はせずに"
     warn "  bash docker/postgres/move-to-tde.sh prod"
     warn "を実行してください（移したうえで起動します）。移さずに起動すると、空のデータベースで始まります。"
@@ -217,8 +217,8 @@ else
       valid_port "$DB_PORT" && break
       info "1〜65535 の数字を入力してください。"
     done
-    ask DB_NAME "データベース名" yosuga
-    ask DB_USER "ユーザー名" yosuga
+    ask DB_NAME "データベース名" knowlective
+    ask DB_USER "ユーザー名" knowlective
     ask_secret DB_PASSWORD "パスワード（入力は表示されません）"
     info "SSL で接続しますか。"
     ask_choice DB_SSL 1 "使わない（同じネットワーク内など）" "使う（sslmode=require）"
@@ -258,20 +258,20 @@ fi
 
 # ---- サーバー鍵 ------------------------------------------------------------
 
-section "サーバー鍵（YOSUGA_SERVER_KEY）"
+section "サーバー鍵（KNOWLECTIVE_SERVER_KEY）"
 info "データを暗号化する鍵を取り出すための鍵です。マスターパスワードと両方を失うと、データは復旧できません。"
-YOSUGA_SERVER_KEY=$(existing YOSUGA_SERVER_KEY)
-if [ -n "$YOSUGA_SERVER_KEY" ] && valid_server_key "$YOSUGA_SERVER_KEY"; then
+KNOWLECTIVE_SERVER_KEY=$(existing KNOWLECTIVE_SERVER_KEY)
+if [ -n "$KNOWLECTIVE_SERVER_KEY" ] && valid_server_key "$KNOWLECTIVE_SERVER_KEY"; then
   note "今の鍵を引き継ぎます（変えるとデータを読めなくなるため。鍵の交換は pnpm rotate-server-key で行います）。"
 else
   ask_choice KEY_CHOICE 1 "新しく作る（新規インストール）" "既存の鍵を入力する（移行・復元）"
   if [ "$KEY_CHOICE" = 1 ]; then
-    YOSUGA_SERVER_KEY=$(rand_base64_32)
+    KNOWLECTIVE_SERVER_KEY=$(rand_base64_32)
     note "鍵を作成しました。"
   else
     while :; do
-      ask_secret YOSUGA_SERVER_KEY "サーバー鍵（入力は表示されません）"
-      valid_server_key "$YOSUGA_SERVER_KEY" && break
+      ask_secret KNOWLECTIVE_SERVER_KEY "サーバー鍵（入力は表示されません）"
+      valid_server_key "$KNOWLECTIVE_SERVER_KEY" && break
       info "形式が正しくありません（base64 で 32 バイト。例: openssl rand -base64 32 の出力）。"
     done
   fi
@@ -289,33 +289,33 @@ SEAWEEDFS_SECRET_KEY=$(existing SEAWEEDFS_SECRET_KEY)
 
 section "ネットワーク"
 info "アプリは 127.0.0.1 の指定ポートで待ち受けます。外部にはリバースプロキシ（Caddy / nginx など）経由で公開してください。"
-default_port=$(existing YOSUGA_PORT); default_port=${default_port:-3000}
+default_port=$(existing KNOWLECTIVE_PORT); default_port=${default_port:-3000}
 while :; do
-  ask YOSUGA_PORT "待ち受けるポート番号" "$default_port"
-  valid_port "$YOSUGA_PORT" && break
+  ask KNOWLECTIVE_PORT "待ち受けるポート番号" "$default_port"
+  valid_port "$KNOWLECTIVE_PORT" && break
   info "1〜65535 の数字を入力してください。"
 done
-default_hops=$(existing YOSUGA_TRUSTED_PROXY_HOPS); default_hops=${default_hops:-1}
+default_hops=$(existing KNOWLECTIVE_TRUSTED_PROXY_HOPS); default_hops=${default_hops:-1}
 while :; do
-  ask YOSUGA_TRUSTED_PROXY_HOPS "アプリの前にあるリバースプロキシの段数（CDN → nginx なら 2）" "$default_hops"
-  [[ "$YOSUGA_TRUSTED_PROXY_HOPS" =~ ^[1-9][0-9]*$ ]] && break
+  ask KNOWLECTIVE_TRUSTED_PROXY_HOPS "アプリの前にあるリバースプロキシの段数（CDN → nginx なら 2）" "$default_hops"
+  [[ "$KNOWLECTIVE_TRUSTED_PROXY_HOPS" =~ ^[1-9][0-9]*$ ]] && break
   info "1 以上の数字を入力してください。"
 done
 # サブパス（空でよい）。前回の値があれば初期値にし、消すときは - を入力する。
-default_base=$(existing YOSUGA_BASE_PATH)
-info "リバースプロキシで https://example.com/yosuga/ のようにサブパスで公開する場合は、そのパス（例: /yosuga）を入力してください。"
-info "ルート（https://yosuga.example.com/）で公開する場合は、空のまま Enter を押します。"
+default_base=$(existing KNOWLECTIVE_BASE_PATH)
+info "リバースプロキシで https://example.com/knowlective/ のようにサブパスで公開する場合は、そのパス（例: /knowlective）を入力してください。"
+info "ルート（https://knowlective.example.com/）で公開する場合は、空のまま Enter を押します。"
 while :; do
   if [ -n "$default_base" ]; then
-    ask YOSUGA_BASE_PATH "サブパス（なしにするには - を入力）" "$default_base"
-    [ "$YOSUGA_BASE_PATH" = "-" ] && YOSUGA_BASE_PATH=""
+    ask KNOWLECTIVE_BASE_PATH "サブパス（なしにするには - を入力）" "$default_base"
+    [ "$KNOWLECTIVE_BASE_PATH" = "-" ] && KNOWLECTIVE_BASE_PATH=""
   else
-    ask YOSUGA_BASE_PATH "サブパス（なければ空のまま）"
+    ask KNOWLECTIVE_BASE_PATH "サブパス（なければ空のまま）"
   fi
-  YOSUGA_BASE_PATH=${YOSUGA_BASE_PATH%/}
-  [ -z "$YOSUGA_BASE_PATH" ] && break
-  [[ "$YOSUGA_BASE_PATH" =~ ^(/[A-Za-z0-9._~-]+)+$ ]] && break
-  info "/ で始まる英数字のパスを入力してください（例: /yosuga、/tools/yosuga）。"
+  KNOWLECTIVE_BASE_PATH=${KNOWLECTIVE_BASE_PATH%/}
+  [ -z "$KNOWLECTIVE_BASE_PATH" ] && break
+  [[ "$KNOWLECTIVE_BASE_PATH" =~ ^(/[A-Za-z0-9._~-]+)+$ ]] && break
+  info "/ で始まる英数字のパスを入力してください（例: /knowlective、/tools/knowlective）。"
 done
 
 section "その他"
@@ -325,11 +325,11 @@ while :; do
   [[ "$TZ_VALUE" =~ ^[A-Za-z0-9_+/-]+$ ]] && break
   info "Asia/Tokyo のような形式で入力してください。"
 done
-info "yosuga を改変して公開する場合は、改変後のソースコードの URL を入力してください（AGPL-3.0）。"
+info "knowlective を改変して公開する場合は、改変後のソースコードの URL を入力してください（AGPL-3.0）。"
 url_pattern='^https?://[^[:space:]'"'"'"]+$'
 while :; do
-  ask YOSUGA_SOURCE_URL "ソースコードの URL（空欄なら公式のリポジトリ）" "$(existing YOSUGA_SOURCE_URL)"
-  if [ -z "$YOSUGA_SOURCE_URL" ] || [[ "$YOSUGA_SOURCE_URL" =~ $url_pattern ]]; then break; fi
+  ask KNOWLECTIVE_SOURCE_URL "ソースコードの URL（空欄なら公式のリポジトリ）" "$(existing KNOWLECTIVE_SOURCE_URL)"
+  if [ -z "$KNOWLECTIVE_SOURCE_URL" ] || [[ "$KNOWLECTIVE_SOURCE_URL" =~ $url_pattern ]]; then break; fi
   info "http:// か https:// で始まる URL を入力してください。"
 done
 
@@ -342,13 +342,13 @@ else
   info "データベース      : $(display_url "$DATABASE_URL")"
 fi
 info "意味での検索      : $([ -n "$VECTORDB_PASSWORD" ] && echo "使う（同梱のベクトル用データベース）" || echo "使わない")"
-info "サーバー鍵        : $(mask "$YOSUGA_SERVER_KEY")"
+info "サーバー鍵        : $(mask "$KNOWLECTIVE_SERVER_KEY")"
 info "ファイル保存      : 同梱の SeaweedFS（認証情報は自動作成。外部の S3 は管理画面で設定）"
-info "ポート            : 127.0.0.1:${YOSUGA_PORT}"
-info "プロキシの段数    : ${YOSUGA_TRUSTED_PROXY_HOPS}"
-info "サブパス          : ${YOSUGA_BASE_PATH:-（なし。ルートで公開）}"
+info "ポート            : 127.0.0.1:${KNOWLECTIVE_PORT}"
+info "プロキシの段数    : ${KNOWLECTIVE_TRUSTED_PROXY_HOPS}"
+info "サブパス          : ${KNOWLECTIVE_BASE_PATH:-（なし。ルートで公開）}"
 info "タイムゾーン      : ${TZ_VALUE}"
-info "ソースコードの URL: ${YOSUGA_SOURCE_URL:-（公式のリポジトリ）}"
+info "ソースコードの URL: ${KNOWLECTIVE_SOURCE_URL:-（公式のリポジトリ）}"
 echo
 ask_yes_no "この内容で $ENV_FILE を書き込みますか" y || { info "中止しました（何も書き込んでいません）。"; exit 0; }
 
@@ -362,7 +362,7 @@ fi
 (
   umask 077
   {
-    echo "# yosuga の本番設定（install.sh で作成: $(date '+%Y-%m-%d %H:%M:%S')）"
+    echo "# knowlective の本番設定（install.sh で作成: $(date '+%Y-%m-%d %H:%M:%S')）"
     echo "# docker compose -f $COMPOSE_FILE_NAME --env-file $ENV_FILE up -d --build"
     echo "# 秘密の値を含みます。共有・コミットせず、安全な場所にバックアップしてください。"
     echo
@@ -382,24 +382,24 @@ fi
       echo "VECTORDB_PASSWORD='$VECTORDB_PASSWORD'"
     fi
     echo
-    echo "YOSUGA_SERVER_KEY='$YOSUGA_SERVER_KEY'"
+    echo "KNOWLECTIVE_SERVER_KEY='$KNOWLECTIVE_SERVER_KEY'"
     echo "SEAWEEDFS_ACCESS_KEY='$SEAWEEDFS_ACCESS_KEY'"
     echo "SEAWEEDFS_SECRET_KEY='$SEAWEEDFS_SECRET_KEY'"
     echo
-    echo "YOSUGA_PORT='$YOSUGA_PORT'"
-    echo "YOSUGA_TRUSTED_PROXY_HOPS='$YOSUGA_TRUSTED_PROXY_HOPS'"
-    if [ -n "$YOSUGA_BASE_PATH" ]; then
-      echo "YOSUGA_BASE_PATH='$YOSUGA_BASE_PATH'"
+    echo "KNOWLECTIVE_PORT='$KNOWLECTIVE_PORT'"
+    echo "KNOWLECTIVE_TRUSTED_PROXY_HOPS='$KNOWLECTIVE_TRUSTED_PROXY_HOPS'"
+    if [ -n "$KNOWLECTIVE_BASE_PATH" ]; then
+      echo "KNOWLECTIVE_BASE_PATH='$KNOWLECTIVE_BASE_PATH'"
     fi
     echo "TZ='$TZ_VALUE'"
-    if [ -n "$YOSUGA_SOURCE_URL" ]; then
-      echo "YOSUGA_SOURCE_URL='$YOSUGA_SOURCE_URL'"
+    if [ -n "$KNOWLECTIVE_SOURCE_URL" ]; then
+      echo "KNOWLECTIVE_SOURCE_URL='$KNOWLECTIVE_SOURCE_URL'"
     fi
   } > "$ENV_FILE"
 )
 chmod 600 "$ENV_FILE" 2>/dev/null || true
 info "${GREEN}$ENV_FILE を作成しました。${RESET}"
-warn "$ENV_FILE（特に YOSUGA_SERVER_KEY）を安全な場所にバックアップしてください。"
+warn "$ENV_FILE（特に KNOWLECTIVE_SERVER_KEY）を安全な場所にバックアップしてください。"
 
 # ---- 起動 ------------------------------------------------------------------
 
@@ -433,14 +433,14 @@ if [ "$status" != healthy ]; then
 fi
 
 section "完了"
-info "${GREEN}yosuga が起動しました（127.0.0.1:${YOSUGA_PORT}）。${RESET}"
+info "${GREEN}knowlective が起動しました（127.0.0.1:${KNOWLECTIVE_PORT}）。${RESET}"
 info "次の手順:"
-info "  1. リバースプロキシで公開用のドメインから 127.0.0.1:${YOSUGA_PORT} へ転送する"
+info "  1. リバースプロキシで公開用のドメインから 127.0.0.1:${KNOWLECTIVE_PORT} へ転送する"
 info "     （/collab の WebSocket も通し、X-Forwarded-For と X-Forwarded-Proto を渡す）"
 info "  2. https://<公開用のドメイン>/ を開き、初回セットアップ（マスターパスワードの設定）を行う"
 info "  3. $ENV_FILE をバックアップする"
 if [ "$DB_CHOICE" = 1 ]; then
-  info "  4. データベースの暗号化の鍵（ボリューム yosuga-prod_postgres_tde_keys）を、データとは別にバックアップする"
+  info "  4. データベースの暗号化の鍵（ボリューム knowlective-prod_postgres_tde_keys）を、データとは別にバックアップする"
   info "     （鍵がないとデータベースを読めません）"
 fi
 info "ログ: ${COMPOSE[*]} logs -f app"

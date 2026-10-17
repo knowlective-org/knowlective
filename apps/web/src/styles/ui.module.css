@@ -73,7 +73,7 @@
   letter-spacing: 0.2em;
 }
 
-/* A field with fixed text in front of it (e.g. "YOSUGA:"). */
+/* A field with fixed text in front of it (e.g. "KNOWLECTIVE:"). */
 .prefixedField {
   display: flex;
   align-items: center;

@@ -16,7 +16,7 @@ import { EnrollForm } from "./enroll-form";
 import { QR_OPTIONS } from "./qr-options";
 
 export const metadata: Metadata = {
-  title: "認証アプリの登録 | YOSUGA",
+  title: "認証アプリの登録 | KNOWLECTIVE",
   robots: { index: false, follow: false },
 };
 

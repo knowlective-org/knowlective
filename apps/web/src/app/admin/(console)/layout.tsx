@@ -7,7 +7,7 @@ import styles from "@/styles/ui.module.css";
 import { AdminSidebar, type AdminNavItem } from "./admin-sidebar";
 
 export const metadata: Metadata = {
-  title: "管理画面 | YOSUGA",
+  title: "管理画面 | KNOWLECTIVE",
   robots: { index: false, follow: false },
 };
 

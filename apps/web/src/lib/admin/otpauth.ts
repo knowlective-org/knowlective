@@ -6,7 +6,7 @@ export const TOTP_STEP_SECONDS = 30;
 export const TOTP_DIGITS = 6;
 
 // Authenticator apps show entries as "<issuer>: <account name>".
-export const TOTP_ISSUER = "YOSUGA";
+export const TOTP_ISSUER = "KNOWLECTIVE";
 
 export function otpauthUri(base32Secret: string, accountName: string, issuer = TOTP_ISSUER): string {
   const label = encodeURIComponent(`${issuer}:${accountName}`);

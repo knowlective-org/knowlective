@@ -157,7 +157,7 @@ export async function issueInvitation(
       to: email,
       ...invitationMail({
         link,
-        inviterName: actorLabel === "マスターパスワード" ? "YOSUGA の管理者" : actorLabel,
+        inviterName: actorLabel === "マスターパスワード" ? "KNOWLECTIVE の管理者" : actorLabel,
         siteRoleLabel: SITE_ROLE_LABELS[siteRole as SiteRole],
         groupNames: groups.map((g) => g.name),
         ttlDays: INVITATION_TTL_DAYS,
@@ -250,8 +250,8 @@ export async function sendTestMail(
   try {
     await sendMail({
       to: to.trim(),
-      subject: "YOSUGA テストメール",
-      text: "YOSUGA の管理画面から送信したテストメールです。\nこのメールが届いていれば、メール送信の設定は正しく動いています。",
+      subject: "KNOWLECTIVE テストメール",
+      text: "KNOWLECTIVE の管理画面から送信したテストメールです。\nこのメールが届いていれば、メール送信の設定は正しく動いています。",
     });
   } catch (err) {
     if (err instanceof MailNotConfiguredError) return { error: "先にメール送信の設定を保存してください。" };
@@ -566,7 +566,7 @@ async function secretFor(input: OidcInput): Promise<string | null> {
   if (input.clientSecret !== null) return input.clientSecret;
   const row = await prisma.oidcSettings.findUnique({ where: { id: 1 }, select: { clientSecretEnc: true } });
   if (!row || row.clientSecretEnc.length === 0) return null;
-  return decrypt(await loadDataKey(prisma), row.clientSecretEnc, "yosuga:oidc-client-secret").toString("utf8");
+  return decrypt(await loadDataKey(prisma), row.clientSecretEnc, "knowlective:oidc-client-secret").toString("utf8");
 }
 
 async function checkIssuer(input: OidcInput, secret: string): Promise<string | null> {

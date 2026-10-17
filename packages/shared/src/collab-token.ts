@@ -3,7 +3,7 @@ import { parseServerKey } from "./crypto";
 
 // Short-lived tokens that let a browser open one page on the collab server.
 // apps/web mints them for a logged-in member; apps/collab verifies them.
-// The HMAC key is derived from YOSUGA_SERVER_KEY, which both processes
+// The HMAC key is derived from KNOWLECTIVE_SERVER_KEY, which both processes
 // already have, so no extra shared secret is needed.
 //
 // Format: <payload base64url>.<HMAC-SHA256 base64url>
@@ -23,7 +23,7 @@ let cachedKey: Buffer | null = null;
 
 function signingKey(): Buffer {
   cachedKey ??= Buffer.from(
-    hkdfSync("sha256", parseServerKey(), Buffer.alloc(0), "yosuga:collab-token:v1", 32),
+    hkdfSync("sha256", parseServerKey(), Buffer.alloc(0), "knowlective:collab-token:v1", 32),
   );
   return cachedKey;
 }

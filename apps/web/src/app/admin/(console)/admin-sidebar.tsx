@@ -26,7 +26,7 @@ export function AdminSidebar({
 
   return (
     <div className={styles.sidebar} data-ui="AdminSidebar">
-      <div className={styles.brand}>YOSUGA 管理画面</div>
+      <div className={styles.brand}>KNOWLECTIVE 管理画面</div>
       <nav className={styles.nav} data-ui="AdminSidebar.nav">
         {items.map((item) => (
           <Link
@@ -57,7 +57,7 @@ export function AdminSidebar({
           target="_blank"
           rel="noopener noreferrer"
           className={styles.footerLink}
-          title="YOSUGA は AGPL-3.0 で公開されています"
+          title="KNOWLECTIVE は AGPL-3.0 で公開されています"
           data-ui="AdminSidebar.sourceLink"
         >
           ソースコード（AGPL-3.0）

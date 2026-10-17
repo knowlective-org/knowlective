@@ -54,7 +54,7 @@ export default async function AdminOverviewPage() {
             </>
           )}
           <br />
-          サブパスは、サーバーの環境変数 <code>YOSUGA_BASE_PATH</code>（例: <code>/yosuga</code>）で指定し、再起動すると反映されます。この画面からは変更できません。
+          サブパスは、サーバーの環境変数 <code>KNOWLECTIVE_BASE_PATH</code>（例: <code>/knowlective</code>）で指定し、再起動すると反映されます。この画面からは変更できません。
           公開 URL には、サブパスを含めずに入力してください。
         </p>
       </section>

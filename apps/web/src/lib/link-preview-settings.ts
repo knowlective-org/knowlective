@@ -6,7 +6,7 @@ import type { FetchOptions } from "@/lib/link-preview";
 // in /admin (InstanceConfig.linkPreview*). The proxy password is encrypted
 // with the instance data key.
 
-const PASSWORD_AAD = "yosuga:link-preview-proxy-password";
+const PASSWORD_AAD = "knowlective:link-preview-proxy-password";
 
 const select = {
   linkPreviewEnabled: true,

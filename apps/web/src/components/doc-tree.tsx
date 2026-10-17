@@ -12,9 +12,9 @@ import styles from "./doc-tree.module.css";
 type DropZone = "before" | "after" | "into";
 type MoveTarget = { parentId: string; beforeId: string | null };
 
-const DRAG_TYPE = "application/x-yosuga-page";
+const DRAG_TYPE = "application/x-knowlective-page";
 // A knowledge root being reordered (rootReorder): not a page move.
-const ROOT_DRAG_TYPE = "application/x-yosuga-root";
+const ROOT_DRAG_TYPE = "application/x-knowlective-root";
 // Hovering a collapsed page this long while dragging expands it.
 const EXPAND_DELAY_MS = 600;
 

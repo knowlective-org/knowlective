@@ -117,7 +117,7 @@ export function StorageSettingsForm({
             data-ui="StorageSettingsForm.keyPrefixInput"
             name="keyPrefix"
             defaultValue={custom?.keyPrefix ?? ""}
-            placeholder="yosuga/"
+            placeholder="knowlective/"
             spellCheck={false}
             className={styles.field}
           />

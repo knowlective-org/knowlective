@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "YOSUGA",
+  title: "KNOWLECTIVE",
   description: "セルフホスト可能なドキュメント・ナレッジ共有ツール",
 };
 
@@ -29,7 +29,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="ja" className={`${geistSans.variable} ${geistMono.variable}`} data-ui="RootLayout">
       <head>
         {/* Overrides the defaults in globals.css. Values are validated #rrggbb only. */}
-        <style id="yosuga-theme" dangerouslySetInnerHTML={{ __html: themeCss(theme) }} />
+        <style id="knowlective-theme" dangerouslySetInnerHTML={{ __html: themeCss(theme) }} />
       </head>
       <body>
         {children}

@@ -9,7 +9,7 @@ import { defineConfig, devices } from "@playwright/test";
 // started for the run. Set E2E_BASE_URL to test another address (the origin,
 // e.g. http://localhost:3100).
 // E2E_BASE_PATH: the sub-path the server under test is served from (its
-// YOSUGA_BASE_PATH), e.g. "/yosuga". The tests address pages relative to the
+// KNOWLECTIVE_BASE_PATH), e.g. "/knowlective". The tests address pages relative to the
 // base URL ("login", not "/login"), so they run the same either way.
 const origin = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const basePath = (process.env.E2E_BASE_PATH ?? "").replace(/\/+$/, "");

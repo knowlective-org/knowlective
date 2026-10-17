@@ -8,7 +8,7 @@ import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { CreateRootForm } from "./create-root-form";
 
-export const metadata: Metadata = { title: "新しいナレッジルート | YOSUGA" };
+export const metadata: Metadata = { title: "新しいナレッジルート | KNOWLECTIVE" };
 
 export default async function NewRootPage() {
   const user = await requireUser("/roots/new");

@@ -268,7 +268,7 @@ model PageDocument {
 // Singleton row (id = 1) created by the first-run setup screen. Holds the
 // data encryption key (DEK), wrapped twice — never stored in plaintext:
 // - dekByPassword:  by a key derived from the master password (scrypt, kdfSalt/kdfParams)
-// - dekByServerKey: by YOSUGA_SERVER_KEY, so processes can unlock it on startup
+// - dekByServerKey: by KNOWLECTIVE_SERVER_KEY, so processes can unlock it on startup
 model InstanceConfig {
   id             Int   @id @default(1)
   kdfSalt        Bytes
@@ -282,7 +282,7 @@ model InstanceConfig {
   // Last accepted TOTP time step, so a code can't be replayed.
   totpLastStep Int?
 
-  // Public origin of the site (e.g. https://yosuga.example.com), used for links
+  // Public origin of the site (e.g. https://knowlective.example.com), used for links
   // in emails and invitations. Null on instances set up before it existed.
   publicUrl String?
 
