@@ -1,17 +1,19 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import styles from "@/styles/ui.module.css";
 import { type ResetPasswordState, resetPassword } from "./actions";
 
 export function ResetPasswordForm({ token, email, minLength }: { token: string; email: string; minLength: number }) {
   const [state, formAction, pending] = useActionState(resetPassword, {} as ResetPasswordState);
+  const t = useTranslations();
 
   return (
     <form data-ui="ResetPasswordForm" action={formAction} className={styles.form}>
       <input type="hidden" name="token" value={token} />
       <label>
-        メールアドレス
+        {t("common.email")}
         {/* Not submitted (the link decides the account); lets password managers save the new one. */}
         <input
           data-ui="ResetPasswordForm.emailInput"
@@ -23,7 +25,7 @@ export function ResetPasswordForm({ token, email, minLength }: { token: string; 
         />
       </label>
       <label>
-        新しいパスワード（{minLength}文字以上）
+        {t("resetPassword.newPassword", { min: minLength })}
         <input
           data-ui="ResetPasswordForm.passwordInput"
           type="password"
@@ -35,7 +37,7 @@ export function ResetPasswordForm({ token, email, minLength }: { token: string; 
         />
       </label>
       <label>
-        新しいパスワード（確認）
+        {t("resetPassword.confirmNewPassword")}
         <input
           data-ui="ResetPasswordForm.confirmPasswordInput"
           type="password"
@@ -50,7 +52,7 @@ export function ResetPasswordForm({ token, email, minLength }: { token: string; 
         {state.error}
       </p>
       <button data-ui="ResetPasswordForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? "設定しています…" : "パスワードを設定する"}
+        {pending ? t("resetPassword.submitting") : t("resetPassword.submit")}
       </button>
     </form>
   );

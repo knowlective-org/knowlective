@@ -1,5 +1,7 @@
 "use server";
 
+import { getTranslations } from "next-intl/server";
+import { userLocale } from "@/i18n/locale";
 import { prisma } from "@/lib/db";
 import { emailWhere } from "@/lib/emails";
 import { normalizeEmail } from "@/lib/auth/session";
@@ -24,14 +26,15 @@ export async function requestPasswordReset(
   _prev: ForgotPasswordState,
   formData: FormData,
 ): Promise<ForgotPasswordState> {
+  const t = await getTranslations("common.errors");
   if (!(await isMailConfigured())) {
-    return { error: "メール送信が設定されていないため、再設定のメールを送れません。管理者に連絡してください。" };
+    return { error: t("mailNotConfigured") };
   }
   const raw = formData.get("email");
-  if (typeof raw !== "string") return { error: "入力内容が不正です。" };
+  if (typeof raw !== "string") return { error: t("invalidInput") };
   const email = normalizeEmail(raw);
   if (!/^[^\s@]+@[^\s@]+$/.test(email) || email.length > 254) {
-    return { error: "メールアドレスの形式が正しくありません。" };
+    return { error: t("emailFormat") };
   }
 
   const { ip } = await getRequestContext();
@@ -47,10 +50,12 @@ export async function requestPasswordReset(
   ) {
     const token = await createPasswordReset(user.id, { byAdmin: false, ip });
     const link = `${await getPublicUrl()}/reset-password/${token}`;
-    void sendMail({
-      to: email,
-      ...passwordResetMail({ link, ttlMinutes: PASSWORD_RESET_TTL_MINUTES, byAdmin: false }),
-    }).catch((err) => console.error("[forgot-password] sending the mail failed", err));
+    // In the account's language. Not waited for (see above).
+    void userLocale(user.id)
+      .then((locale) =>
+        sendMail({ to: email, ...passwordResetMail(locale, { link, ttlMinutes: PASSWORD_RESET_TTL_MINUTES, byAdmin: false }) }),
+      )
+      .catch((err) => console.error("[forgot-password] sending the mail failed", err));
   }
   return { sentTo: email };
 }

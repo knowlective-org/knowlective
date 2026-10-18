@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { verifyPassword, verifyPasswordAgainstDummy } from "shared";
 import { prisma } from "@/lib/db";
 import { emailWhere } from "@/lib/emails";
@@ -19,21 +20,17 @@ export type LoginState = { error?: string; email?: string };
 
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const ctx = await getRequestContext();
+  const t = await getTranslations();
   const rawEmail = formData.get("email");
   const password = formData.get("password");
   if (typeof rawEmail !== "string" || typeof password !== "string" || !rawEmail || !password) {
-    return { error: "メールアドレスとパスワードを入力してください。" };
+    return { error: t("login.errors.missing") };
   }
   const email = normalizeEmail(rawEmail);
 
   // Check the lock before the (deliberately slow) password check.
   if (await isLoginLocked(ctx.ip, email)) {
-    return {
-      error: `ログインの失敗が続いたため、一時的にロックしています。${
-        LOCK_WINDOW_MS / 60000
-      }分ほど待ってから再度お試しください。`,
-      email,
-    };
+    return { error: t("login.errors.locked", { minutes: LOCK_WINDOW_MS / 60000 }), email };
   }
 
   const user = await prisma.user.findUnique({
@@ -47,16 +44,16 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
   await recordLoginAttempt(ctx, email, ok);
   if (!ok || !user) {
-    return { error: "メールアドレスまたはパスワードが正しくありません。", email };
+    return { error: t("login.errors.wrong"), email };
   }
   // Only revealed after the correct password, so it can't be used to probe.
   if (user.disabledAt) {
-    return { error: "このアカウントは無効になっています。管理者に問い合わせてください。", email };
+    return { error: t("common.errors.disabledAccount"), email };
   }
   // SSO-only sites: passwords still work for site admins (a way back in if
   // the IdP fails). Also only told after the correct password.
   if (!(await passwordLoginAllowed(user.siteRole))) {
-    return { error: "パスワードでのログインは無効になっています。シングルサインオンでログインしてください。", email };
+    return { error: t("common.errors.ssoOnly"), email };
   }
 
   await createUserSession(ctx, user.id);

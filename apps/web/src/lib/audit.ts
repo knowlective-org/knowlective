@@ -39,6 +39,7 @@ export async function listAuditLogs(take: number, skip = 0) {
   });
 }
 
+// "Name (address)": the same in every language.
 export function userLabel(user: { name: string | null; email: string }): string {
-  return user.name ? `${user.name}（${user.email}）` : user.email;
+  return user.name ? `${user.name} (${user.email})` : user.email;
 }

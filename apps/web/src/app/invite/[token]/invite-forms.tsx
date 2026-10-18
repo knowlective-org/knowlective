@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import styles from "@/styles/ui.module.css";
 import { accept, register, type InviteState } from "./actions";
@@ -16,12 +17,13 @@ export function RegisterForm({
   minLength: number;
 }) {
   const [state, formAction, pending] = useActionState(register, initialState);
+  const t = useTranslations();
 
   return (
     <form action={formAction} className={styles.form} data-ui="RegisterForm">
       <input type="hidden" name="token" value={token} />
       <label>
-        メールアドレス
+        {t("common.email")}
         <input
           data-ui="RegisterForm.emailInput"
           type="email"
@@ -34,11 +36,11 @@ export function RegisterForm({
         />
       </label>
       <label>
-        表示名
+        {t("common.displayName")}
         <input data-ui="RegisterForm.nameInput" type="text" name="name" required autoComplete="name" className={styles.field} />
       </label>
       <label>
-        パスワード（{minLength}文字以上）
+        {t("common.passwordWithMin", { min: minLength })}
         <input
           data-ui="RegisterForm.passwordInput"
           type="password"
@@ -50,7 +52,7 @@ export function RegisterForm({
         />
       </label>
       <label>
-        パスワード（確認）
+        {t("common.confirmPassword")}
         <input
           data-ui="RegisterForm.confirmPasswordInput"
           type="password"
@@ -65,7 +67,7 @@ export function RegisterForm({
         {state.error}
       </p>
       <button type="submit" disabled={pending} className={styles.button} data-ui="RegisterForm.submitButton">
-        {pending ? "登録しています…" : "登録して参加する"}
+        {pending ? t("invite.registering") : t("invite.register")}
       </button>
     </form>
   );
@@ -73,6 +75,7 @@ export function RegisterForm({
 
 export function AcceptForm({ token }: { token: string }) {
   const [state, formAction, pending] = useActionState(accept, initialState);
+  const t = useTranslations("invite");
 
   return (
     <form action={formAction} className={styles.form} data-ui="AcceptForm">
@@ -81,7 +84,7 @@ export function AcceptForm({ token }: { token: string }) {
         {state.error}
       </p>
       <button type="submit" disabled={pending} className={styles.button} data-ui="AcceptForm.submitButton">
-        {pending ? "参加しています…" : "参加する"}
+        {pending ? t("accepting") : t("accept")}
       </button>
     </form>
   );

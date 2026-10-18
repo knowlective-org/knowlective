@@ -1,110 +1,110 @@
 import type { SiteRole } from "shared";
+import { formatDuration } from "@/i18n/duration";
+import type { AppLocale } from "@/i18n/locales";
+import { translatorFor } from "@/i18n/translator";
 
-// Plain-text email bodies sent by the app. Links must be built from
-// getPublicUrl(), never from request headers. Callers pass values only (no
-// wording), so all of an email's text is here.
+// Plain-text email bodies sent by the app, in the recipient's language
+// (i18n/locale.ts: userLocale() for an account, siteDefaultLocale() for an
+// address without one). Links must be built from getPublicUrl(), never from
+// request headers. Callers pass values only; the text is in i18n/messages.
 
 type Mail = { subject: string; text: string };
 
-const ROLE_NAMES: Record<SiteRole, string> = {
-  SITE_ADMIN: "a site admin",
-  CONTENT_MANAGER: "a content manager",
-  USER: "a user",
-};
-
-// "30 minutes", "1 hour", "24 hours", "7 days".
-function duration(minutes: number): string {
-  const day = 24 * 60;
-  const [n, unit] =
-    minutes >= 2 * day && minutes % day === 0
-      ? [minutes / day, "day"]
-      : minutes % 60 === 0
-        ? [minutes / 60, "hour"]
-        : [minutes, "minute"];
-  return `${n} ${unit}${n === 1 ? "" : "s"}`;
+function duration(locale: AppLocale, minutes: number): string {
+  const t = translatorFor(locale);
+  return formatDuration((unit, values) => t(`duration.${unit}`, values), minutes);
 }
 
-export function invitationMail(input: {
-  link: string;
-  // null: invited by an admin signed in with the master password.
-  inviterName: string | null;
-  siteRole: SiteRole;
-  groupNames: string[];
-  ttlDays: number;
-}): Mail {
+export function invitationMail(
+  locale: AppLocale,
+  input: {
+    link: string;
+    // null: invited by an admin signed in with the master password.
+    inviterName: string | null;
+    siteRole: SiteRole;
+    groupNames: string[];
+    ttlDays: number;
+  },
+): Mail {
+  const t = translatorFor(locale);
   return {
-    subject: "Your invitation to KNOWLECTIVE",
+    subject: t("mail.invitation.subject"),
     text: [
-      `${input.inviterName ?? "A KNOWLECTIVE administrator"} has invited you to KNOWLECTIVE as ${ROLE_NAMES[input.siteRole]}.`,
-      ...(input.groupNames.length > 0 ? [`Once registered, you'll join these groups: ${input.groupNames.join(", ")}`] : []),
+      t("mail.invitation.invitedBy", {
+        inviter: input.inviterName ?? t("mail.invitation.administrator"),
+        role: t(`mail.invitation.role.${input.siteRole}`),
+      }),
+      ...(input.groupNames.length > 0
+        ? [t("mail.invitation.groups", { groups: input.groupNames.join(t("common.listSeparator")) })]
+        : []),
       "",
-      "Open this link to create your account:",
+      t("mail.invitation.open"),
       input.link,
       "",
-      `The link works once and expires in ${duration(input.ttlDays * 24 * 60)}.`,
-      "If you weren't expecting this, you can ignore this email.",
+      t("mail.invitation.expires", { duration: duration(locale, input.ttlDays * 24 * 60) }),
+      t("mail.invitation.ignore"),
     ].join("\n"),
   };
 }
 
 // /signup: confirms the address and opens the registration page.
-export function signupMail(input: { link: string; ttlHours: number }): Mail {
+export function signupMail(locale: AppLocale, input: { link: string; ttlHours: number }): Mail {
+  const t = translatorFor(locale);
   return {
-    subject: "Create your KNOWLECTIVE account",
+    subject: t("mail.signup.subject"),
     text: [
-      "We received a request to create a KNOWLECTIVE account for this address.",
+      t("mail.signup.received"),
       "",
-      "Open this link to choose your display name and password:",
+      t("mail.signup.open"),
       input.link,
       "",
-      `The link works once and expires in ${duration(input.ttlHours * 60)}.`,
-      "If you didn't ask for this, you can ignore this email (no account will be created).",
+      t("mail.signup.expires", { duration: duration(locale, input.ttlHours * 60) }),
+      t("mail.signup.ignore"),
     ].join("\n"),
   };
 }
 
 // /signup for an address that already has an account. Sent instead of a
 // registration link, so the form itself never reveals who is registered.
-export function alreadyRegisteredMail(input: { loginLink: string }): Mail {
+export function alreadyRegisteredMail(locale: AppLocale, input: { loginLink: string }): Mail {
+  const t = translatorFor(locale);
   return {
-    subject: "About your KNOWLECTIVE registration",
+    subject: t("mail.alreadyRegistered.subject"),
     text: [
-      "Someone asked to create a KNOWLECTIVE account for this address, but it already has one.",
+      t("mail.alreadyRegistered.exists"),
       "",
-      "Log in here:",
+      t("mail.alreadyRegistered.login"),
       input.loginLink,
       "",
-      "If you don't know your password, reset it from \"Forgot your password?\" on the login screen.",
-      "If you didn't ask for this, you can ignore this email.",
+      t("mail.alreadyRegistered.forgot", { forgotLink: t("login.forgotPasswordLink") }),
+      t("mail.alreadyRegistered.ignore"),
     ].join("\n"),
   };
 }
 
 // /forgot-password, or a link a site admin chose to mail from /admin/users.
-export function passwordResetMail(input: { link: string; ttlMinutes: number; byAdmin: boolean }): Mail {
+export function passwordResetMail(
+  locale: AppLocale,
+  input: { link: string; ttlMinutes: number; byAdmin: boolean },
+): Mail {
+  const t = translatorFor(locale);
   return {
-    subject: "Reset your KNOWLECTIVE password",
+    subject: t("mail.passwordReset.subject"),
     text: [
-      input.byAdmin
-        ? "An administrator has issued a link for resetting your KNOWLECTIVE password."
-        : "We received a request to reset your KNOWLECTIVE password.",
+      input.byAdmin ? t("mail.passwordReset.issuedByAdmin") : t("mail.passwordReset.requested"),
       "",
-      "Open this link to set a new password:",
+      t("mail.passwordReset.open"),
       input.link,
       "",
-      `The link works once and expires in ${duration(input.ttlMinutes)}. Resetting your password logs you out on every device.`,
-      "If you didn't ask for this, you can ignore this email (your password stays the same).",
+      t("mail.passwordReset.expires", { duration: duration(locale, input.ttlMinutes) }),
+      t("mail.passwordReset.ignore"),
     ].join("\n"),
   };
 }
 
-// The admin console's test email (overview → mail settings).
-export function testMail(): Mail {
-  return {
-    subject: "KNOWLECTIVE test email",
-    text: [
-      "This is a test email sent from the KNOWLECTIVE admin console.",
-      "If you received it, the mail settings work.",
-    ].join("\n"),
-  };
+// The admin console's test email (overview → mail settings), in the
+// sending admin's language.
+export function testMail(locale: AppLocale): Mail {
+  const t = translatorFor(locale);
+  return { subject: t("mail.test.subject"), text: [t("mail.test.body"), t("mail.test.works")].join("\n") };
 }

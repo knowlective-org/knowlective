@@ -29,6 +29,8 @@ import {
   sendMail,
 } from "@/lib/mail";
 import { invitationMail, testMail } from "@/lib/mail-templates";
+import { getLocale } from "next-intl/server";
+import { siteDefaultLocale } from "@/i18n/locale";
 import { MAX_ALLOWED_EXTENSIONS, parseExtensions } from "@/lib/upload-types";
 import { parseProxyUrl } from "@/lib/link-preview";
 import { getLinkPreviewSettings, saveLinkPreviewSettings as storeLinkPreviewSettings } from "@/lib/link-preview-settings";
@@ -159,7 +161,8 @@ export async function issueInvitation(
   try {
     await sendMail({
       to: email,
-      ...invitationMail({
+      // Not known yet: the site default.
+      ...invitationMail(await siteDefaultLocale(), {
         link,
         inviterName: actor.userId ? actorLabel : null,
         siteRole: siteRole as SiteRole,
@@ -254,7 +257,7 @@ export async function sendTestMail(
   try {
     await sendMail({
       to: to.trim(),
-      ...testMail(),
+      ...testMail(await getLocale()),
     });
   } catch (err) {
     if (err instanceof MailNotConfiguredError) return { error: "先にメール送信の設定を保存してください。" };

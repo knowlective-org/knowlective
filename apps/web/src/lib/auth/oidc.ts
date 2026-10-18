@@ -11,7 +11,8 @@ import {
 } from "shared";
 import { prisma } from "@/lib/db";
 import { emailColumns, emailWhere } from "@/lib/emails";
-import { recordAudit } from "@/lib/audit";
+import { recordAudit, userLabel } from "@/lib/audit";
+import { auditTranslator } from "@/i18n/audit";
 import { isDomainAllowed } from "@/lib/auth/signup";
 import { getPublicUrl } from "@/lib/site-url";
 
@@ -65,7 +66,8 @@ const DEFAULTS: OidcSettingsView = {
   issuer: "",
   clientId: "",
   hasSecret: false,
-  buttonLabel: "シングルサインオン",
+  // Empty: the login screen's own name for it, in the viewer's language.
+  buttonLabel: "",
   nameClaim: "",
   newUserRole: "USER",
   allowedDomains: [],
@@ -219,24 +221,23 @@ export async function beginLogin(
 }
 
 // Why a sign-in failed. The callback redirects to /login?sso_error=<code>
-// and the login page shows OIDC_ERROR_MESSAGES[code] — never text from the
-// URL, which anyone could craft.
-export const OIDC_ERROR_MESSAGES = {
-  unavailable: "シングルサインオンは現在使えません。",
-  expired: "ログインの有効期限が切れました。もう一度お試しください。",
-  cancelled: "ログインがキャンセルされました。",
-  failed:
-    "シングルサインオンでのログインに失敗しました。もう一度お試しください。",
-  disabled:
-    "このアカウントは無効になっています。管理者に問い合わせてください。",
-  no_email:
-    "IdP から確認済みのメールアドレスを受け取れなかったため、ログインできません。管理者に問い合わせてください。",
-  domain:
-    "このメールアドレスのドメインでは、アカウントを作成できません。管理者に問い合わせてください。",
-  conflict:
-    "このメールアドレスのアカウントは、別の IdP アカウントと結び付いています。管理者に問い合わせてください。",
-} as const;
-export type OidcErrorCode = keyof typeof OIDC_ERROR_MESSAGES;
+// and the login page shows its own text for the code (login.ssoErrors) —
+// never text from the URL, which anyone could craft.
+export const OIDC_ERROR_CODES = [
+  "unavailable",
+  "expired",
+  "cancelled",
+  "failed",
+  "disabled",
+  "no_email",
+  "domain",
+  "conflict",
+] as const;
+export type OidcErrorCode = (typeof OIDC_ERROR_CODES)[number];
+
+export function isOidcErrorCode(value: unknown): value is OidcErrorCode {
+  return typeof value === "string" && (OIDC_ERROR_CODES as readonly string[]).includes(value);
+}
 
 export class OidcLoginError extends Error {
   constructor(
@@ -348,10 +349,11 @@ export async function finishLogin(
   });
   // Every person's account comes with its own personal knowledge root.
   await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id));
+  const audit = await auditTranslator();
   await recordAudit(
-    { userId: user.id, label: name ? `${name}（${email}）` : email },
+    { userId: user.id, label: userLabel({ name, email }) },
     "user.create.oidc",
-    `シングルサインオンで ${email} のアカウントを作成（${role === "CONTENT_MANAGER" ? "コンテンツ管理者" : "一般ユーザー"}）`,
+    audit("audit.oidcUserCreated", { email, role: audit(`roles.${role}`) }),
     { userId: user.id, issuer },
   );
   return { userId: user.id, next: state.next };

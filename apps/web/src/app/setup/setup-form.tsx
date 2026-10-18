@@ -1,6 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { type AppLocale, LOCALES, LOCALE_NAMES } from "@/i18n/locales";
 import { completeSetup, type SetupState } from "./actions";
 
 const initialState: SetupState = {};
@@ -15,13 +17,25 @@ const fieldStyle = {
   borderRadius: 6,
 } as const;
 
-export function SetupForm({ minLength, suggestedUrl }: { minLength: number; suggestedUrl: string }) {
+const noteStyle = { display: "block", fontSize: 14, opacity: 0.75, marginTop: 4 } as const;
+
+export function SetupForm({
+  minLength,
+  suggestedUrl,
+  suggestedLocale,
+}: {
+  minLength: number;
+  suggestedUrl: string;
+  // The language this screen is shown in.
+  suggestedLocale: AppLocale;
+}) {
   const [state, formAction, pending] = useActionState(completeSetup, initialState);
+  const t = useTranslations("setup");
 
   return (
     <form action={formAction} style={{ display: "grid", gap: 16 }} data-ui="SetupForm">
       <label>
-        サイトの公開 URL
+        {t("publicUrl")}
         <input
           data-ui="SetupForm.publicUrlInput"
           type="url"
@@ -32,12 +46,21 @@ export function SetupForm({ minLength, suggestedUrl }: { minLength: number; sugg
           spellCheck={false}
           style={fieldStyle}
         />
-        <span style={{ display: "block", fontSize: 14, opacity: 0.75, marginTop: 4 }}>
-          メールや招待リンクに使われます。利用者がブラウザで開く URL を入力してください。あとから管理画面で変更できます。
-        </span>
+        <span style={noteStyle}>{t("publicUrlNote")}</span>
       </label>
       <label>
-        マスターパスワード（{minLength}文字以上）
+        {t("defaultLocale")}
+        <select name="defaultLocale" defaultValue={suggestedLocale} style={fieldStyle} data-ui="SetupForm.defaultLocaleSelect">
+          {LOCALES.map((l) => (
+            <option key={l} value={l}>
+              {LOCALE_NAMES[l]}
+            </option>
+          ))}
+        </select>
+        <span style={noteStyle}>{t("defaultLocaleNote")}</span>
+      </label>
+      <label>
+        {t("masterPassword", { min: minLength })}
         <input
           data-ui="SetupForm.passwordInput"
           type="password"
@@ -49,7 +72,7 @@ export function SetupForm({ minLength, suggestedUrl }: { minLength: number; sugg
         />
       </label>
       <label>
-        マスターパスワード（確認）
+        {t("confirmMasterPassword")}
         <input
           data-ui="SetupForm.confirmPasswordInput"
           type="password"
@@ -69,7 +92,7 @@ export function SetupForm({ minLength, suggestedUrl }: { minLength: number; sugg
         disabled={pending}
         style={{ padding: "10px 16px", fontSize: 16, borderRadius: 6, cursor: "pointer" }}
       >
-        {pending ? "鍵を生成しています…" : "セットアップを完了する"}
+        {pending ? t("submitting") : t("submit")}
       </button>
     </form>
   );

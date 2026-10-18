@@ -47,6 +47,9 @@ model User {
   // Page opened most recently; "/" reopens it (if still accessible). No
   // foreign key: a deleted page simply falls back to the first visible one.
   lastPageId   String?
+  // Display language chosen on the account screen ("ja" / "en"). null: the
+  // browser's language (apps/web/src/i18n).
+  locale       String?
   // The order this user wants their knowledge roots in, in the sidebar
   // (KnowledgeRoot ids). Roots not listed follow, oldest first. Empty = all
   // in creation order.
@@ -316,10 +319,14 @@ model InstanceConfig {
   // can reach). Off: every response says X-Robots-Tag: noindex, nofollow
   // (apps/web/server/robots.ts).
   searchEnginesAllowed Boolean @default(false)
-  // The public page "/" shows someone not logged in (the landing page),
-  // instead of the login screen. No foreign key: only used while the page is
-  // public (checked on each visit), otherwise "/" asks to log in.
+  // The top page: where "/" goes for someone with nowhere else to go (see
+  // apps/web/src/lib/landing-page.ts). No foreign key: used only while the
+  // visitor can open it (checked on each visit).
   landingPageId String?
+  // The language for whoever has none of their own: visitors whose browser
+  // asks for neither supported language, and emails to people without an
+  // account (apps/web/src/i18n). "ja" or "en".
+  defaultLocale String @default("ja")
 
   // How accounts are created: by invitation only, or also by anyone who
   // confirms their email address at /signup (needs mail settings).

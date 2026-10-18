@@ -122,6 +122,19 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   return { id, email, name, siteRole };
 }
 
+// The display language the signed-in user chose, if any. Only for picking
+// the language: it skips getCurrentUser()'s checks (an expired or disabled
+// session is turned away by those anyway).
+export async function sessionUserLocale(): Promise<string | null> {
+  const token = (await cookies()).get(COOKIE_NAME)?.value;
+  if (!token) return null;
+  const session = await prisma.userSession.findUnique({
+    where: { tokenHash: hashToken(token) },
+    select: { user: { select: { locale: true } } },
+  });
+  return session?.user.locale ?? null;
+}
+
 // Gate for every page and Server Action that needs a logged-in user.
 // `nextPath` is where to come back to after logging in.
 export async function requireUser(nextPath?: string): Promise<CurrentUser> {

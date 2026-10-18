@@ -12,6 +12,7 @@ import { ADMIN_PASSWORD_RESET_TTL_HOURS, createPasswordReset } from "@/lib/auth/
 import { passwordLoginAllowed } from "@/lib/auth/oidc";
 import { sendMail } from "@/lib/mail";
 import { passwordResetMail } from "@/lib/mail-templates";
+import { userLocale } from "@/i18n/locale";
 import { getPublicUrl } from "@/lib/site-url";
 
 async function audit(actor: AuditActor, action: string, userId: string, summary: (who: string) => string) {
@@ -134,7 +135,7 @@ export async function issuePasswordReset(
   try {
     await sendMail({
       to: user.email,
-      ...passwordResetMail({ link, ttlMinutes: ADMIN_PASSWORD_RESET_TTL_HOURS * 60, byAdmin: true }),
+      ...passwordResetMail(await userLocale(userId), { link, ttlMinutes: ADMIN_PASSWORD_RESET_TTL_HOURS * 60, byAdmin: true }),
     });
     return { link, mailSentTo: user.email };
   } catch (err) {

@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
 import { withBasePath } from "@/lib/base-path";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { isSetupComplete } from "shared";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { getCurrentUser, safeNextPath } from "@/lib/auth/session";
 import { getSignupSettings } from "@/lib/auth/signup";
-import { OIDC_ERROR_MESSAGES, OIDC_START_PATH, getOidcSettings } from "@/lib/auth/oidc";
+import { OIDC_START_PATH, type OidcErrorCode, getOidcSettings, isOidcErrorCode } from "@/lib/auth/oidc";
 import styles from "@/styles/ui.module.css";
 import { LoginForm } from "./login-form";
 
-export const metadata: Metadata = {
-  title: "ログイン | KNOWLECTIVE",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations();
+  return { title: t("meta.titleSuffix", { title: t("login.title") }) };
+}
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (!(await isSetupComplete(prisma))) redirect("/setup");
@@ -20,20 +22,18 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const params = await searchParams;
   const next = safeNextPath(params.next);
   if (await getCurrentUser()) redirect(next);
-  const [signup, oidc] = await Promise.all([getSignupSettings(), getOidcSettings()]);
+  const [signup, oidc, t] = await Promise.all([getSignupSettings(), getOidcSettings(), getTranslations("login")]);
   // Only codes we know: the message itself never comes from the URL.
-  const ssoError = typeof params.sso_error === "string" && params.sso_error in OIDC_ERROR_MESSAGES
-    ? OIDC_ERROR_MESSAGES[params.sso_error as keyof typeof OIDC_ERROR_MESSAGES]
-    : null;
+  const ssoError = isOidcErrorCode(params.sso_error) ? t(`ssoErrors.${params.sso_error as OidcErrorCode}`) : null;
   const ssoOnly = oidc.enabled && oidc.passwordLogin === "SITE_ADMINS_ONLY";
   const passwordReset = params.reset === "done";
 
   return (
     <main className={styles.narrow} data-ui="LoginPage">
-      <h1 className={styles.title}>KNOWLECTIVE にログイン</h1>
+      <h1 className={styles.title}>{t("heading")}</h1>
       {passwordReset && (
         <p className={styles.success} data-ui="LoginPage.passwordResetStatus" style={{ marginBottom: 16 }}>
-          パスワードを再設定しました。新しいパスワードでログインしてください。
+          {t("passwordResetDone")}
         </p>
       )}
       {ssoError && (
@@ -49,14 +49,14 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           style={{ display: "block", textAlign: "center", marginBottom: 24 }}
           data-ui="LoginPage.ssoButton"
         >
-          {oidc.buttonLabel}でログイン
+          {t("ssoButton", { provider: oidc.buttonLabel || t("ssoDefaultName") })}
         </a>
       )}
       {ssoOnly ? (
         // Kept for site admins only (a way in if the IdP is down).
         <details data-ui="LoginPage.adminPasswordLogin">
           <summary className={styles.note} style={{ cursor: "pointer" }}>
-            サイト管理者の方（パスワードでログイン）
+            {t("adminPasswordLogin")}
           </summary>
           <div style={{ marginTop: 12 }}>
             <LoginForm next={next} />
@@ -64,21 +64,23 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </details>
       ) : (
         <>
-          {oidc.enabled && <p className={styles.note} style={{ marginBottom: 12 }}>またはメールアドレスとパスワードでログイン</p>}
+          {oidc.enabled && <p className={styles.note} style={{ marginBottom: 12 }}>{t("orPassword")}</p>}
           <LoginForm next={next} />
         </>
       )}
       {signup.enabled ? (
         <p className={styles.note} style={{ marginTop: 24 }}>
-          アカウントをお持ちでない場合は、
-          <Link href="/signup" data-ui="LoginPage.signupLink">
-            アカウント登録
-          </Link>
-          から登録できます。
+          {t.rich("signupPrompt", {
+            link: (chunks) => (
+              <Link href="/signup" data-ui="LoginPage.signupLink">
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       ) : (
         <p className={styles.note} style={{ marginTop: 24 }}>
-          アカウントは招待制です。管理者から届いた招待リンクから登録してください。
+          {t("inviteOnly")}
         </p>
       )}
     </main>

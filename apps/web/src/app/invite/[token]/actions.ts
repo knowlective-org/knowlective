@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, hashPassword, ensurePersonalRoot } from "shared";
 import { prisma } from "@/lib/db";
 import { emailColumns, emailWhere } from "@/lib/emails";
@@ -15,9 +16,10 @@ import { getRequestContext } from "@/lib/request";
 
 export type InviteState = { error?: string };
 
-const UNAVAILABLE = "この招待リンクは使用済みか、期限が切れています。管理者に新しいリンクを依頼してください。";
+
 
 export async function register(_prev: InviteState, formData: FormData): Promise<InviteState> {
+  const t = await getTranslations();
   const token = formData.get("token");
   const rawEmail = formData.get("email");
   const name = formData.get("name");
@@ -30,35 +32,35 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
     typeof password !== "string" ||
     typeof confirm !== "string"
   ) {
-    return { error: "入力内容が不正です。" };
+    return { error: t("common.errors.invalidInput") };
   }
 
   const invitation = await findValidInvitation(token);
-  if (!invitation) return { error: UNAVAILABLE };
+  if (!invitation) return { error: t("invite.errors.unavailable") };
   let siteRole = invitation.siteRole;
   if (invitation.selfSignup) {
     const signup = await getSignupSettings();
     if (!signup.enabled || !isDomainAllowed(invitation.email ?? "", signup.allowedDomains)) {
-      return { error: "現在、アカウント登録は受け付けていません。" };
+      return { error: t("common.errors.signupClosed") };
     }
     // The role set now, not when the link was sent.
     siteRole = signup.siteRole;
   }
 
   const email = normalizeEmail(rawEmail);
-  if (!/^[^\s@]+@[^\s@]+$/.test(email)) return { error: "メールアドレスの形式が正しくありません。" };
+  if (!/^[^\s@]+@[^\s@]+$/.test(email)) return { error: t("common.errors.emailFormat") };
   if (invitation.email && invitation.email !== email) {
-    return { error: "この招待は別のメールアドレス宛てです。" };
+    return { error: t("invite.errors.otherAddress") };
   }
-  if (name.trim() === "") return { error: "表示名を入力してください。" };
+  if (name.trim() === "") return { error: t("invite.errors.nameRequired") };
   if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-    return { error: `パスワードは${MIN_PASSWORD_LENGTH}文字以上にしてください。` };
+    return { error: t("common.errors.passwordLength", { min: MIN_PASSWORD_LENGTH }) };
   }
-  if (password !== confirm) return { error: "確認用のパスワードが一致しません。" };
+  if (password !== confirm) return { error: t("common.errors.passwordMismatch") };
 
   if (await prisma.user.findUnique({ where: await emailWhere(email), select: { id: true } })) {
     return {
-      error: "このメールアドレスはすでに登録されています。ログインしてから、もう一度このリンクを開いてください。",
+      error: t("invite.errors.emailTaken"),
     };
   }
 
@@ -76,10 +78,10 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
       return user.id;
     });
   } catch (err) {
-    if (err instanceof InvitationUnavailableError) return { error: UNAVAILABLE };
+    if (err instanceof InvitationUnavailableError) return { error: t("invite.errors.unavailable") };
     // Unique violation: the same email registered concurrently.
     if ((err as { code?: string }).code === "P2002") {
-      return { error: "このメールアドレスはすでに登録されています。" };
+      return { error: t("invite.errors.emailTakenNow") };
     }
     throw err;
   }
@@ -90,21 +92,22 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
 
 // For a user who already has an account and is logged in.
 export async function accept(_prev: InviteState, formData: FormData): Promise<InviteState> {
+  const t = await getTranslations();
   const token = formData.get("token");
-  if (typeof token !== "string") return { error: "入力内容が不正です。" };
+  if (typeof token !== "string") return { error: t("common.errors.invalidInput") };
   const user = await requireUser(`/invite/${encodeURIComponent(token)}`);
 
   const invitation = await findValidInvitation(token);
   // Self-signup links only create accounts; they carry no groups to join.
-  if (!invitation || invitation.selfSignup) return { error: UNAVAILABLE };
+  if (!invitation || invitation.selfSignup) return { error: t("invite.errors.unavailable") };
   if (invitation.email && invitation.email !== user.email) {
-    return { error: "この招待は別のメールアドレス宛てです。" };
+    return { error: t("invite.errors.otherAddress") };
   }
 
   try {
     await prisma.$transaction((tx) => consumeInvitation(tx, invitation.id, user.id));
   } catch (err) {
-    if (err instanceof InvitationUnavailableError) return { error: UNAVAILABLE };
+    if (err instanceof InvitationUnavailableError) return { error: t("invite.errors.unavailable") };
     throw err;
   }
   redirect("/");

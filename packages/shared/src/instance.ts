@@ -46,6 +46,8 @@ export async function setupInstance(
   prisma: PrismaClient,
   masterPassword: string,
   publicUrl: string,
+  // The site's default display language ("ja" / "en"); the column's default if omitted.
+  defaultLocale?: string,
 ): Promise<void> {
   if (masterPassword.length < MIN_MASTER_PASSWORD_LENGTH) {
     throw new Error(`Master password must be at least ${MIN_MASTER_PASSWORD_LENGTH} characters`);
@@ -63,6 +65,7 @@ export async function setupInstance(
       data: {
         id: INSTANCE_ID,
         publicUrl: origin,
+        defaultLocale,
         kdfSalt: Uint8Array.from(kdfSalt),
         kdfParams: DEFAULT_KDF_PARAMS,
         dekByPassword: Uint8Array.from(encrypt(passwordKey, dek, AAD_BY_PASSWORD)),

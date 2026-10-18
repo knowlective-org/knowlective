@@ -1,5 +1,10 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
+import { userLocale } from "@/i18n/locale";
+import { isLocale } from "@/i18n/locales";
+import { prisma } from "@/lib/db";
 import { ownPasswordResetAvailability } from "@/lib/auth/own-password-reset";
 import {
   PASSWORD_RESET_TTL_MINUTES,
@@ -19,18 +24,16 @@ export type OwnPasswordResetState = { error?: string; sentTo?: string };
 // here: the mailbox is the proof, as it is when signed out.
 export async function requestOwnPasswordReset(): Promise<OwnPasswordResetState> {
   const user = await requireUser("/account");
+  const t = await getTranslations();
   const availability = await ownPasswordResetAvailability(user.id);
   if (!availability.available) {
     return {
-      error:
-        availability.reason === "mail"
-          ? "メール送信が設定されていないため、再設定のメールを送れません。管理者に連絡してください。"
-          : "シングルサインオンでログインするアカウントのため、パスワードは再設定できません。",
+      error: availability.reason === "mail" ? t("common.errors.mailNotConfigured") : t("account.errors.ssoAccount"),
     };
   }
   const { ip } = await getRequestContext();
   if (await isPasswordResetRateLimited(user.id, ip)) {
-    return { error: "再設定のメールを続けて送りすぎています。しばらく待ってからお試しください。" };
+    return { error: t("account.errors.tooMany") };
   }
   const token = await createPasswordReset(user.id, { byAdmin: false, ip });
   const link = `${await getPublicUrl()}/reset-password/${token}`;
@@ -39,11 +42,24 @@ export async function requestOwnPasswordReset(): Promise<OwnPasswordResetState> 
     // nothing to hide, and they should hear if the mail couldn't be sent.
     await sendMail({
       to: user.email,
-      ...passwordResetMail({ link, ttlMinutes: PASSWORD_RESET_TTL_MINUTES, byAdmin: false }),
+      ...passwordResetMail(await userLocale(user.id), { link, ttlMinutes: PASSWORD_RESET_TTL_MINUTES, byAdmin: false }),
     });
   } catch (err) {
     console.error("[account] sending the password reset mail failed", err);
-    return { error: "メールを送信できませんでした。時間をおいて再度お試しいただくか、管理者に連絡してください。" };
+    return { error: t("account.errors.mailFailed") };
   }
   return { sentTo: user.email };
+}
+
+export type LocaleState = { error?: string; saved?: boolean };
+
+// The user's own display language ("" = the browser's). Shown from the next
+// render on: the whole app is re-rendered in it.
+export async function saveLocale(_prev: LocaleState, formData: FormData): Promise<LocaleState> {
+  const user = await requireUser("/account");
+  const raw = formData.get("locale");
+  if (raw !== "" && !isLocale(raw)) return { error: (await getTranslations())("common.errors.invalidInput") };
+  await prisma.user.update({ where: { id: user.id }, data: { locale: raw === "" ? null : raw } });
+  revalidatePath("/", "layout");
+  return { saved: true };
 }

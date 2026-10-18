@@ -1,4 +1,8 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+// Display languages: next-intl, configured per request in src/i18n/request.ts.
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 // KNOWLECTIVE_BASE_PATH, checked the same way as src/lib/base-path.ts (which can't
 // be imported here).
@@ -56,4 +60,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

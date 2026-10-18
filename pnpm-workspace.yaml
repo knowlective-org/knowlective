@@ -12,3 +12,7 @@ allowBuilds:
   onnxruntime-node: false
   # Only prints a version notice.
   protobufjs: false
+  # Pulled in by next-intl for its message extraction, which isn't used; the
+  # prebuilt binaries come as optional dependencies.
+  '@parcel/watcher': false
+  '@swc/core': false

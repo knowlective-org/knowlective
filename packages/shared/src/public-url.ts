@@ -1,24 +1,25 @@
 // The site's public URL, as an origin only: "https://knowlective.example.com" or
 // "http://localhost:3000". Paths aren't supported (the app is served from /).
 
-export class InvalidPublicUrlError extends Error {}
+// What's wrong with the URL; the app shows its own text for each.
+export type InvalidPublicUrlReason = "format" | "scheme" | "credentials" | "path";
+
+export class InvalidPublicUrlError extends Error {
+  constructor(readonly reason: InvalidPublicUrlReason) {
+    super(`invalid public URL: ${reason}`);
+  }
+}
 
 export function normalizePublicUrl(input: string): string {
   let url: URL;
   try {
     url = new URL(input.trim());
   } catch {
-    throw new InvalidPublicUrlError("URL の形式が正しくありません（例: https://knowlective.example.com）。");
+    throw new InvalidPublicUrlError("format");
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new InvalidPublicUrlError("http:// または https:// で始まる URL を入力してください。");
-  }
-  if (url.username || url.password) {
-    throw new InvalidPublicUrlError("URL にユーザー名やパスワードは含められません。");
-  }
-  if ((url.pathname !== "/" && url.pathname !== "") || url.search || url.hash) {
-    throw new InvalidPublicUrlError("パスやクエリを含まない URL を入力してください（例: https://knowlective.example.com）。");
-  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new InvalidPublicUrlError("scheme");
+  if (url.username || url.password) throw new InvalidPublicUrlError("credentials");
+  if ((url.pathname !== "/" && url.pathname !== "") || url.search || url.hash) throw new InvalidPublicUrlError("path");
   return url.origin;
 }
 
