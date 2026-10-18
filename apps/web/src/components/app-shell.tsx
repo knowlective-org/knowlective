@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useId, useState } from "react";
 import styles from "./app-shell.module.css";
 
@@ -13,6 +14,7 @@ import styles from "./app-shell.module.css";
 // wider screens.)
 export function AppShell({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
   const pathname = usePathname();
+  const t = useTranslations("appShell");
   // The path the drawer was opened on: going anywhere else closes it without
   // an effect having to notice the navigation.
   const [openedOn, setOpenedOn] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function AppShell({ sidebar, children }: { sidebar: ReactNode; children: 
         type="button"
         className={styles.menuButton}
         data-ui="AppShell.menuButton"
-        aria-label="メニューを開く"
+        aria-label={t("openMenu")}
         aria-expanded={open}
         aria-controls={sidebarId}
         onClick={() => setOpenedOn(pathname)}
@@ -56,7 +58,7 @@ export function AppShell({ sidebar, children }: { sidebar: ReactNode; children: 
           type="button"
           className={styles.closeButton}
           data-ui="AppShell.closeButton"
-          aria-label="メニューを閉じる"
+          aria-label={t("closeMenu")}
           onClick={close}
         >
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>

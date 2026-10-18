@@ -97,9 +97,15 @@ async function drawMermaid(code: string): Promise<{ png: Uint8Array; widthPx: nu
 }
 
 // `blocks`: after prepareBlocksForExport(…, { mermaid: "keep" }).
-export function exportPdf(schema: unknown, blocks: ExportBlock[], title: string): Promise<Blob> {
+export function exportPdf(
+  schema: unknown,
+  blocks: ExportBlock[],
+  title: string,
+  text: { lang: string; mermaidAlt: string },
+): Promise<Blob> {
   return buildPdf(schema, blocks, {
     title,
+    ...text,
     wasm: asset("typst.wasm"),
     japaneseFonts: loadJapaneseFonts(),
     loadImage,

@@ -33,12 +33,18 @@ export function hasChildPageBlocks(blocks: ExportBlock[]): boolean {
   );
 }
 
-function childPageList(pages: ChildPageItem[], parentId: string, levels: number, origin: string): ExportBlock[] {
+function childPageList(
+  pages: ChildPageItem[],
+  parentId: string,
+  levels: number,
+  origin: string,
+  untitled: string,
+): ExportBlock[] {
   return pages
     .filter((page) => page.parentId === parentId)
     .map((page) =>
-      block("bulletListItem", [link(`${origin}/pages/${page.id}`, displayTitle(page.title))], {
-        children: levels > 1 ? childPageList(pages, page.id, levels - 1, origin) : [],
+      block("bulletListItem", [link(`${origin}/pages/${page.id}`, displayTitle(page.title, untitled))], {
+        children: levels > 1 ? childPageList(pages, page.id, levels - 1, origin, untitled) : [],
       }),
     );
 }
@@ -56,9 +62,16 @@ function childPageList(pages: ChildPageItem[], parentId: string, levels: number,
 // and with links to attachments made absolute, so they work outside the site.
 export function prepareBlocksForExport(
   blocks: ExportBlock[],
-  options: { origin: string; pageId: string; childPages: ChildPageItem[] | null; mermaid?: "code" | "keep" },
+  options: {
+    origin: string;
+    pageId: string;
+    childPages: ChildPageItem[] | null;
+    // Shown for a child page without a title, in the viewer's language.
+    untitled: string;
+    mermaid?: "code" | "keep";
+  },
 ): ExportBlock[] {
-  const { origin, pageId, childPages } = options;
+  const { origin, pageId, childPages, untitled } = options;
   const absolute = (url: unknown) => (typeof url === "string" && url.startsWith("/") ? origin + url : url);
 
   return blocks.flatMap((b): ExportBlock[] => {
@@ -92,7 +105,7 @@ export function prepareBlocksForExport(
         const title = String(b.props?.title ?? "");
         return [
           ...(title ? [block("paragraph", [text(title, { bold: true })])] : []),
-          ...childPageList(childPages ?? [], pageId, levels, origin),
+          ...childPageList(childPages ?? [], pageId, levels, origin, untitled),
           ...children,
         ];
       }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import {
@@ -12,7 +13,7 @@ import {
 } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { createChildPageInPlace } from "@/app/(app)/actions";
 import { showAlert } from "@/components/dialog";
-import { displayTitle } from "@/lib/page-title";
+import { useDisplayTitle } from "@/i18n/use-display-title";
 import { useReportSaving } from "@/lib/saving-status";
 import { OPTION_COLORS, type ChildTableRow, type PropertyColumn, type SelectOption } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
@@ -28,7 +29,6 @@ import styles from "./child-board-block.module.css";
 // The order of the cards in a column is the child pages' own order (the one
 // the sidebar shows).
 
-const BOARD_PLACEHOLDER = "子ページボード";
 // Cards whose page has no value for the grouping column.
 const NO_VALUE = "";
 const MAX_OPTION_NAME = 50;
@@ -57,10 +57,14 @@ export const childBoardBlock = createReactBlockSpec(
   },
 );
 
-async function run(action: Promise<{ error?: string }>) {
-  const result = await action.catch(() => ({ error: "保存に失敗しました。" }));
-  if (result.error) await showAlert(result.error);
-  return !result.error;
+// Runs a Server Action and shows its error (or a failure to reach it).
+function useRun() {
+  const failed = useTranslations("editor.save")("failed");
+  return async (action: Promise<{ error?: string }>) => {
+    const result = await action.catch(() => ({ error: failed }));
+    if (result.error) await showAlert(result.error);
+    return !result.error;
+  };
 }
 
 function ChildBoard({
@@ -80,6 +84,8 @@ function ChildBoard({
   // Card moves shown before the server has confirmed them: page id → option id.
   const [moved, setMoved] = useState<Record<string, string>>({});
   const [creatingColumn, setCreatingColumn] = useState(false);
+  const t = useTranslations("editor");
+  const run = useRun();
 
   // A move is shown at once and saved after: "saving" until the server has it.
   const saving = Object.keys(moved).length > 0;
@@ -92,7 +98,7 @@ function ChildBoard({
     <div className={styles.header}>
       <BlockTitle
         value={title}
-        placeholder={BOARD_PLACEHOLDER}
+        placeholder={t("childBoard.placeholder")}
         editable={editable}
         onSave={(next) => onChange({ title: next })}
         uiName="ChildBoardBlock"
@@ -103,11 +109,11 @@ function ChildBoard({
           data-ui="ChildBoardBlock.groupBySelect"
           value={column.id}
           onChange={(e) => onChange({ groupBy: e.target.value })}
-          aria-label="列に使う項目"
+          aria-label={t("childBoard.groupBy")}
         >
           {selects.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.name}で分ける
+              {t("childBoard.groupByOption", { name: c.name })}
             </option>
           ))}
         </select>
@@ -120,14 +126,14 @@ function ChildBoard({
       <div className={styles.block} contentEditable={false} data-ui="ChildBoardBlock">
         {header}
         {data === undefined ? (
-          <p className={styles.muted}>読み込み中…</p>
+          <p className={styles.muted}>{t("loading")}</p>
         ) : data === null ? (
-          <p className={styles.muted}>表示できません。</p>
+          <p className={styles.muted}>{t("childBoard.cannotShow")}</p>
         ) : (
           <div className={styles.empty}>
             <p className={styles.muted}>
-              ボードの列にする「選択肢」の項目が、このページにまだありません。
-              {!data.canEditColumns && " 編集できる人が作成すると、ここにボードが表示されます。"}
+              {t("childBoard.noSelectColumn")}
+              {!data.canEditColumns && t("childBoard.noSelectColumnViewer")}
             </p>
             {editable && data.canEditColumns && (
               <button
@@ -138,7 +144,7 @@ function ChildBoard({
                 onClick={async () => {
                   setCreatingColumn(true);
                   try {
-                    const result = await addStatusColumn(pageId).catch(() => ({ error: "保存に失敗しました。" }));
+                    const result = await addStatusColumn(pageId).catch(() => ({ error: t("save.failed") }));
                     if ("error" in result) await showAlert(result.error);
                     else onChange({ groupBy: result.id });
                     await reload();
@@ -147,7 +153,7 @@ function ChildBoard({
                   }
                 }}
               >
-                「ステータス」を作ってボードを始める
+                {t("childBoard.startWithStatus")}
               </button>
             )}
           </div>
@@ -170,7 +176,7 @@ function ChildBoard({
     setMoved((m) => Object.fromEntries(Object.entries(m).filter(([id]) => id !== row.id)));
   };
   const addCard = async (optionId: string, cardTitle: string) => {
-    const result = await createChildPageInPlace(pageId, cardTitle).catch(() => ({ error: "作成に失敗しました。" }));
+    const result = await createChildPageInPlace(pageId, cardTitle).catch(() => ({ error: t("save.createFailed") }));
     if ("error" in result) {
       await showAlert(result.error);
       return false;
@@ -245,6 +251,8 @@ function Board({
   const root = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  const t = useTranslations("editor.childBoard");
+  const displayTitle = useDisplayTitle();
   // The latest rows and handler, for the listeners below.
   const live = useRef({ lanes, onMove });
   useEffect(() => {
@@ -331,11 +339,11 @@ function Board({
             data-lane={laneId}
             data-ui="ChildBoardBlock.lane"
             data-id={laneId || "none"}
-            aria-label={option?.name ?? "未設定"}
+            aria-label={option?.name ?? t("unset")}
           >
             <header className={styles.laneHeader}>
               <span className={styles.laneName} style={option ? { background: option.color } : undefined}>
-                {option?.name ?? "未設定"}
+                {option?.name ?? t("unset")}
               </span>
               <span className={styles.count} data-ui="ChildBoardBlock.laneCount">
                 {rows.length}
@@ -364,9 +372,9 @@ function Board({
                       data-ui="ChildBoardBlock.cardLaneSelect"
                       value={laneId}
                       onChange={(e) => void onMove(row, e.target.value)}
-                      aria-label={`「${displayTitle(row.title)}」の${column.name}`}
+                      aria-label={t("cardColumn", { title: displayTitle(row.title), column: column.name })}
                     >
-                      <option value={NO_VALUE}>未設定</option>
+                      <option value={NO_VALUE}>{t("unset")}</option>
                       {column.options.map((o) => (
                         <option key={o.id} value={o.id}>
                           {o.name}
@@ -377,13 +385,13 @@ function Board({
                 </div>
               ))}
             </div>
-            {canAdd && <AddInline label="＋ 新しいページ" placeholder="ページのタイトル" uiName="addCard" onAdd={(title) => onAddCard(laneId, title)} />}
+            {canAdd && <AddInline label={t("newPage")} placeholder={t("newPagePlaceholder")} uiName="addCard" onAdd={(title) => onAddCard(laneId, title)} />}
           </section>
         );
       })}
       {canAddLane && (
         <div className={styles.addLane}>
-          <AddInline label="＋ 列を追加" placeholder="列の名前" uiName="addLane" required onAdd={onAddLane} />
+          <AddInline label={t("addLane")} placeholder={t("laneName")} uiName="addLane" required onAdd={onAddLane} />
         </div>
       )}
     </div>

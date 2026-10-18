@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { SideMenuExtension } from "@blocknote/core/extensions";
 import {
   BlockColorsItem,
@@ -66,6 +67,7 @@ function BlockTypeItem() {
   const Components = useComponentsContext()!;
   const editor = useBlockNoteEditor<any, any, any>();
   const dict = useDictionary();
+  const t = useTranslations("editor.blockType");
   const block = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
   if (block === undefined) return null;
 
@@ -79,7 +81,7 @@ function BlockTypeItem() {
     <Components.Generic.Menu.Root position="right" sub>
       <Components.Generic.Menu.Trigger sub>
         <Components.Generic.Menu.Item className="bn-menu-item" subTrigger>
-          種類を変更
+          {t("change")}
         </Components.Generic.Menu.Item>
       </Components.Generic.Menu.Trigger>
       <Components.Generic.Menu.Dropdown sub className="bn-menu-dropdown">

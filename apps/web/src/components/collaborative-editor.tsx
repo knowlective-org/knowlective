@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { yUndoPluginKey } from "y-prosemirror";
 import { filterSuggestionItems } from "@blocknote/core";
-import { ja } from "@blocknote/core/locales";
 import { withCollaboration } from "@blocknote/core/yjs";
 import { BlockNoteView } from "@blocknote/mantine";
 import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote } from "@blocknote/react";
@@ -19,7 +19,9 @@ import { BASE_PATH, resolveAppUrl, withBasePath } from "@/lib/base-path";
 import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED } from "@/lib/collab-events";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/page-export";
 import { beginSaving } from "@/lib/saving-status";
-import { MAX_TITLE_LENGTH, TITLE_FIELD, UNTITLED, displayTitle } from "@/lib/page-title";
+import { MAX_TITLE_LENGTH, TITLE_FIELD } from "@/lib/page-title";
+import { blockNoteDictionary } from "@/i18n/blocknote";
+import { useDisplayTitle } from "@/i18n/use-display-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 import { EditorFormattingToolbar, EditorSideMenu } from "./editor/block-type-menu";
 import { docxToHtml } from "./editor/docx-import";
@@ -41,6 +43,11 @@ import { customSlashMenuItems, editorSchema } from "./editor/schema";
 import { showAlert, showChoice } from "./dialog";
 import { EditorPlaceholder } from "./editor-placeholder";
 import styles from "./collaborative-editor.module.css";
+
+// The viewer's text for the helpers below, which BlockNote calls outside
+// React (uploads, imports). Set by EditorBody; a browser shows one language.
+type Text = ReturnType<typeof useTranslations<never>>;
+let text: Text;
 
 const CURSOR_COLORS = ["#5b8def", "#e5484d", "#30a46c", "#f76b15", "#8e4ec6", "#12a594", "#d6409f"];
 
@@ -113,7 +120,8 @@ export function CollaborativeEditor(props: Props) {
   // its title) is empty, so the placeholder is shown instead.
   const [synced, setSynced] = useState<HocuspocusProvider | null>(null);
   // Shown instead of the editor once it can't be used any more.
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<"openFailed" | "movedToTrash" | null>(null);
+  const t = useTranslations("editor");
 
   // One connection per mounted page, closed when leaving it — navigating to
   // another page would otherwise leave the old socket open. The page screen
@@ -134,7 +142,7 @@ export function CollaborativeEditor(props: Props) {
       onAuthenticationFailed: () => {
         const delay = RETRY_DELAYS_MS[failures.current++];
         if (delay === undefined) {
-          setFailure("このページを開けませんでした。再読み込みしてください。");
+          setFailure("openFailed");
           return;
         }
         retryTimer = setTimeout(() => setAttempt((n) => n + 1), delay);
@@ -143,7 +151,7 @@ export function CollaborativeEditor(props: Props) {
         try {
           const type = (JSON.parse(payload) as { type?: string }).type;
           if (type === PAGE_DELETED) {
-            setFailure("このページはごみ箱に移動されました。");
+            setFailure("movedToTrash");
           } else if (type === PAGE_MOVED) {
             // The server closes this connection next. Reconnect with a fresh
             // token (access is checked again), and refresh the screen: the
@@ -165,7 +173,7 @@ export function CollaborativeEditor(props: Props) {
     };
   }, [props.pageId, attempt, router]);
 
-  if (failure) return <EditorPlaceholder message={failure} />;
+  if (failure) return <EditorPlaceholder message={t(failure)} />;
   if (!provider || synced !== provider) return <EditorPlaceholder />;
   return <EditorBody {...props} provider={provider} />;
 }
@@ -177,7 +185,7 @@ async function uploadFile(pageId: string, file: File): Promise<string> {
   try {
     return await postFile(pageId, file);
   } catch (error) {
-    void showAlert((error as Error).message, { title: "アップロードできません" });
+    void showAlert((error as Error).message, { title: text("editor.uploadFailedTitle") });
     throw error;
   }
 }
@@ -190,7 +198,7 @@ async function postFile(pageId: string, file: File): Promise<string> {
   body.append("file", file);
   const res = await fetch(withBasePath(`/api/files?pageId=${encodeURIComponent(pageId)}`), { method: "POST", body });
   const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
-  if (!res.ok || !data?.url) throw new UploadError(data?.error ?? "ファイルのアップロードに失敗しました。");
+  if (!res.ok || !data?.url) throw new UploadError(data?.error ?? text("editor.uploadFailed"));
   return data.url;
 }
 
@@ -337,9 +345,9 @@ async function expandFile(
     } catch (error) {
       void showAlert(
         error instanceof UploadError
-          ? `画像をアップロードできなかったため、展開を中止しました。\n${error.message}`
-          : "この Word ファイルを読み込めませんでした。",
-        { title: "展開できません" },
+          ? text("editor.expandImageFailed", { message: error.message })
+          : text("editor.expandWordFailed"),
+        { title: text("editor.expandFailedTitle") },
       );
       return discardFileBlock(editor, blockId);
     }
@@ -353,18 +361,12 @@ async function expandFile(
   if (!editor.getBlock(blockId)) return {};
   if (blocks.length > 0) editor.insertBlocks(blocks as never[], blockId, "after");
   if (skippedImages > 0) {
-    void showAlert(`${skippedImages} 個の画像は、表示できない形式（EMF・WMF など）のため取り込めませんでした。`, {
-      title: "一部の画像を取り込めませんでした",
+    void showAlert(text("editor.skippedImages", { count: skippedImages }), {
+      title: text("editor.skippedImagesTitle"),
     });
   }
   return discardFileBlock(editor, blockId);
 }
-
-const IMPORT_TITLES: Record<ImportKind, string> = {
-  markdown: "Markdown ファイル",
-  text: "テキストファイル",
-  docx: "Word ファイル",
-};
 
 // The editor of each connection, for uploadFile: it's set up before the
 // editor exists.
@@ -378,12 +380,12 @@ function isPdfFile(file: File): boolean {
 // BlockNote updates the file block it has just created (`blockId`) with.
 async function attachOrEmbedPdf(editor: BlockEditor, pageId: string, file: File, blockId: string) {
   const choice = await showChoice(
-    `「${file.name}」をファイルとして添付しますか？ それとも、ページをめくって読める表示で埋め込みますか？`,
+    text("editor.pdfChoice", { name: file.name }),
     [
-      { value: "attach", label: "ファイルとして添付" },
-      { value: "embed", label: "ページ送りで表示" },
+      { value: "attach", label: text("editor.attach") },
+      { value: "embed", label: text("editor.embedPages") },
     ],
-    { title: "PDF ファイル" },
+    { title: text("editor.pdfChoiceTitle") },
   );
   if (choice === null) return discardFileBlock(editor, blockId);
   const url = await uploadFile(pageId, file);
@@ -401,8 +403,8 @@ async function expandOrUpload(provider: object, pageId: string, file: File, bloc
   const editor = editors.get(provider);
   const allowed = await getUploadExtensions().catch(() => []);
   if (!isUploadAllowed(file.name, allowed)) {
-    const message = uploadRefusedMessage(file.name);
-    void showAlert(message, { title: "追加できないファイルです" });
+    const message = uploadRefusedMessage(file.name, (key, values) => text(`files.errors.${key}`, values));
+    void showAlert(message, { title: text("editor.refusedTitle") });
     if (editor && blockId) return discardFileBlock(editor, blockId);
     throw new Error(message);
   }
@@ -412,15 +414,12 @@ async function expandOrUpload(provider: object, pageId: string, file: File, bloc
     return uploadFile(pageId, file);
   }
   const choice = await showChoice(
-    `「${file.name}」をファイルとして添付しますか？ それとも、内容をこのページに展開しますか？` +
-      (kind === "docx"
-        ? "\n\n展開すると、見出し・リスト・表・画像などの構造だけが入ります。文字の色やレイアウトは再現されません。"
-        : ""),
+    text("editor.expandChoice", { name: file.name }) + (kind === "docx" ? text("editor.expandDocxNote") : ""),
     [
-      { value: "attach", label: "ファイルとして添付" },
-      { value: "expand", label: "ページに展開" },
+      { value: "attach", label: text("editor.attach") },
+      { value: "expand", label: text("editor.expand") },
     ],
-    { title: IMPORT_TITLES[kind] },
+    { title: text(`editor.importTitles.${kind}`) },
   );
   if (choice === "attach") return uploadFile(pageId, file);
   if (choice === "expand") return expandFile(editor, pageId, file, kind, blockId);
@@ -449,10 +448,14 @@ function EditorBody({
   onTitleChange,
   provider,
 }: Props & { provider: HocuspocusProvider }) {
+  const locale = useLocale();
+  const t = useTranslations();
+  text = t;
+  const displayTitle = useDisplayTitle();
   const editor = useCreateBlockNote(
     withCollaboration({
       schema: editorSchema,
-      dictionary: ja,
+      dictionary: blockNoteDictionary(locale),
       // Headings pasted from outside knowlective (HTML or Markdown) move down one
       // level — H1→H2 … H5→H6, H6 stays — keeping their relative structure
       // under the page title. Copy and paste within knowlective (blocknote/html)
@@ -505,7 +508,7 @@ function EditorBody({
         renderCursor: renderCursorWithLabel,
       },
     }),
-    [provider],
+    [provider, locale],
   );
   useEffect(() => {
     editors.set(provider, editor as unknown as BlockEditor);
@@ -633,6 +636,7 @@ function EditorBody({
           origin: window.location.origin + BASE_PATH,
           pageId,
           childPages,
+          untitled: t("common.untitled"),
           mermaid: format === "pdf" ? "keep" : "code",
         });
         if (format === "md") {
@@ -642,12 +646,12 @@ function EditorBody({
         } else {
           // Loaded on demand: the exporter isn't part of the editor's code.
           const { exportPdf } = await import("./editor/pdf-export");
-          downloadBlob(exportFileName(title, "pdf"), await exportPdf(editorSchema, prepared, title));
+          downloadBlob(exportFileName(title, "pdf"), await exportPdf(editorSchema, prepared, title, { lang: locale, mermaidAlt: t("editor.mermaidAlt") }));
         }
       } catch (error) {
         console.error(`[export] ${format} failed`, error);
-        void showAlert(`${format === "pdf" ? "PDF" : "Markdown"} を書き出せませんでした。`, {
-          title: "エクスポートできません",
+        void showAlert(t("editor.exportFailed", { format: format === "pdf" ? "PDF" : "Markdown" }), {
+          title: t("editor.exportFailedTitle"),
         });
       } finally {
         busy = false;
@@ -687,14 +691,14 @@ function EditorBody({
           <SuggestionMenuController
             triggerCharacter="/"
             getItems={async (query) =>
-              filterSuggestionItems([...getDefaultReactSlashMenuItems(editor), ...customSlashMenuItems(editor)], query)
+              filterSuggestionItems([...getDefaultReactSlashMenuItems(editor), ...customSlashMenuItems(editor, t)], query)
             }
           />
         </BlockNoteView>
       </PageEditorContext.Provider>
       {exportingPdf && (
         <p className={styles.exportStatus} role="status" data-ui="EditorBody.status">
-          PDF を作成しています…
+          {t("editor.makingPdf")}
         </p>
       )}
     </>
@@ -716,6 +720,8 @@ function TitleField({
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState(() => ytext.toString());
+  const t = useTranslations();
+  const displayTitle = useDisplayTitle();
 
   useEffect(() => {
     const sync = (event?: Y.YTextEvent) => {
@@ -773,11 +779,11 @@ function TitleField({
       className={styles.title}
       data-ui="TitleField"
       value={value}
-      placeholder={UNTITLED}
+      placeholder={t("common.untitled")}
       readOnly={readOnly}
       rows={1}
       maxLength={MAX_TITLE_LENGTH}
-      aria-label="ページタイトル"
+      aria-label={t("editor.titleLabel")}
       spellCheck={false}
       onKeyDown={(e) => {
         // Enter moves to the body, like Notion. Not while an IME is composing.

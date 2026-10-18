@@ -49,9 +49,11 @@ export function isUploadAllowed(name: string, allowed: readonly string[]): boole
   return allowed.length === 0 || allowed.includes(fileExtension(name));
 }
 
-export function uploadRefusedMessage(name: string): string {
+// Why a file was refused, as the files.errors message to show.
+export function uploadRefusedMessage(
+  name: string,
+  t: (key: "typeNotAllowed" | "noExtension", values: { extension: string }) => string,
+): string {
   const extension = fileExtension(name);
-  return extension
-    ? `「.${extension}」のファイルは追加できません。追加できる種類は管理者が設定しています。`
-    : "拡張子のないファイルは追加できません。追加できる種類は管理者が設定しています。";
+  return t(extension ? "typeNotAllowed" : "noExtension", { extension });
 }

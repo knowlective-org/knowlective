@@ -2,20 +2,26 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useState, useTransition } from "react";
-import { VERSION_KIND_LABELS, type PageVersionKind } from "@/lib/page-versions";
+import { type PageVersionKind } from "@/lib/page-versions";
 import styles from "@/styles/ui.module.css";
 import { loadVersion, restorePageVersion } from "./actions";
 import historyStyles from "./history.module.css";
 import { MaskPanel } from "./mask-panel";
 import { showAlert, showConfirm } from "@/components/dialog";
 
+function Loading() {
+  const t = useTranslations("history");
+  return <p className={styles.note}>{t("loading")}</p>;
+}
+
 // BlockNote touches `window`, so the preview never renders on the server.
 const VersionPreview = dynamic(
   () => import("./version-preview").then((m) => m.VersionPreview),
   {
     ssr: false,
-    loading: () => <p className={styles.note}>読み込み中…</p>,
+    loading: () => <Loading />,
   },
 );
 
@@ -29,11 +35,6 @@ export type VersionItem = {
   // Text in it was masked: shown masked, can't be restored.
   masked: boolean;
 };
-
-const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
 
 export function HistoryView({
   pageId,
@@ -55,6 +56,10 @@ export function HistoryView({
   const [restoring, startRestore] = useTransition();
   // Bumped after masking, so the open preview is reloaded (now masked).
   const [reloadKey, setReloadKey] = useState(0);
+  const t = useTranslations("history");
+  const format = useFormatter();
+  const dateTimeFormat = { format: (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" }) };
+  const listSeparator = useTranslations("common")("listSeparator");
 
   useEffect(() => {
     if (!selected) return;
@@ -72,7 +77,7 @@ export function HistoryView({
   if (versions.length === 0) {
     return (
       <p className={styles.note} data-ui="HistoryView.empty">
-        まだ保存された版はありません。ページを編集すると、版が保存されていきます。
+        {t("empty")}
       </p>
     );
   }
@@ -100,7 +105,7 @@ export function HistoryView({
       <div className={historyStyles.layout} data-ui="HistoryView">
         <ol className={historyStyles.list} data-ui="HistoryView.list">
           {versions.map((v, i) => {
-            const label = VERSION_KIND_LABELS[v.kind];
+            const label = v.kind === "AUTO" ? null : t(`kinds.${v.kind}`);
             return (
               <li key={v.id}>
                 <button
@@ -121,22 +126,22 @@ export function HistoryView({
                   <span className={historyStyles.time}>
                     {dateTimeFormat.format(new Date(v.createdAt))}
                     {i === 0 && (
-                      <span className={historyStyles.badge}>最新</span>
+                      <span className={historyStyles.badge}>{t("latest")}</span>
                     )}
                     {label && (
                       <span className={historyStyles.badge}>{label}</span>
                     )}
                     {v.masked && (
                       <span className={historyStyles.badgeMasked}>
-                        マスク済み
+                        {t("masked")}
                       </span>
                     )}
                   </span>
                   <span className={historyStyles.editors}>
                     {v.kind === "RESTORED" && timeOf(v.restoredFromId)
-                      ? `${timeOf(v.restoredFromId)} の版に戻した（${v.editors.join("、")}）`
+                      ? t("restoredFrom", { time: timeOf(v.restoredFromId)!, editors: v.editors.join(listSeparator) })
                       : v.editors.length > 0
-                        ? v.editors.join("、")
+                        ? v.editors.join(listSeparator)
                         : "—"}
                   </span>
                 </button>
@@ -149,12 +154,12 @@ export function HistoryView({
           {current && (
             <div className={historyStyles.previewHeader}>
               <span className={styles.note}>
-                {dateTimeFormat.format(new Date(current.createdAt))}{" "}
-                の版（読み取り専用）
+                {dateTimeFormat.format(new Date(current.createdAt))}
+                {t("readOnlyVersion")}
               </span>
               {canRestore && current.masked && (
                 <span className={styles.note} data-ui="HistoryView.maskedNote">
-                  マスクした版には戻せません
+                  {t("maskedCannotRestore")}
                 </span>
               )}
               {canRestore &&
@@ -171,8 +176,8 @@ export function HistoryView({
                       );
                       if (
                         !(await showConfirm(
-                          `ページの内容を ${when} の版に戻しますか？\n今の内容も版として残るので、あとから戻せます。`,
-                          { title: "版に戻す", confirmLabel: "この版に戻す" },
+                          t("restoreConfirm", { when }),
+                          { title: t("restoreTitle"), confirmLabel: t("restoreLabel") },
                         ))
                       )
                         return;
@@ -182,22 +187,22 @@ export function HistoryView({
                           current.id,
                         );
                         if (result.error) {
-                          await showAlert(result.error, { title: "版に戻せません" });
+                          await showAlert(result.error, { title: t("cannotRestore") });
                           return;
                         }
                         router.push(`/pages/${pageId}`);
                       });
                     }}
                   >
-                    {restoring ? "戻しています…" : "この版に戻す"}
+                    {restoring ? t("restoring") : t("restoreLabel")}
                   </button>
                 )}
             </div>
           )}
           {loaded === undefined ? (
-            <p className={styles.note}>読み込み中…</p>
+            <p className={styles.note}>{t("loading")}</p>
           ) : loaded === null ? (
-            <p className={styles.error}>この版を読み込めませんでした。</p>
+            <p className={styles.error}>{t("loadFailed")}</p>
           ) : (
             <VersionPreview
               key={`${loaded.id}:${reloadKey}`}

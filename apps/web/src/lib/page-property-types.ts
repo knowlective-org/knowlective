@@ -12,23 +12,15 @@ export type PropertyColumn = {
   options: SelectOption[];
 };
 
-export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
-  TEXT: "テキスト",
-  DATE: "日付",
-  USER: "ユーザー",
-  SELECT: "選択肢",
-};
+// Every type, in the order offered (named by editor.childTable.types).
+export const PROPERTY_TYPES: PropertyType[] = ["TEXT", "DATE", "USER", "SELECT"];
 
 export const OPTION_COLORS = ["#e3e2e0", "#fadec9", "#fdecc8", "#dbeddb", "#d3e5ef", "#e8deee", "#f5e0e9", "#ffe2dd"];
 
-// Columns every child-page table offers besides the custom ones.
-export const BUILTIN_COLUMNS = {
-  createdAt: "作成日時",
-  createdBy: "作成者",
-  updatedAt: "更新日時",
-  updatedBy: "更新者",
-} as const;
-export type BuiltinColumn = keyof typeof BUILTIN_COLUMNS;
+// Columns every child-page table offers besides the custom ones (named by
+// editor.childTable.builtin).
+export const BUILTIN_COLUMNS = ["createdAt", "createdBy", "updatedAt", "updatedBy"] as const;
+export type BuiltinColumn = (typeof BUILTIN_COLUMNS)[number];
 
 export type UserRef = { id: string; name: string };
 

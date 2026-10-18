@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import styles from "./pagination.module.css";
 
 // Page links for a long list: ‹ previous, page numbers (the first, the last and
@@ -17,6 +18,7 @@ export function Pagination({
   // What is paged, for screen readers (e.g. the audit log).
   label: string;
 }) {
+  const t = useTranslations("pagination");
   if (pageCount <= 1) return null;
   const numbers: (number | "gap")[] = [];
   for (let n = 1; n <= pageCount; n++) {
@@ -25,13 +27,13 @@ export function Pagination({
   }
 
   return (
-    <nav className={styles.pagination} aria-label={`${label}のページ`} data-ui="Pagination">
+    <nav className={styles.pagination} aria-label={t("label", { label })} data-ui="Pagination">
       {page > 1 ? (
         <Link href={href(page - 1)} className={styles.link} rel="prev" data-ui="Pagination.prevLink">
-          ‹ 前へ
+          {t("previous")}
         </Link>
       ) : (
-        <span className={styles.disabled}>‹ 前へ</span>
+        <span className={styles.disabled}>{t("previous")}</span>
       )}
       {numbers.map((n, i) =>
         n === "gap" ? (
@@ -50,10 +52,10 @@ export function Pagination({
       )}
       {page < pageCount ? (
         <Link href={href(page + 1)} className={styles.link} rel="next" data-ui="Pagination.nextLink">
-          次へ ›
+          {t("next")}
         </Link>
       ) : (
-        <span className={styles.disabled}>次へ ›</span>
+        <span className={styles.disabled}>{t("next")}</span>
       )}
     </nav>
   );

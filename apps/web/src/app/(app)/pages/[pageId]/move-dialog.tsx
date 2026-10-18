@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { type MoveDestinationGroup, loadMoveDestinations } from "@/app/(app)/page-move-actions";
-import { confirmAndMovePage } from "@/components/move-page";
+import { useTranslations } from "next-intl";
+import { useConfirmAndMovePage } from "@/components/move-page";
 import ui from "@/styles/ui.module.css";
 import styles from "@/components/dialog.module.css";
 
@@ -17,12 +18,15 @@ export function MoveDialog({ pageId, title, onClose }: { pageId: string; title: 
   const [error, setError] = useState<string | null>(null);
   const [parentId, setParentId] = useState("");
   const [moving, startMoving] = useTransition();
+  const t = useTranslations("moveDialog");
+  const tc = useTranslations("common");
+  const confirmAndMovePage = useConfirmAndMovePage();
 
   useEffect(() => {
     ref.current?.showModal();
     loadMoveDestinations(pageId)
       .then((result) => ("error" in result ? setError(result.error) : setGroups(result)))
-      .catch(() => setError("移動先を読み込めませんでした。"));
+      .catch(() => setError(t("loadFailed")));
   }, [pageId]);
 
   const move = () =>
@@ -55,10 +59,10 @@ export function MoveDialog({ pageId, title, onClose }: { pageId: string; title: 
         }}
       >
         <h2 id="move-dialog-title" className={styles.title}>
-          ページを移動
+          {t("title")}
         </h2>
         <p className={ui.note}>
-          移動先のページを選んでください。選んだページの子ページの最後に移動します（順番は左のページ一覧でドラッグして変えられます）。編集の権限があるページにだけ移動できます。
+          {t("lead")}
         </p>
         {error ? (
           <p className={ui.error} data-ui="MoveDialog.error">
@@ -66,15 +70,15 @@ export function MoveDialog({ pageId, title, onClose }: { pageId: string; title: 
           </p>
         ) : groups === null ? (
           <p className={ui.note} data-ui="MoveDialog.status">
-            読み込み中…
+            {t("loading")}
           </p>
         ) : !hasChoice ? (
           <p className={ui.note} data-ui="MoveDialog.status">
-            移動できるページがありません。
+            {t("nowhere")}
           </p>
         ) : (
           <label>
-            移動先
+            {t("destination")}
             <select
               className={ui.field}
               data-ui="MoveDialog.parentSelect"
@@ -89,7 +93,7 @@ export function MoveDialog({ pageId, title, onClose }: { pageId: string; title: 
                     <option key={p.id} value={p.id} disabled={!p.selectable || p.current}>
                       {"　".repeat(p.depth)}
                       {p.title}
-                      {p.current ? "（今の場所）" : ""}
+                      {p.current ? t("current") : ""}
                     </option>
                   ))}
                 </optgroup>
@@ -99,7 +103,7 @@ export function MoveDialog({ pageId, title, onClose }: { pageId: string; title: 
         )}
         <div className={styles.actions}>
           <button type="button" className={ui.buttonSecondary} data-ui="MoveDialog.cancelButton" onClick={onClose}>
-            キャンセル
+            {tc("cancel")}
           </button>
           <button
             type="submit"
@@ -107,7 +111,7 @@ export function MoveDialog({ pageId, title, onClose }: { pageId: string; title: 
             data-ui="MoveDialog.submitButton"
             disabled={!parentId || moving}
           >
-            {moving ? "移動しています…" : "移動する"}
+            {moving ? t("moving") : t("move")}
           </button>
         </div>
       </form>

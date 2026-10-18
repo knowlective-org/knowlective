@@ -16,6 +16,10 @@ const ja: MessageShape<typeof en> = {
     CONTENT_MANAGER: "コンテンツ管理者",
     USER: "一般ユーザー",
   },
+  builtInGroups: {
+    all_users: "全ユーザー",
+    public: "インターネットに公開",
+  },
   access: {
     VIEW: "閲覧",
     EDIT: "編集",

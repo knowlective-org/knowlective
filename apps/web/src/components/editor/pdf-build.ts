@@ -32,6 +32,9 @@ export type PdfBuildOptions = {
   loadImage: (url: string) => Promise<Blob>;
   // A Mermaid diagram as a PNG, or null if it can't be drawn.
   drawMermaid: (code: string) => Promise<{ png: Uint8Array; widthPx: number } | null>;
+  // The document's language ("ja" / "en"), and the alt text of a diagram in it.
+  lang: string;
+  mermaidAlt: string;
 };
 
 type MappingArgs = [block: ExportBlock, exporter: PdfExporter, ...rest: unknown[]];
@@ -68,7 +71,7 @@ export async function buildPdf(schema: unknown, blocks: ExportBlock[], options: 
       if (!drawn) return `#raw(${strLit(code)}, block: true, lang: "mermaid")`;
       const path = exporter.registerImageBytes(`mermaid:${code}`, drawn.png);
       const width = Math.min(drawn.widthPx * PX_TO_PT, CONTENT_WIDTH_PT).toFixed(1);
-      return `#figure(image(${strLit(path)}, width: ${width}pt), alt: "Mermaid 図")`;
+      return `#figure(image(${strLit(path)}, width: ${width}pt), alt: ${strLit(options.mermaidAlt)})`;
     },
   };
 
@@ -90,7 +93,7 @@ export async function buildPdf(schema: unknown, blocks: ExportBlock[], options: 
     content: [{ type: "text", text: options.title, styles: {} }],
     children: [],
   };
-  const result = await exporter.toPDF([titleBlock, ...blocks] as never[], { title: options.title, lang: "ja" });
+  const result = await exporter.toPDF([titleBlock, ...blocks] as never[], { title: options.title, lang: options.lang });
   if (result.error) {
     throw new Error(result.compileErrors.map((e) => e.message).join("\n") || "PDF compile failed");
   }

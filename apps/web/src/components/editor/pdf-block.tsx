@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import { resolveAppUrl, withBasePath } from "@/lib/base-path";
@@ -46,8 +47,9 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [pdf, setPdf] = useState<PdfDocument | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<"passwordProtected" | "failed" | "pageFailed" | null>(null);
   const [page, setPage] = useState(1);
+  const t = useTranslations("editor.pdf");
   const [width, setWidth] = useState(0);
 
   useEffect(() => {
@@ -76,8 +78,8 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
         if (stale) return;
         setError(
           (err as { name?: string })?.name === "PasswordException"
-            ? "パスワードで保護された PDF は表示できません。"
-            : "PDF を表示できませんでした。",
+            ? "passwordProtected"
+            : "failed",
         );
       });
     return () => {
@@ -119,7 +121,7 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
       .catch((err: unknown) => {
         // Cancelled because the page or the width changed again.
         if (stale || (err as { name?: string })?.name === "RenderingCancelledException") return;
-        setError("このページを表示できませんでした。");
+        setError("pageFailed");
       });
     return () => {
       stale = true;
@@ -137,26 +139,26 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
     <div className={styles.block} contentEditable={false} data-ui="PdfBlock">
       <div className={styles.frame} ref={frame}>
         {!url ? (
-          <p className={styles.muted}>PDF がありません。</p>
+          <p className={styles.muted}>{t("none")}</p>
         ) : error ? (
           <p className={styles.error} data-ui="PdfBlock.error">
-            {error}
+            {t(error)}
           </p>
         ) : (
-          !pdf && <p className={styles.muted}>PDF を読み込んでいます…</p>
+          !pdf && <p className={styles.muted}>{t("loading")}</p>
         )}
         <canvas
           ref={canvas}
           className={styles.page}
           hidden={!pdf || error !== null}
           role="img"
-          aria-label={`${name || "PDF"} の ${page} ページ`}
+          aria-label={t("pageLabel", { name: name || "PDF", page })}
           data-ui="PdfBlock.page"
         />
       </div>
       <div className={styles.bar}>
         {url && (
-          <a className={styles.name} href={url} download={name || true} title="ダウンロード" data-ui="PdfBlock.downloadLink">
+          <a className={styles.name} href={url} download={name || true} title={t("download")} data-ui="PdfBlock.downloadLink">
             {name || "PDF"}
           </a>
         )}
@@ -167,7 +169,7 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
               className={styles.pagerButton}
               disabled={page <= 1}
               onClick={() => go(page - 1)}
-              aria-label="前のページ"
+              aria-label={t("previous")}
               data-ui="PdfBlock.previousButton"
             >
               ‹
@@ -180,7 +182,7 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
               className={styles.pagerButton}
               disabled={page >= pages}
               onClick={() => go(page + 1)}
-              aria-label="次のページ"
+              aria-label={t("next")}
               data-ui="PdfBlock.nextButton"
             >
               ›

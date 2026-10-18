@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { createReactBlockSpec } from "@blocknote/react";
 import styles from "./link-preview-block.module.css";
 
@@ -71,12 +72,13 @@ function LinkPreviewCard({
   editable: boolean;
   onUnwrap: (href: string, label: string) => void;
 }) {
+  const t = useTranslations("editor.linkPreview");
   const href = safeHttpUrl(url);
   const imageSrc = safeHttpUrl(image);
   if (!href) {
     return (
       <div className={styles.block} contentEditable={false} data-ui="LinkPreviewBlock">
-        <p className={styles.muted}>リンクがありません。</p>
+        <p className={styles.muted}>{t("none")}</p>
       </div>
     );
   }
@@ -104,7 +106,7 @@ function LinkPreviewCard({
             data-ui="LinkPreviewBlock.unwrapButton"
             onClick={() => onUnwrap(href, title || href)}
           >
-            ふつうのリンクに戻す
+            {t("unwrap")}
           </button>
         </div>
       )}

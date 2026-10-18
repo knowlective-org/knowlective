@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
-import { displayTitle } from "@/lib/page-title";
+import { useDisplayTitle } from "@/i18n/use-display-title";
 import { useSaving } from "@/lib/saving-status";
 import { AppShell } from "@/components/app-shell";
 import { InitialTitleContext } from "@/components/editor-placeholder";
@@ -35,11 +36,6 @@ export type PageLockView = {
   // For a lock from a page above: that page, if the viewer can open it.
   holder: { id: string; title: string } | null;
 };
-
-// How someone not logged in appears to the others on the page.
-const GUEST = { id: "guest", name: "ゲスト" };
-
-const lockDateFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" });
 
 export function PageView({
   pageId,
@@ -75,6 +71,11 @@ export function PageView({
   const readOnly = !canEdit || lock !== null || user === null;
   // Edits on their way to the server (the editor and its blocks report them).
   const saving = useSaving();
+  const t = useTranslations("pageView");
+  const format = useFormatter();
+  const displayTitle = useDisplayTitle();
+  // How someone not logged in appears to the others on the page.
+  const guest = { id: "guest", name: t("guest") };
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={pageId} currentTitle={liveTitle} />}>
@@ -83,17 +84,17 @@ export function PageView({
           <Breadcrumb trees={sidebar.trees} pageId={pageId} currentTitle={liveTitle} />
           {saving && (
             <span className={styles.saving} role="status" data-ui="PageView.status">
-              保存中…
+              {t("saving")}
             </span>
           )}
           {lock ? (
             <span className={styles.locked} data-ui="PageView.lockStatus">
-              🔒 ロック中
+              {t("locked")}
             </span>
           ) : (
             readOnly && (
               <span className={styles.readOnly} data-ui="PageView.readOnlyBadge">
-                {user ? "閲覧のみ" : "公開ページ（閲覧のみ）"}
+                {user ? t("readOnly") : t("publicReadOnly")}
               </span>
             )
           )}
@@ -113,20 +114,23 @@ export function PageView({
         {lock && (
           <p className={styles.lockBanner} data-ui="PageView.lockBanner">
             {lock.own
-              ? `このページは${lock.withChildren ? "、子ページも含めて" : ""}ロックされています。`
-              : "このページは、上位のページのロックにより編集できません。"}
+              ? t("lockedHere", { withChildren: String(lock.withChildren) })
+              : t("lockedAbove")}
             {lock.lockedBy && lock.lockedAt && (
               <>
                 {" "}
-                （{lock.lockedBy}、{lockDateFormat.format(new Date(lock.lockedAt))}）
+                {t("lockedBy", {
+                  name: lock.lockedBy,
+                  date: format.dateTime(new Date(lock.lockedAt), { dateStyle: "medium", timeStyle: "short" }),
+                })}
               </>
             )}
             {lock.own
-              ? canEdit && " 編集するには、ページのメニューからロックを解除してください。"
+              ? canEdit && t("unlockHint")
               : lock.holder && (
                   <>
                     {" "}
-                    ロックしているページ：
+                    {t("lockedPage")}
                     <Link href={`/pages/${lock.holder.id}`} data-ui="PageView.lockHolderLink">
                       {displayTitle(lock.holder.title)}
                     </Link>
@@ -135,7 +139,7 @@ export function PageView({
           </p>
         )}
         <InitialTitleContext.Provider value={initialTitle}>
-          <EditorLoader pageId={pageId} readOnly={readOnly} user={user ?? GUEST} onTitleChange={setLiveTitle} />
+          <EditorLoader pageId={pageId} readOnly={readOnly} user={user ?? guest} onTitleChange={setLiveTitle} />
         </InitialTitleContext.Provider>
       </div>
     </AppShell>

@@ -8,7 +8,7 @@ import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { atLeast } from "shared";
 import { loadPublicSidebar, loadSidebar } from "@/lib/sidebar-data";
 import { getPublicUrl } from "@/lib/site-url";
-import { displayTitle } from "@/lib/page-title";
+import { getDisplayTitle } from "@/i18n/display-title";
 import { type PageLockView, PageView } from "./page-view";
 
 // Shared by generateMetadata and the page within one request. Someone not
@@ -24,7 +24,7 @@ const loadPage = cache(async (pageId: string) => {
 
 export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">): Promise<Metadata> {
   const { page } = await loadPage((await params).pageId);
-  return { title: page ? `${displayTitle(page.title)} | KNOWLECTIVE` : "KNOWLECTIVE" };
+  return { title: page ? `${(await getDisplayTitle())(page.title)} | KNOWLECTIVE` : "KNOWLECTIVE" };
 }
 
 export default async function PageEditorRoute({ params }: PageProps<"/pages/[pageId]">) {

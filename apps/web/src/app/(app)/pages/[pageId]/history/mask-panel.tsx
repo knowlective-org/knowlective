@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { MASK, MAX_MASK_STRINGS, MIN_MASK_LENGTH } from "@/lib/version-mask";
 import styles from "@/styles/ui.module.css";
@@ -19,6 +20,7 @@ export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => vo
   const [check, setCheck] = useState<{ input: string; result: Check } | null>(null);
   const [message, setMessage] = useState<{ error?: string; done?: string } | null>(null);
   const [busy, startTransition] = useTransition();
+  const t = useTranslations("history.mask");
 
   const strings = input.split("\n").filter((s) => s.length > 0);
   const current = check && check.input === input ? check.result : null;
@@ -26,7 +28,7 @@ export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => vo
   if (!open) {
     return (
       <button type="button" className={styles.buttonSecondary} onClick={() => setOpen(true)} data-ui="MaskPanel.openButton">
-        機密情報をマスク
+        {t("open")}
       </button>
     );
   }
@@ -41,11 +43,10 @@ export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => vo
   return (
     <div className={historyStyles.maskPanel} data-ui="MaskPanel">
       <p className={styles.note}>
-        パスワードなど、載せてはいけない内容を書いてしまったときに使います。入力した文字列を、このページのすべての版で「{MASK}」に置き換えます。
-        マスクした版は履歴に残り（マスクした状態で表示）、その版には戻せなくなります。入力した文字列は保存・記録されません。
+        {t("explain", { mask: MASK })} {t("explain2")}
       </p>
       <label className={historyStyles.maskLabel}>
-        マスクする文字列（1行に1つ、{MAX_MASK_STRINGS}個まで・{MIN_MASK_LENGTH}文字以上）
+        {t("label", { max: MAX_MASK_STRINGS, min: MIN_MASK_LENGTH })}
         <textarea
           className={styles.field}
           rows={3}
@@ -63,9 +64,9 @@ export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => vo
       {current && (
         <p className={current.inCurrent ? styles.error : styles.note} data-ui="MaskPanel.result">
           {current.versions === 0
-            ? "履歴の版には見つかりませんでした。"
-            : `${current.versions}個の版で${current.matches}か所見つかりました。`}
-          {current.inCurrent && " 今のページ（本文またはタイトル）にまだ含まれています。先にページから消してから、マスクしてください。"}
+            ? t("notFound")
+            : t("found", { versions: current.versions, matches: current.matches })}
+          {current.inCurrent && t("stillInPage")}
         </p>
       )}
       {message?.error && <p className={styles.error}>{message.error}</p>}
@@ -77,7 +78,7 @@ export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => vo
 
       <div className={styles.actions}>
         <button type="button" className={styles.buttonSecondary} onClick={close}>
-          閉じる
+          {t("close")}
         </button>
         <button
           type="button"
@@ -92,7 +93,7 @@ export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => vo
             })
           }
         >
-          検索
+          {t("search")}
         </button>
         <button
           type="button"
@@ -102,8 +103,8 @@ export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => vo
           onClick={async () => {
             if (!current) return;
             const ok = await showConfirm(
-              `${current.versions}個の版の${current.matches}か所をマスクします。マスクした版には戻せなくなります。よろしいですか？`,
-              { title: "機密情報のマスク", confirmLabel: "マスクする", danger: true },
+              t("confirm", { versions: current.versions, matches: current.matches }),
+              { title: t("confirmTitle"), confirmLabel: t("confirmLabel"), danger: true },
             );
             if (!ok) return;
             startTransition(async () => {
@@ -114,12 +115,12 @@ export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => vo
               }
               setInput("");
               setCheck(null);
-              setMessage({ done: `${result.versions}個の版の${result.matches}か所をマスクしました。` });
+              setMessage({ done: t("done", { versions: result.versions, matches: result.matches }) });
               onDone();
             });
           }}
         >
-          マスクを実行
+          {t("run")}
         </button>
       </div>
     </div>

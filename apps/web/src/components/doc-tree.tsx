@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type DragEvent, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createChildPage } from "@/app/(app)/actions";
-import { displayTitle } from "@/lib/page-title";
+import { useTranslations } from "next-intl";
+import { useDisplayTitle } from "@/i18n/use-display-title";
 import { showAlert } from "./dialog";
-import { confirmAndMovePage, getDraggedPage, setDraggedPage } from "./move-page";
+import { getDraggedPage, setDraggedPage, useConfirmAndMovePage } from "./move-page";
 import styles from "./doc-tree.module.css";
 
 type DropZone = "before" | "after" | "into";
@@ -63,6 +64,9 @@ export function DocTree({
   // A label after the root page's title (e.g. "personal" for a personal root).
   rootBadge?: string;
 }) {
+  const t = useTranslations("docTree");
+  const displayTitle = useDisplayTitle();
+  const confirmAndMovePage = useConfirmAndMovePage();
   const { byId, childrenOf } = useMemo(() => {
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const childrenOf = new Map<string, DocTreeNode[]>();
@@ -214,7 +218,7 @@ export function DocTree({
       // On success the action redirects to the new page, which remounts the
       // tree with the path to it expanded.
       const result = await createChildPage(parentId);
-      if (result?.error) await showAlert(result.error, { title: "ページを作成できません" });
+      if (result?.error) await showAlert(result.error, { title: t("cannotCreate") });
     });
 
   const toggle = (id: string) =>
@@ -252,7 +256,7 @@ export function DocTree({
           data-id={node.id}
           data-drop={dropZone ?? undefined}
           draggable={canDrag(node) || (node.parentId === null && !!rootReorder)}
-          title={node.parentId === null && rootReorder ? "ドラッグしてナレッジルートを並び替え（Alt+↑↓ でも）" : undefined}
+          title={node.parentId === null && rootReorder ? t("reorderHint") : undefined}
           onDragStart={(e) => {
             if (node.parentId === null && rootReorder) {
               e.dataTransfer.effectAllowed = "move";
@@ -276,7 +280,7 @@ export function DocTree({
               type="button"
               className={styles.toggle}
               data-ui="DocTree.toggle"
-              aria-label={isOpen ? "折りたたむ" : "展開する"}
+              aria-label={isOpen ? t("collapse") : t("expand")}
               aria-expanded={isOpen}
               onClick={() => toggle(node.id)}
             >
@@ -312,7 +316,7 @@ export function DocTree({
             </span>
           )}
           {node.locked && (
-            <span className={styles.lock} title="ロック中" aria-label="ロック中" data-ui="DocTree.lockStatus" data-id={node.id}>
+            <span className={styles.lock} title={t("locked")} aria-label={t("locked")} data-ui="DocTree.lockStatus" data-id={node.id}>
               🔒
             </span>
           )}
@@ -322,8 +326,8 @@ export function DocTree({
               className={styles.add}
               data-ui="DocTree.addChildButton"
               data-id={node.id}
-              aria-label="子ページを追加"
-              title="子ページを追加"
+              aria-label={t("addChild")}
+              title={t("addChild")}
               disabled={creating}
               onClick={() => addChild(node.id)}
             >
@@ -341,7 +345,7 @@ export function DocTree({
   };
 
   return (
-    <nav aria-label="ドキュメントツリー" data-ui="DocTree" aria-busy={moving}>
+    <nav aria-label={t("label")} data-ui="DocTree" aria-busy={moving}>
       <ul className={styles.list}>{entries.map((e) => renderNode(e, 0, new Set([e.id])))}</ul>
     </nav>
   );

@@ -1,6 +1,6 @@
 import { getVisibleTrees, loadDataKey, type VisiblePage } from "shared";
 import { prisma } from "@/lib/db";
-import { displayTitle } from "@/lib/page-title";
+import { getDisplayTitle } from "@/i18n/display-title";
 import {
   normalizeWithMap,
   pageSearchText,
@@ -9,7 +9,7 @@ import {
   type PageSearchText,
 } from "@/lib/search-index";
 import { semanticSearch, semanticSearchStatus, type SemanticHit } from "@/lib/semantic-bridge";
-import { type SearchMode, chooseSearchMode } from "@/lib/search-mode";
+import { type SearchMode, type SearchModeReason, chooseSearchMode } from "@/lib/search-mode";
 
 // Search over the pages a user can open, one box for two kinds of search
 // (lib/search-mode.ts picks one from the query; the screen can ask for the
@@ -56,7 +56,7 @@ export type SearchOutcome = {
   results: SearchResult[];
   mode: SearchMode;
   // Why this mode (when it was chosen from the query, not asked for).
-  reason: string | null;
+  reason: SearchModeReason | null;
   // Semantic search: available, being prepared, or not set up.
   semantic: "ready" | "loading" | "off";
 };
@@ -143,7 +143,7 @@ export async function searchPages(
   const visible = new Map(
     trees.flatMap((t) => t.pages.map((p) => [p.id, p] as const)),
   );
-  const ctx = { visible, texts: new Map<string, PageSearchText | null>() };
+  const ctx = { visible, texts: new Map<string, PageSearchText | null>(), displayTitle: await getDisplayTitle() };
 
   const keyword = await keywordSearch(q, ctx);
   if (mode === "keyword") return outcome(keyword);
@@ -175,7 +175,7 @@ export async function searchPages(
     results.push({
       id,
       title: text.title,
-      path: pathOf(visible, id),
+      path: pathOf(visible, id, ctx.displayTitle),
       snippet: passageSnippet(text.body, best.get(id)!),
       matchedFile: null,
       bySemantic: true,
@@ -189,6 +189,8 @@ type SearchContext = {
   visible: Map<string, VisiblePage>;
   // Decrypted page texts, each read once per search.
   texts: Map<string, PageSearchText | null>;
+  // For the path above each result, in the searcher's language.
+  displayTitle: (title: string) => string;
 };
 
 async function textOf(ctx: SearchContext, id: string): Promise<PageSearchText | null> {
@@ -196,7 +198,7 @@ async function textOf(ctx: SearchContext, id: string): Promise<PageSearchText | 
   return ctx.texts.get(id)!;
 }
 
-function pathOf(visible: Map<string, VisiblePage>, id: string): string[] {
+function pathOf(visible: Map<string, VisiblePage>, id: string, displayTitle: (title: string) => string): string[] {
   const path: string[] = [];
   for (
     let p = visible.get(visible.get(id)?.parentId ?? "");
@@ -251,7 +253,7 @@ async function keywordSearch(query: string, ctx: SearchContext): Promise<SearchR
       result: {
         id,
         title: text.title,
-        path: pathOf(ctx.visible, id),
+        path: pathOf(ctx.visible, id, ctx.displayTitle),
         snippet: bodyRanges ? snippet(text.body, bodyRanges) : null,
         matchedFile: bodyRanges ? null : (file ?? null),
         bySemantic: false,

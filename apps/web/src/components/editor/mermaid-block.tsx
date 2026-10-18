@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import styles from "./mermaid-block.module.css";
@@ -9,7 +10,6 @@ const RENDER_DELAY_MS = 300;
 const SAVE_DELAY_MS = 500;
 export const MAX_MERMAID_LENGTH = 20000;
 
-const CODE_PLACEHOLDER = "flowchart TD\n  A[開始] --> B{条件}\n  B -->|はい| C[処理]\n  B -->|いいえ| D[終了]";
 
 type Mermaid = (typeof import("mermaid"))["default"];
 let mermaidLoading: Promise<Mermaid> | undefined;
@@ -66,6 +66,7 @@ function MermaidDiagram({
   const renders = useRef(0);
   const baseId = `mermaid-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const source = (draft ?? code).trim();
+  const t = useTranslations("editor.mermaid");
 
   useEffect(() => {
     if (!source) return;
@@ -104,23 +105,24 @@ function MermaidDiagram({
     <div className={styles.block} contentEditable={false} data-ui="MermaidBlock">
       {!source ? (
         <p className={styles.muted}>
-          {editable ? "Mermaid の記法を入力すると、ここに図が表示されます。" : "図はまだありません。"}
+          {editable ? t("emptyEditable") : t("empty")}
         </p>
       ) : drawing.svg ? (
         <div
           className={styles.diagram}
           role="img"
-          aria-label="Mermaid の図"
+          aria-label={t("diagramLabel")}
           data-ui="MermaidBlock.diagram"
           // Drawn by Mermaid with securityLevel "strict".
           dangerouslySetInnerHTML={{ __html: drawing.svg }}
         />
       ) : (
-        !drawing.error && <p className={styles.muted}>図を描いています…</p>
+        !drawing.error && <p className={styles.muted}>{t("drawing")}</p>
       )}
       {source && drawing.error && (
         <pre className={styles.error} data-ui="MermaidBlock.error">
-          図にできませんでした。記法を確認してください。{"\n"}
+          {t("failed")}
+          {"\n"}
           {drawing.error}
         </pre>
       )}
@@ -133,7 +135,7 @@ function MermaidDiagram({
             aria-expanded={editing}
             onClick={() => setEditing((open) => !open)}
           >
-            {editing ? "記法を閉じる" : "記法を編集"}
+            {editing ? t("closeSource") : t("editSource")}
           </button>
         </div>
       )}
@@ -142,11 +144,12 @@ function MermaidDiagram({
           className={styles.code}
           data-ui="MermaidBlock.codeInput"
           value={draft ?? code}
-          placeholder={CODE_PLACEHOLDER}
+          // Raw: the sample's braces aren't message placeholders.
+          placeholder={t.raw("placeholder")}
           maxLength={MAX_MERMAID_LENGTH}
           rows={Math.min(20, Math.max(5, (draft ?? code).split("\n").length + 1))}
           spellCheck={false}
-          aria-label="Mermaid の記法"
+          aria-label={t("sourceLabel")}
           onChange={(e) => {
             const next = e.target.value;
             setDraft(next);

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
+import { getDisplayTitle } from "@/i18n/display-title";
+import { groupName } from "@/i18n/group-name";
 import { MAX_PAGE_DEPTH, PUBLIC_GROUP, atLeast, getVisibleTree } from "shared";
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { requireUser } from "@/lib/auth/session";
-import { ACCESS_LABELS } from "@/lib/admin/format";
-import { displayTitle } from "@/lib/page-title";
 import { loadSidebar } from "@/lib/sidebar-data";
 import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
@@ -15,20 +17,25 @@ import { removeGrant, setGrant } from "./actions";
 import { PublishForm, UnpublishForm } from "./public-forms";
 import { publicPagesAllowed } from "@/lib/public-pages";
 
-export const metadata: Metadata = { title: "権限設定 | KNOWLECTIVE" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations();
+  return { title: t("meta.titleSuffix", { title: t("share.title") }) };
+}
 
-const ERRORS: Record<string, string> = {
-  "last-manager": "ルートページには「管理」の権限を持つグループが最低1つ必要です。先に別のグループに「管理」を付けてください。",
-  invalid: "入力内容が不正です。",
-  "public-not-allowed": "ページの公開は、管理画面で許可されていません。",
-};
+// ?error=<code> from the actions, and its message key.
+const ERRORS = {
+  "last-manager": "lastManager",
+  invalid: "invalid",
+  "public-not-allowed": "publicNotAllowed",
+} as const;
 
 function AccessSelect({ defaultValue }: { defaultValue?: string }) {
+  const t = useTranslations("access");
   return (
     <select name="access" defaultValue={defaultValue ?? "VIEW"} className={styles.field} style={{ width: "auto", marginTop: 0 }} data-ui="AccessSelect">
-      <option value="VIEW">閲覧</option>
-      <option value="EDIT">編集</option>
-      <option value="MANAGE">管理</option>
+      <option value="VIEW">{t("VIEW")}</option>
+      <option value="EDIT">{t("EDIT")}</option>
+      <option value="MANAGE">{t("MANAGE")}</option>
     </select>
   );
 }
@@ -39,7 +46,9 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
   const page = await findAccessiblePage(user.id, pageId);
   if (!page) notFound();
   if (!atLeast(page.access, "MANAGE")) redirect(`/pages/${pageId}`);
-  const error = ERRORS[String((await searchParams).error ?? "")];
+  const [t, ta, displayTitle] = await Promise.all([getTranslations(), getTranslations("access"), getDisplayTitle()]);
+  const errorCode = String((await searchParams).error ?? "");
+  const error = errorCode in ERRORS ? t(`share.errors.${ERRORS[errorCode as keyof typeof ERRORS]}`) : null;
 
   // Ancestors, nearest first, for showing inherited grants.
   const ancestors: { id: string; title: string }[] = [];
@@ -76,7 +85,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
   const visible = new Set(tree?.pages.map((p) => p.id) ?? []);
   const ancestorTitle = (id: string) => {
     const a = ancestors.find((x) => x.id === id);
-    return a && visible.has(a.id) ? `「${displayTitle(a.title)}」` : "（権限のない上位ページ）";
+    return a && visible.has(a.id) ? t("share.quoted", { title: displayTitle(a.title) }) : t("share.hiddenAncestor");
   };
   const ownGroupIds = new Set(own.map((g) => g.groupId));
   // Nearest ancestor grant per group, ignoring groups overridden on this page.
@@ -93,13 +102,13 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
       <div className={styles.pane} data-ui="SharePage">
         <p className={styles.note} style={{ marginBottom: 16 }}>
           <Link href={`/pages/${pageId}`} style={{ textDecoration: "underline" }} data-ui="SharePage.backLink">
-            ← ページに戻る
+            {t("share.back")}
           </Link>
         </p>
-        <h1 className={styles.title}>「{displayTitle(page.title)}」の権限設定</h1>
+        <h1 className={styles.title}>{t("share.heading", { title: displayTitle(page.title) })}</h1>
         <p className={styles.lead}>
-          権限はグループに付け、配下のページにも引き継がれます。同じグループに下のページで別の権限を付けると、そこから下はその権限になります。
-          {page.isRootPage && " これはナレッジルートのルートページです。「管理」を持つグループが最低1つ必要です。"}
+          {t("share.lead")}
+          {page.isRootPage && t("share.rootNote")}
         </p>
         {error && (
           <p className={styles.error} style={{ marginBottom: 16 }} data-ui="SharePage.error">
@@ -108,32 +117,32 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
         )}
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>このページに付いている権限</h2>
+          <h2 className={styles.sectionTitle}>{t("share.direct")}</h2>
           {own.length === 0 ? (
-            <p className={styles.note}>このページに直接付いている権限はありません。</p>
+            <p className={styles.note}>{t("share.noDirect")}</p>
           ) : (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>グループ</th>
-                    <th>メンバー数</th>
-                    <th>権限</th>
+                    <th>{t("share.group")}</th>
+                    <th>{t("share.members")}</th>
+                    <th>{t("share.access")}</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
                   {own.map((g) => (
                     <tr key={g.id} data-ui="SharePage.grantRow" data-id={g.groupId}>
-                      <td>{g.group.name}</td>
-                      <td>{g.group.builtIn ? "全員（自動）" : g.group._count.members}</td>
+                      <td>{groupName(t, g.group)}</td>
+                      <td>{g.group.builtIn ? t("share.everyoneAuto") : g.group._count.members}</td>
                       <td>
                         <form action={setGrant} style={{ display: "flex", gap: 8, alignItems: "center" }} data-ui="SharePage.changeGrantForm">
                           <input type="hidden" name="pageId" value={pageId} />
                           <input type="hidden" name="groupId" value={g.groupId} />
                           <AccessSelect defaultValue={g.access} />
                           <button type="submit" className={styles.button} data-ui="SharePage.changeGrantButton">
-                            変更
+                            {t("share.change")}
                           </button>
                         </form>
                       </td>
@@ -142,7 +151,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
                           <input type="hidden" name="pageId" value={pageId} />
                           <input type="hidden" name="groupId" value={g.groupId} />
                           <button type="submit" className={styles.danger} data-ui="SharePage.removeGrantButton">
-                            外す
+                            {t("share.remove")}
                           </button>
                         </form>
                       </td>
@@ -156,11 +165,11 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
 
         {inheritedByGroup.size > 0 && (
           <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>上位のページから引き継いでいる権限</h2>
+            <h2 className={styles.sectionTitle}>{t("share.inherited")}</h2>
             <ul className={styles.note} style={{ paddingLeft: 20, lineHeight: 1.9 }}>
               {[...inheritedByGroup.values()].map((g) => (
                 <li key={g.id} data-ui="SharePage.inheritedGrantRow" data-id={g.groupId}>
-                  {g.group.name}：{ACCESS_LABELS[g.access]}（{ancestorTitle(g.pageId)}から）
+                  {t("share.inheritedRow", { group: groupName(t, g.group), access: ta(g.access), page: ancestorTitle(g.pageId) })}
                 </li>
               ))}
             </ul>
@@ -168,25 +177,25 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
         )}
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>グループに権限を付ける</h2>
+          <h2 className={styles.sectionTitle}>{t("share.add")}</h2>
           {addable.length === 0 ? (
-            <p className={styles.note}>追加できるグループがありません。グループは管理画面の「グループ」で作成できます。</p>
+            <p className={styles.note}>{t("share.noGroups")}</p>
           ) : (
             <form action={setGrant} className={styles.form} style={{ gridTemplateColumns: "1fr auto auto", alignItems: "end" }} data-ui="SharePage.addGrantForm">
               <input type="hidden" name="pageId" value={pageId} />
               <label>
-                グループ
+                {t("share.group")}
                 <select name="groupId" className={styles.field} data-ui="SharePage.groupSelect">
                   {addable.map((g) => (
                     <option key={g.id} value={g.id}>
-                      {g.name}
+                      {groupName(t, g)}
                     </option>
                   ))}
                 </select>
               </label>
               <AccessSelect />
               <button type="submit" className={styles.button} data-ui="SharePage.addGrantButton">
-                付ける
+                {t("share.give")}
               </button>
             </form>
           )}
@@ -195,14 +204,14 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
         {/* Only where it can apply: allowed by a site admin, or already set. */}
         {!page.personal && (publicAllowed || ownPublic || publicAbove) && (
           <section className={styles.section} data-ui="SharePage.publicSection">
-            <h2 className={styles.sectionTitle}>インターネットに公開</h2>
+            <h2 className={styles.sectionTitle}>{t("share.publicHeading")}</h2>
             <p className={styles.note} style={{ marginBottom: 12 }} data-ui="SharePage.publicStatus">
               {ownPublic
-                ? "このページと、その下のすべてのページを公開しています。ログインしていない人も、URL を知っていれば閲覧できます。"
+                ? t("share.publicOwn")
                 : publicAbove
-                  ? `上位のページ${ancestorTitle(publicAbove.id)}の公開により、このページも公開されています。公開をやめるには、そのページの権限設定で行います。`
-                  : "公開すると、このページと、その下のすべてのページを、ログインしていない人も閲覧できるようになります（編集はできません）。"}
-              {!publicAllowed && (ownPublic || publicAbove) && " ただし、今は管理画面でページの公開が許可されていないため、公開されていません。"}
+                  ? t("share.publicAbove", { page: ancestorTitle(publicAbove.id) })
+                  : t("share.publicNone")}
+              {!publicAllowed && (ownPublic || publicAbove) && t("share.publicNotAllowed")}
             </p>
             {ownPublic ? <UnpublishForm pageId={pageId} /> : !publicAbove && publicAllowed && <PublishForm pageId={pageId} />}
           </section>

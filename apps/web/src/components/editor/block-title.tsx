@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 import styles from "./child-blocks.module.css";
 
@@ -23,6 +24,7 @@ export function BlockTitle({
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const cancelled = useRef(false);
+  const t = useTranslations("editor.blockTitle");
   if (!editable) {
     return (
       <span className={value ? styles.blockTitle : styles.blockTitlePlaceholder} data-ui={`${uiName}.title`}>
@@ -37,7 +39,7 @@ export function BlockTitle({
       value={draft ?? value}
       placeholder={placeholder}
       maxLength={100}
-      aria-label={`${placeholder}のタイトル`}
+      aria-label={t("label", { block: placeholder })}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={(e) => {
         const next = e.target.value.replace(/\s+/g, " ").trim();

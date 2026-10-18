@@ -7,6 +7,7 @@ import {
   insertOrUpdateBlockForSlashMenu,
 } from "@blocknote/core";
 import type { DefaultReactSuggestionItem } from "@blocknote/react";
+import type { Messages } from "@/i18n/messages/en";
 import { childPagesBlock } from "./child-pages-block";
 import { childBoardBlock } from "./child-board-block";
 import { childTableBlock } from "./child-table-block";
@@ -41,38 +42,49 @@ export const editorSchema = BlockNoteSchema.create({
 
 export type KnowlectiveEditor = typeof editorSchema.BlockNoteEditor;
 
-export function customSlashMenuItems(editor: KnowlectiveEditor): DefaultReactSuggestionItem[] {
-  const group = "ページ";
+type SlashKey = keyof Messages["editor"]["slash"];
+
+// `t`: the viewer's translator (useTranslations()).
+export function customSlashMenuItems(
+  editor: KnowlectiveEditor,
+  t: (key: `editor.slash.${SlashKey}`) => string,
+): DefaultReactSuggestionItem[] {
+  const group = t("editor.slash.group");
+  // English words always match; the language's own come from its text.
+  const aliases = (key: `${SlashKey & `${string}Aliases`}`, english: string[]) => [
+    ...english,
+    ...t(`editor.slash.${key}`).split(",").filter(Boolean),
+  ];
   return [
     {
-      title: "子ページ一覧",
-      subtext: "このページの子ページへのリンクを常に最新で表示",
-      aliases: ["child", "children", "subpage", "pages", "list", "kopeji", "子ページ", "一覧"],
+      title: t("editor.slash.childPages"),
+      subtext: t("editor.slash.childPagesSub"),
+      aliases: aliases("childPagesAliases", ["child", "children", "subpage", "pages", "list"]),
       group,
       icon: <span aria-hidden>📑</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childPages" }),
     },
     {
-      title: "子ページテーブル",
-      subtext: "子ページを行にした表。担当者などの列を追加できます",
-      aliases: ["child", "children", "subpage", "pages", "table", "kopeji", "子ページ", "テーブル"],
+      title: t("editor.slash.childTable"),
+      subtext: t("editor.slash.childTableSub"),
+      aliases: aliases("childTableAliases", ["child", "children", "subpage", "pages", "table"]),
       group,
       icon: <span aria-hidden>📊</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childTable" }),
     },
     {
-      title: "子ページボード（カンバン）",
-      subtext: "子ページをカードにして、ステータスなどの列に並べる",
-      aliases: ["kanban", "board", "child", "children", "subpage", "status", "kanban board", "カンバン", "かんばん", "ボード", "子ページ"],
+      title: t("editor.slash.childBoard"),
+      subtext: t("editor.slash.childBoardSub"),
+      aliases: aliases("childBoardAliases", ["kanban", "board", "child", "children", "subpage", "status", "kanban board"]),
       group,
       icon: <span aria-hidden>🗂️</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childBoard" }),
     },
     {
-      title: "Mermaid 図",
-      subtext: "Mermaid の記法からフローチャートなどの図を描く",
-      aliases: ["mermaid", "diagram", "flowchart", "chart", "zu", "図", "フローチャート", "マーメイド"],
-      group: "図",
+      title: t("editor.slash.mermaid"),
+      subtext: t("editor.slash.mermaidSub"),
+      aliases: aliases("mermaidAliases", ["mermaid", "diagram", "flowchart", "chart"]),
+      group: t("editor.slash.diagramGroup"),
       icon: <span aria-hidden>🧜</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "mermaid" }),
     },

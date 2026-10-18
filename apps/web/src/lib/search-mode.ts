@@ -7,11 +7,14 @@
 //   with the keyword results. For sentence-like queries ("how to apply for paid leave",
 //   "how do I restore a backup"), where the page may use other words.
 //
-// The search screen says which one it used and offers the other.
+// The search screen says which one it used (and why: search.reasons) and
+// offers the other.
 
 export type SearchMode = "keyword" | "semantic";
 
-export type SearchModeChoice = { mode: SearchMode; reason: string };
+export type SearchModeReason = "quoted" | "code" | "short" | "sentence";
+
+export type SearchModeChoice = { mode: SearchMode; reason: SearchModeReason };
 
 const QUOTED = /^(["“『「]).+(["”』」])$/;
 // A term with a digit and a letter, or with symbols that join a name
@@ -26,17 +29,17 @@ const SHORT_WORDS = 2;
 export function chooseSearchMode(query: string): SearchModeChoice {
   const q = query.normalize("NFKC").trim();
   if (QUOTED.test(q)) {
-    return { mode: "keyword", reason: "かっこや引用符で囲んだ語なので、そのまま探しました。" };
+    return { mode: "keyword", reason: "quoted" };
   }
   const terms = q.split(/\s+/).filter(Boolean);
   if (terms.some((t) => CODE_LIKE.test(t))) {
-    return { mode: "keyword", reason: "数字や記号を含む語（型番・URL など）なので、そのまま探しました。" };
+    return { mode: "keyword", reason: "code" };
   }
   const short = ASCII.test(q) ? terms.length <= SHORT_WORDS : q.replace(/\s/g, "").length <= SHORT_CHARS;
   if (short) {
-    return { mode: "keyword", reason: "短い語なので、そのまま探しました。" };
+    return { mode: "keyword", reason: "short" };
   }
-  return { mode: "semantic", reason: "文章のような検索語なので、意味の近いページも探しました。" };
+  return { mode: "semantic", reason: "sentence" };
 }
 
 export function isSearchMode(value: unknown): value is SearchMode {

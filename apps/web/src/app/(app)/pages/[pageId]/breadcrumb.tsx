@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import type { SidebarTree } from "@/components/sidebar";
-import { displayTitle } from "@/lib/page-title";
+import { useDisplayTitle } from "@/i18n/use-display-title";
 import styles from "./breadcrumb.module.css";
 
 // Up to this many pages are shown as they are; a longer path shows the
@@ -38,6 +39,8 @@ export function Breadcrumb({
   currentTitle?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const t = useTranslations("breadcrumb");
+  const displayTitle = useDisplayTitle();
   const path = pathTo(trees, pageId);
   if (path.length === 0) return null;
 
@@ -47,7 +50,7 @@ export function Breadcrumb({
   const hidden = folded ? path.slice(1, -2) : [];
 
   return (
-    <nav className={styles.breadcrumb} aria-label="パンくずリスト" data-ui="Breadcrumb">
+    <nav className={styles.breadcrumb} aria-label={t("label")} data-ui="Breadcrumb">
       <ol className={styles.list}>
         {shown.map((crumb, i) => {
           const last = i === shown.length - 1;
@@ -60,7 +63,7 @@ export function Breadcrumb({
                   data-ui="Breadcrumb.expandButton"
                   // The folded pages, for a glance without opening them.
                   title={hidden.map((c) => displayTitle(c.title)).join(" / ")}
-                  aria-label={`途中の${hidden.length}ページを表示`}
+                  aria-label={t("showHidden", { count: hidden.length })}
                   onClick={() => setExpanded(true)}
                 >
                   …

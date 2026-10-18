@@ -1,6 +1,6 @@
 import { getPageAccess, getVisibleTrees } from "shared";
 import { prisma } from "@/lib/db";
-import { displayTitle } from "@/lib/page-title";
+import { getDisplayTitle } from "@/i18n/display-title";
 import { publicPageIds, publicPageOptions } from "@/lib/public-pages";
 
 // The top page (InstanceConfig.landingPageId), set in /admin (overview): the page
@@ -33,6 +33,7 @@ export async function landingPageOptions(adminUserId: string | null): Promise<La
     adminUserId ? getVisibleTrees(prisma, adminUserId) : Promise.resolve([]),
   ]);
   const isPublic = new Set(publicIds);
+  const displayTitle = await getDisplayTitle();
   const options = new Map<string, LandingPageOption>();
   for (const tree of trees) {
     if (tree.personal) continue;

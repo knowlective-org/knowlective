@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import {
   useEffect,
   useMemo,
@@ -21,11 +22,11 @@ import {
   setColumnOptions,
 } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { createChildPageInPlace } from "@/app/(app)/actions";
-import { displayTitle } from "@/lib/page-title";
+import { useDisplayTitle } from "@/i18n/use-display-title";
 import {
   BUILTIN_COLUMNS,
   OPTION_COLORS,
-  PROPERTY_TYPE_LABELS,
+  PROPERTY_TYPES,
   type BuiltinColumn,
   type ChildTableData,
   type ChildTableRow,
@@ -47,7 +48,6 @@ import { showAlert, showConfirm } from "@/components/dialog";
 // table block and throws on ours.
 
 const DEFAULT_HIDDEN: BuiltinColumn[] = ["createdAt", "createdBy"];
-const BUILTIN_KEYS = Object.keys(BUILTIN_COLUMNS) as BuiltinColumn[];
 
 type Sort = { key: string; dir: "asc" | "desc" } | null;
 
@@ -96,15 +96,22 @@ function parseSort(raw: string): Sort {
   return key && (dir === "asc" || dir === "desc") ? { key, dir } : null;
 }
 
-const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", timeStyle: "short" });
-
-async function run(action: Promise<{ error?: string }>) {
-  const result = await action.catch(() => ({ error: "保存に失敗しました。" }));
-  if (result.error) await showAlert(result.error);
-  return !result.error;
+// Runs a Server Action and shows its error (or a failure to reach it).
+function useRun() {
+  const failed = useTranslations("editor.save")("failed");
+  return async (action: Promise<{ error?: string }>) => {
+    const result = await action.catch(() => ({ error: failed }));
+    if (result.error) await showAlert(result.error);
+    return !result.error;
+  };
 }
 
-const TABLE_PLACEHOLDER = "子ページテーブル";
+// How cells show and sort in the viewer's language.
+type Format = {
+  dateTime: (iso: string) => string;
+  displayTitle: (title: string) => string;
+  collator: Intl.Collator;
+};
 
 // Saved order first (known keys only), then any other available keys.
 function resolveOrder(saved: string[], available: string[]): string[] {
@@ -143,23 +150,37 @@ function ChildTable({
   // the visible columns, 0 = right after the title).
   const [drag, setDrag] = useState<{ key: string; dropIndex: number } | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const t = useTranslations("editor");
+  const run = useRun();
+  const formatter = useFormatter();
+  const locale = useLocale();
+  const displayTitle = useDisplayTitle();
+  const format = useMemo<Format>(
+    () => ({
+      dateTime: (iso) => formatter.dateTime(new Date(iso), { dateStyle: "short", timeStyle: "short" }),
+      displayTitle,
+      collator: new Intl.Collator(locale),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayTitle and formatter follow the locale
+    [locale],
+  );
 
   const hiddenSet = useMemo(() => new Set(hidden), [hidden]);
   const allColumns = useMemo<ColumnView[]>(() => {
     const custom = (data?.columns ?? []).map((c) => ({ key: c.id, label: c.name, custom: c }));
-    const builtin = BUILTIN_KEYS.map((k) => ({ key: k, label: BUILTIN_COLUMNS[k], custom: null }));
+    const builtin = BUILTIN_COLUMNS.map((k) => ({ key: k, label: t(`childTable.builtin.${k}`), custom: null }));
     const byKey = new Map([...custom, ...builtin].map((c) => [c.key, c]));
     return resolveOrder(order, [...byKey.keys()]).map((k) => byKey.get(k)!);
-  }, [data, order]);
+  }, [data, order, t]);
   const visible = allColumns.filter((c) => !hiddenSet.has(c.key));
 
-  const rows = useMemo(() => (data ? sortRows(data, sort) : []), [data, sort]);
+  const rows = useMemo(() => (data ? sortRows(data, sort, format) : []), [data, sort, format]);
 
   if (data === undefined) {
-    return <Frame title={title}>読み込み中…</Frame>;
+    return <Frame title={title}>{t("loading")}</Frame>;
   }
   if (data === null) {
-    return <Frame title={title}>このテーブルは表示できません。</Frame>;
+    return <Frame title={title}>{t("childTable.cannotShow")}</Frame>;
   }
 
   const toggleHidden = (key: string) => {
@@ -221,7 +242,7 @@ function ChildTable({
       <div className={styles.header}>
         <BlockTitle
           value={title}
-          placeholder={TABLE_PLACEHOLDER}
+          placeholder={t("childTable.placeholder")}
           editable={editable}
           onSave={(next) => onChange({ title: next })}
           uiName="ChildTableBlock"
@@ -230,7 +251,7 @@ function ChildTable({
           <Popover
             open={menu === "columns"}
             onOpenChange={(o) => setMenu(o ? "columns" : null)}
-            trigger="表示する列"
+            trigger={t("childTable.columns")}
             dataUi="ChildTableBlock.columnsMenu"
           >
             {allColumns.map(({ key, label }) => (
@@ -245,7 +266,7 @@ function ChildTable({
           <Popover
             open={menu === "add"}
             onOpenChange={(o) => setMenu(o ? "add" : null)}
-            trigger="＋ 列を追加"
+            trigger={t("childTable.addColumn")}
             dataUi="ChildTableBlock.addColumn"
           >
             <AddColumnForm
@@ -261,12 +282,12 @@ function ChildTable({
       </div>
 
       {rows.length === 0 && !canCreate ? (
-        <p className={styles.muted}>子ページはありません。</p>
+        <p className={styles.muted}>{t("childPages.none")}</p>
       ) : (
         <div className={styles.tableScroll}>
           <div className={drag ? styles.tableDragging : styles.table} role="table">
             <div className={styles.tr} role="row" ref={headerRef}>
-              <HeaderCell label="タイトル" sortKey="title" sort={sort} onSort={setSort} />
+              <HeaderCell label={t("childTable.title")} sortKey="title" sort={sort} onSort={setSort} />
               {visible.map((c, i) => (
                 <HeaderCell
                   key={c.key}
@@ -298,9 +319,9 @@ function ChildTable({
                     onDelete={() => {
                       const custom = c.custom;
                       if (!custom) return;
-                      void showConfirm(`列「${c.label}」と、その列のすべての値を削除しますか？`, {
-                        title: "列の削除",
-                        confirmLabel: "削除",
+                      void showConfirm(t("childTable.deleteColumn", { name: c.label }), {
+                        title: t("childTable.deleteColumnTitle"),
+                        confirmLabel: t("childTable.remove"),
                         danger: true,
                       }).then((ok) => {
                         if (!ok) return;
@@ -336,7 +357,7 @@ function ChildTable({
                         onSave={(value) => after(setCellValue(row.id, c.custom!.id, value))}
                       />
                     ) : (
-                      builtinText(row, c.key as BuiltinColumn, data)
+                      builtinText(row, c.key as BuiltinColumn, data, format)
                     )}
                   </div>
                 ))}
@@ -348,10 +369,10 @@ function ChildTable({
               <NewPageRow
                 onCreate={async (pageTitle) => {
                   const result = await createChildPageInPlace(pageId, pageTitle).catch(() => ({
-                    error: "ページを作成できませんでした。",
+                    error: t("childTable.createFailed"),
                   }));
                   if ("error" in result) {
-                    void showAlert(result.error, { title: "ページを作成できません" });
+                    void showAlert(result.error, { title: t("childTable.cannotCreate") });
                     return false;
                   }
                   void reload();
@@ -369,22 +390,23 @@ function ChildTable({
 }
 
 function Frame({ title, children }: { title: string; children: ReactNode }) {
+  const t = useTranslations("editor.childTable");
   return (
     <div className={styles.block} contentEditable={false} data-ui="ChildTableBlock">
       <div className={styles.header}>
-        <BlockTitle value={title} placeholder={TABLE_PLACEHOLDER} editable={false} onSave={() => {}} uiName="ChildTableBlock" />
+        <BlockTitle value={title} placeholder={t("placeholder")} editable={false} onSave={() => {}} uiName="ChildTableBlock" />
       </div>
       <p className={styles.muted}>{children}</p>
     </div>
   );
 }
 
-function builtinText(row: ChildTableRow, key: BuiltinColumn, data: ChildTableData): string {
+function builtinText(row: ChildTableRow, key: BuiltinColumn, data: ChildTableData, format: Format): string {
   switch (key) {
     case "createdAt":
-      return dateTimeFormat.format(new Date(row.createdAt));
+      return format.dateTime(row.createdAt);
     case "updatedAt":
-      return dateTimeFormat.format(new Date(row.updatedAt));
+      return format.dateTime(row.updatedAt);
     case "createdBy":
       return data.userNames[row.createdById] ?? "";
     case "updatedBy":
@@ -393,10 +415,10 @@ function builtinText(row: ChildTableRow, key: BuiltinColumn, data: ChildTableDat
 }
 
 // Sort key of one cell; empty cells always go last.
-function sortValue(row: ChildTableRow, key: string, data: ChildTableData): string | number | null {
-  if (key === "title") return displayTitle(row.title);
+function sortValue(row: ChildTableRow, key: string, data: ChildTableData, format: Format): string | number | null {
+  if (key === "title") return format.displayTitle(row.title);
   if (key === "createdAt" || key === "updatedAt") return Date.parse(row[key]);
-  if (key === "createdBy" || key === "updatedBy") return builtinText(row, key, data) || null;
+  if (key === "createdBy" || key === "updatedBy") return builtinText(row, key, data, format) || null;
   const column = data.columns.find((c) => c.id === key);
   const value = row.values[key];
   if (!column || !value) return null;
@@ -408,13 +430,13 @@ function sortValue(row: ChildTableRow, key: string, data: ChildTableData): strin
   return value;
 }
 
-function sortRows(data: ChildTableData, sort: Sort): ChildTableRow[] {
+function sortRows(data: ChildTableData, sort: Sort, format: Format): ChildTableRow[] {
   if (!sort) return data.rows;
-  const collator = new Intl.Collator("ja");
+  const { collator } = format;
   const sign = sort.dir === "asc" ? 1 : -1;
   return [...data.rows].sort((a, b) => {
-    const x = sortValue(a, sort.key, data);
-    const y = sortValue(b, sort.key, data);
+    const x = sortValue(a, sort.key, data, format);
+    const y = sortValue(b, sort.key, data, format);
     if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
     const cmp = typeof x === "number" && typeof y === "number" ? x - y : collator.compare(String(x), String(y));
     return cmp * sign;
@@ -451,6 +473,7 @@ function HeaderCell({
   children?: ReactNode;
 }) {
   const active = sort?.key === sortKey ? sort.dir : null;
+  const t = useTranslations("editor.childTable");
   // Click cycles: ascending → descending → creation order.
   const next: Sort = active === null ? { key: sortKey, dir: "asc" } : active === "asc" ? { key: sortKey, dir: "desc" } : null;
   return (
@@ -465,7 +488,7 @@ function HeaderCell({
         {grip && (
           <span
             className={styles.grip}
-            title="ドラッグして列を移動"
+            title={t("dragColumn")}
             aria-hidden
             data-ui="ChildTableBlock.columnGrip"
             data-key={colKey}
@@ -474,12 +497,12 @@ function HeaderCell({
             ⋮⋮
           </span>
         )}
-        <button type="button" className={styles.thButton} onClick={() => onSort(next)} title="並び替え">
+        <button type="button" className={styles.thButton} onClick={() => onSort(next)} title={t("sort")}>
           {label}
           {active && <span aria-hidden>{active === "asc" ? " ↑" : " ↓"}</span>}
         </button>
         {onMenuOpenChange && (
-          <Popover open={!!menuOpen} onOpenChange={onMenuOpenChange} trigger="⋯" label="列の設定" dataUi="ChildTableBlock.columnMenu">
+          <Popover open={!!menuOpen} onOpenChange={onMenuOpenChange} trigger="⋯" label={t("columnSettings")} dataUi="ChildTableBlock.columnMenu">
             {children}
           </Popover>
         )}
@@ -562,6 +585,7 @@ function Popover({
 function AddColumnForm({ onSubmit }: { onSubmit: (name: string, type: PropertyType) => void }) {
   const [name, setName] = useState("");
   const [type, setType] = useState<PropertyType>("TEXT");
+  const t = useTranslations("editor.childTable");
   return (
     <form
       className={styles.form}
@@ -574,20 +598,20 @@ function AddColumnForm({ onSubmit }: { onSubmit: (name: string, type: PropertyTy
         className={styles.input}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="列名（例: 担当者）"
+        placeholder={t("columnNamePlaceholder")}
         maxLength={50}
         autoFocus
         required
       />
       <select className={styles.input} value={type} onChange={(e) => setType(e.target.value as PropertyType)}>
-        {(Object.keys(PROPERTY_TYPE_LABELS) as PropertyType[]).map((t) => (
-          <option key={t} value={t}>
-            {PROPERTY_TYPE_LABELS[t]}
+        {PROPERTY_TYPES.map((p) => (
+          <option key={p} value={p}>
+            {t(`types.${p}`)}
           </option>
         ))}
       </select>
       <button type="submit" className={styles.primaryButton}>
-        追加
+        {t("add")}
       </button>
     </form>
   );
@@ -619,9 +643,10 @@ function ColumnMenu({
   onDelete: () => void;
 }) {
   const [name, setName] = useState(label);
+  const t = useTranslations("editor.childTable");
   return (
     <div className={styles.form}>
-      <div className={styles.muted}>種類: {column ? PROPERTY_TYPE_LABELS[column.type] : "自動（変更不可）"}</div>
+      <div className={styles.muted}>{t("type", { type: column ? t(`types.${column.type}`) : t("automatic") })}</div>
       {column && canEditColumn && (
         <form
           className={styles.row}
@@ -632,24 +657,24 @@ function ColumnMenu({
         >
           <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} maxLength={50} required />
           <button type="submit" className={styles.toolButton}>
-            名前を変更
+            {t("rename")}
           </button>
         </form>
       )}
       {column?.type === "SELECT" && canEditColumn && <OptionsEditor options={column.options} onSave={onOptions} />}
       <div className={styles.row}>
         <button type="button" className={styles.toolButton} disabled={first} onClick={() => onMove(-1)}>
-          ← 左へ
+          {t("left")}
         </button>
         <button type="button" className={styles.toolButton} disabled={last} onClick={() => onMove(1)}>
-          右へ →
+          {t("right")}
         </button>
         <button type="button" className={styles.toolButton} onClick={onHide}>
-          非表示
+          {t("hide")}
         </button>
         {column && canEditColumn && (
           <button type="button" className={styles.dangerButton} onClick={onDelete}>
-            列を削除
+            {t("remove")}
           </button>
         )}
       </div>
@@ -663,25 +688,26 @@ function newOptionId(): string {
 
 function OptionsEditor({ options, onSave }: { options: SelectOption[]; onSave: (options: SelectOption[]) => void }) {
   const [draft, setDraft] = useState(options);
+  const t = useTranslations("editor.childTable");
   const update = (i: number, patch: Partial<SelectOption>) =>
     setDraft((d) => d.map((o, j) => (j === i ? { ...o, ...patch } : o)));
   return (
     <div className={styles.form}>
-      <div className={styles.muted}>選択肢</div>
+      <div className={styles.muted}>{t("options")}</div>
       {draft.map((o, i) => (
         <div key={o.id} className={styles.row}>
           <button
             type="button"
             className={styles.swatch}
             style={{ background: o.color }}
-            title="色を変える"
+            title={t("changeColor")}
             onClick={() => update(i, { color: OPTION_COLORS[(OPTION_COLORS.indexOf(o.color) + 1) % OPTION_COLORS.length] })}
           />
           <input className={styles.input} value={o.name} onChange={(e) => update(i, { name: e.target.value })} maxLength={50} />
           <button
             type="button"
             className={styles.toolButton}
-            aria-label="選択肢を削除"
+            aria-label={t("removeOption")}
             onClick={() => setDraft((d) => d.filter((_, j) => j !== i))}
           >
             ×
@@ -696,10 +722,10 @@ function OptionsEditor({ options, onSave }: { options: SelectOption[]; onSave: (
             setDraft((d) => [...d, { id: newOptionId(), name: "", color: OPTION_COLORS[d.length % OPTION_COLORS.length] }])
           }
         >
-          ＋ 選択肢を追加
+          {t("addOption")}
         </button>
         <button type="button" className={styles.primaryButton} onClick={() => onSave(draft.filter((o) => o.name.trim()))}>
-          選択肢を保存
+          {t("saveOptions")}
         </button>
       </div>
     </div>
@@ -719,6 +745,7 @@ function Cell({
   data: ChildTableData;
   onSave: (value: string) => void;
 }) {
+  const t = useTranslations("editor.childTable");
   if (column.type === "SELECT") {
     const option = column.options.find((o) => o.id === value);
     if (!editable) return option ? <span className={styles.chip} style={{ background: option.color }}>{option.name}</span> : null;
@@ -740,7 +767,7 @@ function Cell({
   }
 
   if (column.type === "USER") {
-    const name = value ? (data.userNames[value] ?? "（不明なユーザー）") : "";
+    const name = value ? (data.userNames[value] ?? t("unknownUser")) : "";
     if (!editable) return <>{name}</>;
     const known = !value || data.assignees.some((u) => u.id === value);
     return (
@@ -805,6 +832,7 @@ function NewPageRow({ onCreate }: { onCreate: (title: string) => Promise<boolean
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
+  const t = useTranslations("editor.childTable");
   if (!open) {
     return (
       <button
@@ -813,7 +841,7 @@ function NewPageRow({ onCreate }: { onCreate: (title: string) => Promise<boolean
         data-ui="ChildTableBlock.newPageButton"
         onClick={() => setOpen(true)}
       >
-        ＋ 新しいページ
+        {t("newPage")}
       </button>
     );
   }
@@ -829,7 +857,7 @@ function NewPageRow({ onCreate }: { onCreate: (title: string) => Promise<boolean
       className={styles.newRowInput}
       data-ui="ChildTableBlock.newPageInput"
       value={title}
-      placeholder="ページのタイトルを入力して Enter（空なら無題）"
+      placeholder={t("newPagePlaceholder")}
       maxLength={200}
       autoFocus
       readOnly={busy}

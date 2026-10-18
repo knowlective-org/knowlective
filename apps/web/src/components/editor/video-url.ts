@@ -5,7 +5,8 @@ export type VideoSource =
   // A video on a video site, shown in that site's player. `embedUrl` is built
   // here from the id alone — never taken from the pasted URL — so the player
   // frame can only ever point at these sites.
-  | { kind: "embed"; provider: "youtube" | "vimeo" | "niconico"; label: string; embedUrl: string }
+  // The site's name is editor.video.providers[provider].
+  | { kind: "embed"; provider: "youtube" | "vimeo" | "niconico"; embedUrl: string }
   // A link straight to a video file, played by the browser.
   | { kind: "file" };
 
@@ -34,7 +35,6 @@ function youtube(url: URL): VideoSource | null {
   return {
     kind: "embed",
     provider: "youtube",
-    label: "YouTube",
     // The "nocookie" player doesn't set tracking cookies until it's played.
     embedUrl: `https://www.youtube-nocookie.com/embed/${id}${start > 0 ? `?start=${start}` : ""}`,
   };
@@ -49,7 +49,7 @@ function vimeo(url: URL): VideoSource | null {
   // Unlisted videos carry a key: vimeo.com/<id>/<key>, or ?h=<key>.
   const key = url.searchParams.get("h") ?? segments[index + 1];
   const h = key && /^[0-9a-f]{6,16}$/i.test(key) ? `?h=${key}` : "";
-  return { kind: "embed", provider: "vimeo", label: "Vimeo", embedUrl: `https://player.vimeo.com/video/${segments[index]}${h}` };
+  return { kind: "embed", provider: "vimeo", embedUrl: `https://player.vimeo.com/video/${segments[index]}${h}` };
 }
 
 function niconico(url: URL): VideoSource | null {
@@ -58,7 +58,7 @@ function niconico(url: URL): VideoSource | null {
   if (host === "nico.ms") id = url.pathname.split("/")[1];
   else if (host === "nicovideo.jp" && url.pathname.startsWith("/watch/")) id = url.pathname.split("/")[2];
   if (!id || !/^(sm|nm|so)\d{1,12}$/.test(id)) return null;
-  return { kind: "embed", provider: "niconico", label: "ニコニコ動画", embedUrl: `https://embed.nicovideo.jp/watch/${id}` };
+  return { kind: "embed", provider: "niconico", embedUrl: `https://embed.nicovideo.jp/watch/${id}` };
 }
 
 // What kind of video `raw` points to, or null if it isn't one we can play.

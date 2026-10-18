@@ -8,13 +8,13 @@
 export const TITLE_FIELD = "title";
 export const MAX_TITLE_LENGTH = 200;
 
-// Shown for a page whose title is empty.
-export const UNTITLED = "無題";
-
 export function normalizeTitle(raw: string): string {
   return raw.replace(/\s+/g, " ").trim().slice(0, MAX_TITLE_LENGTH);
 }
 
-export function displayTitle(title: string): string {
-  return title.trim() || UNTITLED;
+// The title to show; untitled (in the viewer's language: common.untitled)
+// for an empty one. Components get one with useDisplayTitle() /
+// getDisplayTitle() (i18n/display-title.ts).
+export function displayTitle(title: string, untitled: string): string {
+  return title.trim() || untitled;
 }

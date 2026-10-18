@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { getPageAccess } from "shared";
 import { prisma } from "@/lib/db";
 import { getCurrentUser, requireUser } from "@/lib/auth/session";
@@ -29,7 +30,7 @@ export default async function Home() {
   const landing = await landingPageFor(user.id);
   if (landing) redirect(`/pages/${landing}`);
 
-  const sidebar = await loadSidebar(user);
+  const [sidebar, t] = await Promise.all([loadSidebar(user), getTranslations("home")]);
   const first =
     sidebar.trees.find((t) => t.rootPageId && t.entryIds.includes(t.rootPageId))?.rootPageId ??
     sidebar.trees[0]?.entryIds[0];
@@ -38,11 +39,11 @@ export default async function Home() {
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={null} />}>
       <div style={{ padding: "0 54px" }} data-ui="EmptyHome">
-        <h1 className={styles.title}>KNOWLECTIVE へようこそ</h1>
+        <h1 className={styles.title}>{t("welcome")}</h1>
         <p className={styles.lead}>
           {sidebar.canCreateRoot
-            ? "見られるページはまだありません。左の「＋ 新しいナレッジルート」から作成できます。"
-            : "見られるページはまだありません。グループに追加されると、左に表示されます。"}
+            ? t("emptyCanCreate")
+            : t("empty")}
         </p>
       </div>
     </AppShell>

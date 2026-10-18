@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import styles from "@/styles/ui.module.css";
 import { type CreateRootState, createRoot } from "./actions";
@@ -12,11 +13,12 @@ export function CreateRootForm({ groups }: { groups: { id: string; name: string;
   const [groupNameEdited, setGroupNameEdited] = useState(false);
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
   const selected = groups.find((g) => g.id === groupId);
+  const t = useTranslations("newRoot");
 
   return (
     <form action={formAction} className={styles.form} data-ui="CreateRootForm">
       <label>
-        ナレッジルートの名前
+        {t("name")}
         <input
           type="text"
           name="title"
@@ -27,17 +29,17 @@ export function CreateRootForm({ groups }: { groups: { id: string; name: string;
           onChange={(e) => {
             setTitle(e.target.value);
             // Suggest a group name until the user types their own.
-            if (!groupNameEdited) setGroupName(e.target.value.trim() ? `${e.target.value.trim()} 管理` : "");
+            if (!groupNameEdited) setGroupName(e.target.value.trim() ? t("newGroupSuggestion", { name: e.target.value.trim() }) : "");
           }}
           className={styles.field}
         />
       </label>
 
       <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }}>
-        <legend style={{ marginBottom: 6 }}>「管理」の権限を付けるグループ</legend>
+        <legend style={{ marginBottom: 6 }}>{t("managerGroup")}</legend>
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <input type="radio" name="groupMode" value="new" checked={mode === "new"} onChange={() => setMode("new")} data-ui="CreateRootForm.newGroupRadio" />
-          新しいグループを作る（あなたもメンバーになります）
+          {t("newGroup")}
         </label>
         {mode === "new" && (
           <input
@@ -51,8 +53,8 @@ export function CreateRootForm({ groups }: { groups: { id: string; name: string;
               setGroupName(e.target.value);
               setGroupNameEdited(true);
             }}
-            placeholder="例: 営業部 管理"
-            aria-label="新しいグループの名前"
+            placeholder={t("newGroupPlaceholder")}
+            aria-label={t("newGroupLabel")}
             className={styles.field}
           />
         )}
@@ -66,7 +68,7 @@ export function CreateRootForm({ groups }: { groups: { id: string; name: string;
             disabled={groups.length === 0}
             onChange={() => setMode("existing")}
           />
-          既存のグループを選ぶ{groups.length === 0 && "（選べるグループがありません）"}
+          {t("existingGroup")}{groups.length === 0 && t("noGroups")}
         </label>
         {mode === "existing" && (
           <>
@@ -75,19 +77,19 @@ export function CreateRootForm({ groups }: { groups: { id: string; name: string;
               data-ui="CreateRootForm.groupSelect"
               value={groupId}
               onChange={(e) => setGroupId(e.target.value)}
-              aria-label="既存のグループ"
+              aria-label={t("existingGroupLabel")}
               className={styles.field}
             >
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.name}
-                  {g.isMember ? "" : "（あなたは未参加）"}
+                  {g.isMember ? "" : t("notMember")}
                 </option>
               ))}
             </select>
             {selected && !selected.isMember && (
               <p className={styles.error} data-ui="CreateRootForm.notMemberWarning">
-                あなたはこのグループのメンバーではないため、作成後にこのナレッジルートを開けません。
+                {t("notMemberWarning")}
               </p>
             )}
           </>
@@ -96,14 +98,14 @@ export function CreateRootForm({ groups }: { groups: { id: string; name: string;
 
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input type="checkbox" name="shareWithAll" data-ui="CreateRootForm.shareWithAllCheckbox" />
-        登録ユーザー全員が閲覧できるようにする（「全ユーザー」に閲覧権限を付けます。あとから「権限設定」で変更できます）
+        {t("shareWithAll")}
       </label>
 
       <p aria-live="polite" className={styles.error} data-ui="CreateRootForm.error">
         {state.error}
       </p>
       <button type="submit" disabled={pending} className={styles.button} data-ui="CreateRootForm.submitButton">
-        {pending ? "作成しています…" : "作成する"}
+        {pending ? t("creating") : t("create")}
       </button>
     </form>
   );

@@ -1,6 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import { auditTranslator } from "@/i18n/audit";
 import { ALL_USERS_GROUP, createKnowledgeRoot } from "shared";
 import { prisma } from "@/lib/db";
 import { reindexPage } from "@/lib/search-index";
@@ -17,14 +19,15 @@ const CREATOR_ROLES = ["SITE_ADMIN", "CONTENT_MANAGER"];
 // never to the creator personally. With a new group, the creator joins it.
 export async function createRoot(_prev: CreateRootState, formData: FormData): Promise<CreateRootState> {
   const user = await requireUser("/roots/new");
+  const t = await getTranslations("newRoot.errors");
   if (!CREATOR_ROLES.includes(user.siteRole)) {
-    return { error: "ナレッジルートを作成できるのは、コンテンツ管理者とサイト管理者だけです。" };
+    return { error: t("notAllowed") };
   }
 
   const rawTitle = formData.get("title");
   const title = typeof rawTitle === "string" ? normalizeTitle(rawTitle) : "";
-  if (!title) return { error: "ナレッジルートの名前を入力してください。" };
-  if (title.length > MAX_TITLE_LENGTH) return { error: `名前は${MAX_TITLE_LENGTH}文字以内にしてください。` };
+  if (!title) return { error: t("nameRequired") };
+  if (title.length > MAX_TITLE_LENGTH) return { error: t("nameTooLong", { max: MAX_TITLE_LENGTH }) };
 
   const shareWithAll = formData.get("shareWithAll") === "on";
   const mode = formData.get("groupMode");
@@ -32,25 +35,27 @@ export async function createRoot(_prev: CreateRootState, formData: FormData): Pr
   let newGroupName: string | null = null;
   if (mode === "existing") {
     const id = formData.get("groupId");
-    if (typeof id !== "string" || !id) return { error: "管理するグループを選んでください。" };
+    if (typeof id !== "string" || !id) return { error: t("groupRequired") };
     // Same rule as /admin: a content manager can only use groups within
     // trees it already manages.
     if (!(await canManageGroup({ userId: user.id, role: user.siteRole }, id))) {
-      return { error: "このグループは選べません。" };
+      return { error: t("groupNotAllowed") };
     }
     const chosen = await prisma.group.findUnique({ where: { id }, select: { builtIn: true } });
-    if (!chosen || chosen.builtIn) return { error: "このグループは選べません。" };
+    if (!chosen || chosen.builtIn) return { error: t("groupNotAllowed") };
     groupId = id;
   } else {
     const raw = formData.get("newGroupName");
     newGroupName = typeof raw === "string" ? raw.trim() : "";
-    if (!newGroupName) return { error: "新しいグループの名前を入力してください。" };
-    if (newGroupName.length > 100) return { error: "グループ名は100文字以内にしてください。" };
+    if (!newGroupName) return { error: t("newGroupRequired") };
+    if (newGroupName.length > 100) return { error: t("groupNameTooLong") };
     if (await prisma.group.findUnique({ where: { name: newGroupName }, select: { id: true } })) {
-      return { error: "同じ名前のグループがすでにあります。" };
+      return { error: t("groupExists") };
     }
   }
 
+  // In the site's default language: group details are shared by every admin.
+  const audit = await auditTranslator();
   const { rootPageId, groupName } = await prisma.$transaction(async (tx) => {
     const { rootPageId } = await createKnowledgeRoot(tx, { title, createdById: user.id });
     let gid = groupId;
@@ -61,7 +66,7 @@ export async function createRoot(_prev: CreateRootState, formData: FormData): Pr
       const group = await tx.group.create({
         // No root title here: group details are visible to site admins, who
         // must not learn the names of pages they can't see.
-        data: { name: newGroupName!, description: "ナレッジルート作成時に作られた管理グループ" },
+        data: { name: newGroupName!, description: audit("newRoot.managerGroupDescription") },
       });
       gid = group.id;
       gname = group.name;
@@ -79,9 +84,7 @@ export async function createRoot(_prev: CreateRootState, formData: FormData): Pr
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "root.create",
-    `ナレッジルート「${title}」を作成し、グループ「${groupName}」に管理権限を付与` +
-      (newGroupName ? "（グループを新規作成し、作成者が参加）" : "") +
-      (shareWithAll ? "。全ユーザーに閲覧権限を付与" : ""),
+    audit("audit.rootCreate", { title, group: groupName, newGroup: String(newGroupName !== null), shareWithAll: String(shareWithAll) }),
     { rootPageId },
   );
   await reindexPage(prisma, rootPageId);

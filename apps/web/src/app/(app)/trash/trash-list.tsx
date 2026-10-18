@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
 import { Fragment, useState, useTransition } from "react";
-import { displayTitle } from "@/lib/page-title";
+import { useDisplayTitle } from "@/i18n/use-display-title";
 import styles from "@/styles/ui.module.css";
 import { restorePage } from "./actions";
 import trashStyles from "./trash-list.module.css";
@@ -24,8 +25,6 @@ export type TrashListItem = {
 
 type Destination = { id: string; title: string; depth: number };
 
-const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" });
-
 export function TrashList({
   items,
   destinations,
@@ -39,11 +38,15 @@ export function TrashList({
   // The item whose destination picker is open, and the page picked in it.
   const [picking, setPicking] = useState<{ id: string; parentId: string } | null>(null);
   const [, startTransition] = useTransition();
+  const t = useTranslations("trash");
+  const tc = useTranslations("common");
+  const format = useFormatter();
+  const displayTitle = useDisplayTitle();
 
   if (items.length === 0) {
     return (
       <p className={styles.note} data-ui="TrashList.empty">
-        ごみ箱は空です。
+        {t("empty")}
       </p>
     );
   }
@@ -51,16 +54,14 @@ export function TrashList({
   const restore = async (item: TrashListItem, newParentId?: string) => {
     if (newParentId) {
       const to = destinations[item.rootId]?.find((d) => d.id === newParentId);
-      const from = item.parent ? `元の親「${displayTitle(item.parent.title)}」` : "元の親ページ";
-      const message =
-        `「${displayTitle(item.title)}」を「${displayTitle(to?.title ?? "")}」の下に戻します（${from}はごみ箱にあるため）。\n` +
-        `ページの権限は、戻した場所から引き継がれます。よろしいですか？`;
-      if (!(await showConfirm(message, { title: "ページを戻す", confirmLabel: "戻す" }))) return;
+      const from = item.parent ? t("fromParent", { title: displayTitle(item.parent.title) }) : t("fromParentUnknown");
+      const message = t("restoreConfirm", { title: displayTitle(item.title), to: displayTitle(to?.title ?? ""), from });
+      if (!(await showConfirm(message, { title: t("restoreTitle"), confirmLabel: t("restoreLabel") }))) return;
     }
     setBusy(item.id);
     startTransition(async () => {
       const result = await restorePage(item.id, newParentId);
-      if (result.error) void showAlert(result.error, { title: "元に戻せません" });
+      if (result.error) void showAlert(result.error, { title: t("cannotRestore") });
       else setPicking(null);
       // Refreshes this list and the sidebar (the page is back in the tree).
       router.refresh();
@@ -72,11 +73,11 @@ export function TrashList({
     <table className={styles.table} data-ui="TrashList">
       <thead>
         <tr>
-          <th>ページ</th>
-          <th>元の場所</th>
-          <th>削除した人</th>
-          <th>削除日時</th>
-          <th aria-label="操作" />
+          <th>{t("page")}</th>
+          <th>{t("from")}</th>
+          <th>{t("deletedBy")}</th>
+          <th>{t("deletedAt")}</th>
+          <th aria-label={t("actions")} />
         </tr>
       </thead>
       <tbody>
@@ -105,13 +106,13 @@ export function TrashList({
                       </Link>
                     )
                   ) : (
-                    "（権限のないページ）"
+                    t("noAccessPage")
                   )}
-                  {item.parentInTrash && <div className={trashStyles.badge}>親ページがごみ箱にあります</div>}
+                  {item.parentInTrash && <div className={trashStyles.badge}>{t("parentInTrash")}</div>}
                 </td>
                 <td className={trashStyles.dim}>{item.deletedBy || "—"}</td>
                 <td className={trashStyles.dim} style={{ whiteSpace: "nowrap" }}>
-                  {dateTimeFormat.format(new Date(item.deletedAt))}
+                  {format.dateTime(new Date(item.deletedAt), { dateStyle: "medium", timeStyle: "short" })}
                 </td>
                 <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                   {item.parentInTrash ? (
@@ -120,7 +121,7 @@ export function TrashList({
                       className={styles.buttonSecondary}
                       style={{ padding: "4px 12px" }}
                       disabled={busy !== null || options.length === 0}
-                      title={options.length === 0 ? "戻せる場所（編集できるページ）がありません" : undefined}
+                      title={options.length === 0 ? t("noDestinations") : undefined}
                       aria-expanded={isPicking}
                       onClick={() =>
                         setPicking(
@@ -129,7 +130,7 @@ export function TrashList({
                       }
                       data-ui="TrashList.chooseButton"
                     >
-                      戻す場所を選ぶ
+                      {t("chooseDestination")}
                     </button>
                   ) : (
                     <button
@@ -140,7 +141,7 @@ export function TrashList({
                       onClick={() => restore(item)}
                       data-ui="TrashList.restoreButton"
                     >
-                      {busy === item.id ? "戻しています…" : "元に戻す"}
+                      {busy === item.id ? t("restoring") : t("restore")}
                     </button>
                   )}
                 </td>
@@ -150,7 +151,7 @@ export function TrashList({
                   <td colSpan={5}>
                     <div className={trashStyles.picker}>
                       <label className={trashStyles.pickerLabel}>
-                        戻す場所（このページの下に戻します）
+                        {t("destination")}
                         <select
                           className={styles.field}
                           value={picking.parentId}
@@ -173,18 +174,18 @@ export function TrashList({
                           onClick={() => restore(item, picking.parentId)}
                           data-ui="TrashList.restoreHereButton"
                         >
-                          {busy === item.id ? "戻しています…" : "ここに戻す"}
+                          {busy === item.id ? t("restoring") : t("restoreHere")}
                         </button>
                         <button
                           type="button"
                           className={styles.buttonSecondary}
                           onClick={() => setPicking(null)}
                         >
-                          キャンセル
+                          {tc("cancel")}
                         </button>
                       </div>
                       <p className={styles.note}>
-                        ページの権限は、戻した場所から引き継がれます。同じナレッジルートの中で、編集できるページだけを選べます。
+                        {t("destinationNote")}
                       </p>
                     </div>
                   </td>

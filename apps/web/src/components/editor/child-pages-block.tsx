@@ -1,19 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { createReactBlockSpec } from "@blocknote/react";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
-import { displayTitle } from "@/lib/page-title";
+import { useDisplayTitle } from "@/i18n/use-display-title";
 import type { ChildPageItem } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-blocks.module.css";
 
 const DEPTHS = [1, 2, 3] as const;
-
-const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", timeStyle: "short" });
-
-const LIST_PLACEHOLDER = "子ページ一覧";
 
 // Child page list: links to the page's children, always current. Only the
 // settings (title, how many levels) are stored in the document; the list
@@ -53,13 +50,14 @@ function ChildPagesList({
 }) {
   const { pageId } = usePageEditor();
   const { data } = useChildrenData(loadChildPages);
+  const t = useTranslations("editor");
 
   return (
     <div className={styles.block} contentEditable={false} data-ui="ChildPagesBlock">
       <div className={styles.header}>
         <BlockTitle
           value={title}
-          placeholder={LIST_PLACEHOLDER}
+          placeholder={t("childPages.placeholder")}
           editable={editable}
           onSave={(next) => onChange({ title: next })}
           uiName="ChildPagesBlock"
@@ -70,20 +68,20 @@ function ChildPagesList({
             data-ui="ChildPagesBlock.depth"
             value={depth}
             onChange={(e) => onChange({ depth: Number(e.target.value) })}
-            aria-label="表示する階層"
+            aria-label={t("childPages.levels")}
           >
             {DEPTHS.map((d) => (
               <option key={d} value={d}>
-                {d}階層
+                {t("childPages.level", { count: d })}
               </option>
             ))}
           </select>
         )}
       </div>
       {data === undefined ? (
-        <p className={styles.muted}>読み込み中…</p>
+        <p className={styles.muted}>{t("loading")}</p>
       ) : data === null || !data.some((p) => p.parentId === pageId) ? (
-        <p className={styles.muted}>子ページはありません。</p>
+        <p className={styles.muted}>{t("childPages.none")}</p>
       ) : (
         <PageList pages={data} parentId={pageId} levels={depth} />
       )}
@@ -93,6 +91,9 @@ function ChildPagesList({
 
 function PageList({ pages, parentId, levels }: { pages: ChildPageItem[]; parentId: string; levels: number }) {
   const children = pages.filter((p) => p.parentId === parentId);
+  const t = useTranslations("editor.childPages");
+  const format = useFormatter();
+  const displayTitle = useDisplayTitle();
   if (children.length === 0) return null;
   return (
     <ul className={styles.pageList}>
@@ -103,8 +104,8 @@ function PageList({ pages, parentId, levels }: { pages: ChildPageItem[]; parentI
             <span>{displayTitle(p.title)}</span>
           </Link>
           {p.updatedAt && (
-            <time className={styles.pageMeta} dateTime={p.updatedAt} title="最終更新日時" data-ui="ChildPagesBlock.updatedAt">
-              {dateTimeFormat.format(new Date(p.updatedAt))}
+            <time className={styles.pageMeta} dateTime={p.updatedAt} title={t("updatedAt")} data-ui="ChildPagesBlock.updatedAt">
+              {format.dateTime(new Date(p.updatedAt), { dateStyle: "short", timeStyle: "short" })}
             </time>
           )}
           {levels > 1 && <PageList pages={pages} parentId={p.id} levels={levels - 1} />}

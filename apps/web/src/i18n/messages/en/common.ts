@@ -15,6 +15,11 @@ export default {
     CONTENT_MANAGER: "Content manager",
     USER: "User",
   },
+  // Built-in groups (Group.builtIn), named in the viewer's language.
+  builtInGroups: {
+    all_users: "All users",
+    public: "Public on the internet",
+  },
   access: {
     VIEW: "View",
     EDIT: "Edit",

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { createReactBlockSpec } from "@blocknote/react";
 import { safeHttpUrl } from "./link-preview-block";
 import { parseVideoUrl } from "./video-url";
@@ -35,12 +36,13 @@ export const videoEmbedBlock = createReactBlockSpec(
 );
 
 function VideoEmbed({ url, editable, onUnwrap }: { url: string; editable: boolean; onUnwrap: (href: string) => void }) {
+  const t = useTranslations("editor.video");
   const href = safeHttpUrl(url);
   const source = href ? parseVideoUrl(href) : null;
   if (!href || source?.kind !== "embed") {
     return (
       <div className={styles.block} contentEditable={false} data-ui="VideoEmbedBlock">
-        <p className={styles.muted}>再生できる動画の URL ではありません。</p>
+        <p className={styles.muted}>{t("notPlayable")}</p>
       </div>
     );
   }
@@ -50,7 +52,7 @@ function VideoEmbed({ url, editable, onUnwrap }: { url: string; editable: boolea
         <iframe
           className={styles.player}
           src={source.embedUrl}
-          title={`${source.label} の動画`}
+          title={t("title", { provider: t(`providers.${source.provider}`) })}
           // Loaded when scrolled near; the site isn't told which page it's on.
           loading="lazy"
           referrerPolicy="no-referrer"
@@ -64,7 +66,7 @@ function VideoEmbed({ url, editable, onUnwrap }: { url: string; editable: boolea
       <div className={styles.bar}>
         {/* Also what's left of the block on paper. */}
         <a className={styles.link} href={href} target="_blank" rel="noopener noreferrer" data-ui="VideoEmbedBlock.link">
-          {source.label} で開く
+          {t("open", { provider: t(`providers.${source.provider}`) })}
         </a>
         {editable && (
           <button
@@ -73,7 +75,7 @@ function VideoEmbed({ url, editable, onUnwrap }: { url: string; editable: boolea
             data-ui="VideoEmbedBlock.unwrapButton"
             onClick={() => onUnwrap(href)}
           >
-            ふつうのリンクに戻す
+            {t("unwrap")}
           </button>
         )}
       </div>

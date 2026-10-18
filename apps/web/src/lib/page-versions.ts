@@ -10,9 +10,5 @@ export const versionAad = (pageId: string, versionId: string) => `knowlective:pa
 
 export type PageVersionKind = "AUTO" | "INITIAL" | "BEFORE_RESTORE" | "RESTORED";
 
-export const VERSION_KIND_LABELS: Record<PageVersionKind, string | null> = {
-  AUTO: null,
-  INITIAL: "履歴の開始時点",
-  BEFORE_RESTORE: "復元の直前",
-  RESTORED: "復元",
-};
+// Kinds shown with a label in the history (history.kinds): all but AUTO.
+export const LABELLED_VERSION_KINDS = ["INITIAL", "BEFORE_RESTORE", "RESTORED"] as const;

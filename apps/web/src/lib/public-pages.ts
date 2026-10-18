@@ -1,6 +1,6 @@
 import { MAX_PAGE_DEPTH, PUBLIC_GROUP, computeTreeAccess } from "shared";
 import { prisma } from "@/lib/db";
-import { displayTitle } from "@/lib/page-title";
+import { getDisplayTitle } from "@/i18n/display-title";
 
 // Public pages: pages viewable without logging in, through a VIEW grant to
 // the built-in "public" group (see packages/shared/src/permissions.ts). They
@@ -40,6 +40,7 @@ export async function publicPageOptions(): Promise<{ id: string; label: string }
   if (ids.length === 0) return [];
   const pages = await prisma.page.findMany({ where: { id: { in: ids } }, select: { id: true, title: true, parentId: true } });
   const byId = new Map(pages.map((p) => [p.id, p]));
+  const displayTitle = await getDisplayTitle();
   return ids.flatMap((id) => {
     const names: string[] = [];
     for (let p = byId.get(id); p && names.length <= MAX_PAGE_DEPTH; p = p.parentId ? byId.get(p.parentId) : undefined) {

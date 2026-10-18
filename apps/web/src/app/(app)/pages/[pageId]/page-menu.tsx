@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
+import { useDisplayTitle } from "@/i18n/use-display-title";
 import { showAlert, showChoice, showConfirm, showCopyText, showTypedConfirm } from "@/components/dialog";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT } from "@/lib/page-export";
-import { displayTitle } from "@/lib/page-title";
 import { MoveDialog } from "./move-dialog";
 import { checkDeletePage, deletePage, loadPageInfo, lockPage, type PageInfo, unlockPage } from "./page-actions";
 import styles from "./page-view.module.css";
-
-const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" });
 
 // Copies the page's URL. navigator.clipboard only exists in secure contexts
 // (https / localhost), so plain-http intranet installs use the old fallback.
@@ -37,6 +36,7 @@ async function copyText(text: string): Promise<boolean> {
 
 export function ShareButton({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
+  const t = useTranslations("pageMenu");
   useEffect(() => {
     if (!copied) return;
     const timer = setTimeout(() => setCopied(false), 2000);
@@ -47,13 +47,13 @@ export function ShareButton({ url }: { url: string }) {
       type="button"
       className={styles.share}
       data-ui="PageView.shareButton"
-      title="このページの URL をコピー"
+      title={t("copyUrlTitle")}
       onClick={async () => {
         if (await copyText(url)) setCopied(true);
-        else void showCopyText("この URL をコピーしてください。", url, { title: "URL のコピー" });
+        else void showCopyText(t("copyUrlPrompt"), url, { title: t("copyUrlDialog") });
       }}
     >
-      {copied ? "URL をコピーしました" : "共有"}
+      {copied ? t("copied") : t("share")}
     </button>
   );
 }
@@ -87,6 +87,10 @@ export function PageMenu({
   const [locking, setLocking] = useState(false);
   const [info, setInfo] = useState<PageInfo | null | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
+  const t = useTranslations("pageMenu");
+  const format = useFormatter();
+  const displayTitle = useDisplayTitle();
+  const formatDate = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" });
 
   useEffect(() => {
     if (!open) return;
@@ -120,7 +124,7 @@ export function PageMenu({
         type="button"
         className={styles.menuButton}
         data-ui="PageMenu.button"
-        aria-label="ページのメニュー"
+        aria-label={t("menu")}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={toggle}
@@ -131,20 +135,20 @@ export function PageMenu({
         <div className={styles.menu} data-ui="PageMenu.panel">
           <dl className={styles.info} data-ui="PageMenu.info">
             {info === undefined ? (
-              <dd className={styles.infoMuted}>読み込み中…</dd>
+              <dd className={styles.infoMuted}>{t("loading")}</dd>
             ) : info === null ? (
-              <dd className={styles.infoMuted}>情報を取得できませんでした。</dd>
+              <dd className={styles.infoMuted}>{t("infoFailed")}</dd>
             ) : (
               <>
-                <dt>作成者</dt>
+                <dt>{t("createdBy")}</dt>
                 <dd>{info.createdBy}</dd>
-                <dt>作成日時</dt>
-                <dd>{dateTimeFormat.format(new Date(info.createdAt))}</dd>
-                <dt>更新者</dt>
+                <dt>{t("createdAt")}</dt>
+                <dd>{formatDate(info.createdAt)}</dd>
+                <dt>{t("updatedBy")}</dt>
                 <dd>{info.updatedBy ?? "—"}</dd>
-                <dt>更新日時</dt>
-                <dd>{dateTimeFormat.format(new Date(info.updatedAt))}</dd>
-                <dt>オーナー</dt>
+                <dt>{t("updatedAt")}</dt>
+                <dd>{formatDate(info.updatedAt)}</dd>
+                <dt>{t("owners")}</dt>
                 <dd className={styles.infoList} data-ui="PageMenu.ownerGroups">
                   {info.ownerGroups.length > 0
                     ? info.ownerGroups.map((name) => <span key={name}>{name}</span>)
@@ -155,10 +159,10 @@ export function PageMenu({
           </dl>
           <div role="menu" className={styles.menuItems}>
             <Link href={`/pages/${pageId}/history`} role="menuitem" className={styles.menuItem} data-ui="PageMenu.history">
-              履歴表示
+              {t("history")}
             </Link>
             {!canEdit ? (
-              <PlannedItem label={lock ? "ロック解除" : "ロック"} note="編集の権限が必要" />
+              <PlannedItem label={lock ? t("unlock") : t("lock")} note={t("needsEdit")} />
             ) : !lock ? (
               <button
                 type="button"
@@ -169,25 +173,25 @@ export function PageMenu({
                 onClick={async () => {
                   setOpen(false);
                   const scope = await showChoice(
-                    `「${displayTitle(title)}」をロックしますか？\nロック中は、解除するまで誰も編集できません（閲覧はできます）。ロックの解除は、編集の権限があれば誰でもできます。`,
+                    t("lockConfirm", { title: displayTitle(title) }),
                     [
-                      { value: "subtree", label: "子ページもロック" },
-                      { value: "page", label: "このページだけロック" },
+                      { value: "subtree", label: t("lockSubtree") },
+                      { value: "page", label: t("lockPageOnly") },
                     ],
-                    { title: "ページのロック" },
+                    { title: t("lockTitle") },
                   );
                   if (!scope) return;
                   setLocking(true);
                   try {
                     const result = await lockPage(pageId, scope === "subtree");
-                    if (result.error) await showAlert(result.error, { title: "ロックできません" });
+                    if (result.error) await showAlert(result.error, { title: t("cannotLock") });
                     router.refresh();
                   } finally {
                     setLocking(false);
                   }
                 }}
               >
-                ロック
+                {t("lock")}
               </button>
             ) : lock.own ? (
               <button
@@ -199,24 +203,24 @@ export function PageMenu({
                 onClick={async () => {
                   setOpen(false);
                   const ok = await showTypedConfirm(
-                    `「${displayTitle(title)}」のロックを解除しますか？\n解除すると、編集の権限がある人は再び編集できるようになります。`,
-                    { title: "ロックの解除", confirmLabel: "ロックを解除" },
+                    t("unlockConfirm", { title: displayTitle(title) }),
+                    { title: t("unlockTitle"), confirmLabel: t("unlockLabel") },
                   );
                   if (!ok) return;
                   setLocking(true);
                   try {
                     const result = await unlockPage(pageId);
-                    if (result.error) await showAlert(result.error, { title: "解除できません" });
+                    if (result.error) await showAlert(result.error, { title: t("cannotUnlock") });
                     router.refresh();
                   } finally {
                     setLocking(false);
                   }
                 }}
               >
-                ロック解除
+                {t("unlock")}
               </button>
             ) : (
-              <PlannedItem label="ロック解除" note="上位のページで解除" />
+              <PlannedItem label={t("unlock")} note={t("unlockAbove")} />
             )}
             {canManage ? (
               <Link
@@ -225,10 +229,10 @@ export function PageMenu({
                 className={styles.menuItem}
                 data-ui="PageMenu.permissions"
               >
-                権限設定
+                {t("permissions")}
               </Link>
             ) : (
-              <PlannedItem label="権限設定" note={personal ? "自分専用（共有できません）" : "管理の権限が必要"} />
+              <PlannedItem label={t("permissions")} note={personal ? t("personalNoShare") : t("needsManage")} />
             )}
             <button
               type="button"
@@ -241,7 +245,7 @@ export function PageMenu({
                 window.dispatchEvent(new Event(EXPORT_MARKDOWN_EVENT));
               }}
             >
-              <span>Markdown で書き出す</span>
+              <span>{t("exportMarkdown")}</span>
               <span className={styles.menuNote}>.md</span>
             </button>
             <button
@@ -254,7 +258,7 @@ export function PageMenu({
                 window.dispatchEvent(new Event(EXPORT_PDF_EVENT));
               }}
             >
-              <span>PDF で書き出す</span>
+              <span>{t("exportPdf")}</span>
               <span className={styles.menuNote}>.pdf</span>
             </button>
             {canEdit && !isRootPage && !lock ? (
@@ -268,10 +272,10 @@ export function PageMenu({
                   setMoveOpen(true);
                 }}
               >
-                移動
+                {t("move")}
               </button>
             ) : (
-              <PlannedItem label="移動" note={isRootPage ? "ナレッジルートは移動不可" : lock && canEdit ? "ロック中" : "編集の権限が必要"} />
+              <PlannedItem label={t("move")} note={isRootPage ? t("rootCannotMove") : lock && canEdit ? t("locked") : t("needsEdit")} />
             )}
             {canEdit && !isRootPage && !lock ? (
               <button
@@ -285,18 +289,17 @@ export function PageMenu({
                   try {
                     const check = await checkDeletePage(pageId);
                     if ("error" in check) {
-                      await showAlert(check.error, { title: "削除できません" });
+                      await showAlert(check.error, { title: t("cannotDelete") });
                       return;
                     }
-                    const children = check.descendants > 0 ? `と、その下の${check.descendants}ページ` : "";
                     const ok = await showConfirm(
-                      `「${displayTitle(title)}」${children}をごみ箱に移動しますか？\nごみ箱から元に戻せます。`,
-                      { title: "ページの削除", confirmLabel: "ごみ箱に移動", danger: true },
+                      t("deleteConfirm", { title: displayTitle(title), descendants: check.descendants }),
+                      { title: t("deleteTitle"), confirmLabel: t("deleteLabel"), danger: true },
                     );
                     if (!ok) return;
                     const result = await deletePage(pageId);
                     if ("error" in result) {
-                      await showAlert(result.error, { title: "削除できません" });
+                      await showAlert(result.error, { title: t("cannotDelete") });
                       return;
                     }
                     setOpen(false);
@@ -306,11 +309,11 @@ export function PageMenu({
                   }
                 }}
               >
-                <span>{deleting ? "削除しています…" : "削除"}</span>
-                <span className={styles.menuNote}>ごみ箱へ</span>
+                <span>{deleting ? t("deleting") : t("delete")}</span>
+                <span className={styles.menuNote}>{t("toTrash")}</span>
               </button>
             ) : (
-              <PlannedItem label="削除" danger note={isRootPage ? "ナレッジルートは削除不可" : lock && canEdit ? "ロック中" : "編集の権限が必要"} />
+              <PlannedItem label={t("delete")} danger note={isRootPage ? t("rootCannotDelete") : lock && canEdit ? t("locked") : t("needsEdit")} />
             )}
           </div>
         </div>
@@ -321,7 +324,8 @@ export function PageMenu({
 }
 
 // Not implemented yet; shown so the menu's final shape is visible.
-function PlannedItem({ label, note = "準備中", danger }: { label: string; note?: string; danger?: boolean }) {
+function PlannedItem({ label, note, danger }: { label: string; note?: string; danger?: boolean }) {
+  const t = useTranslations("pageMenu");
   return (
     <button
       type="button"
@@ -332,7 +336,7 @@ function PlannedItem({ label, note = "準備中", danger }: { label: string; not
       disabled
     >
       <span>{label}</span>
-      <span className={styles.menuNote}>{note}</span>
+      <span className={styles.menuNote}>{note ?? t("planned")}</span>
     </button>
   );
 }

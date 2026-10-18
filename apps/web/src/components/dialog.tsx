@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { normalizeConfirmCode, randomConfirmCode } from "@/lib/confirm-code";
 import ui from "@/styles/ui.module.css";
@@ -156,6 +157,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
   const done = useRef(false);
   // For a confirmation with a code: what has been typed so far.
   const [typed, setTyped] = useState("");
+  const t = useTranslations();
   const code = request.kind === "confirm" ? request.code : undefined;
   const codeMatches = code === undefined || normalizeConfirmCode(typed) === code;
 
@@ -217,7 +219,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
         {code !== undefined && (
           <label className={styles.codeLabel}>
             <span>
-              確認のため、次の文字を入力してください：
+              {t("dialog.typeToConfirm")}
               <strong className={styles.code} data-ui="AppDialog.code">
                 {code}
               </strong>
@@ -248,7 +250,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
                 autoFocus={request.danger}
                 onClick={() => finish(false)}
               >
-                キャンセル
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
@@ -269,7 +271,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
                 data-ui="AppDialog.cancelButton"
                 onClick={() => finish(false)}
               >
-                キャンセル
+                {t("common.cancel")}
               </button>
               {request.choices.map((choice, i) => {
                 const suggested = i === request.choices.length - 1;
@@ -296,7 +298,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
               autoFocus={request.kind === "alert"}
               onClick={() => finish(true)}
             >
-              閉じる
+              {t("common.close")}
             </button>
           )}
         </div>

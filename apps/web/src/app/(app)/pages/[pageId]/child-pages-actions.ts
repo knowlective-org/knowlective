@@ -1,6 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { getTranslations } from "next-intl/server";
 import { PAGE_ORDER, atLeast, canEditPage, getPageAccess, getUsersWithPageAccess, getVisibleTree, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
@@ -17,7 +18,7 @@ import {
   sealValue,
   validateValue,
 } from "@/lib/page-properties";
-import { OPTION_COLORS } from "@/lib/page-property-types";
+import { OPTION_COLORS, PROPERTY_TYPES } from "@/lib/page-property-types";
 import type {
   ChildPageItem,
   ChildTableData,
@@ -32,8 +33,7 @@ import type {
 // (lib/collab-events.ts) so their blocks refetch.
 
 type Result = { error?: string };
-const NOT_ALLOWED = "この操作を行う権限がありません。";
-const PROPERTY_TYPES: PropertyType[] = ["TEXT", "DATE", "USER", "SELECT"];
+const notAllowed = async () => (await getTranslations("pageErrors"))("notAllowed");
 
 // The caller's visible pages in the tree containing `pageId`, or null if
 // they can't open `pageId` itself. userId null: someone not logged in
@@ -158,12 +158,13 @@ async function editableColumn(userId: string, defId: unknown) {
 export async function addColumn(pageId: string, rawName: string, type: PropertyType): Promise<Result> {
   const user = await requireUser();
   const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
-  if (!canEditPage(access)) return { error: NOT_ALLOWED };
+  if (!canEditPage(access)) return { error: await notAllowed() };
   const name = normalizeColumnName(rawName);
-  if (!name) return { error: "列名を入力してください（50文字以内）。" };
-  if (!PROPERTY_TYPES.includes(type)) return { error: "列の種類が不正です。" };
+  const t = await getTranslations("childPages");
+  if (!name) return { error: t("columnName") };
+  if (!PROPERTY_TYPES.includes(type)) return { error: t("columnType") };
   const existing = await prisma.pagePropertyDef.aggregate({ where: { pageId }, _count: true, _max: { position: true } });
-  if (existing._count >= MAX_COLUMNS) return { error: `列は${MAX_COLUMNS}個までです。` };
+  if (existing._count >= MAX_COLUMNS) return { error: t("tooManyColumns", { max: MAX_COLUMNS }) };
 
   const id = randomUUID();
   const key = await loadDataKey(prisma);
@@ -183,14 +184,19 @@ export async function addColumn(pageId: string, rawName: string, type: PropertyT
 
 // The column a child page board starts with when the page has no select
 // column yet: a status column, with three options to group the cards by.
-const DEFAULT_STATUS = { name: "ステータス", options: ["未着手", "進行中", "完了"] };
 
 export async function addStatusColumn(pageId: string): Promise<{ id: string } | { error: string }> {
   const user = await requireUser();
   const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
-  if (!canEditPage(access)) return { error: NOT_ALLOWED };
+  if (!canEditPage(access)) return { error: await notAllowed() };
   const existing = await prisma.pagePropertyDef.aggregate({ where: { pageId }, _count: true, _max: { position: true } });
-  if (existing._count >= MAX_COLUMNS) return { error: `列は${MAX_COLUMNS}個までです。` };
+  const t = await getTranslations("childPages");
+  if (existing._count >= MAX_COLUMNS) return { error: t("tooManyColumns", { max: MAX_COLUMNS }) };
+  // Named in the language of whoever adds it (it's the page's data from then on).
+  const DEFAULT_STATUS = {
+    name: t("defaultStatus"),
+    options: [t("defaultStatusOptions.todo"), t("defaultStatusOptions.doing"), t("defaultStatusOptions.done")],
+  };
 
   const id = randomUUID();
   const key = await loadDataKey(prisma);
@@ -216,9 +222,9 @@ export async function addStatusColumn(pageId: string): Promise<{ id: string } | 
 export async function renameColumn(defId: string, rawName: string): Promise<Result> {
   const user = await requireUser();
   const def = await editableColumn(user.id, defId);
-  if (!def) return { error: NOT_ALLOWED };
+  if (!def) return { error: await notAllowed() };
   const name = normalizeColumnName(rawName);
-  if (!name) return { error: "列名を入力してください（50文字以内）。" };
+  if (!name) return { error: (await getTranslations("childPages"))("columnName") };
   const key = await loadDataKey(prisma);
   await prisma.pagePropertyDef.update({ where: { id: def.id }, data: { name: sealColumnName(key, def.id, name) } });
   notifyChildrenChanged(def.pageId);
@@ -228,9 +234,9 @@ export async function renameColumn(defId: string, rawName: string): Promise<Resu
 export async function setColumnOptions(defId: string, rawOptions: SelectOption[]): Promise<Result> {
   const user = await requireUser();
   const def = await editableColumn(user.id, defId);
-  if (!def || def.type !== "SELECT") return { error: NOT_ALLOWED };
+  if (!def || def.type !== "SELECT") return { error: await notAllowed() };
   const options = normalizeOptions(rawOptions);
-  if (!options) return { error: "選択肢が不正です（名前は50文字以内、50個まで）。" };
+  if (!options) return { error: (await getTranslations("childPages"))("options") };
   const key = await loadDataKey(prisma);
   await prisma.pagePropertyDef.update({ where: { id: def.id }, data: { options: sealOptions(key, def.id, options) } });
   notifyChildrenChanged(def.pageId);
@@ -241,7 +247,7 @@ export async function setColumnOptions(defId: string, rawOptions: SelectOption[]
 export async function deleteColumn(defId: string): Promise<Result> {
   const user = await requireUser();
   const def = await editableColumn(user.id, defId);
-  if (!def) return { error: NOT_ALLOWED };
+  if (!def) return { error: await notAllowed() };
   await prisma.pagePropertyDef.delete({ where: { id: def.id } });
   notifyChildrenChanged(def.pageId);
   return {};
@@ -252,7 +258,7 @@ export async function deleteColumn(defId: string): Promise<Result> {
 export async function setCellValue(childId: string, defId: string, value: string): Promise<Result> {
   const user = await requireUser();
   if (typeof childId !== "string" || typeof defId !== "string" || typeof value !== "string") {
-    return { error: NOT_ALLOWED };
+    return { error: await notAllowed() };
   }
   const [access, child, def] = await Promise.all([
     getPageAccess(prisma, user.id, childId),
@@ -260,14 +266,14 @@ export async function setCellValue(childId: string, defId: string, value: string
     prisma.pagePropertyDef.findUnique({ where: { id: defId } }),
   ]);
   if (!canEditPage(access) || !child || !def || def.pageId !== child.parentId) {
-    return { error: NOT_ALLOWED };
+    return { error: await notAllowed() };
   }
   const key = await loadDataKey(prisma);
   const column = openColumn(key, def);
   const trimmed = column.type === "TEXT" ? value.trim() : value;
   const assignees = column.type === "USER" && trimmed ? await getUsersWithPageAccess(prisma, def.pageId) : [];
   if (!validateValue(column, trimmed, (id) => assignees.some((u) => u.id === id))) {
-    return { error: "値が不正です。" };
+    return { error: (await getTranslations("childPages"))("value") };
   }
 
   await prisma.$transaction([

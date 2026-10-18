@@ -8,8 +8,15 @@ import { publicGroup, publicPagesAllowed, subtreeIds } from "@/lib/public-pages"
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
-import { ACCESS_LABELS } from "@/lib/admin/format";
-import { displayTitle } from "@/lib/page-title";
+import { auditTranslator } from "@/i18n/audit";
+import { displayTitleWith } from "@/i18n/display-title";
+import { groupName } from "@/i18n/group-name";
+
+// The audit log's translator and the page's title in its language.
+async function auditFor(title: string) {
+  const audit = await auditTranslator();
+  return { audit, title: displayTitleWith(audit)(title) };
+}
 
 // Group grants on one page. Only users with MANAGE on the page may change
 // them, and a root page must always keep at least one MANAGE grant — otherwise
@@ -65,12 +72,16 @@ export async function setGrant(formData: FormData): Promise<void> {
     create: { pageId, groupId, access: access as PageAccess },
     update: { access: access as PageAccess },
   });
+  const { audit, title } = await auditFor(page.title);
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.grant.set",
-    `ページ「${displayTitle(page.title)}」のグループ「${group.name}」の権限を` +
-      (before ? `「${ACCESS_LABELS[before.access]}」から` : "") +
-      `「${ACCESS_LABELS[access as PageAccess]}」に設定`,
+    audit("audit.grantSet", {
+      title,
+      group: groupName(audit, group),
+      before: before ? audit(`access.${before.access}`) : "none",
+      after: audit(`access.${access as PageAccess}`),
+    }),
     { pageId, groupId, from: before?.access ?? null, to: access as PageAccess },
   );
   revalidatePath(`/pages/${pageId}`, "layout");
@@ -91,10 +102,11 @@ export async function removeGrant(formData: FormData): Promise<void> {
   if (!grant) back(pageId);
   if (grant.group.builtIn === PUBLIC_GROUP) back(pageId, "invalid");
   await prisma.pageGrant.delete({ where: { pageId_groupId: { pageId, groupId } } });
+  const { audit, title } = await auditFor(page.title);
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.grant.remove",
-    `ページ「${displayTitle(page.title)}」からグループ「${grant.group.name}」の権限（${ACCESS_LABELS[grant.access]}）を削除`,
+    audit("audit.grantRemove", { title, group: groupName(audit, grant.group), access: audit(`access.${grant.access}`) }),
     { pageId, groupId, from: grant.access },
   );
   revalidatePath(`/pages/${pageId}`, "layout");
@@ -119,10 +131,11 @@ export async function publishPage(formData: FormData): Promise<void> {
   const existing = await prisma.pageGrant.findUnique({ where: { pageId_groupId: { pageId, groupId: group.id } } });
   if (existing) back(pageId);
   await prisma.pageGrant.create({ data: { pageId, groupId: group.id, access: "VIEW" } });
+  const { audit, title } = await auditFor(page.title);
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.public.set",
-    `ページ「${displayTitle(page.title)}」（とその下のページ）をインターネットに公開`,
+    audit("audit.publicSet", { title }),
     { pageId },
   );
   revalidatePath(`/pages/${pageId}`, "layout");
@@ -139,10 +152,11 @@ export async function unpublishPage(formData: FormData): Promise<void> {
   if (!group) back(pageId);
   const { count } = await prisma.pageGrant.deleteMany({ where: { pageId, groupId: group.id } });
   if (count === 0) back(pageId);
+  const { audit, title } = await auditFor(page.title);
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.public.remove",
-    `ページ「${displayTitle(page.title)}」（とその下のページ）のインターネットへの公開をやめる`,
+    audit("audit.publicRemove", { title }),
     { pageId },
   );
   reconnectDocuments(await subtreeIds(pageId));

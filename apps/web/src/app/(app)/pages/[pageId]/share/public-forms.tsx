@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { confirmBeforeSubmit } from "@/components/dialog";
 import styles from "@/styles/ui.module.css";
 import { publishPage, unpublishPage } from "./actions";
@@ -8,6 +9,7 @@ import { publishPage, unpublishPage } from "./actions";
 // confirmed first.
 
 export function PublishForm({ pageId }: { pageId: string }) {
+  const t = useTranslations("share");
   return (
     <form
       action={publishPage}
@@ -15,34 +17,35 @@ export function PublishForm({ pageId }: { pageId: string }) {
       onSubmit={(e) =>
         confirmBeforeSubmit(
           e,
-          "このページと、その下のすべてのページを、ログインしていない人も含めて、URL を知っている誰でも読めるようにします。あとから下に作ったページも公開されます。",
-          { title: "インターネットに公開しますか？", confirmLabel: "公開する", danger: true },
+          t("publishConfirm"),
+          { title: t("publishTitle"), confirmLabel: t("publishLabel"), danger: true },
         )
       }
     >
       <input type="hidden" name="pageId" value={pageId} />
       <button type="submit" className={styles.danger} data-ui="PublishForm.submitButton">
-        インターネットに公開する
+        {t("publish")}
       </button>
     </form>
   );
 }
 
 export function UnpublishForm({ pageId }: { pageId: string }) {
+  const t = useTranslations("share");
   return (
     <form
       action={unpublishPage}
       data-ui="UnpublishForm"
       onSubmit={(e) =>
-        confirmBeforeSubmit(e, "ログインしていない人は、このページとその下のページを見られなくなります。", {
-          title: "公開をやめますか？",
-          confirmLabel: "公開をやめる",
+        confirmBeforeSubmit(e, t("unpublishConfirm"), {
+          title: t("unpublishTitle"),
+          confirmLabel: t("unpublishLabel"),
         })
       }
     >
       <input type="hidden" name="pageId" value={pageId} />
       <button type="submit" className={styles.button} data-ui="UnpublishForm.submitButton">
-        公開をやめる
+        {t("unpublishLabel")}
       </button>
     </form>
   );

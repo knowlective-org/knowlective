@@ -5,7 +5,9 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { notifyChildrenChanged, reconnectDocuments } from "@/lib/collab-events";
-import { displayTitle } from "@/lib/page-title";
+import { getTranslations } from "next-intl/server";
+import { auditTranslator } from "@/i18n/audit";
+import { displayTitleWith, getDisplayTitle } from "@/i18n/display-title";
 import { type AccessChange, MoveConflictError, executeMove, planMove } from "@/lib/page-move";
 
 // Page moves and reordering (lib/page-move.ts), from the sidebar's drag and
@@ -49,19 +51,24 @@ export async function movePage(pageId: string, parentId: string, beforeId: strin
     await executeMove(plan);
   } catch (err) {
     if (err instanceof MoveConflictError) {
-      return { error: "ページの構成が変わっています。画面を更新してから、もう一度お試しください。" };
+      return { error: (await getTranslations("pageMove"))("stale") };
     }
     throw err;
   }
 
   if (plan.parentChanges) {
-    const from = plan.fromParentTitle !== null ? `「${displayTitle(plan.fromParentTitle)}」の下から` : "";
-    const root = plan.toRootTitle !== null ? `（ナレッジルート「${displayTitle(plan.toRootTitle)}」へ）` : "";
-    const children = plan.liveDescendantIds.length > 0 ? `とその下の${plan.liveDescendantIds.length}ページ` : "";
+    const audit = await auditTranslator();
+    const displayTitle = displayTitleWith(audit);
     await recordAudit(
       { userId: user.id, label: userLabel(user) },
       "page.move",
-      `ページ「${displayTitle(plan.title)}」${children}を${from}「${displayTitle(plan.toParentTitle)}」の下に移動${root}。権限は移動先から引き継ぐ`,
+      audit("audit.pageMove", {
+        title: displayTitle(plan.title),
+        descendants: plan.liveDescendantIds.length,
+        from: plan.fromParentTitle !== null ? audit("audit.pageMoveFrom", { title: displayTitle(plan.fromParentTitle) }) : "",
+        to: displayTitle(plan.toParentTitle),
+        root: plan.toRootTitle !== null ? audit("audit.pageMoveRoot", { root: displayTitle(plan.toRootTitle) }) : "",
+      }),
       {
         pageId: plan.pageId,
         fromParentId: plan.fromParentId,
@@ -101,9 +108,10 @@ export async function loadMoveDestinations(pageId: string): Promise<MoveDestinat
     : null;
   const trees = await getVisibleTrees(prisma, user.id);
   if (!page || !trees.some((t) => t.pages.some((p) => p.id === pageId))) {
-    return { error: "このページは移動できません。" };
+    return { error: (await getTranslations("pageMove"))("cannotMove") };
   }
 
+  const [t, displayTitle] = await Promise.all([getTranslations("moveDialog"), getDisplayTitle()]);
   const groups: MoveDestinationGroup[] = [];
   const shared: MoveDestination[] = [];
   // A page in a personal root can only move within it; others never into one.
@@ -138,6 +146,6 @@ export async function loadMoveDestinations(pageId: string): Promise<MoveDestinat
       }
     }
   }
-  if (shared.length > 0) groups.push({ label: "共有されたページ", pages: shared });
+  if (shared.length > 0) groups.push({ label: t("sharedPages"), pages: shared });
   return groups;
 }

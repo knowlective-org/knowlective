@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { withBasePath } from "@/lib/base-path";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { logout, saveRootOrder } from "@/app/(app)/actions";
 import { showAlert } from "./dialog";
@@ -56,6 +57,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const tr = useTranslations("sidebar");
   const listed = trees.filter((t) => t.rootPageId && t.entryIds.includes(t.rootPageId));
   // Knowledge root order: this user's own (User.rootOrder), changed by
   // dragging a root's row. Shown at once, then saved; the next data from the
@@ -72,7 +74,7 @@ export function Sidebar({
   const saveOrder = async (next: string[]) => {
     const previous = order;
     setOrder(next);
-    const result = await saveRootOrder(next).catch(() => ({ error: "保存に失敗しました。" }));
+    const result = await saveRootOrder(next).catch(() => ({ error: tr("saveFailed") }));
     if (result.error) {
       setOrder(previous);
       await showAlert(result.error);
@@ -108,8 +110,8 @@ export function Sidebar({
           name="q"
           defaultValue={searchQuery}
           maxLength={100}
-          placeholder="検索"
-          aria-label="ページを検索"
+          placeholder={tr("search")}
+          aria-label={tr("searchLabel")}
           className={styles.searchInput}
           data-ui="Sidebar.searchInput"
         />
@@ -120,11 +122,11 @@ export function Sidebar({
         {/* At the top so it stays reachable however many roots are listed. */}
         {canCreateRoot && (
           <Link href="/roots/new" className={pathname === "/roots/new" ? styles.actionCurrent : styles.action}>
-            ＋ 新しいナレッジルート
+            {tr("newRoot")}
           </Link>
         )}
         {rootTrees.length === 0 && shared.length === 0 && (
-          <p className={styles.empty}>見られるページはまだありません。</p>
+          <p className={styles.empty}>{tr("nothingVisible")}</p>
         )}
         {rootTrees.map((t, i) => (
           // Drop target for a root being reordered: the upper half of its
@@ -162,7 +164,7 @@ export function Sidebar({
               currentPageId={currentPageId}
               currentTitle={currentTitle}
               maxDepth={maxDepth}
-              rootBadge={t.personal ? "自分専用" : undefined}
+              rootBadge={t.personal ? tr("personal") : undefined}
               rootReorder={
                 reorderable
                   ? {
@@ -179,7 +181,7 @@ export function Sidebar({
         ))}
         {shared.length > 0 && (
           <>
-            <div className={styles.sectionLabel}>{guest ? "公開されているページ" : "共有されたページ"}</div>
+            <div className={styles.sectionLabel}>{guest ? tr("publicPages") : tr("sharedPages")}</div>
             {shared.map((t) => (
               <DocTree
                 key={`shared-${t.rootId}`}
@@ -202,7 +204,7 @@ export function Sidebar({
             data-ui="Sidebar.loginLink"
           >
             <LoginIcon />
-            ログイン
+            {tr("login")}
           </Link>
         </div>
       ) : (
@@ -210,19 +212,19 @@ export function Sidebar({
         <span className={styles.user} title={userName}>
           {userName}
         </span>
-        <Link href="/account" className={styles.footerIcon} aria-label="アカウント" title="アカウント" data-ui="Sidebar.accountLink">
+        <Link href="/account" className={styles.footerIcon} aria-label={tr("account")} title={tr("account")} data-ui="Sidebar.accountLink">
           <AccountIcon />
         </Link>
-        <Link href="/trash" className={styles.footerIcon} aria-label="ごみ箱" title="ごみ箱" data-ui="Sidebar.trashLink">
+        <Link href="/trash" className={styles.footerIcon} aria-label={tr("trash")} title={tr("trash")} data-ui="Sidebar.trashLink">
           <TrashIcon />
         </Link>
         {canOpenAdmin && (
-          <Link href="/admin" className={styles.footerIcon} aria-label="管理画面" title="管理画面" data-ui="Sidebar.adminLink">
+          <Link href="/admin" className={styles.footerIcon} aria-label={tr("admin")} title={tr("admin")} data-ui="Sidebar.adminLink">
             <AdminIcon />
           </Link>
         )}
         <form action={logout} className={styles.logoutForm}>
-          <button type="submit" className={styles.footerIcon} aria-label="ログアウト" title="ログアウト" data-ui="Sidebar.logoutButton">
+          <button type="submit" className={styles.footerIcon} aria-label={tr("logout")} title={tr("logout")} data-ui="Sidebar.logoutButton">
             <LogoutIcon />
           </button>
         </form>

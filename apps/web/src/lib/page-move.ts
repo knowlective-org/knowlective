@@ -8,6 +8,7 @@ import {
   getTreeWithAccess,
   isPersonalRoot,
 } from "shared";
+import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
 
 // Moving a page (with its subtree) under another parent, possibly in another
@@ -24,8 +25,6 @@ import { prisma } from "@/lib/db";
 // are written with SQL so the pages' updatedAt — shown as "updated at" — stays
 // the time of the last content edit.
 
-const CANNOT_MOVE = "このページは移動できません。";
-const STALE = "ページの構成が変わっています。画面を更新してから、もう一度お試しください。";
 
 export type AccessChange = { group: string; before: PageAccess | null; after: PageAccess | null };
 
@@ -56,6 +55,9 @@ export async function planMove(
   parentId: unknown,
   beforeId: unknown,
 ): Promise<MovePlan | { error: string }> {
+  const t = await getTranslations("pageMove");
+  const CANNOT_MOVE = t("cannotMove");
+  const STALE = t("stale");
   if (typeof pageId !== "string" || typeof parentId !== "string") return { error: CANNOT_MOVE };
   if (beforeId !== null && typeof beforeId !== "string") return { error: CANNOT_MOVE };
   const [page, parent] = await Promise.all([
@@ -63,14 +65,14 @@ export async function planMove(
     prisma.page.findUnique({ where: { id: parentId }, select: { rootId: true, title: true } }),
   ]);
   if (!page) return { error: CANNOT_MOVE };
-  if (!page.parentId) return { error: "ナレッジルートのページは移動できません。" };
+  if (!page.parentId) return { error: t("rootPage") };
 
   const source = await getTreeWithAccess(prisma, userId, page.rootId);
   if (!source.live.has(pageId) || !source.access.has(pageId)) return { error: CANNOT_MOVE };
   const dest = !parent ? null : parent.rootId === page.rootId ? source : await getTreeWithAccess(prisma, userId, parent.rootId);
   // Same message for a missing page and one the user can't edit.
   if (!parent || !dest || !dest.live.has(parentId) || !atLeast(dest.access.get(parentId) ?? null, "EDIT")) {
-    return { error: "そのページの下には移動できません（移動先に編集の権限が必要です）。" };
+    return { error: t("noEditDestination") };
   }
   if (beforeId !== null) {
     const before = dest.pages.find((p) => p.id === beforeId);
@@ -83,17 +85,17 @@ export async function planMove(
   // moving would share them, or take pages away from the people who could
   // see them.
   if (parent.rootId !== page.rootId && ((await isPersonalRoot(prisma, page.rootId)) || (await isPersonalRoot(prisma, parent.rootId)))) {
-    return { error: "自分専用のナレッジルートとほかのナレッジルートの間では、ページを移動できません。" };
+    return { error: t("personalBoundary") };
   }
 
   // A locked page stays where it is, also among its siblings. A page locked
   // on its own doesn't stop its child pages being reordered or others being
   // moved under it; a lock covering its child pages does.
   if (source.locks.has(pageId)) {
-    return { error: "このページはロックされているため、移動できません。先にロックを解除してください。" };
+    return { error: t("locked") };
   }
   if (dest.locks.get(parentId)?.coversChildren) {
-    return { error: "移動先は子ページも含めてロックされているため、そこには移動できません。" };
+    return { error: t("destinationLocked") };
   }
 
   const childrenOf = new Map<string, string[]>();
@@ -114,16 +116,16 @@ export async function planMove(
 
   if (parentChanges) {
     if (!atLeast(source.access.get(pageId) ?? null, "EDIT")) {
-      return { error: "このページを移動するには、編集の権限が必要です。" };
+      return { error: t("noEdit") };
     }
     if (liveDescendantIds.some((id) => !atLeast(source.access.get(id) ?? null, "EDIT"))) {
-      return { error: "編集の権限がない子ページが含まれているため、移動できません。" };
+      return { error: t("noEditChild") };
     }
     if (liveDescendantIds.some((id) => source.locks.has(id))) {
-      return { error: "ロックされている子ページが含まれているため、移動できません。" };
+      return { error: t("lockedChild") };
     }
     if (subtreeIds.includes(parentId)) {
-      return { error: "ページを、そのページ自身やその下のページの中には移動できません。" };
+      return { error: t("intoItself") };
     }
     const parentOf = new Map(dest.pages.map((p) => [p.id, p.parentId]));
     let depth = 0;
@@ -131,7 +133,7 @@ export async function planMove(
       cursor = parentOf.get(cursor) ?? null;
     }
     if (depth + 1 + height > MAX_PAGE_DEPTH) {
-      return { error: `ページの階層が${MAX_PAGE_DEPTH}段を超えるため、そこには移動できません。` };
+      return { error: t("tooDeep", { max: MAX_PAGE_DEPTH }) };
     }
   }
 

@@ -1,11 +1,13 @@
 "use server";
 
+import { getTranslations } from "next-intl/server";
 import { atLeast, decrypt, encrypt, getPageAccess, loadDataKey } from "shared";
+import { auditTranslator } from "@/i18n/audit";
+import { displayTitleWith } from "@/i18n/display-title";
 import { prisma } from "@/lib/db";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/session";
 import { liveDocumentState, restoreVersion } from "@/lib/collab-events";
-import { displayTitle } from "@/lib/page-title";
 import { versionAad } from "@/lib/page-versions";
 import {
   MAX_MASK_LENGTH,
@@ -38,17 +40,18 @@ export async function loadVersion(pageId: string, versionId: string): Promise<{ 
 
 export async function restorePageVersion(pageId: string, versionId: string): Promise<{ error?: string }> {
   const user = await requireUser();
+  const t = await getTranslations("history.errors");
   const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
-  if (!access || !atLeast(access.access, "EDIT")) return { error: "この版に戻す権限がありません。" };
-  if (access.lock) return { error: "このページはロックされているため、版に戻せません。先にロックを解除してください。" };
+  if (!access || !atLeast(access.access, "EDIT")) return { error: t("noPermission") };
+  if (access.lock) return { error: t("locked") };
   const version = await findVersion(pageId, versionId);
-  if (!version) return { error: "この版は見つかりません。" };
-  if (version.maskedAt) return { error: "マスクした版には戻せません。" };
+  if (!version) return { error: t("notFound") };
+  if (version.maskedAt) return { error: t("masked") };
   try {
     await restoreVersion(pageId, versionId, user.id);
   } catch (err) {
     console.error("[history] restore failed", err);
-    return { error: "この版に戻せませんでした。もう一度お試しください。" };
+    return { error: t("failed") };
   }
   return {};
 }
@@ -58,7 +61,15 @@ export async function restorePageVersion(pageId: string, versionId: string): Pro
 // are never stored, logged, or returned.
 
 type MaskCheck = { versions: number; matches: number; inCurrent: boolean };
-const BAD_STRINGS = `マスクする文字列は${MAX_MASK_STRINGS}個まで、それぞれ${MIN_MASK_LENGTH}〜${MAX_MASK_LENGTH}文字で入力してください。`;
+// The errors of checkMask() / applyMask(), in the request's language.
+async function maskErrors() {
+  const t = await getTranslations("history.errors");
+  return {
+    noPermission: t("noMaskPermission"),
+    badStrings: t("badStrings", { max: MAX_MASK_STRINGS, min: MIN_MASK_LENGTH, maxLength: MAX_MASK_LENGTH }),
+    stillInPage: t("stillInPage"),
+  };
+}
 
 async function editablePage(userId: string, pageId: unknown) {
   if (typeof pageId !== "string") return null;
@@ -89,24 +100,26 @@ async function scan(pageId: string, strings: string[]) {
 
 export async function checkMask(pageId: string, rawStrings: string[]): Promise<MaskCheck | { error: string }> {
   const user = await requireUser();
+  const errors = await maskErrors();
   const id = await editablePage(user.id, pageId);
-  if (!id) return { error: "マスクする権限がありません。" };
+  if (!id) return { error: errors.noPermission };
   const strings = normalizeMaskStrings(rawStrings);
-  if (!strings) return { error: BAD_STRINGS };
+  if (!strings) return { error: errors.badStrings };
   const { inCurrent, hits } = await scan(id, strings);
   return { versions: hits.length, matches: hits.reduce((n, h) => n + h.count, 0), inCurrent };
 }
 
 export async function applyMask(pageId: string, rawStrings: string[]): Promise<MaskCheck | { error: string }> {
   const user = await requireUser();
+  const errors = await maskErrors();
   const id = await editablePage(user.id, pageId);
-  if (!id) return { error: "マスクする権限がありません。" };
+  if (!id) return { error: errors.noPermission };
   const strings = normalizeMaskStrings(rawStrings);
-  if (!strings) return { error: BAD_STRINGS };
+  if (!strings) return { error: errors.badStrings };
   const { key, page, inCurrent, hits } = await scan(id, strings);
   // Otherwise the next saved version would contain it again.
   if (inCurrent) {
-    return { error: "今のページ（本文またはタイトル）にまだ含まれています。先にページから消してから、マスクしてください。" };
+    return { error: errors.stillInPage };
   }
   if (hits.length === 0) return { versions: 0, matches: 0, inCurrent: false };
 
@@ -125,10 +138,15 @@ export async function applyMask(pageId: string, rawStrings: string[]): Promise<M
     ),
   );
   const matches = hits.reduce((n, h) => n + h.count, 0);
+  const audit = await auditTranslator();
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.version.mask",
-    `ページ「${displayTitle(maskText(page.title, strings).text)}」の履歴で、${hits.length}個の版の${matches}か所をマスク`,
+    audit("audit.versionMask", {
+      title: displayTitleWith(audit)(maskText(page.title, strings).text),
+      versions: hits.length,
+      matches,
+    }),
     { pageId: id, versionIds: hits.map((h) => h.id), matches },
   );
   return { versions: hits.length, matches, inCurrent: false };

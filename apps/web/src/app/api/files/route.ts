@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { atLeast } from "shared";
 import { prisma } from "@/lib/db";
 import { reindexPage } from "@/lib/search-index";
@@ -33,23 +34,24 @@ function safeFileName(name: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isSameOrigin(req)) return json(403, { error: "不正なリクエストです。" });
+  const t = await getTranslations("files.errors");
+  if (!isSameOrigin(req)) return json(403, { error: t("badRequest") });
 
   const user = await getCurrentUser();
-  if (!user) return json(401, { error: "ログインしてください。" });
+  if (!user) return json(401, { error: t("login") });
 
   const pageId = req.nextUrl.searchParams.get("pageId");
   const page = pageId ? await findAccessiblePage(user.id, pageId) : null;
-  if (!page) return json(404, { error: "ページが見つかりません。" });
-  if (!atLeast(page.access, "EDIT")) return json(403, { error: "閲覧のみの権限ではファイルを追加できません。" });
-  if (page.lock) return json(423, { error: "このページはロックされているため、ファイルを追加できません。" });
+  if (!page) return json(404, { error: t("pageNotFound") });
+  if (!atLeast(page.access, "EDIT")) return json(403, { error: t("viewOnly") });
+  if (page.lock) return json(423, { error: t("locked") });
 
   const config = await getStorageConfig();
-  if (!config) return json(503, { error: "ファイル保存が設定されていません。管理者に連絡してください。" });
+  if (!config) return json(503, { error: t("notConfigured") });
 
   const maxMb = await getMaxUploadSizeMb();
   const maxBytes = maxMb * 1024 * 1024;
-  const tooLarge = { error: `ファイルが大きすぎます（上限 ${maxMb}MB）。` };
+  const tooLarge = { error: t("tooLarge", { max: maxMb }) };
   // Reject before reading the body when the client already says it's too big
   // (small allowance for the multipart framing).
   const declared = Number(req.headers.get("content-length") ?? 0);
@@ -59,13 +61,13 @@ export async function POST(req: NextRequest) {
   try {
     file = (await req.formData()).get("file");
   } catch {
-    return json(400, { error: "ファイルを読み取れませんでした。" });
+    return json(400, { error: t("unreadable") });
   }
-  if (!(file instanceof File)) return json(400, { error: "ファイルが送られていません。" });
+  if (!(file instanceof File)) return json(400, { error: t("missing") });
   if (file.size > maxBytes) return json(413, tooLarge);
   // The editor checks this too, but only this check counts.
   if (!isUploadAllowed(file.name, await getAllowedUploadExtensions())) {
-    return json(415, { error: uploadRefusedMessage(file.name) });
+    return json(415, { error: uploadRefusedMessage(file.name, t) });
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     await prisma.fileObject.delete({ where: { id: record.id } });
     console.error("[files] upload failed", err);
-    return json(502, { error: "ファイルの保存に失敗しました。時間をおいて再度お試しください。" });
+    return json(502, { error: t("failed") });
   }
 
   // Attachment names are searchable.

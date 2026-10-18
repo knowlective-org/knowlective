@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { MAX_PAGE_DEPTH, atLeast, createCollabToken, getPageAccess } from "shared";
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
@@ -47,7 +48,7 @@ export async function saveRootOrder(rootIds: string[]): Promise<{ error?: string
     rootIds.length > 500 ||
     !rootIds.every((id) => typeof id === "string" && /^[a-z0-9]{1,40}$/i.test(id))
   ) {
-    return { error: "並び順が不正です。" };
+    return { error: (await getTranslations("pageErrors"))("badOrder") };
   }
   await prisma.user.update({ where: { id: user.id }, data: { rootOrder: [...new Set(rootIds)] } });
   return {};
@@ -63,12 +64,12 @@ async function insertChildPage(
   const parentAccess = typeof parentId === "string" ? await getPageAccess(prisma, userId, parentId) : null;
   // Same message for missing and forbidden, so page ids can't be probed.
   if (typeof parentId !== "string" || !parentAccess || !atLeast(parentAccess.access, "EDIT")) {
-    return { error: "このページの下にはページを作成できません。" };
+    return { error: (await getTranslations("pageErrors"))("cannotCreateHere") };
   }
   // A lock on the parent alone doesn't stop pages being added under it; one
   // that covers its child pages does (the new page would be born locked).
   if (parentAccess.lock?.coversChildren) {
-    return { error: "子ページも含めてロックされているため、この下にはページを作成できません。" };
+    return { error: (await getTranslations("pageErrors"))("lockedWithChildren") };
   }
 
   // Depth of the parent (root page = 0), walked in memory over the root's
@@ -83,7 +84,7 @@ async function insertChildPage(
     if (++depth >= MAX_PAGE_DEPTH) break;
   }
   if (depth + 1 > MAX_PAGE_DEPTH) {
-    return { error: `ページの階層は${MAX_PAGE_DEPTH}段までです。` };
+    return { error: (await getTranslations("pageErrors"))("tooDeep", { max: MAX_PAGE_DEPTH }) };
   }
 
   const page = await prisma.page.create({
