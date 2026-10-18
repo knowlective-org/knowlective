@@ -1,397 +1,395 @@
 # knowlective
 
-ブロックエディタとリアルタイム共同編集を備えた、セルフホスト可能なドキュメント・ナレッジ共有OSS（フルスクラッチ）。
+English | [日本語](README.ja.md)
 
-## 名前の由来
+A self-hostable, open-source tool for sharing documents and knowledge, with a block editor and real-time collaborative editing (built from scratch).
 
-KNOWLECTIVE は、KNOWLEDGE（知識）と COLLECTIVE（集まり・共同の）を組み合わせた名前。
-チームの知識が集まり、みんなで育てていく場所でありたい、という思いを込めている。
+## About the name
 
-## 構成
+KNOWLECTIVE combines KNOWLEDGE and COLLECTIVE: a place where a team's knowledge gathers and grows together.
 
-- `apps/web` — Next.js。画面・Server Action・共同編集（Hocuspocus）を、カスタムサーバー（`apps/web/server/`）で1プロセス・1ポートにまとめて動かす
-- `packages/shared` — Prismaスキーマ・型定義の共有パッケージ
+## Structure
 
-エディタは [BlockNote](https://www.blocknotejs.org/)（Tiptap/ProseMirrorベース）、
-共同編集は [Yjs](https://github.com/yjs/yjs) + [Hocuspocus](https://tiptap.dev/docs/hocuspocus)、
-DBはPostgreSQL、水平スケール用にRedis pub/subを使用。
+- `apps/web` — Next.js. The screens, Server Actions and collaborative editing (Hocuspocus) run together in one process on one port, through a custom server (`apps/web/server/`)
+- `packages/shared` — Shared package with the Prisma schema and types
 
-## セットアップ
+The editor is [BlockNote](https://www.blocknotejs.org/) (based on Tiptap/ProseMirror), collaborative editing uses [Yjs](https://github.com/yjs/yjs) + [Hocuspocus](https://tiptap.dev/docs/hocuspocus), the database is PostgreSQL, and Redis pub/sub is used for horizontal scaling.
+
+## Setup
 
 ```bash
 cp .env.example .env
-pnpm gen:server-key        # 出力された値を .env の KNOWLECTIVE_SERVER_KEY に設定
-pnpm gen:storage-key       # 2回実行し、.env の SEAWEEDFS_ACCESS_KEY / SEAWEEDFS_SECRET_KEY に設定（英数字だけの値）
-docker compose up -d      # Postgres + 意味での検索用の Postgres（pgvector）+ Redis + SeaweedFS（ファイル保存）
+pnpm gen:server-key        # Put the output in KNOWLECTIVE_SERVER_KEY in .env
+pnpm gen:storage-key       # Run twice; put the outputs in SEAWEEDFS_ACCESS_KEY / SEAWEEDFS_SECRET_KEY in .env (letters and digits only)
+docker compose up -d       # Postgres + Postgres for semantic search (pgvector) + Redis + SeaweedFS (file storage)
 pnpm install
-pnpm db:generate           # Prisma クライアントを生成
-pnpm db:migrate            # packages/shared の Prisma マイグレーション
-pnpm db:seed                # デモ用のナレッジルートとページ ("demo") を作成
+pnpm db:generate           # Generate the Prisma client
+pnpm db:migrate            # Prisma migrations in packages/shared
+pnpm db:seed               # Create a demo knowledge root and page ("demo")
 ```
 
-> 開発用の PostgreSQL も pg_tde で暗号化している（本番の同梱 DB と同じ構成）。以前の開発用 DB（PostgreSQL 16、ボリューム `knowlective_postgres_data`）があれば、`bash docker/postgres/move-to-tde.sh` で移す。
+> The development PostgreSQL is encrypted with pg_tde too (the same setup as the bundled production database). If you have an older development database (PostgreSQL 16, volume `knowlective_postgres_data`), move it with `bash docker/postgres/move-to-tde.sh`.
 >
-> アプリはルートの `.env` を読む。`apps/web/.env.local` などを置いた場合は、そちらの値が優先される。
-> ルートの `.env` を変更したときは、開発サーバーを再起動すること。
+> The app reads the `.env` at the repository root. Values in `apps/web/.env.local` and the like take precedence.
+> Restart the development server after changing the root `.env`.
 
-## 初回セットアップと暗号化
+## First-time setup and encryption
 
-初めてアクセスすると `/setup` に移動し、マスターパスワードとサイトの公開 URL を設定する。公開 URL はメールや招待リンクに使われ、あとから管理画面の「サイトの設定」で変更できる。
-このとき、ページ内容を暗号化するための鍵（データ鍵）が生成される。
+The first visit goes to `/setup`, where you set the master password, the site's public URL and the default language. The public URL is used in emails and invitation links, and can be changed later under "Site settings" in the admin console.
+A key for encrypting page content (the data key) is generated at the same time.
 
-- データ鍵は平文では保存せず、次の2通りで暗号化して DB に保存する（エンベロープ暗号化）。
-  - マスターパスワードから導出した鍵（scrypt）で暗号化したもの … 復旧・鍵の入れ替え用
-  - サーバーの鍵 `KNOWLECTIVE_SERVER_KEY` で暗号化したもの … 起動時に自動で鍵を取り出す用
-- ページ本文（Yjs の状態）は AES-256-GCM で暗号化して保存する。DB やバックアップだけが漏れても内容は読めない。
-- メールアドレスと変更の記録（誰が何を変えたか）も暗号化して保存する。ログイン・招待などでアドレスを探すときは、アドレスそのものではなく、データ鍵から作った鍵によるハッシュで照合する。
-- 同梱の PostgreSQL は、DB 全体も暗号化する（Percona Server for PostgreSQL の pg_tde。テーブル・インデックス・WAL）。アプリで暗号化していない部分（ページのタイトル・ファイル名・グループ名など）も、ディスクやボリュームのコピーからは読めない。鍵はデータとは別のボリューム（`postgres_tde_keys`）にあり、**データとは別にバックアップする**（なくすと DB を読めない）。DB に接続できる人には平文で見えるので、アプリでの暗号化の代わりにはならない。別途用意した PostgreSQL では、この暗号化は各自の環境に任せる。
-- `KNOWLECTIVE_SERVER_KEY` を失った・漏れた・入れ替えたいときは、マスターパスワードを使って新しいサーバー鍵を発行できる。
+- The data key is never stored in plain text. It is stored in the database encrypted in two ways (envelope encryption):
+  - with a key derived from the master password (scrypt) … for recovery and key rotation
+  - with the server key `KNOWLECTIVE_SERVER_KEY` … so the key can be unlocked automatically at startup
+- Page content (the Yjs state) is stored encrypted with AES-256-GCM. A leaked database or backup alone doesn't reveal it.
+- Email addresses and the audit log (who changed what) are stored encrypted too. To look up an address (login, invitations, etc.), the app compares hashes made with a key derived from the data key, not the address itself.
+- The bundled PostgreSQL also encrypts the whole database (pg_tde in Percona Server for PostgreSQL: tables, indexes and WAL). Data the app doesn't encrypt itself (page titles, file names, group names, etc.) can't be read from a copy of the disk or volume either. The keys are in a separate volume (`postgres_tde_keys`): **back it up separately from the data** (without it the database can't be read). Anyone who can connect to the database still sees plain text, so this doesn't replace the app's encryption. With a PostgreSQL of your own, this encryption is up to your environment.
+- If `KNOWLECTIVE_SERVER_KEY` is lost or leaked, or you want to replace it, issue a new server key with the master password:
 
   ```bash
   pnpm rotate-server-key
   ```
 
-> **`KNOWLECTIVE_SERVER_KEY` とマスターパスワードを両方失うと、ページのデータは復旧できない。**
-> どちらも安全な場所に保管すること。
+> **If both `KNOWLECTIVE_SERVER_KEY` and the master password are lost, page data can't be recovered.**
+> Keep both somewhere safe.
 
-## ナレッジルートとページ
+## Knowledge roots and pages
 
-ページは「ナレッジルート」ごとの木構造で管理する。画面上は、ナレッジルートがそのルートページとして見える（ナレッジルートの名前＝ルートページのタイトル）。
+Pages are organized in trees, one per "knowledge root". On screen, a knowledge root appears as its root page (the knowledge root's name is the root page's title).
 
 ```
-ナレッジルート（ルートページ page1）
+Knowledge root (root page page1)
  └ page1-1
      └ page1-1-1
 ```
 
-ルートページは削除できない。
+Root pages can't be deleted.
 
-### 画面
+### Screens
 
-`/` を開くと、最後に開いたページが開く（初回や、そのページの権限がなくなった場合は、最初に見えるナレッジルートのルートページ）。左のサイドバーには、見られるナレッジルートがすべて並び（開いているページのツリーだけ展開）、その下に「共有されたページ」、「＋ 新しいナレッジルート」、管理画面へのリンク（コンテンツ管理者・サイト管理者のみ）、ログアウトがある。
+Opening `/` reopens the page you opened last (the first time, or if you no longer have access to it, the root page of the first knowledge root you can see). The left sidebar lists every knowledge root you can see (only the open page's tree is expanded), followed by "Shared with you", "+ New knowledge root", a link to the admin console (content managers and site admins only), and log out.
 
-### ページの権限
+### Page permissions
 
-ページを見る・編集する権限は、必ずグループに付ける（個人には付けない。付け忘れ・外し忘れを防ぐため）。サイトのロールは関係なく、サイト管理者でも権限のないページは見られない。
+Permissions to view and edit pages are always given to groups (never to individuals, so they aren't forgotten when people come and go). Site roles don't matter: even a site admin can't see pages without a permission.
 
-- 任意のページに「グループ × 閲覧 / 編集 / 管理」を付けると、その子ページにも引き継がれる
-- 同じグループについては、そのページから親へたどって最初に見つかった権限が効く（ルートで「編集」、途中のページで「閲覧」と付ければ、そこから下は閲覧のみ）
-- 複数のグループに入っている場合は、いちばん強い権限が効く
-- 「管理」は、そのツリーの権限の設定を変えられる権限
-- 親ページが見えず子ページだけ見える場合、そのページはホームの「共有されたページ」に表示される（見えない親のタイトルやナレッジルート名は表示しない）
-- 組み込みの「全ユーザー」グループには、有効なユーザー全員が自動で含まれる（あとから登録した人も）。登録ユーザー全員に見せたいページは、「権限設定」でこのグループに「閲覧」を付ける。メンバーの編集と削除はできない
-- 「管理」の権限を持つ人は、ページ右上の「⋯」メニューの「権限設定」から、そのページのグループ権限を追加・変更・削除できる。ルートページには「管理」を持つグループが最低1つ必要
+- Giving a page "group × view / edit / manage" carries down to its child pages
+- For the same group, the first permission found walking up from the page to its parents applies ("edit" on the root and "view" on a page in between makes everything below that page view-only)
+- Someone in several groups gets the strongest permission
+- "Manage" allows changing the permissions of that tree
+- When someone can see a child page but not its parent, the page appears under "Shared with you" on the home screen (the hidden parent's title and the knowledge root's name aren't shown)
+- The built-in "All users" group contains every enabled user automatically (including people who register later). To show a page to every registered user, give this group "view" in "Permissions". Its members can't be edited and it can't be deleted
+- People with "manage" can add, change and remove a page's group permissions from "Permissions" in the "⋯" menu at the top right of the page. A root page needs at least one group with "manage"
 
-### ページの公開（ログインなしでの閲覧）
+### Publishing pages (viewing without logging in)
 
-「全ユーザー」よりも広い公開範囲で、ログインしていない人にもページを見せられる。
+A wider audience than "All users": pages can be shown to people who aren't logged in.
 
-- **サイト管理者が、管理画面「概要」の「ページの公開」で許可したときだけ使える**（初期値は許可しない）。許可をやめると、公開していたページはすぐにログインしないと見られなくなる（公開の設定は残り、もう一度許可すると元に戻る）
-- 許可されていると、「管理」の権限を持つ人が、ページの「権限設定」の「インターネットに公開」から公開できる。公開したページと、その下のすべてのページ（あとから作ったものも）が対象。下のページだけ公開をやめることはできない
-- 公開したページは、URL を知っていれば誰でも閲覧だけできる（編集はできない）。左ペインには公開されているページだけが並び、「ログイン」のリンクが出る。画像・添付ファイル、子ページ一覧・テーブル・ボードも見られるが、担当者などの人の名前は表示しない。検索・履歴・ページのメニューは使えない
-- 公開されていないページを開いたときは、これまでどおりログイン画面になる（ページがあるかどうかは分からない）
-- 自分専用のナレッジルート（マイページ）は公開できない。公開・公開をやめる操作と、許可の変更は「変更の記録」に残る
-- **トップページ**: 管理画面「概要」の「トップページ」で1つ選ぶと、サイトのトップ（`/`）を開いてほかに移る先がない人にそのページを表示する（ログインしているかどうかに関係のない1つの設定）。
-  - ログインしている人：前回開いたページがあればそちら。ないとき（登録した直後など）にトップページ。見る権限がなければ、その人が見られる最初のページ
-  - ログインしていない人：毎回トップページ（LP として使える）。ただしページが公開されている間だけで、公開されていない（公開していない・公開をやめた・ごみ箱・公開の許可をやめた）ならログイン画面
-  - 選べるのは、設定する管理者が見られるページと、公開しているページ（見られないページのタイトルは管理者にも出さない）。「なし」なら従来どおり
-- **検索エンジン**: 同じ欄の「検索エンジンに載せない」（初期値はオン）の間は、サイトのすべての応答（ページ・添付ファイル）に `X-Robots-Tag: noindex, nofollow` を付け、検索結果に載せないよう指示する。オフにすると、公開したページが検索結果に出ることがある。robots.txt でクロールを止める方法は使っていない（止めると noindex の指示が検索エンジンに届かず、ほかのサイトからリンクされた URL が中身なしで載ることがあるため）。指示に従うかどうかは検索エンジン次第なので、見られたくないページは公開しないこと
+- **Only available when a site admin allows it under "Public pages" in the admin console's overview** (not allowed by default). Withdrawing the permission makes published pages need a login again at once (the publish settings stay, and come back if it's allowed again)
+- Once allowed, people with "manage" can publish a page from "Publish to the internet" in its permissions. The page and every page under it (including ones created later) are published. Pages below can't be unpublished on their own
+- A published page can be viewed (not edited) by anyone who knows the URL. The left pane lists only published pages, with a "Log in" link. Images, attachments, and child page lists, tables and boards can be seen, but people's names (assignees, etc.) aren't shown. Search, history and the page menu aren't available
+- Opening a page that isn't published shows the login screen as before (without revealing whether the page exists)
+- Personal knowledge roots ("My pages") can't be published. Publishing, unpublishing and changing the permission are recorded in the audit log
+- **Top page**: choosing a page under "Top page" in the admin console's overview shows it to anyone who opens the top of the site (`/`) with nowhere else to go (one setting, whether or not they're logged in).
+  - Logged in: the page they opened last, if any. Otherwise (e.g. right after signing up), the top page. If they can't see it, the first page they can see
+  - Not logged in: the top page every time (usable as a landing page), but only while the page is published. If it isn't (never published, unpublished, in the trash, or publishing no longer allowed), the login screen
+  - The choices are the pages the admin making the setting can see, and the published pages (titles of pages the admin can't see aren't shown, not even to admins). "None" keeps the previous behavior
+- **Search engines**: while "Keep out of search engines" in the same section is on (the default), every response of the site (pages and attachments) carries `X-Robots-Tag: noindex, nofollow`, telling search engines not to list them. Turned off, published pages may appear in search results. robots.txt isn't used to stop crawling (stopping it would keep the noindex instruction from reaching search engines, and URLs linked from other sites could be listed without content). Whether search engines follow the instruction is up to them, so don't publish pages you don't want seen
 
-### ページのメニュー
+### Page menu
 
-ページ右上の「共有」で、そのページの URL（サイトの公開 URL を使う）をコピーできる。その右の「⋯」で、作成者・作成日時・更新者・更新日時・オーナー（そのページに「管理」の権限が効いているグループ。上位のページから引き継いだものも含む）の表示と、ページのメニュー（履歴表示・ロック・権限設定・エクスポート・移動・削除）が開く。今使えるのは「履歴表示」「権限設定」（「管理」の権限を持つ人のみ）「移動」「削除」で、ほかは準備中。
+"Share" at the top right of a page copies its URL (using the site's public URL). The "⋯" next to it shows the creator, creation time, last editor, last update time and owners (groups with "manage" on the page, including ones inherited from pages above), and opens the page menu (history, lock, permissions, export, move, delete).
 
-### ページの移動と並び替え
+### Moving and reordering pages
 
-左のページ一覧でページをドラッグして、並び順や置き場所を変えられる。
+Drag pages in the page list on the left to change their order or place.
 
-- 行の上端・下端にドロップするとそのページの前・後ろに、行の中央にドロップするとそのページの子ページ（最後）になる。折りたたまれたページの上で少し待つと展開する。別のナレッジルートにも移動できる
-- ページの「⋯」→「移動」では、見られるページの一覧から移動先を選べる（選んだページの子ページの最後に入る）
-- 同じ親の中での並び替えは、親ページの編集の権限があればできる
-- 親を変える移動には、移動するページとその下のすべてのページの編集の権限と、移動先のページの編集の権限が必要。ナレッジルートのページは移動できない。自分自身やその下のページの中には移動できない
-- 移動したページの権限は移動先から引き継ぐ（ページに直接付けた権限はそのまま）。見られる人が変わる場合は、移動の前にグループごとの変化を表示して確認する。親を変える移動は「変更の記録」に残る
-- 移動したページを開いている人の画面は、つなぎ直して権限を確認し直す（見られなくなった人は開けなくなる）
-- 並び順は子ページ一覧・子ページテーブルにも反映される。新しく作ったページは最後に入る。並び替えや移動では、ページの更新日時は変わらない
+- Dropping on the top or bottom edge of a row puts the page before or after it; dropping in the middle makes it that page's last child. Hovering over a collapsed page for a moment expands it. Pages can also move to another knowledge root
+- "⋯" → "Move" on a page lets you choose the destination from a list of the pages you can see (the page goes last among the chosen page's children)
+- Reordering within the same parent needs edit permission on the parent
+- Moving to another parent needs edit permission on the page and every page under it, and on the destination. Knowledge root pages can't be moved. A page can't be moved into itself or a page under it
+- A moved page takes its permissions from the destination (permissions given directly to the page stay). If who can see it changes, the change per group is shown for confirmation before moving. Moves to another parent are recorded in the audit log
+- Editors open on a moved page reconnect and have their access checked again (people who lost access can no longer open it)
+- The order is reflected in child page lists and tables. New pages go last. Reordering and moving don't change a page's update time
 
-### 全文検索
+### Full-text search
 
-サイドバー上部の検索欄（または `/search`）で、見られるページのタイトル・本文・添付ファイル名を検索できる。
+The search box at the top of the sidebar (or `/search`) searches the titles, text and attachment names of the pages you can see.
 
-- 部分一致。全角・半角、大文字・小文字は区別しない。スペースで区切ると、すべての語を含むページを探す
-- 結果は、タイトルに含むものを先に、あとは更新日時の新しい順（上位50件）。本文の該当箇所を強調して表示する
-- 見られないページ・ごみ箱のページは出ない
-- 索引は暗号化してある：本文を1〜2文字ずつに区切った断片を、データ鍵から作った検索用の鍵で変換した値（ハッシュ）だけを保存する。DBが漏れても本文は読めない（どのページに同じ文字の並びがあるか程度は推測されうる）。検索結果は、候補のページを復号して確かめてから表示する
-- 索引は保存のたびに更新される。サーバーの起動時に、索引が古いページをまとめて作り直す
+- Partial matches. Full-width/half-width and upper/lower case are ignored. Separating words with spaces finds pages containing all of them
+- Results with a title match come first, then the most recently updated (top 50). The matching parts of the text are highlighted
+- Pages you can't see and pages in the trash never appear
+- The index is encrypted: the text is cut into 1–2 character fragments, and only their values (hashes) under a search key derived from the data key are stored. A leaked database doesn't reveal the text (at most, which pages share a sequence of characters could be guessed). Results are shown only after decrypting the candidate pages to confirm them
+- The index is updated on every save. At startup, pages with an outdated index are re-indexed
 
-#### 意味での検索
+#### Search by meaning
 
-語が一致しなくても、意味の近いページを探せる（例：「休みを取りたいときはどうすればいい」で、有給休暇の申請方法のページ）。検索欄は1つで、検索語から使い分ける。
+Pages close in meaning can be found even without the same words (e.g. "what do I do when I want a day off" finds the page on applying for paid leave). There's one search box, and the kind of search is chosen from the query.
 
-- 文章のような検索語では、語が一致するページに意味の近いページを加えて表示する（語だけで見つかったものには「意味が近い」の印を付けない）。短い語（4文字まで、英語なら2語まで）・数字や記号を含む語（型番・URL など）・かっこや引用符で囲んだ語は、語をそのまま探す。どちらで探したかを表示し、もう一方で探し直せる
-- ページの本文を約300文字ずつに区切り、それぞれを意味を表すベクトルにして、検索語のベクトルと近いものを探す。モデルは多言語の multilingual-e5-small（MIT ライセンス）で、このサーバーの CPU で動かす。**検索語も本文も外部には送らない**（Docker イメージにはモデルを入れてあり、実行中は何もダウンロードしない）
-- ベクトルは、本文の DB とは別のデータベース（PostgreSQL ＋ pgvector）に置く。ベクトルはアプリで暗号化できず（DB が距離を計算するため）、ページのおおよその内容を表すので、本文の DB から分け、こちらも pg_tde で DB 全体を暗号化する。中身はページの ID・区切りの位置・ベクトルだけで、本文は入れない。本文の DB からいつでも作り直せるので、バックアップは不要
-- ページを保存すると、少し後（編集が落ち着いてから数秒〜十数秒）に反映される。サーバーの起動時に、反映されていないページをまとめて処理する
-- 使わない場合は、ベクトル用のデータベースを設定しない（`VECTOR_DATABASE_URL` が空なら、語での検索だけになる）
+- Sentence-like queries show pages close in meaning in addition to pages with the same words (results found by the words alone aren't marked "Close in meaning"). Short queries (up to 4 characters in Japanese and the like, or 2 words in English), queries with digits or symbols (model numbers, URLs, etc.) and queries in brackets or quotes are searched as typed. The screen says which search was used and offers the other one
+- Page text is cut into passages of about 300 characters, each turned into a vector representing its meaning, and the passages closest to the query's vector are found. The model is the multilingual multilingual-e5-small (MIT license), run on this server's CPU. **Neither queries nor page text are sent outside** (the Docker image includes the model, and nothing is downloaded while running)
+- The vectors are kept in a separate database (PostgreSQL + pgvector) from the content database. Vectors can't be encrypted by the app (the database computes distances), and they roughly represent page content, so they're kept apart from the content database, and this database is encrypted as a whole with pg_tde too. It holds only page IDs, passage positions and vectors, never the text. It can always be rebuilt from the content database, so it needs no backup
+- Saved pages are reflected a little later (a few to a dozen or so seconds after editing settles). At startup, pages not yet reflected are processed
+- To go without it, don't set up the vector database (with `VECTOR_DATABASE_URL` empty, only word search is used)
 
-### ページの履歴
+### Page history
 
-ページ右上の「⋯」→「履歴表示」で、ページの過去の版を見られる。
+"⋯" → "History" at the top right of a page shows its past versions.
 
-- 版は、編集中は10分ごと、全員がページを閉じたときに保存される（その間に編集があった場合）。履歴機能を入れる前からあるページは、最初に開いたときの状態が「履歴の開始時点」の版になる
-- 版ごとに日時と、その間に編集した人を表示する。選ぶと、その版の内容を読み取り専用で表示する
-- 編集の権限があれば「この版に戻す」でページの内容（タイトルと本文）をその版に戻せる。戻す直前の内容も「復元の直前」の版として残るので、戻したこと自体も取り消せる。開いている人の画面にもそのまま反映される
-- 版の中身はデータ鍵で暗号化して保存する。子ページテーブルの値（列の値）は履歴に含まれない
-- 古い版の自動削除はまだない
-- **機密情報のマスク**: パスワードなど載せてはいけない内容を書いてしまったときは、履歴画面の「機密情報をマスク」で文字列（1行に1つ）を入力し、このページのすべての版で「●●●●」に置き換える。編集の権限があれば使える
-  - 先に「検索」で、見つかった版と箇所の数を確認してから実行する。今のページ（本文・タイトル）にまだ含まれていると実行できない（先にページから消す）
-  - 太字の途中で切れている文字列や、リンクの URL・ブロックの設定（テーブルのタイトルなど）の中も対象
-  - 版は作り直して保存するので、元の文字は保存データに残らない。マスクした版は履歴に残り（マスクした状態で表示）、その版には戻せない。版の削除はしない（監査のため）
-  - 入力した文字列は保存・記録しない。変更の記録には「どのページの何個の版の何か所をマスクしたか」だけを残す
-  - 開いていた人のブラウザには、再読み込みするまで Ctrl+Z で書き戻せる状態が残る。DBのバックアップ（暗号化済み）にも残るので、必要なら運用で対応する
+- While a page is being edited, a version is saved every 10 minutes, and when everyone has closed the page (if there were edits). Pages that existed before the history feature get a "Start of history" version the first time they're opened
+- Each version shows its time and who edited in that period. Choosing one shows its content read-only
+- With edit permission, "Restore this version" puts the page's content (title and text) back to that version. The content just before is kept as a "Before a restore" version, so the restore itself can be undone. It shows on the screens of people who have the page open too
+- Version content is stored encrypted with the data key. Child page table values (column values) aren't part of the history
+- Old versions aren't deleted automatically yet
+- **Masking confidential text**: if something that mustn't be there (a password, etc.) was written, enter the text (one per line) under "Mask confidential text" on the history screen to replace it with "●●●●" in every version of the page. Available with edit permission
+  - "Search" first shows how many versions and places were found. It can't run while the current page (text or title) still contains the text (remove it from the page first)
+  - Text split by formatting (e.g. bold in the middle), link URLs and block settings (table titles, etc.) are covered too
+  - Versions are rebuilt and saved, so the original text doesn't remain in the stored data. Masked versions stay in the history (shown masked) but can't be restored. Versions are never deleted (for auditing)
+  - The text entered isn't saved or logged. The audit log only records how many places in how many versions of which page were masked
+  - Browsers that had the page open can still bring it back with Ctrl+Z until reloaded. It also remains in (encrypted) database backups, so handle that operationally if needed
 
-### 削除とごみ箱
+### Deleting and the trash
 
-ページ右上の「⋯」→「削除」で、ページを子ページごとごみ箱に移す（完全には消さない）。
+"⋯" → "Delete" at the top right of a page moves it to the trash along with its child pages (it isn't removed completely).
 
-- 削除できるのは、そのページと、その下のすべてのページの編集権限を持つ人（見えない・編集できない子ページがあると削除できない）。ナレッジルートのページは削除できない
-- そのページを開いている人の画面は「ごみ箱に移動されました」に切り替わる
-- サイドバー下の「ごみ箱」に、元に戻せるページ（編集の権限があるもの）が並ぶ。「元に戻す」で、子ページも含めて元の場所に戻る
-- 元の親ページもごみ箱にあるページ（親より先に別々に削除したもの）は、灰色で「親ページがごみ箱にあります」と表示する。「戻す場所を選ぶ」で、同じナレッジルートの中の編集できるページから戻す先を選んで戻せる（初期値は、残っているいちばん近い上位のページ）。権限は戻した先から引き継ぐので、この操作は変更の記録に残す
-- 添付ファイルや子ページテーブルの値も残るので、元に戻せばそのまま使える。ごみ箱から完全に削除する機能はまだない
+- Deleting needs edit permission on the page and every page under it (a page with child pages you can't see or edit can't be deleted). Knowledge root pages can't be deleted
+- Screens showing the page switch to "This page was moved to the trash"
+- "Trash" at the bottom of the sidebar lists the pages you can restore (those you can edit). "Restore" puts them back where they were, child pages included
+- Pages whose original parent is also in the trash (deleted separately, before the parent) are shown grayed out with "The parent page is in the trash". "Choose where to restore" puts them back under a page you can edit in the same knowledge root (by default, the nearest remaining page above). They take their permissions from the new place, so this is recorded in the audit log
+- Attachments and child page table values are kept, so restored pages work as before. Deleting from the trash completely isn't available yet
 
-### ナレッジルートの作成
+### Creating knowledge roots
 
-コンテンツ管理者とサイト管理者は、ホームの「＋ 新しいナレッジルート」から作成できる。作成時に「管理」の権限を付けるグループを、新しく作る（作成者が自動で参加）か、既存のものから選ぶ。
+Content managers and site admins can create one from "+ New knowledge root". The group to get "manage" is either a new group (the creator joins it automatically) or an existing one.
 
-### 見出し
+### Headings
 
-ページのタイトルがそのページ唯一の H1 なので、本文の見出しは H2〜H6 だけ使える（スラッシュメニューに見出し1はなく、`# ` も見出しにならない）。外から貼り付けた見出し（HTML・Markdown）は1段ずつ下がる（H1→H2 … H5→H6、H6 は H6 のまま）。knowlective 内でのコピー＆ペーストはそのまま。以前のページに残っている H1 は、編集できる人が開いたときに H2 に変わる。
+The page title is the page's only H1, so headings in the text are H2–H6 only (the slash menu has no Heading 1, and `# ` doesn't make a heading). Headings pasted from outside (HTML or Markdown) move down one level (H1→H2 … H5→H6, H6 stays H6). Copy and paste within knowlective keeps them as they are. H1s left in older pages become H2 when someone who can edit opens the page.
 
-### 子ページ一覧・子ページテーブル
+### Child page lists and tables
 
-エディタで `/` を押すと、ページ用のブロックを挿入できる。どちらも見ている人の権限で見えるページだけを表示し、子ページの追加・タイトル変更・値の変更は、開いている全員の画面にその場で反映される。
+Press `/` in the editor to insert blocks for pages. Both show only the pages the viewer can see, and adding child pages, renaming them and changing values show at once on everyone's screen.
 
-- **子ページ一覧**: 子ページへのリンクと最終更新日時の一覧（1〜3階層）。左上にタイトルを付けられる
-- **子ページテーブル**: 子ページを行にした表。列（テキスト・日付・ユーザー・選択肢）を追加でき、作成日時・作成者・更新日時・更新者も表示できる
-  - テーブルの左上にタイトルを付けられる（ページのドキュメントに保存）。最下行の「＋ 新しいページ」から、タイトルを入力して子ページを作れる（Enter で続けて作成。親ページの編集権限が必要）
-  - 列の定義は親ページごとに1つで、同じページに置いたテーブルはすべて同じ列を共有する。テーブルごとに変えられるのは、列の順番・表示する列・並び替えだけ
-  - 列の順番は、見出しの左端のつまみ（⋮⋮）をドラッグして変えられる（作成日時などの自動の列も。タイトルは常に先頭）
-  - 列の追加・変更は親ページの編集権限、セルの編集はその子ページの編集権限が必要
-  - ユーザー列で選べるのは、そのページを見られる人だけ
-  - 列名・選択肢・値はデータ鍵で暗号化して保存する
-  - 更新日時・更新者は、本文・タイトル・セルの値を変更したときに更新される
+- **Child page list**: links to child pages with their last update time (1–3 levels). A title can be given at the top left
+- **Child page table**: a table with a row per child page. Columns (text, date, user, select) can be added, and creation time, creator, update time and last editor can be shown
+  - A title can be given at the top left of the table (saved in the page's document). "+ New page" in the bottom row creates a child page from the title you type (Enter to keep creating; needs edit permission on the parent page)
+  - Column definitions belong to the parent page, so every table on the same page shares the same columns. Each table can only change the column order, which columns are shown, and sorting
+  - Drag the grip (⋮⋮) at the left of a column header to change the column order (automatic columns such as the creation time too; the title is always first)
+  - Adding and changing columns needs edit permission on the parent page; editing a cell needs edit permission on that child page
+  - User columns offer only people who can see the page
+  - Column names, options and values are stored encrypted with the data key
+  - The update time and last editor change when the text, title or a cell value changes
 
-## ファイル添付
+## Attachments
 
-エディタにファイルをドラッグ＆ドロップ（または貼り付け）すると添付できる。画像・動画・音声はその場で表示され、それ以外はファイルとしてダウンロードできる。
+Drag and drop (or paste) files into the editor to attach them. Images, video and audio are shown in place; other files can be downloaded.
 
-- 保存先は S3 互換ストレージ。初期状態では Docker Compose に同梱の SeaweedFS（`localhost:8333`）を使い、バケット `knowlective` は初回に自動で作られる。外部の S3（AWS・Cloudflare R2・MinIO など）は、管理画面の「概要」→「ファイル保存」で設定する
-- ファイルはアプリがデータ鍵で暗号化してから保存する。ストレージ側には暗号化されたデータしか置かれない
-- 配信は `/api/files/<id>` 経由で、ファイルを添付したページを見られる人だけが取り出せる。画像・動画・音声以外（HTML・SVG・PDF なども含む）は、ブラウザで表示させずダウンロードさせる
-- 閲覧のみの権限では、ファイルを追加できない
-- 1ファイルの最大サイズは、管理画面の「概要」→「アップロードの上限」で設定する（初期値 100MB、最大 500MB）。保存先（同梱・外部）に関係なく適用される
+- Files are stored in S3-compatible storage. By default it's the SeaweedFS bundled with Docker Compose (`localhost:8333`), and the `knowlective` bucket is created automatically the first time. External S3 (AWS, Cloudflare R2, MinIO, etc.) is set up under "Files" → "File storage" in the admin console
+- The app encrypts files with the data key before storing them. The storage only ever holds encrypted data
+- Files are served through `/api/files/<id>`, only to people who can see the page they're attached to. Anything other than images, video and audio (HTML, SVG, PDF, etc.) is downloaded rather than shown in the browser
+- View-only permission can't add files
+- The largest file size is set under "Files" → "Upload limit" in the admin console (100 MB by default, 500 MB at most). It applies wherever files are stored (bundled or external)
 
-### ファイル保存の移行
+### Moving file storage
 
-保存先の変更はインフラ作業として扱い、アプリは既存ファイルを移行しない。オブジェクトのキーは `<キーの接頭辞>files/<ファイルID>` で、設定に依存しないので、バケットを丸ごとコピーすればよい（中身は暗号化済みのまま移せる）。
+Changing the storage location is infrastructure work; the app doesn't move existing files. Object keys are `<key prefix>files/<file ID>` and don't depend on the settings, so copying the bucket as a whole is enough (the contents move still encrypted).
 
-1. 今の保存先の `<接頭辞>files/` 以下を、新しい保存先へコピーする（例: `aws s3 sync`、`rclone sync`、`mc mirror`）
-2. 管理画面の「ファイル保存」で新しい保存先を設定する（既存ファイルがあると、移行済みかの確認を求められる）
-3. 「接続テスト」で、既存ファイルが新しい保存先で見つかることを確認する
+1. Copy everything under `<prefix>files/` in the current storage to the new one (e.g. `aws s3 sync`, `rclone sync`, `mc mirror`)
+2. Set the new storage under "File storage" in the admin console (with existing files, you're asked to confirm they've been moved)
+3. Check with "Connection test" that existing files are found in the new storage
 
-## ユーザーとログイン
+## Users and login
 
-アカウントは初期状態では招待制。管理画面（`/admin`）の「ユーザーの招待」で招待リンクを発行し、相手に渡す。設定で、ユーザー自身による登録も許可できる（下記）。
+Accounts are by invitation only at first. Issue an invitation link under "Invite users" in the admin console (`/admin`) and hand it over. Self-registration can also be allowed in the settings (below).
 
-- 招待では、登録後のロールと、参加するグループを選ぶ（ページを見る権限はグループで決まる）。すでにアカウントがある人が招待を受けると、グループにだけ追加される（ロールは変わらない）
-- 招待リンクは7日間有効・1回限り。発行時に一度だけ表示される
-- メール送信を設定していれば、「招待メールを送信する」にチェックして、宛先に招待リンクをメールで送れる。送信に失敗しても招待リンクは有効なので、画面のリンクを直接渡せばよい
-- ログインはメールアドレス＋パスワード。同じ接続元またはメールアドレスで15分以内に10回失敗するとロックする
-- ページは、そのページの権限を持つグループのメンバーだけが開ける
+- An invitation sets the role after registering and the groups to join (access to pages comes from groups). When someone who already has an account accepts an invitation, they're only added to the groups (their role doesn't change)
+- Invitation links are valid for 7 days, work once, and are shown only when issued
+- With email sending set up, check "Send an invitation email" to email the link. If sending fails the link still works, so hand over the link on screen directly
+- Login is by email address and password. 10 failures within 15 minutes from the same address or for the same email address lock logging in
+- A page can only be opened by members of groups with permission on it
 
-### 表示言語
+### Display language
 
-画面・メール・変更の記録は日本語と英語に対応している。
+The screens, emails and audit log support Japanese and English.
 
-- **画面の言語**: 「アカウント」で選んだ言語、選んでいなければブラウザの言語、どちらでもなければサイトの既定の言語。
-- **サイトの既定の言語**: 初期セットアップと管理画面「概要」で選ぶ（初期値は日本語）。
-- **メール**: 受け取る人の言語。アカウントのない宛先（招待）はサイトの既定。
-- **変更の記録**: サイトの既定の言語で残る。
+- **Screen language**: the language chosen on the "Account" screen; otherwise the browser's; otherwise the site's default language.
+- **Site default language**: chosen during first-time setup and in the admin console's overview (Japanese by default).
+- **Emails**: in the recipient's language. Addresses without an account (invitations) get the site default.
+- **Audit log**: written in the site's default language.
 
-#### ほかの言語を追加する
+#### Adding another language
 
-例としてフランス語（`fr`）を足す場合。
+For example, to add French (`fr`):
 
-1. **言語の一覧に加える**: `apps/web/src/i18n/locales.ts` の `LOCALES` に `"fr"` を、`LOCALE_NAMES` にその言語での名前（`fr: "Français"`）を足す。これでアカウント画面・管理画面・初期セットアップの選択肢に出て、ブラウザの言語（Accept-Language）からも選ばれるようになる。
-2. **文言のファイルを作る**: `apps/web/src/i18n/messages/ja/` をフォルダごと `messages/fr/` に複製し、文を訳す。キーは英語（`messages/en/`）が正で、各ファイルは `MessageShape<typeof en>` の型を付けているので、キーの過不足は型チェックで分かる。
-   - 書式は ICU（`{name}`、`{count, plural, one {…} other {…}}`、`{x, select, …}`）。複数形の書き分けは言語ごとに書ける。
-   - `editor.slash.*Aliases` は、スラッシュメニューでその言語の語でも探せるようにする別名（カンマ区切り）。
-3. **一覧に登録する**: `apps/web/src/i18n/messages/index.ts` の `MESSAGES` に `fr` を加える。
-4. **エディタの文言**: `apps/web/src/i18n/blocknote.ts` で、BlockNote が持つその言語の辞書（`@blocknote/core/locales` の `fr` など）を返すようにする。BlockNote に辞書がない言語は英語のままになる。
-5. **確かめる**: `pnpm --filter web exec tsc --noEmit` でキーの過不足がないことを確かめ、ブラウザの言語をその言語にして（またはアカウント画面で選んで）画面を見る。
+1. **Add it to the list of languages**: add `"fr"` to `LOCALES` in `apps/web/src/i18n/locales.ts`, and its name in itself to `LOCALE_NAMES` (`fr: "Français"`). It then appears in the choices on the account screen, the admin console and first-time setup, and is picked from the browser's language (Accept-Language) too.
+2. **Create the text files**: copy the folder `apps/web/src/i18n/messages/ja/` to `messages/fr/` and translate. English (`messages/en/`) is the source of truth for the keys, and each file is typed `MessageShape<typeof en>`, so missing or extra keys show up in the type check.
+   - The format is ICU (`{name}`, `{count, plural, one {…} other {…}}`, `{x, select, …}`). Plural forms can be written per language.
+   - `editor.slash.*Aliases` are extra words (comma-separated) so the slash menu can be searched with words in that language.
+3. **Register it**: add `fr` to `MESSAGES` in `apps/web/src/i18n/messages/index.ts`.
+4. **Editor text**: make `apps/web/src/i18n/blocknote.ts` return BlockNote's dictionary for that language (e.g. `fr` from `@blocknote/core/locales`). Languages BlockNote has no dictionary for stay in English.
+5. **Check**: run `pnpm --filter web exec tsc --noEmit` to confirm no keys are missing or extra, then look at the screens with the browser set to that language (or with it chosen on the account screen).
 
-DB の変更は要らない（`User.locale` と `InstanceConfig.defaultLocale` は言語コードの文字列）。PDF の書き出しが同梱しているフォントは Inter と Noto Sans JP だけなので、それで表せない文字を使う言語（中国語・韓国語など）を足すときは、`/api/export-assets` にフォントを足す必要がある。
+No database changes are needed (`User.locale` and `InstanceConfig.defaultLocale` are language-code strings). PDF export bundles only the Inter and Noto Sans JP fonts, so a language with characters they can't show (Chinese, Korean, etc.) also needs a font added to `/api/export-assets`.
 
-### パスワードの再設定
+### Password reset
 
-- ログイン画面の「パスワードを忘れた場合」（`/forgot-password`）でメールアドレスを入力すると、再設定用のリンク（60分間有効・1回限り）がメールで届く。メール送信の設定が必要
-- 画面の表示は、アカウントがあってもなくても同じ（誰が登録済みかを画面から探れないように）。無効にしたアカウントや、パスワードでログインできない設定（シングルサインオンのみ）のアカウントにはメールを送らない
-- 申し込みは、同じ接続元から1時間に5回、同じアカウントに1時間に3回まで（超えた分は画面の表示を変えずに送らない）
-- メール送信を設定していない場合や、本人がメールを受け取れない場合は、サイト管理者が管理画面「ユーザー」の一覧の「⋯」→「パスワード再設定リンクを発行」でリンク（24時間有効・1回限り）を発行して渡す。発行時に一度だけ表示され、メールで送ることもできる
-- 新しいリンクを発行すると、それより前のリンクは使えなくなる
-- 再設定すると、そのアカウントのログイン中のセッション（管理画面を含む）はすべて終了する。管理者によるリンクの発行と、再設定の完了は「変更の記録」に残る
+- Entering an email address under "Forgot your password?" on the login screen (`/forgot-password`) emails a reset link (valid for 60 minutes, works once). Needs email sending to be set up
+- The screen looks the same whether or not the account exists (so it can't be used to find out who's registered). Disabled accounts and accounts that can't log in with a password (single sign-on only) aren't emailed
+- Requests are limited to 5 an hour from the same address and 3 an hour for the same account (beyond that, nothing is sent and the screen doesn't change)
+- Without email sending, or when the person can't receive email, a site admin issues a link (valid for 24 hours, works once) from "⋯" → "Issue a password reset link" in the user list under "Users" in the admin console, and hands it over. It's shown only when issued, and can also be emailed
+- Issuing a new link makes earlier ones stop working
+- Resetting ends every session of that account (the admin console's included). Links issued by admins and completed resets are recorded in the audit log
 
-### ユーザーによるアカウント登録
+### Self-registration
 
-管理画面「ユーザー」→「アカウント登録」（サイト管理者のみ）で、「招待のみ」（初期値）と「誰でも登録できる」を切り替える。「誰でも登録できる」はメール送信の設定が必要。
+Under "Users" → "Registration" in the admin console (site admins only), switch between "By invitation only" (the default) and "Anyone can register". "Anyone can register" needs email sending to be set up.
 
-- ログイン画面の「アカウント登録」（`/signup`）でメールアドレスを入力すると、登録用のリンク（24時間有効・1回限り）がメールで届く。リンクから表示名とパスワードを設定して登録する（メールアドレスの確認を兼ねる）
-- 登録した人のロールは、一般ユーザー（初期値）かコンテンツ管理者から選べる（サイト管理者は選べない）。どのグループにも入らない
-- 登録できるメールアドレスのドメインを制限できる（空欄なら制限なし。サブドメインは別に指定）
-- すでに登録済みのアドレスには「すでにアカウントがあります」というメールを送り、画面の表示は同じにする（誰が登録済みかを画面から探れないように）
-- 申し込みは、同じ接続元から1時間に5回、同じアドレスに1時間に3回まで
-- 設定を「招待のみ」に戻したり、ドメインやメール送信の設定を外したりすると、送信済みの登録用リンクも使えなくなる。ロールは登録を完了した時点の設定で決まる
-- 設定の変更は「変更の記録」に残る
+- Entering an email address under "Create an account" on the login screen (`/signup`) emails a registration link (valid for 24 hours, works once). The person sets a display name and password from the link (which also confirms the address)
+- The role of people who register is either user (the default) or content manager (not site admin). They join no groups
+- The email domains that can register can be limited (empty for no limit; list subdomains separately)
+- Addresses already registered get an "already has an account" email instead, and the screen looks the same (so it can't be used to find out who's registered)
+- Requests are limited to 5 an hour from the same address and 3 an hour for the same email address
+- Going back to "By invitation only", or removing the domain or email sending, makes registration links already sent stop working. The role is the one set when registration is completed
+- Changes to the settings are recorded in the audit log
 
-### シングルサインオン（OpenID Connect）
+### Single sign-on (OpenID Connect)
 
-管理画面「ユーザー」→「シングルサインオン（OpenID Connect）」（サイト管理者のみ）で、IdP（Microsoft Entra ID、Google、Keycloak など）でのログインを有効にできる。
+Under "Users" → "Single sign-on (OpenID Connect)" in the admin console (site admins only), logging in with an identity provider (Microsoft Entra ID, Google, Keycloak, etc.) can be enabled.
 
-- 「シングルサインオンを有効にする」にチェックを入れると、ほかの設定項目が表示される（チェックを外して保存すると無効になり、設定は残る）
-- 設定: Issuer URL・クライアント ID・クライアントシークレット（暗号化して保存）・ボタンの名前・表示名に使う属性（任意。空欄なら name、なければ preferred_username。ID トークンになければ UserInfo から取る。アカウント作成時だけ使う）。画面に表示されるリダイレクト URI（`<公開 URL>/auth/oidc/callback`）を IdP 側に登録する。「接続テスト」で IdP の設定を読み込めるか確認できる
-- 認可コードフロー（PKCE・state・nonce）。ID トークンの検証は認定実装の `openid-client` が行う
-- 初めてログインした人: 確認済みのメールアドレスが既存のアカウントと一致すればそのアカウントに結び付け、なければアカウントを作る（ロールは一般ユーザーかコンテンツ管理者を選ぶ。作成を許すメールドメインを制限できる）。初回ログイン時に IdP の利用者 ID（`sub`）を User の `oidcSubject`（と `oidcIssuer`）に保存し、以後はそれで結び付くので、メールアドレスが変わっても同じアカウントになる。すでに別の利用者 ID と結び付いているアカウントに、同じメールアドレスの別の利用者が入ろうとした場合は断る
-- 「確認済み」は IdP の `email_verified`。送ってこない IdP（Microsoft Entra ID など）向けに「IdP のメールアドレスを確認済みとして扱う」設定がある（利用者がメールアドレスを自由に設定できる IdP では使わない）
-- パスワードでのログインは「併用」（初期値）か「シングルサインオンのみ」。後者でも、IdP の障害で締め出されないよう、サイト管理者はパスワードでログインできる
-- 無効にしたユーザーはシングルサインオンでもログインできない
-- 管理画面（`/admin`）へのログインは、これまでどおりパスワード＋認証アプリ。シングルサインオンで作られたアカウントには最初はパスワードがないので、管理画面には入れない（コンテンツ管理者として作った場合も）。ただし、パスワードでのログインが「併用」なら、パスワードの再設定でパスワードを設定できる
-- knowlective からログアウトしても、IdP からはログアウトしない
+- Checking "Enable single sign-on" shows the other settings (unchecking and saving disables it; the settings are kept)
+- Settings: issuer URL, client ID, client secret (stored encrypted), button name (empty: "single sign-on" in each viewer's language), and the attribute for the display name (optional; empty uses name, then preferred_username; taken from UserInfo if not in the ID token; used only when an account is created). Register the redirect URI shown on screen (`<public URL>/auth/oidc/callback`) with the identity provider. "Connection test" checks that the identity provider's settings can be read
+- Authorization code flow (PKCE, state, nonce). ID tokens are verified by the certified `openid-client` implementation
+- People logging in for the first time: if their verified email address matches an existing account they're linked to it; otherwise an account is created (the role is user or content manager; the email domains allowed to get accounts can be limited). At the first login the identity provider's user ID (`sub`) is saved in the User's `oidcSubject` (and `oidcIssuer`), and from then on that links them, so the same account is used even if the email address changes. If another identity-provider user with the same email address tries to use an account already linked to a different user ID, it's refused
+- "Verified" is the identity provider's `email_verified`. For identity providers that don't send it (Microsoft Entra ID, etc.) there's a "Treat the identity provider's email addresses as verified" setting (don't use it with identity providers where users can set any email address)
+- Password login is either "Alongside single sign-on" (the default) or "Single sign-on only". Even with the latter, site admins can log in with a password, so nobody is locked out if the identity provider fails
+- Disabled users can't log in with single sign-on either
+- Logging in to the admin console (`/admin`) still takes a password plus an authenticator app. Accounts created by single sign-on have no password at first, so they can't get into the admin console (even ones created as content managers). With password login "Alongside", they can set one through a password reset
+- Logging out of knowlective doesn't log out of the identity provider
 
-## 管理画面（`/admin`）
+## Admin console (`/admin`)
 
-ユーザーはサイト全体のロールを1つ持つ。ページの閲覧・編集の権限はロールではなく、グループに付けた権限で決まる（サイト管理者でも、権限のないページは見られない）。
+Each user has one site-wide role. Permission to view and edit pages comes from groups, not roles (even a site admin can't see pages without a permission).
 
-| ロール | できること |
+| Role | Can do |
 |---|---|
-| サイト管理者 | 管理画面のすべて（サーバー作業を除く）。ロールの変更・ユーザーの無効化。どのロールでも招待できる |
-| コンテンツ管理者 | 管理画面の「ユーザー」（招待のみ）と「グループ」。招待できるのはコンテンツ管理者・一般ユーザーだけ |
-| 一般ユーザー | 管理画面に入れない |
+| Site admin | Everything in the admin console (except server-side tasks). Changing roles, disabling users. Can invite any role |
+| Content manager | "Users" (inviting only) and "Groups" in the admin console. Can invite only content managers and users |
+| User | Can't get into the admin console |
 
-管理画面は「概要・ユーザー・グループ・セキュリティ」の4ページ（コンテンツ管理者には「ユーザー」と「グループ」だけが表示される）。ログイン方法は2通りで、どちらも認証アプリ（TOTP）が必須。初回ログイン時に認証アプリを登録する。
+The admin console has the pages Overview, Users, Groups, Files and Security (content managers see only "Users" and "Groups"). There are two ways to log in, and both need an authenticator app (TOTP), registered at the first login.
 
-- **アカウントでログイン（通常）:** サイト管理者・コンテンツ管理者が、自分のメールアドレス＋パスワード＋認証アプリで入る。ロールを一般ユーザーに変えたり無効化したりすると、ログイン中でもすぐに入れなくなる
-- **マスターパスワードでログイン（初期設定・復旧用）:** `/admin/login?mode=master`。最初のサイト管理者を登録するときや、管理者全員が入れなくなったときに使う
+- **Log in with an account (usual):** site admins and content managers log in with their own email address, password and authenticator app. Changing their role to user or disabling them locks them out at once, even while logged in
+- **Log in with the master password (initial setup and recovery):** `/admin/login?mode=master`. Used to register the first site admin, or when no admin can get in
 
-最初の手順: マスターパスワードでログイン →「ユーザー」でロール「サイト管理者」を選んで自分を招待し、登録する（登録済みなら、ユーザー一覧の「⋯」からロールを変える）→ 以降はアカウントでログイン。最後の1人のサイト管理者は、降格・無効化できない。
+First steps: log in with the master password → under "Users", invite yourself with the role "Site admin" and register (if already registered, change your role from "⋯" in the user list) → from then on, log in with your account. The last site admin can't be demoted or disabled.
 
-グループは、ページツリーの権限を付けるためのもの。「グループ」ページで作成・名前変更・削除・メンバー管理ができる。コンテンツ管理者が扱えるのは、付いている権限がすべて「自分が管理の権限を持つページ」にあるグループ（まだ権限のないグループを含む）だけ。招待で選べるグループも同じ。
+Groups are for giving permissions on page trees. The "Groups" page creates, renames and deletes them and manages their members. Content managers can only handle groups whose permissions are all on pages they manage (including groups with no permissions yet). The same goes for the groups they can choose when inviting.
 
-ロールの変更・アカウントの有効化/無効化・パスワードの再設定・グループのメンバー変更・ページの権限変更・ナレッジルートの作成・招待は「変更の記録」に残り、「セキュリティ」ページで確認できる（新しい順に20件ずつ、ページ送りで表示）。
+Changes to roles, enabling/disabling accounts, password resets, group members, page permissions, knowledge root creation and invitations are recorded in the audit log, which can be seen on the "Security" page (newest first, 20 per page).
 
-- **ログイン:** マスターパスワード ＋ 認証アプリの6桁のコード
-- **回数制限:** 同じ接続元から15分以内に5回失敗すると、その接続元をロックする
-- **セッション:** 通常ユーザーとは別。操作がないまま30分、またはログインから12時間で切れる
-- **IP 制限:** 管理画面で許可する IP アドレス・CIDR を設定できる。許可されていない接続元には 404 を返す
+- **Login:** master password + the authenticator app's 6-digit code
+- **Rate limit:** 5 failures within 15 minutes from the same address lock that address
+- **Sessions:** separate from regular users'. They end after 30 minutes without activity, or 12 hours after logging in
+- **IP restriction:** the IP addresses and CIDRs allowed into the admin console can be set. Other addresses get a 404
 
-### テーマ
+### Theme
 
-「概要」→「テーマ」で、サイト全体（ページ・管理画面・ログイン画面）の色を設定できる。プライマリ（文字色。初期値 #173C3C）、プライマリ（淡）（サイドバーの背景など。#E8F2F2）、背景（#FAFAF8）、補助テキスト（#687280）。プレビュー付きで、文字が読みにくい組み合わせ（コントラスト比 4.5 未満）は警告する。
+"Overview" → "Theme" sets the colors of the whole site (pages, admin console, login screen): primary (text color, default #173C3C), primary (light) (sidebar background etc., #E8F2F2), background (#FAFAF8) and secondary text (#687280). There's a preview, and combinations that are hard to read (contrast ratio under 4.5) are warned about.
 
-### メール送信
+### Sending email
 
-管理画面の「メール送信」で SMTP サーバーを設定する。保存後に「テストメールを送信」で確認できる。
+Set up the SMTP server under "Sending email" in the admin console. After saving, check it with "Send a test email".
 
-- 項目: 送信元メールアドレス、送信者名、SMTP サーバー、ポート、暗号化（STARTTLS / SSL/TLS / なし）、SMTP AUTH（ユーザー名・パスワード）
-- STARTTLS を選んだ場合、サーバーが STARTTLS に対応していなければ送信しない（暗号化なしに切り替えて送ることはしない）
-- 暗号化「なし」と SMTP AUTH は同時に使えない（パスワードが平文で流れるため）
-- SMTP のパスワードはデータ鍵で暗号化して保存し、画面には表示しない。空欄のまま保存すると、保存済みのパスワードをそのまま使う
+- Fields: sender email address, sender name, SMTP server, port, encryption (STARTTLS / SSL/TLS / none), SMTP AUTH (user name and password)
+- With STARTTLS, nothing is sent if the server doesn't support STARTTLS (it never falls back to sending unencrypted)
+- Encryption "none" and SMTP AUTH can't be used together (the password would be sent in plain text)
+- The SMTP password is stored encrypted with the data key and never shown. Saving with it empty keeps the saved password
 
-管理画面に入れなくなったときは、サーバー上でマスターパスワードを使って復旧する。
+If you're locked out of the admin console, recover on the server with the master password:
 
 ```bash
-pnpm admin:recover --reset-totp          # マスターパスワード用の認証アプリをなくした（次回ログインで再登録）
-pnpm admin:recover --reset-user-totp=<メールアドレス>  # サイト管理者が認証アプリをなくした
-pnpm admin:recover --clear-ip-allowlist  # IP 制限で締め出された
-pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解除
+pnpm admin:recover --reset-totp          # Lost the authenticator app for the master password (register again at the next login)
+pnpm admin:recover --reset-user-totp=<email address>  # A site admin lost their authenticator app
+pnpm admin:recover --clear-ip-allowlist  # Locked out by the IP restriction
+pnpm admin:recover --clear-lockout       # Clear the lock after failed logins
 ```
 
-### 本番運用の前提（リバースプロキシ）
+### Production prerequisite (reverse proxy)
 
-接続元 IP は `X-Forwarded-For` から判定するため、**Next.js を直接インターネットに公開せず、必ずリバースプロキシ（Caddy / nginx など）の後ろに置くこと。** 直接公開すると IP を偽装でき、回数制限と IP 制限が効かなくなる。
+The client IP is taken from `X-Forwarded-For`, so **never expose Next.js directly to the internet: always put it behind a reverse proxy (Caddy, nginx, etc.).** Exposed directly, the IP can be spoofed and the rate limits and IP restriction stop working.
 
-- プロキシは `X-Forwarded-For` に接続元を**追記**し、`X-Forwarded-Proto` を渡すこと（nginx なら `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` と `proxy_set_header X-Forwarded-Proto $scheme;`）。`X-Forwarded-Proto: https` が届かないと、管理画面の Cookie に Secure が付かない。
-- プロキシが2段以上（例: CDN → nginx）なら、`KNOWLECTIVE_TRUSTED_PROXY_HOPS` にその段数を設定する。
+- The proxy must **append** the client to `X-Forwarded-For` and pass `X-Forwarded-Proto` (for nginx, `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` and `proxy_set_header X-Forwarded-Proto $scheme;`). Without `X-Forwarded-Proto: https`, the admin console's cookies don't get Secure.
+- With two or more proxies (e.g. CDN → nginx), set `KNOWLECTIVE_TRUSTED_PROXY_HOPS` to that number.
 
-### サブパスでの公開（`KNOWLECTIVE_BASE_PATH`）
+### Serving under a sub-path (`KNOWLECTIVE_BASE_PATH`)
 
-`https://example.com/knowlective/` のように、ホストのルートではなくサブパスで公開する場合は、環境変数 `KNOWLECTIVE_BASE_PATH` にそのパス（例: `/knowlective`）を設定する。既定は空（ルートで公開）。
+To serve the app under a sub-path rather than the host's root, like `https://example.com/knowlective/`, set the environment variable `KNOWLECTIVE_BASE_PATH` to that path (e.g. `/knowlective`). The default is empty (served at the root).
 
-- ページ・管理画面（`/knowlective/admin`）・API・共同編集の WebSocket（`/knowlective/collab`）のすべてが、このパスの下になる。稼働確認も `/knowlective/api/health`。
-- **リバースプロキシは、パスを削らずにそのままアプリへ渡すこと**（`/knowlective/login` を `/knowlective/login` のまま転送する）。nginx なら `location /knowlective/ { proxy_pass http://127.0.0.1:3000; }`（`proxy_pass` の末尾に `/` を付けない）。WebSocket の Upgrade もこの location で通す。
-- 管理画面の「公開 URL」には、サブパスを含めずにオリジンだけ（`https://example.com`）を入力する。招待メールなどのリンクには、サブパスが自動で付く。管理画面の「概要」で今の値を確認できる。
-- 値は起動時に反映される。Docker では `.env.production` を書き換えて `docker compose … up -d` し直す（イメージの作り直しは不要）。Docker を使わない場合は、`pnpm build` の前に設定する（ビルドに埋め込まれる）。
-- SSO を使っている場合は、IdP に登録するリダイレクト URI も `https://example.com/knowlective/auth/oidc/callback` に変える。
-- サブパスを変えると、ログイン中の人はログインし直しになる（Cookie の有効範囲がパスごとのため）。ページの内容や添付ファイルはそのまま使える。
+- Pages, the admin console (`/knowlective/admin`), the API and the collaborative-editing WebSocket (`/knowlective/collab`) all go under this path. The health check is `/knowlective/api/health` too.
+- **The reverse proxy must pass the path to the app unchanged** (`/knowlective/login` forwarded as `/knowlective/login`). For nginx, `location /knowlective/ { proxy_pass http://127.0.0.1:3000; }` (no `/` at the end of `proxy_pass`). Pass WebSocket upgrades through this location too.
+- Enter only the origin (`https://example.com`) as the "public URL" in the admin console, without the sub-path. Links in invitation emails and the like get the sub-path automatically. The current value is shown in the admin console's overview.
+- The value takes effect at startup. With Docker, edit `.env.production` and run `docker compose … up -d` again (no need to rebuild the image). Without Docker, set it before `pnpm build` (it's built in).
+- With SSO, change the redirect URI registered with the identity provider to `https://example.com/knowlective/auth/oidc/callback` as well.
+- Changing the sub-path makes logged-in people log in again (cookies are scoped to the path). Page content and attachments keep working.
 
-## 本番での起動
+## Running in production
 
-### Docker Compose（推奨）
+### Docker Compose (recommended)
 
-アプリ（Next.js と共同編集を1つのコンテナで動かす）・SeaweedFS（ファイル保存）と、同梱の PostgreSQL（または別途用意した PostgreSQL）で動かす。開発用の `docker-compose.yml` とは別のプロジェクト（`knowlective-prod`）なので、同じマシンでもコンテナやボリュームは共有しない。
+Runs the app (Next.js and collaborative editing in one container), SeaweedFS (file storage) and the bundled PostgreSQL (or a PostgreSQL of your own). It's a separate project (`knowlective-prod`) from the development `docker-compose.yml`, so they share no containers or volumes even on the same machine.
 
 ```bash
 ./install.sh
 ```
 
-`install.sh` が設定を対話式で聞いて `.env.production` を作り、ビルドと起動まで行う（Docker と Docker Compose v2、bash が必要）。
+`install.sh` asks for the settings, writes `.env.production`, and builds and starts everything (needs Docker, Docker Compose v2 and bash).
 
-- データベースは「同梱の PostgreSQL」（Percona Server for PostgreSQL 17。pg_tde で DB 全体を暗号化する）か「別途用意した PostgreSQL」（16 以上を推奨）を選ぶ。別途用意する場合は、データベースとユーザーを先に作り、ユーザーにテーブルを作る権限を付けておく（起動時のマイグレーションでテーブルを作る）。接続先を入力すると、コンテナから実際に接続できるかを確認できる。コンテナの中から見た `localhost` はコンテナ自身なので、同じサーバーの PostgreSQL でもサーバーのアドレスを指定する
-- 意味での検索を使うかを選ぶ。使う場合は、同梱のベクトル用データベース（`bundled-vectordb`）も起動する（メモリを数百 MB 余分に使う）
-- サーバー鍵（`KNOWLECTIVE_SERVER_KEY`）は新しく作るか、移行・復元なら既存の鍵を入力する。同梱の SeaweedFS の認証情報と同梱の PostgreSQL のパスワードは自動で作る
-- もう一度実行すると、今の `.env.production` の値を初期値にして作り直す（元のファイルは `.env.production.bak.<日時>` に残す）。サーバー鍵と同梱の PostgreSQL のパスワードは引き継ぐ（変えるとデータを読めない・接続できないため）
+- For the database, choose "the bundled PostgreSQL" (Percona Server for PostgreSQL 17, with the whole database encrypted by pg_tde) or "a PostgreSQL of your own" (16 or later recommended). For your own, create the database and user first and let the user create tables (migrations create them at startup). After entering the connection, you can check that the container can actually connect. Inside a container `localhost` is the container itself, so use the server's address even for a PostgreSQL on the same server
+- Choose whether to use search by meaning. If so, the bundled vector database (`bundled-vectordb`) is started too (it uses a few hundred MB more memory)
+- The server key (`KNOWLECTIVE_SERVER_KEY`) is either generated, or entered when moving or restoring. The bundled SeaweedFS's credentials and the bundled PostgreSQL's password are generated
+- Running it again remakes `.env.production` with its current values as defaults (the old file is kept as `.env.production.bak.<timestamp>`). The server key and the bundled PostgreSQL's password are kept (changing them would make the data unreadable or the database unreachable)
 
-手で設定する場合は、`.env.production.example` を `.env.production` にコピーして値を入れ、次のコマンドで起動する。
+To configure by hand, copy `.env.production.example` to `.env.production`, fill in the values and start with:
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 
-- アプリは `127.0.0.1:3000`（`KNOWLECTIVE_PORT` で変更）で待ち受ける。外からはリバースプロキシ（下記）経由で公開し、`https://<公開 URL>` で開いて初回セットアップを行う
-- 起動するたびに、未適用のデータベースのマイグレーションを適用してから起動する（`KNOWLECTIVE_SKIP_MIGRATIONS=1` で止められる）。更新は `git pull` してから同じ `up -d --build` を実行する
-- 停止時（`docker compose stop` など）は、開いているドキュメントを保存してから終了する
-- 稼働確認は `GET /api/health`（DB に接続できれば 200。サブパスで公開している場合は `<サブパス>/api/health`）。コンテナにもヘルスチェックを設定している
-- 復旧コマンドはコンテナの中で実行する: `docker compose -f docker-compose.prod.yml --env-file .env.production exec app pnpm admin:recover --clear-lockout`（`rotate-server-key` も同様）
-- **バックアップ**: PostgreSQL と SeaweedFS のボリューム（`knowlective-prod_seaweedfs_data`）、それに `.env.production`（`KNOWLECTIVE_SERVER_KEY`）。中身は暗号化されているので、鍵がないとバックアップから復元できない
-  - 同梱の PostgreSQL は、DB の暗号化の鍵（ボリューム `knowlective-prod_postgres_tde_keys`）も必要。**データ（`knowlective-prod_postgres_tde_data`）とは別の場所に**保管する（一緒に置くと、DB 全体の暗号化の意味がなくなる）
-  - `pg_dump` の出力は DB 全体の暗号化が外れた状態（アプリで暗号化した列は暗号化されたまま）なので、ファイルを暗号化して保管する
-- **同梱の PostgreSQL を暗号化する前のデータからの更新**: 以前の同梱 DB（PostgreSQL 16、ボリューム `knowlective-prod_postgres_data`）は、`git pull` のあと `bash docker/postgres/move-to-tde.sh prod` で暗号化した DB へ移す（中身を `pg_dump` から `pg_restore` へ直接流し、暗号化されていないダンプをファイルに残さない）。動作を確かめたら、古いボリュームを `docker volume rm knowlective-prod_postgres_data` で削除する
-- Redis は複数のアプリのコンテナで共同編集を中継するときだけ必要なので、同梱していない（1台なら不要）。使う場合は `REDIS_URL` を設定する
+- The app listens on `127.0.0.1:3000` (change with `KNOWLECTIVE_PORT`). Serve it through a reverse proxy (above), and open `https://<public URL>` for the first-time setup
+- Every start applies any pending database migrations first (`KNOWLECTIVE_SKIP_MIGRATIONS=1` stops that). To update, `git pull` and run the same `up -d --build`
+- On stopping (`docker compose stop`, etc.), open documents are saved before exiting
+- The health check is `GET /api/health` (200 if the database can be reached; `<sub-path>/api/health` when served under a sub-path). The container has a health check set too
+- Run recovery commands inside the container: `docker compose -f docker-compose.prod.yml --env-file .env.production exec app pnpm admin:recover --clear-lockout` (`rotate-server-key` likewise)
+- **Backups**: the PostgreSQL and SeaweedFS volumes (`knowlective-prod_seaweedfs_data`), plus `.env.production` (`KNOWLECTIVE_SERVER_KEY`). The contents are encrypted, so backups can't be restored without the key
+  - The bundled PostgreSQL also needs its encryption keys (volume `knowlective-prod_postgres_tde_keys`). Keep them **somewhere separate from the data (`knowlective-prod_postgres_tde_data`)** (kept together, encrypting the whole database means nothing)
+  - `pg_dump` output has the whole-database encryption removed (columns the app encrypts stay encrypted), so store the file encrypted
+- **Updating from before the bundled PostgreSQL was encrypted**: after `git pull`, move the old bundled database (PostgreSQL 16, volume `knowlective-prod_postgres_data`) into the encrypted one with `bash docker/postgres/move-to-tde.sh prod` (the data flows straight from `pg_dump` into `pg_restore`, leaving no unencrypted dump file). Once it works, delete the old volume with `docker volume rm knowlective-prod_postgres_data`
+- Redis is only needed to relay collaborative editing between several app containers, so it isn't bundled (not needed for one). To use it, set `REDIS_URL`
 
-イメージだけを作る場合は `docker build -t knowlective .`。必要な環境変数は `DATABASE_URL`・`KNOWLECTIVE_SERVER_KEY`・（同梱の SeaweedFS を使うなら）`SEAWEEDFS_ACCESS_KEY`・`SEAWEEDFS_SECRET_KEY`・`KNOWLECTIVE_BUNDLED_S3_ENDPOINT`。
+To build just the image: `docker build -t knowlective .`. The environment variables needed are `DATABASE_URL`, `KNOWLECTIVE_SERVER_KEY` and (for the bundled SeaweedFS) `SEAWEEDFS_ACCESS_KEY`, `SEAWEEDFS_SECRET_KEY` and `KNOWLECTIVE_BUNDLED_S3_ENDPOINT`.
 
-### Docker を使わない場合
+### Without Docker
 
 ```bash
 pnpm build
 pnpm --filter shared exec prisma migrate deploy
-pnpm start         # NODE_ENV=production で起動。ポートは PORT（既定 3000）
+pnpm start         # Starts with NODE_ENV=production. The port is PORT (default 3000)
 ```
 
-リバースプロキシでは、`/collab` への WebSocket（Upgrade ヘッダー）も通すこと（サブパスで公開する場合は `<サブパス>/collab`）。
+The reverse proxy must also pass WebSocket connections (the Upgrade header) to `/collab` (`<sub-path>/collab` when served under a sub-path).
 
-## 開発
+## Development
 
 ```bash
-pnpm dev           # http://localhost:3000（共同編集の WebSocket も同じポートの /collab）
+pnpm dev           # http://localhost:3000 (the collaborative-editing WebSocket is /collab on the same port)
 ```
 
-## ライセンス
+## License
 
 Copyright (C) 2026 hachibay
 
-knowlective は [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0-only）で公開しています。
+knowlective is published under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only).
 
-- 自由に使用・改変・再配布できます。改変したものを配布する場合や、改変したものをネットワーク越しにサービスとして提供する場合は、その利用者に改変後のソースコードを AGPL-3.0 で提供する必要があります
-- 依存パッケージはそれぞれのライセンスに従います（BlockNote は MPL-2.0、そのほかは主に MIT / Apache-2.0）
-- 管理画面の左下に、ソースコードへのリンク（初期値は https://github.com/knowlective-org/knowlective ）を表示しています。改変したものを運用する場合は、環境変数 `KNOWLECTIVE_SOURCE_URL` を改変後のソースコードの公開先にしてください
-
+- You're free to use, modify and redistribute it. If you distribute a modified version, or provide a modified version as a service over a network, you must provide its users with the modified source code under AGPL-3.0
+- Dependencies are under their own licenses (BlockNote is MPL-2.0; most others are MIT / Apache-2.0)
+- The admin console shows a link to the source code at the bottom left (by default https://github.com/knowlective-org/knowlective ). If you run a modified version, set the environment variable `KNOWLECTIVE_SOURCE_URL` to where the modified source code is published
