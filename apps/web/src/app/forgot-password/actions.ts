@@ -49,7 +49,7 @@ export async function requestPasswordReset(
     const link = `${await getPublicUrl()}/reset-password/${token}`;
     void sendMail({
       to: email,
-      ...passwordResetMail({ link, ttl: `${PASSWORD_RESET_TTL_MINUTES}分間`, byAdmin: false }),
+      ...passwordResetMail({ link, ttlMinutes: PASSWORD_RESET_TTL_MINUTES, byAdmin: false }),
     }).catch((err) => console.error("[forgot-password] sending the mail failed", err));
   }
   return { sentTo: email };

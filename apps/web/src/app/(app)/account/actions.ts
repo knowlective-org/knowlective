@@ -39,7 +39,7 @@ export async function requestOwnPasswordReset(): Promise<OwnPasswordResetState> 
     // nothing to hide, and they should hear if the mail couldn't be sent.
     await sendMail({
       to: user.email,
-      ...passwordResetMail({ link, ttl: `${PASSWORD_RESET_TTL_MINUTES}分間`, byAdmin: false }),
+      ...passwordResetMail({ link, ttlMinutes: PASSWORD_RESET_TTL_MINUTES, byAdmin: false }),
     });
   } catch (err) {
     console.error("[account] sending the password reset mail failed", err);

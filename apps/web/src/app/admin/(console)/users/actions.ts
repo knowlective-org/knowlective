@@ -134,7 +134,7 @@ export async function issuePasswordReset(
   try {
     await sendMail({
       to: user.email,
-      ...passwordResetMail({ link, ttl: `${ADMIN_PASSWORD_RESET_TTL_HOURS}時間`, byAdmin: true }),
+      ...passwordResetMail({ link, ttlMinutes: ADMIN_PASSWORD_RESET_TTL_HOURS * 60, byAdmin: true }),
     });
     return { link, mailSentTo: user.email };
   } catch (err) {

@@ -28,7 +28,7 @@ import {
   saveMailSettings,
   sendMail,
 } from "@/lib/mail";
-import { invitationMail } from "@/lib/mail-templates";
+import { invitationMail, testMail } from "@/lib/mail-templates";
 import { MAX_ALLOWED_EXTENSIONS, parseExtensions } from "@/lib/upload-types";
 import { parseProxyUrl } from "@/lib/link-preview";
 import { getLinkPreviewSettings, saveLinkPreviewSettings as storeLinkPreviewSettings } from "@/lib/link-preview-settings";
@@ -161,8 +161,8 @@ export async function issueInvitation(
       to: email,
       ...invitationMail({
         link,
-        inviterName: actorLabel === "マスターパスワード" ? "KNOWLECTIVE の管理者" : actorLabel,
-        siteRoleLabel: SITE_ROLE_LABELS[siteRole as SiteRole],
+        inviterName: actor.userId ? actorLabel : null,
+        siteRole: siteRole as SiteRole,
         groupNames: groups.map((g) => g.name),
         ttlDays: INVITATION_TTL_DAYS,
       }),
@@ -254,8 +254,7 @@ export async function sendTestMail(
   try {
     await sendMail({
       to: to.trim(),
-      subject: "KNOWLECTIVE テストメール",
-      text: "KNOWLECTIVE の管理画面から送信したテストメールです。\nこのメールが届いていれば、メール送信の設定は正しく動いています。",
+      ...testMail(),
     });
   } catch (err) {
     if (err instanceof MailNotConfiguredError) return { error: "先にメール送信の設定を保存してください。" };
