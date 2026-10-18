@@ -12,7 +12,7 @@ import { InvalidPublicUrlError, normalizePublicUrl, type SiteRole } from "shared
 import { SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
 import { recordAudit } from "@/lib/audit";
 import { reconnectDocuments } from "@/lib/collab-events";
-import { publicPageIds } from "@/lib/public-pages";
+import { publicPageIds, publicPageOptions } from "@/lib/public-pages";
 import { searchEngineSettingChanged } from "@/lib/search-engines";
 import { manageableGroupIds } from "@/lib/group-access";
 import { saveTheme as storeTheme } from "@/lib/theme";
@@ -402,11 +402,36 @@ export async function savePublicPagesSetting(
   const allowed = formData.get("allowed") === "on";
   // The form's checkbox is "検索エンジンに載せない".
   const searchEnginesAllowed = formData.get("noindex") !== "on";
+  // The landing page: one of the pages made public, or none ("").
+  const rawLanding = formData.get("landingPageId");
   const before = await prisma.instanceConfig.findUniqueOrThrow({
     where: { id: 1 },
-    select: { publicPagesAllowed: true, searchEnginesAllowed: true },
+    select: { publicPagesAllowed: true, searchEnginesAllowed: true, landingPageId: true },
   });
-  await prisma.instanceConfig.update({ where: { id: 1 }, data: { publicPagesAllowed: allowed, searchEnginesAllowed } });
+  const options = await publicPageOptions();
+  // The current one may have stopped being public: kept as it is (it shows
+  // again once it's public again).
+  const landing =
+    typeof rawLanding !== "string" || !rawLanding
+      ? null
+      : rawLanding === before.landingPageId
+        ? (options.find((o) => o.id === rawLanding) ?? { id: rawLanding, label: "" })
+        : options.find((o) => o.id === rawLanding);
+  if (landing === undefined) return { error: "トップに表示するページは、公開しているページから選んでください。" };
+  await prisma.instanceConfig.update({
+    where: { id: 1 },
+    data: { publicPagesAllowed: allowed, searchEnginesAllowed, landingPageId: landing?.id ?? null },
+  });
+  if (before.landingPageId !== (landing?.id ?? null)) {
+    await recordAudit(
+      actor,
+      "landing-page.settings",
+      landing
+        ? `ログインしていない人のトップページを「${landing.label}」に設定`
+        : "ログインしていない人のトップページをなし（ログイン画面）に変更",
+      { pageId: landing?.id ?? null },
+    );
+  }
   if (before.publicPagesAllowed !== allowed) {
     await recordAudit(
       actor,

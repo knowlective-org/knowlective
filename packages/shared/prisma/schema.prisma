@@ -316,6 +316,10 @@ model InstanceConfig {
   // can reach). Off: every response says X-Robots-Tag: noindex, nofollow
   // (apps/web/server/robots.ts).
   searchEnginesAllowed Boolean @default(false)
+  // The public page "/" shows someone not logged in (the landing page),
+  // instead of the login screen. No foreign key: only used while the page is
+  // public (checked on each visit), otherwise "/" asks to log in.
+  landingPageId String?
 
   // How accounts are created: by invitation only, or also by anyone who
   // confirms their email address at /signup (needs mail settings).

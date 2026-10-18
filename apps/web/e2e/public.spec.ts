@@ -38,7 +38,7 @@ async function setPublicPagesAllowed(page: Page, allowed: boolean) {
 }
 
 // The 「ページの公開」 settings in /admin (概要). Leaves out what isn't given.
-async function setPublicSettings(page: Page, settings: { allowed?: boolean; noindex?: boolean }) {
+async function setPublicSettings(page: Page, settings: { allowed?: boolean; noindex?: boolean; landing?: string }) {
   await page.goto("admin");
   // Signed in to /admin already (an earlier call), or not yet.
   if (new URL(page.url()).pathname.includes("/admin/login")) {
@@ -56,9 +56,12 @@ async function setPublicSettings(page: Page, settings: { allowed?: boolean; noin
   const wasAllowed = await allowedBox.isChecked();
   const allowedChanges = settings.allowed !== undefined && settings.allowed !== wasAllowed;
   const noindexChanges = settings.noindex !== undefined && settings.noindex !== (await noindexBox.isChecked());
-  if (!allowedChanges && !noindexChanges) return;
+  const landingSelect = page.getByTestId("PublicPagesForm.landingPageSelect");
+  const landingChanges = settings.landing !== undefined && settings.landing !== (await landingSelect.inputValue());
+  if (!allowedChanges && !noindexChanges && !landingChanges) return;
   if (allowedChanges) await allowedBox.setChecked(settings.allowed!);
   if (noindexChanges) await noindexBox.setChecked(settings.noindex!);
+  if (landingChanges) await landingSelect.selectOption(settings.landing!);
   await page.getByTestId("PublicPagesForm.submitButton").click();
   // Allowing public pages asks first.
   if (allowedChanges && settings.allowed) await page.getByTestId("AppDialog.confirmButton").click();
@@ -113,10 +116,19 @@ test.describe("ページの公開", () => {
       await setPublicSettings(page, { noindex: true });
       expect((await guest.goto(`pages/${id}`))?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
 
+      // The landing page: "/" shows it to someone not logged in.
+      await setPublicSettings(page, { landing: id });
+      await guest.goto("");
+      await expect(guest).toHaveURL(new RegExp(`/pages/${id}$`));
+
       // Not allowed any more: the page needs a login again at once.
       await setPublicPagesAllowed(page, false);
       await guest.goto(`pages/${id}`);
       await expect(guest).toHaveURL(/\/login/);
+      // And "/" asks to log in again, though the landing page is still set.
+      await guest.goto("");
+      await expect(guest).toHaveURL(/\/login/);
+      await setPublicSettings(page, { landing: "" });
 
       await page.goto(`pages/${id}`);
       await trashOpenPage(page);

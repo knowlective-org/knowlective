@@ -12,19 +12,19 @@ import { getTheme } from "@/lib/theme";
 import { ThemeForm } from "./theme-form";
 import { getLinkPreviewSettings } from "@/lib/link-preview-settings";
 import { LinkPreviewSettingsForm } from "./link-preview-settings-form";
-import { publicPageIds } from "@/lib/public-pages";
+import { publicPageOptions } from "@/lib/public-pages";
 import { PublicPagesForm } from "./public-pages-form";
 
 export default async function AdminOverviewPage() {
   await requireAdmin(["SITE_ADMIN"]);
-  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicCount] = await Promise.all([
+  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages] = await Promise.all([
     getMailSettings(),
-    prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true, publicPagesAllowed: true, searchEnginesAllowed: true } }),
+    prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true, publicPagesAllowed: true, searchEnginesAllowed: true, landingPageId: true } }),
     getRequestOrigin(),
     prisma.user.count({ where: { siteRole: "SITE_ADMIN", disabledAt: null } }),
     getTheme(),
     getLinkPreviewSettings(),
-    publicPageIds().then((ids) => ids.length),
+    publicPageOptions(),
   ]);
 
   return (
@@ -98,7 +98,9 @@ export default async function AdminOverviewPage() {
         <PublicPagesForm
           allowed={site.publicPagesAllowed}
           searchEnginesAllowed={site.searchEnginesAllowed}
-          publicCount={publicCount}
+          publicCount={publicPages.length}
+          landingPageId={site.landingPageId}
+          landingOptions={publicPages}
         />
       </section>
 

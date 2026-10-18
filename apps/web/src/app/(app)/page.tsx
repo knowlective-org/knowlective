@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { getPageAccess } from "shared";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth/session";
+import { getCurrentUser, requireUser } from "@/lib/auth/session";
+import { landingPageId } from "@/lib/public-pages";
 import { loadSidebar } from "@/lib/sidebar-data";
 import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
@@ -9,8 +10,14 @@ import styles from "@/styles/ui.module.css";
 
 // "/" has no screen of its own: it reopens the page opened last, or else the
 // first page the user can see (a root page before shared pages). Only when
-// nothing is visible does it render the empty two-pane screen.
+// nothing is visible does it render the empty two-pane screen. Someone not
+// logged in gets the landing page set in /admin, if it's public, and the
+// login screen otherwise.
 export default async function Home() {
+  if (!(await getCurrentUser())) {
+    const landing = await landingPageId();
+    if (landing) redirect(`/pages/${landing}`);
+  }
   const user = await requireUser("/");
   const { lastPageId } = await prisma.user.findUniqueOrThrow({
     where: { id: user.id },

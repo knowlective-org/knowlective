@@ -1,5 +1,6 @@
-import { MAX_PAGE_DEPTH, PUBLIC_GROUP, computeTreeAccess } from "shared";
+import { MAX_PAGE_DEPTH, PUBLIC_GROUP, computeTreeAccess, getPageAccess } from "shared";
 import { prisma } from "@/lib/db";
+import { displayTitle } from "@/lib/page-title";
 
 // Public pages: pages viewable without logging in, through a VIEW grant to
 // the built-in "public" group (see packages/shared/src/permissions.ts). They
@@ -29,6 +30,31 @@ export async function publicPageIds(): Promise<string[]> {
     ids.push(...computeTreeAccess(pages, grants, new Set([group.id]), MAX_PAGE_DEPTH).keys());
   }
   return ids;
+}
+
+// The page "/" shows someone not logged in: the landing page, while it's
+// public (and public pages are allowed). null: the login screen.
+export async function landingPageId(): Promise<string | null> {
+  const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { landingPageId: true } });
+  const id = config?.landingPageId;
+  return id && (await getPageAccess(prisma, null, id)) ? id : null;
+}
+
+// The pages a public grant reaches, for picking one (the landing page), in
+// tree order. Each is named with its public ancestors only: the title of a
+// page that isn't public isn't shown, not even to a site admin.
+export async function publicPageOptions(): Promise<{ id: string; label: string }[]> {
+  const ids = await publicPageIds();
+  if (ids.length === 0) return [];
+  const pages = await prisma.page.findMany({ where: { id: { in: ids } }, select: { id: true, title: true, parentId: true } });
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  return ids.flatMap((id) => {
+    const names: string[] = [];
+    for (let p = byId.get(id); p && names.length <= MAX_PAGE_DEPTH; p = p.parentId ? byId.get(p.parentId) : undefined) {
+      names.unshift(displayTitle(p.title));
+    }
+    return names.length > 0 ? [{ id, label: names.join(" / ") }] : [];
+  });
 }
 
 // The page and every live page under it.
