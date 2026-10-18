@@ -11,17 +11,11 @@ export function PublicPagesForm({
   allowed,
   searchEnginesAllowed,
   publicCount,
-  landingPageId,
-  landingOptions,
 }: {
   allowed: boolean;
   searchEnginesAllowed: boolean;
   publicCount: number;
-  // The landing page set, and the public pages it can be.
-  landingPageId: string | null;
-  landingOptions: { id: string; label: string }[];
 }) {
-  const landingIsPublic = landingPageId === null || landingOptions.some((o) => o.id === landingPageId);
   const [state, formAction, pending] = useActionState(savePublicPagesSetting, {} as PublicPagesSettingState);
   const [checked, setChecked] = useState(allowed);
   const [noindex, setNoindex] = useState(!searchEnginesAllowed);
@@ -78,28 +72,6 @@ export function PublicPagesForm({
             主な検索エンジンはこの指示に従いますが、従うかどうかは検索エンジン次第です（見られたくないページは公開しないでください）。
             オフにすると、公開したページが Google などの検索結果に出ることがあります。
           </span>
-        </span>
-      </label>
-      <label>
-        ログインしていない人のトップページ
-        <select
-          name="landingPageId"
-          defaultValue={landingPageId ?? ""}
-          className={styles.field}
-          data-ui="PublicPagesForm.landingPageSelect"
-        >
-          <option value="">なし（ログイン画面）</option>
-          {!landingIsPublic && <option value={landingPageId!}>（今は公開されていないページ）</option>}
-          {landingOptions.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <span className={styles.note}>
-          ログインしていない人がサイトのトップ（/）を開いたときに表示する、公開しているページです。ログインしている人は、これまでどおり前回開いたページに移ります。
-          {!landingIsPublic && " 選んでいるページは今は公開されていないため、ログイン画面を表示しています。"}
-          {landingIsPublic && landingPageId && !allowed && " ページの公開を許可していない間は、ログイン画面を表示します。"}
         </span>
       </label>
       <p className={styles.note} data-ui="PublicPagesForm.count">

@@ -1,23 +1,19 @@
-import path from "node:path";
 import { type Page, expect } from "@playwright/test";
-import { createPrismaClient, emailHash, loadDataKey } from "shared";
 import { ACCOUNTS, PASSWORD, adminTotpCode } from "./accounts";
+import { userWhere, withPrisma } from "./db";
 
 // Signing in to /admin as the E2E site admin, from any test. An
 // authenticator code can't be used twice, so the code is for a time step the
 // server hasn't seen used yet: this reads the admin's last used step from the
-// development database (DATABASE_URL, from the root .env).
-
-if (!process.env.DATABASE_URL) process.loadEnvFile(path.resolve(__dirname, "../../../.env"));
+// development database.
 
 // An authenticator code for an unused time step (the server accepts one
 // step either side of now). Waits if both are used.
-async function freshAdminCode(): Promise<string> {
-  const prisma = createPrismaClient();
-  try {
+export async function freshAdminCode(): Promise<string> {
+  return withPrisma(async (prisma) => {
     for (;;) {
       const admin = await prisma.user.findUniqueOrThrow({
-        where: { emailHash: emailHash(await loadDataKey(prisma), ACCOUNTS.admin.email) },
+        where: await userWhere(prisma, ACCOUNTS.admin.email),
         select: { totpLastStep: true },
       });
       const step = Math.floor(Date.now() / 30_000);
@@ -26,9 +22,15 @@ async function freshAdminCode(): Promise<string> {
       }
       await new Promise((r) => setTimeout(r, 5_000));
     }
-  } finally {
-    await prisma.$disconnect();
-  }
+  });
+}
+
+// The top page in /admin (概要): a page id, or "" for none.
+export async function setLandingPage(page: Page, pageId: string) {
+  await openAdmin(page);
+  await page.getByTestId("LandingPageForm.pageSelect").selectOption(pageId);
+  await page.getByTestId("LandingPageForm.submitButton").click();
+  await expect(page.getByTestId("LandingPageForm.status")).toHaveText("保存しました。");
 }
 
 // Opens `path` under /admin, signing in first if needed.

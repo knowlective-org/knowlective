@@ -1,4 +1,4 @@
-import { MAX_PAGE_DEPTH, PUBLIC_GROUP, computeTreeAccess, getPageAccess } from "shared";
+import { MAX_PAGE_DEPTH, PUBLIC_GROUP, computeTreeAccess } from "shared";
 import { prisma } from "@/lib/db";
 import { displayTitle } from "@/lib/page-title";
 
@@ -32,15 +32,7 @@ export async function publicPageIds(): Promise<string[]> {
   return ids;
 }
 
-// The page "/" shows someone not logged in: the landing page, while it's
-// public (and public pages are allowed). null: the login screen.
-export async function landingPageId(): Promise<string | null> {
-  const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { landingPageId: true } });
-  const id = config?.landingPageId;
-  return id && (await getPageAccess(prisma, null, id)) ? id : null;
-}
-
-// The pages a public grant reaches, for picking one (the landing page), in
+// The pages a public grant reaches, for picking one (the top page), in
 // tree order. Each is named with its public ancestors only: the title of a
 // page that isn't public isn't shown, not even to a site admin.
 export async function publicPageOptions(): Promise<{ id: string; label: string }[]> {

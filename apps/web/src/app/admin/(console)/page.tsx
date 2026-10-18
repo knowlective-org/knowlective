@@ -12,20 +12,28 @@ import { getTheme } from "@/lib/theme";
 import { ThemeForm } from "./theme-form";
 import { getLinkPreviewSettings } from "@/lib/link-preview-settings";
 import { LinkPreviewSettingsForm } from "./link-preview-settings-form";
-import { publicPageOptions } from "@/lib/public-pages";
+import { publicPageIds } from "@/lib/public-pages";
 import { PublicPagesForm } from "./public-pages-form";
+import { landingPageFor, landingPageOptions } from "@/lib/landing-page";
+import { LandingPageForm } from "./landing-page-form";
 
 export default async function AdminOverviewPage() {
-  await requireAdmin(["SITE_ADMIN"]);
-  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages] = await Promise.all([
-    getMailSettings(),
-    prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true, publicPagesAllowed: true, searchEnginesAllowed: true, landingPageId: true } }),
-    getRequestOrigin(),
-    prisma.user.count({ where: { siteRole: "SITE_ADMIN", disabledAt: null } }),
-    getTheme(),
-    getLinkPreviewSettings(),
-    publicPageOptions(),
-  ]);
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages, landingOptions, guestLanding] =
+    await Promise.all([
+      getMailSettings(),
+      prisma.instanceConfig.findUniqueOrThrow({
+        where: { id: 1 },
+        select: { publicUrl: true, publicPagesAllowed: true, searchEnginesAllowed: true, landingPageId: true },
+      }),
+      getRequestOrigin(),
+      prisma.user.count({ where: { siteRole: "SITE_ADMIN", disabledAt: null } }),
+      getTheme(),
+      getLinkPreviewSettings(),
+      publicPageIds(),
+      landingPageOptions(actor.userId),
+      landingPageFor(null),
+    ]);
 
   return (
     <>
@@ -99,8 +107,22 @@ export default async function AdminOverviewPage() {
           allowed={site.publicPagesAllowed}
           searchEnginesAllowed={site.searchEnginesAllowed}
           publicCount={publicPages.length}
+        />
+      </section>
+
+      <section className={styles.section} data-ui="AdminOverviewPage.landingPageSection">
+        <h2 className={styles.sectionTitle}>トップページ</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          サイトのトップ（/）を開いて、ほかに移る先がないときに表示するページです。
+          ログインしている人には、まだページを開いたことがないとき（登録した直後など）に表示し、以降は前回開いたページに移ります。
+          ログインしていない人には毎回表示します（ページが公開されている場合だけ。公開されていなければログイン画面）。
+          このページを見る権限がない人には、その人が見られる最初のページを表示します。
+          一覧には、あなたが見られるページと公開しているページが出ます。
+        </p>
+        <LandingPageForm
           landingPageId={site.landingPageId}
-          landingOptions={publicPages}
+          options={landingOptions}
+          guestsCanView={guestLanding !== null}
         />
       </section>
 

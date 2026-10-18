@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 import { HOME_PAGE_ID, authFile } from "./accounts";
-import { openAdmin } from "./admin-login";
+import { openAdmin, setLandingPage } from "./admin-login";
 import { createPage, editorBody, trashOpenPage, typeInBody } from "./helpers";
 
 // Public pages: a site admin allows them in /admin (概要), someone with
@@ -12,7 +12,7 @@ async function setPublicPagesAllowed(page: Page, allowed: boolean) {
 }
 
 // The 「ページの公開」 settings in /admin (概要). Leaves out what isn't given.
-async function setPublicSettings(page: Page, settings: { allowed?: boolean; noindex?: boolean; landing?: string }) {
+async function setPublicSettings(page: Page, settings: { allowed?: boolean; noindex?: boolean }) {
   await openAdmin(page);
 
   const allowedBox = page.getByTestId("PublicPagesForm.allowedCheckbox");
@@ -20,12 +20,9 @@ async function setPublicSettings(page: Page, settings: { allowed?: boolean; noin
   const wasAllowed = await allowedBox.isChecked();
   const allowedChanges = settings.allowed !== undefined && settings.allowed !== wasAllowed;
   const noindexChanges = settings.noindex !== undefined && settings.noindex !== (await noindexBox.isChecked());
-  const landingSelect = page.getByTestId("PublicPagesForm.landingPageSelect");
-  const landingChanges = settings.landing !== undefined && settings.landing !== (await landingSelect.inputValue());
-  if (!allowedChanges && !noindexChanges && !landingChanges) return;
+  if (!allowedChanges && !noindexChanges) return;
   if (allowedChanges) await allowedBox.setChecked(settings.allowed!);
   if (noindexChanges) await noindexBox.setChecked(settings.noindex!);
-  if (landingChanges) await landingSelect.selectOption(settings.landing!);
   await page.getByTestId("PublicPagesForm.submitButton").click();
   // Allowing public pages asks first.
   if (allowedChanges && settings.allowed) await page.getByTestId("AppDialog.confirmButton").click();
@@ -80,8 +77,8 @@ test.describe("ページの公開", () => {
       await setPublicSettings(page, { noindex: true });
       expect((await guest.goto(`pages/${id}`))?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
 
-      // The landing page: "/" shows it to someone not logged in.
-      await setPublicSettings(page, { landing: id });
+      // The top page: "/" shows it to someone not logged in, as it's public.
+      await setLandingPage(page, id);
       await guest.goto("");
       await expect(guest).toHaveURL(new RegExp(`/pages/${id}$`));
 
@@ -92,7 +89,7 @@ test.describe("ページの公開", () => {
       // And "/" asks to log in again, though the landing page is still set.
       await guest.goto("");
       await expect(guest).toHaveURL(/\/login/);
-      await setPublicSettings(page, { landing: "" });
+      await setLandingPage(page, "");
 
       await page.goto(`pages/${id}`);
       await trashOpenPage(page);

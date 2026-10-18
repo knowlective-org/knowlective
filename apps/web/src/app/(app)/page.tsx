@@ -2,20 +2,20 @@ import { redirect } from "next/navigation";
 import { getPageAccess } from "shared";
 import { prisma } from "@/lib/db";
 import { getCurrentUser, requireUser } from "@/lib/auth/session";
-import { landingPageId } from "@/lib/public-pages";
+import { landingPageFor } from "@/lib/landing-page";
 import { loadSidebar } from "@/lib/sidebar-data";
 import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 
 // "/" has no screen of its own: it reopens the page opened last, or else the
-// first page the user can see (a root page before shared pages). Only when
-// nothing is visible does it render the empty two-pane screen. Someone not
-// logged in gets the landing page set in /admin, if it's public, and the
-// login screen otherwise.
+// top page set in /admin, or else the first page the user can see (a root
+// page before shared pages). Only when nothing is visible does it render the
+// empty two-pane screen. Someone not logged in gets the top page if it's
+// public, and the login screen otherwise (see lib/landing-page.ts).
 export default async function Home() {
   if (!(await getCurrentUser())) {
-    const landing = await landingPageId();
+    const landing = await landingPageFor(null);
     if (landing) redirect(`/pages/${landing}`);
   }
   const user = await requireUser("/");
@@ -26,6 +26,8 @@ export default async function Home() {
   if (lastPageId && (await getPageAccess(prisma, user.id, lastPageId))) {
     redirect(`/pages/${lastPageId}`);
   }
+  const landing = await landingPageFor(user.id);
+  if (landing) redirect(`/pages/${landing}`);
 
   const sidebar = await loadSidebar(user);
   const first =

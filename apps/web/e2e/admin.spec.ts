@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { ACCOUNTS, PASSWORD, adminTotpCode, authFile } from "./accounts";
+import { ACCOUNTS, PASSWORD, authFile } from "./accounts";
+import { freshAdminCode } from "./admin-login";
 
 test.describe("管理画面", () => {
   test("サイト管理者は、パスワードと認証コードの2段階でログインできる", async ({ page }) => {
@@ -12,7 +13,7 @@ test.describe("管理画面", () => {
     await page.getByTestId("AccountLoginForm.submitButton").click();
 
     await expect(page).toHaveURL(/\/admin\/login\/verify/);
-    await page.getByTestId("CodeField.input").fill(adminTotpCode());
+    await page.getByTestId("CodeField.input").fill(await freshAdminCode());
     await page.getByTestId("VerifyCodeForm.submitButton").click();
     await page.waitForURL((url) => url.pathname.endsWith("/admin"));
 
