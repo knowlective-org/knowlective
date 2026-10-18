@@ -1,37 +1,11 @@
-import path from "node:path";
 import { type Page, expect, test } from "@playwright/test";
-import { createPrismaClient, emailHash, loadDataKey } from "shared";
-import { ACCOUNTS, HOME_PAGE_ID, PASSWORD, adminTotpCode, authFile } from "./accounts";
+import { HOME_PAGE_ID, authFile } from "./accounts";
+import { openAdmin } from "./admin-login";
 import { createPage, editorBody, trashOpenPage, typeInBody } from "./helpers";
 
 // Public pages: a site admin allows them in /admin (概要), someone with
 // MANAGE publishes a page from its 権限設定, and then anyone can read it
-// without logging in. Reads the development database for the admin's last
-// used authenticator step (a code can't be used twice), so it needs
-// DATABASE_URL (from the root .env).
-
-if (!process.env.DATABASE_URL) process.loadEnvFile(path.resolve(__dirname, "../../../.env"));
-
-// An authenticator code for a time step the server hasn't seen used yet (it
-// accepts one step either side of now).
-async function freshAdminCode(): Promise<string> {
-  const prisma = createPrismaClient();
-  try {
-    for (;;) {
-      const admin = await prisma.user.findUniqueOrThrow({
-        where: { emailHash: emailHash(await loadDataKey(prisma), ACCOUNTS.admin.email) },
-        select: { totpLastStep: true },
-      });
-      const step = Math.floor(Date.now() / 30_000);
-      for (const candidate of [step, step + 1]) {
-        if (admin.totpLastStep === null || candidate > admin.totpLastStep) return adminTotpCode(candidate * 30_000);
-      }
-      await new Promise((r) => setTimeout(r, 5_000));
-    }
-  } finally {
-    await prisma.$disconnect();
-  }
-}
+// without logging in.
 
 async function setPublicPagesAllowed(page: Page, allowed: boolean) {
   await setPublicSettings(page, { allowed });
@@ -39,17 +13,7 @@ async function setPublicPagesAllowed(page: Page, allowed: boolean) {
 
 // The 「ページの公開」 settings in /admin (概要). Leaves out what isn't given.
 async function setPublicSettings(page: Page, settings: { allowed?: boolean; noindex?: boolean; landing?: string }) {
-  await page.goto("admin");
-  // Signed in to /admin already (an earlier call), or not yet.
-  if (new URL(page.url()).pathname.includes("/admin/login")) {
-    await page.getByTestId("AccountLoginForm.emailInput").fill(ACCOUNTS.admin.email);
-    await page.getByTestId("AccountLoginForm.passwordInput").fill(PASSWORD);
-    await page.getByTestId("AccountLoginForm.submitButton").click();
-    await expect(page).toHaveURL(/\/admin\/login\/verify/);
-    await page.getByTestId("CodeField.input").fill(await freshAdminCode());
-    await page.getByTestId("VerifyCodeForm.submitButton").click();
-    await page.waitForURL((url) => url.pathname.endsWith("/admin"));
-  }
+  await openAdmin(page);
 
   const allowedBox = page.getByTestId("PublicPagesForm.allowedCheckbox");
   const noindexBox = page.getByTestId("PublicPagesForm.noindexCheckbox");

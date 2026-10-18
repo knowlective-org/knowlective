@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import { listAuditLogs } from "@/lib/audit";
+import { countAuditLogs, listAuditLogs } from "@/lib/audit";
+import { Pagination, pageParam } from "@/components/pagination";
 import { openOptionalEmail } from "@/lib/emails";
 import {
   ABSOLUTE_TIMEOUT_MS,
@@ -14,14 +15,20 @@ import styles from "@/styles/ui.module.css";
 import { revokeOtherSessions, revokeSession } from "../actions";
 import { IpAllowlistForm } from "../ip-allowlist-form";
 
-export default async function AdminSecurityPage() {
+// Entries of 変更の記録 per page (?auditPage=N).
+const AUDIT_PAGE_SIZE = 20;
+
+export default async function AdminSecurityPage({ searchParams }: PageProps<"/admin/security">) {
   const { ctx, config, session } = await requireAdmin(["SITE_ADMIN"]);
+  const auditCount = await countAuditLogs();
+  const auditPages = Math.max(1, Math.ceil(auditCount / AUDIT_PAGE_SIZE));
+  const auditPage = pageParam((await searchParams).auditPage, auditPages);
   const [sessions, attempts, auditLogs] = await Promise.all([
     listActiveAdminSessions(),
     prisma.adminLoginAttempt
       .findMany({ orderBy: { createdAt: "desc" }, take: 30 })
       .then((rows) => Promise.all(rows.map(async (a) => ({ ...a, email: await openOptionalEmail(a.emailEnc) })))),
-    listAuditLogs(100),
+    listAuditLogs(AUDIT_PAGE_SIZE, (auditPage - 1) * AUDIT_PAGE_SIZE),
   ]);
 
   return (
@@ -41,8 +48,8 @@ export default async function AdminSecurityPage() {
         </ul>
       </section>
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>変更の記録（新しい順に100件）</h2>
+      <section className={styles.section} id="audit" data-ui="AdminSecurityPage.auditSection">
+        <h2 className={styles.sectionTitle}>変更の記録</h2>
         <p className={styles.note} style={{ marginBottom: 12 }}>
           ロール・アカウントの有効/無効・グループのメンバー・ページの権限・ナレッジルートの作成・招待の変更を記録しています。
         </p>
@@ -70,6 +77,17 @@ export default async function AdminSecurityPage() {
             </table>
           </div>
         )}
+        {auditCount > 0 && (
+          <p className={styles.note} style={{ marginTop: 8 }} data-ui="AdminSecurityPage.auditRange">
+            新しい順に {(auditPage - 1) * AUDIT_PAGE_SIZE + 1}〜{Math.min(auditPage * AUDIT_PAGE_SIZE, auditCount)} 件目（全 {auditCount} 件）
+          </p>
+        )}
+        <Pagination
+          page={auditPage}
+          pageCount={auditPages}
+          href={(n) => `/admin/security?auditPage=${n}#audit`}
+          label="変更の記録"
+        />
       </section>
 
       <section className={styles.section}>

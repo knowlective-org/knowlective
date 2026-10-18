@@ -21,9 +21,13 @@ export async function recordAudit(
   });
 }
 
-// The newest entries, opened.
-export async function listAuditLogs(take: number) {
-  const logs = await prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take });
+export async function countAuditLogs(): Promise<number> {
+  return prisma.auditLog.count();
+}
+
+// Entries, newest first (skipping the newest `skip`), opened.
+export async function listAuditLogs(take: number, skip = 0) {
+  const logs = await prisma.auditLog.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }], take, skip });
   if (logs.length === 0) return [];
   const key = await loadDataKey(prisma);
   return logs.map((log) => {
