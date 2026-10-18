@@ -4,6 +4,7 @@ import type { MessageShape } from "../en";
 const ja: MessageShape<typeof en> = {
   account: {
     title: "アカウント",
+    personalRootTitle: "マイページ",
     details: "登録内容",
     name: "名前",
     email: "メールアドレス",

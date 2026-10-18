@@ -2,11 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import { auditTranslator } from "@/i18n/audit";
 import type { SiteRole } from "shared";
 import { prisma } from "@/lib/db";
 import { withEmail } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
-import { ADMIN_CONSOLE_ROLES, SITE_ROLES, SITE_ROLE_LABELS, countOtherActiveSiteAdmins } from "@/lib/roles";
+import { ADMIN_CONSOLE_ROLES, SITE_ROLES, countOtherActiveSiteAdmins } from "@/lib/roles";
 import { type AuditActor, recordAudit, userLabel } from "@/lib/audit";
 import { ADMIN_PASSWORD_RESET_TTL_HOURS, createPasswordReset } from "@/lib/auth/password-reset";
 import { passwordLoginAllowed } from "@/lib/auth/oidc";
@@ -15,9 +17,11 @@ import { passwordResetMail } from "@/lib/mail-templates";
 import { userLocale } from "@/i18n/locale";
 import { getPublicUrl } from "@/lib/site-url";
 
-async function audit(actor: AuditActor, action: string, userId: string, summary: (who: string) => string) {
+type AuditText = Awaited<ReturnType<typeof auditTranslator>>;
+
+async function audit(actor: AuditActor, action: string, userId: string, summary: (t: AuditText, who: string) => string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, emailEnc: true } });
-  if (user) await recordAudit(actor, action, summary(userLabel(await withEmail(user))), { userId });
+  if (user) await recordAudit(actor, action, summary(await auditTranslator(), userLabel(await withEmail(user))), { userId });
 }
 
 // Site admins only. Never leave the instance without an enabled site admin:
@@ -53,7 +57,7 @@ export async function disableUser(formData: FormData): Promise<void> {
     prisma.userSession.deleteMany({ where: { userId } }),
     prisma.adminSession.deleteMany({ where: { userId } }),
   ]);
-  await audit(actor, "user.disable", userId, (who) => `${who} を無効化`);
+  await audit(actor, "user.disable", userId, (t, who) => t("audit.userDisable", { who }));
   revalidatePath("/admin", "layout");
 }
 
@@ -62,7 +66,7 @@ export async function enableUser(formData: FormData): Promise<void> {
   const userId = formData.get("userId");
   if (typeof userId !== "string") return;
   await prisma.user.updateMany({ where: { id: userId }, data: { disabledAt: null } });
-  await audit(actor, "user.enable", userId, (who) => `${who} を有効化`);
+  await audit(actor, "user.enable", userId, (t, who) => t("audit.userEnable", { who }));
   revalidatePath("/admin", "layout");
 }
 
@@ -82,7 +86,7 @@ export async function changeSiteRole(formData: FormData): Promise<void> {
     actor,
     "user.role",
     userId,
-    (who) => `${who} のロールを「${SITE_ROLE_LABELS[before.siteRole]}」から「${SITE_ROLE_LABELS[siteRole as SiteRole]}」に変更`,
+    (t, who) => t("audit.userRole", { who, from: t(`roles.${before.siteRole}`), to: t(`roles.${siteRole as SiteRole}`) }),
   );
   // Losing /admin access ends any admin session now (requireAdmin would
   // refuse it on the next request anyway).
@@ -112,22 +116,23 @@ export async function issuePasswordReset(
 ): Promise<PasswordResetIssueState> {
   const { session, actor } = await requireAdmin(["SITE_ADMIN"]);
   const userId = formData.get("userId");
-  if (typeof userId !== "string") return { error: "入力内容が不正です。" };
-  if (userId === session.userId) return { error: "自分のパスワードは、ここでは再設定できません。" };
+  const t = await getTranslations();
+  if (typeof userId !== "string") return { error: t("common.errors.invalidInput") };
+  if (userId === session.userId) return { error: t("admin.users.errors.ownReset") };
   const found = await prisma.user.findUnique({
     where: { id: userId },
     select: { emailEnc: true, name: true, siteRole: true, disabledAt: true },
   });
   const user = found && (await withEmail(found));
-  if (!user) return { error: "ユーザーが見つかりません。" };
-  if (user.disabledAt) return { error: "無効なユーザーのリンクは発行できません。先に有効にしてください。" };
+  if (!user) return { error: t("admin.users.errors.notFound") };
+  if (user.disabledAt) return { error: t("admin.users.errors.disabled") };
   if (!(await passwordLoginAllowed(user.siteRole))) {
-    return { error: "このユーザーはパスワードでログインできない設定です（シングルサインオンのみ）。" };
+    return { error: t("admin.users.errors.ssoOnly") };
   }
 
   const token = await createPasswordReset(userId, { byAdmin: true });
   const who = userLabel(user);
-  await recordAudit(actor, "user.password.reset.issue", `${who} のパスワード再設定リンクを発行`, { userId });
+  await recordAudit(actor, "user.password.reset.issue", (await auditTranslator())("audit.userResetIssue", { who }), { userId });
   const link = `${await getPublicUrl()}/reset-password/${token}`;
   if (formData.get("sendEmail") !== "on") return { link };
 

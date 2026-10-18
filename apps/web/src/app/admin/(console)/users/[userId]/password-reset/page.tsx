@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
 import { withEmail } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
@@ -20,33 +21,33 @@ export default async function AdminPasswordResetPage({ params }: PageProps<"/adm
   });
   const user = found && (await withEmail(found));
   if (!user || user.id === session.userId) notFound();
-  const [mailConfigured, passwordAllowed] = await Promise.all([
+  const [mailConfigured, passwordAllowed, t] = await Promise.all([
     isMailConfigured(),
     passwordLoginAllowed(user.siteRole),
+    getTranslations("admin.passwordReset"),
   ]);
 
   return (
     <>
       <p className={styles.note} style={{ marginBottom: 16 }}>
         <Link data-ui="AdminPasswordResetPage.backLink" href="/admin/users" style={{ textDecoration: "underline" }}>
-          ← ユーザー一覧
+          {t("back")}
         </Link>
       </p>
       <section className={styles.section} data-ui="AdminPasswordResetPage">
-        <h2 className={styles.sectionTitle}>パスワードの再設定: {userLabel(user)}</h2>
+        <h2 className={styles.sectionTitle}>{t("heading", { user: userLabel(user) })}</h2>
         {user.disabledAt ? (
           <p className={styles.note} data-ui="AdminPasswordResetPage.disabledNote">
-            このユーザーは無効になっています。再設定リンクを発行するには、先に有効にしてください。
+            {t("disabled")}
           </p>
         ) : !passwordAllowed ? (
           <p className={styles.note} data-ui="AdminPasswordResetPage.ssoOnlyNote">
-            シングルサインオンのみの設定のため、このユーザーはパスワードでログインできません。
+            {t("ssoOnly")}
           </p>
         ) : (
           <>
             <p className={styles.note} style={{ marginBottom: 12 }}>
-              本人が新しいパスワードを設定するためのリンクを発行します。パスワードはリンクを開いて設定するまで変わりません。
-              設定すると、ログイン中の端末はすべてログアウトします。以前に発行したリンクは使えなくなります。
+              {t("lead")} {t("lead2")}
             </p>
             <PasswordResetIssueForm
               userId={user.id}

@@ -67,7 +67,7 @@ async function main() {
     });
     users.set(u.email, user.id);
     // A person's account comes with a personal knowledge root.
-    await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id));
+    await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id, "マイページ"));
     // The admin signs in to /admin with a code from this secret; the others
     // have no authenticator. A used code can't be used again, so the last
     // accepted step is cleared too.

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import type { LandingPageOption } from "@/lib/landing-page";
 import styles from "@/styles/ui.module.css";
@@ -17,41 +18,42 @@ export function LandingPageForm({
   guestsCanView: boolean;
 }) {
   const [state, formAction, pending] = useActionState(saveLandingPage, {} as LandingPageSettingState);
+  const ta = useTranslations("admin");
   const known = landingPageId === null || options.some((o) => o.id === landingPageId);
 
   return (
     <form data-ui="LandingPageForm" action={formAction} className={styles.form}>
       <label>
-        トップページ
+        {ta("landing.label")}
         <select
           name="landingPageId"
           defaultValue={landingPageId ?? ""}
           className={styles.field}
           data-ui="LandingPageForm.pageSelect"
         >
-          <option value="">なし</option>
-          {!known && <option value={landingPageId!}>（あなたが見られないページ）</option>}
+          <option value="">{ta("landing.none")}</option>
+          {!known && <option value={landingPageId!}>{ta("landing.hidden")}</option>}
           {options.map((o) => (
             <option key={o.id} value={o.id}>
               {o.label}
-              {o.public && "（公開）"}
+              {o.public && ta("landing.publicSuffix")}
             </option>
           ))}
         </select>
       </label>
       <p className={styles.note} data-ui="LandingPageForm.guestStatus">
         {landingPageId === null
-          ? "ログインしていない人には、ログイン画面を表示します。"
+          ? ta("landing.guestNone")
           : guestsCanView
-            ? "ログインしていない人にも、このページを表示します。"
-            : "このページは公開されていない（またはページの公開を許可していない）ため、ログインしていない人にはログイン画面を表示します。"}
+            ? ta("landing.guestShown")
+            : ta("landing.guestLogin")}
       </p>
 
       <p data-ui="LandingPageForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? "保存しました。" : "")}
+        {state.error ?? (state.saved ? ta("common.saved") : "")}
       </p>
       <button data-ui="LandingPageForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? "保存しています…" : "保存"}
+        {pending ? ta("common.saving") : ta("common.save")}
       </button>
     </form>
   );

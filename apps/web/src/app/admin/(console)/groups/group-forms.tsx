@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import styles from "@/styles/ui.module.css";
 import {
@@ -11,10 +12,11 @@ import {
 } from "./actions";
 
 function GroupFields({ name, description }: { name?: string; description?: string | null }) {
+  const ta = useTranslations("admin");
   return (
     <>
       <label>
-        グループ名
+        {ta("groups.name")}
         <input
           type="text"
           data-ui="GroupFields.nameInput"
@@ -26,7 +28,7 @@ function GroupFields({ name, description }: { name?: string; description?: strin
         />
       </label>
       <label>
-        説明（任意）
+        {ta("groups.descriptionOptional")}
         <input data-ui="GroupFields.descriptionInput" type="text" name="description" defaultValue={description ?? ""} className={styles.field} />
       </label>
     </>
@@ -35,6 +37,7 @@ function GroupFields({ name, description }: { name?: string; description?: strin
 
 export function CreateGroupForm() {
   const [state, formAction, pending] = useActionState(createGroup, {} as GroupFormState);
+  const ta = useTranslations("admin");
   return (
     <form data-ui="CreateGroupForm" action={formAction} className={styles.form}>
       <GroupFields />
@@ -42,7 +45,7 @@ export function CreateGroupForm() {
         {state.error}
       </p>
       <button data-ui="CreateGroupForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? "作成しています…" : "グループを作成"}
+        {pending ? ta("groups.creating") : ta("groups.create")}
       </button>
     </form>
   );
@@ -58,15 +61,16 @@ export function EditGroupForm({
   description: string | null;
 }) {
   const [state, formAction, pending] = useActionState(updateGroup, {} as GroupFormState);
+  const ta = useTranslations("admin");
   return (
     <form data-ui="EditGroupForm" action={formAction} className={styles.form}>
       <input type="hidden" name="id" value={id} />
       <GroupFields name={name} description={description} />
       <p data-ui="EditGroupForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? "保存しました。" : "")}
+        {state.error ?? (state.saved ? ta("common.saved") : "")}
       </p>
       <button data-ui="EditGroupForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? "保存しています…" : "保存"}
+        {pending ? ta("common.saving") : ta("common.save")}
       </button>
     </form>
   );
@@ -74,18 +78,19 @@ export function EditGroupForm({
 
 export function AddMemberForm({ groupId }: { groupId: string }) {
   const [state, formAction, pending] = useActionState(addGroupMember, {} as AddMemberState);
+  const ta = useTranslations("admin");
   return (
     <form data-ui="AddMemberForm" action={formAction} className={styles.form}>
       <input type="hidden" name="groupId" value={groupId} />
       <label>
-        追加するユーザーのメールアドレス
+        {ta("groups.memberEmail")}
         <input data-ui="AddMemberForm.emailInput" type="email" name="email" required className={styles.field} />
       </label>
       <p data-ui="AddMemberForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.added ? `${state.added} を追加しました。` : "")}
+        {state.error ?? (state.added ? ta("groups.added", { email: state.added }) : "")}
       </p>
       <button data-ui="AddMemberForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? "追加しています…" : "メンバーに追加"}
+        {pending ? ta("groups.adding") : ta("groups.addMember")}
       </button>
     </form>
   );

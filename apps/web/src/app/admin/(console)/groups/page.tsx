@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
+import { groupName } from "@/i18n/group-name";
 import { PUBLIC_GROUP } from "shared";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
@@ -20,19 +22,20 @@ export default async function AdminGroupsPage() {
     orderBy: { createdAt: "asc" },
     select: { id: true, name: true, description: true, builtIn: true, _count: { select: { members: true, grants: true } } },
   });
+  const t = await getTranslations();
 
   return (
     <>
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>グループ</h2>
+        <h2 className={styles.sectionTitle}>{t("admin.groups.groups")}</h2>
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>グループ名</th>
-                <th>説明</th>
-                <th>メンバー数</th>
-                <th>権限の数</th>
+                <th>{t("admin.groups.name")}</th>
+                <th>{t("admin.groups.description")}</th>
+                <th>{t("admin.groups.members")}</th>
+                <th>{t("admin.groups.grants")}</th>
               </tr>
             </thead>
             <tbody>
@@ -40,11 +43,11 @@ export default async function AdminGroupsPage() {
                 <tr data-ui="AdminGroupsPage.groupRow" data-id={g.id} key={g.id}>
                   <td>
                     <Link data-ui="AdminGroupsPage.groupLink" href={`/admin/groups/${g.id}`} style={{ textDecoration: "underline" }}>
-                      {g.name}
+                      {groupName(t, g)}
                     </Link>
                   </td>
                   <td>{g.description ?? "-"}</td>
-                  <td>{g.builtIn ? "全員（自動）" : g._count.members}</td>
+                  <td>{g.builtIn ? t("admin.common.everyoneAuto") : g._count.members}</td>
                   <td>{g._count.grants}</td>
                 </tr>
               ))}
@@ -54,7 +57,7 @@ export default async function AdminGroupsPage() {
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>グループを作成</h2>
+        <h2 className={styles.sectionTitle}>{t("admin.groups.create")}</h2>
         <CreateGroupForm />
       </section>
     </>

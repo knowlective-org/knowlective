@@ -4,35 +4,28 @@
 // Each token is a CSS custom property on :root. globals.css holds the same
 // defaults (so pages render correctly even before the database is reachable)
 // plus fixed tokens that aren't configurable yet. CSS should only ever use
-// the variables, never literal colors.
+// the variables, never literal colors. Each one's name and description are
+// admin.theme.tokens.<key> / <key>Description.
 
 export const THEME_TOKENS = [
   {
     key: "primary",
     cssVar: "--color-primary",
-    label: "プライマリ",
-    description: "文字の色。ボタンなどの強調にも使います",
     defaultValue: "#173c3c",
   },
   {
     key: "primaryLight",
     cssVar: "--color-primary-light",
-    label: "プライマリ（淡）",
-    description: "サイドバーの背景など",
     defaultValue: "#e8f2f2",
   },
   {
     key: "background",
     cssVar: "--color-background",
-    label: "背景",
-    description: "メインの背景色",
     defaultValue: "#fafaf8",
   },
   {
     key: "muted",
     cssVar: "--color-muted",
-    label: "補助テキスト",
-    description: "説明文・日時・無効な項目など、目立たせない文字",
     defaultValue: "#687280",
   },
 ] as const;

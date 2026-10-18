@@ -239,6 +239,10 @@ export async function deleteFileObject(config: StorageConfig, fileId: string): P
   }
 }
 
+// testStorage()'s message when what was read back differs (shown in the
+// admin's language by the caller).
+export const READ_BACK_MISMATCH = "read-back-mismatch";
+
 export type StorageTestResult =
   | { ok: true; checkedExisting: number; missingExisting: number }
   | { ok: false; step: "write" | "read" | "delete"; message: string };
@@ -255,7 +259,7 @@ export async function testStorage(config: StorageConfig): Promise<StorageTestRes
     step = "read";
     const res = await client.send(new GetObjectCommand({ Bucket: config.bucket, Key: key }));
     const back = Buffer.from(await res.Body!.transformToByteArray());
-    if (!back.equals(payload)) throw new Error("読み出した内容が書き込んだ内容と一致しません");
+    if (!back.equals(payload)) throw new Error(READ_BACK_MISMATCH);
     step = "delete";
     await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }));
 

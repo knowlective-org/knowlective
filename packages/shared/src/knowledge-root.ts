@@ -17,30 +17,29 @@ export async function createKnowledgeRoot(
   return { rootId: root.id, rootPageId: page.id };
 }
 
-// Title a personal root starts with; the owner can rename it.
-export const PERSONAL_ROOT_TITLE = "マイページ";
-
 // Gives a person's account its personal knowledge root, if it hasn't one
 // (safe to call again). Every person has exactly one: made when the account
 // is, and for older accounts when the server starts. Accounts that aren't a
 // person (planned: AI / RPA) must not get one — don't call this for them.
+// `title`: what it starts with (in the person's language); they can rename it.
 export async function ensurePersonalRoot(
   tx: Prisma.TransactionClient,
   userId: string,
+  title: string,
 ): Promise<{ rootId: string; rootPageId: string } | null> {
   const existing = await tx.knowledgeRoot.findUnique({ where: { ownerId: userId }, select: { id: true } });
   if (existing) return null;
-  return createKnowledgeRoot(tx, { title: PERSONAL_ROOT_TITLE, createdById: userId, ownerId: userId });
+  return createKnowledgeRoot(tx, { title, createdById: userId, ownerId: userId });
 }
 
 // Personal roots for the accounts that don't have one yet (accounts made
 // before personal roots existed). Run when the server starts. Returns how
 // many were made.
-export async function ensurePersonalRoots(prisma: PrismaClient): Promise<number> {
+export async function ensurePersonalRoots(prisma: PrismaClient, title: string): Promise<number> {
   const users = await prisma.user.findMany({ where: { personalRoot: null }, select: { id: true } });
   let made = 0;
   for (const user of users) {
-    if (await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id))) made++;
+    if (await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id, title))) made++;
   }
   return made;
 }

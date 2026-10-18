@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import styles from "@/styles/ui.module.css";
 import { issueInvitation, type InvitationState } from "./actions";
@@ -20,6 +21,7 @@ export function InvitationForm({
   siteRoles: { value: string; label: string }[];
 }) {
   const [state, formAction, pending] = useActionState(issueInvitation, initialState);
+  const ta = useTranslations("admin");
   const [copied, setCopied] = useState(false);
   const [sendEmail, setSendEmail] = useState(mailConfigured);
 
@@ -27,7 +29,7 @@ export function InvitationForm({
     <div data-ui="InvitationForm" className={styles.form}>
       <form data-ui="InvitationForm.form" action={formAction} className={styles.form} onSubmit={() => setCopied(false)}>
         <label>
-          ロール
+          {ta("invitation.role")}
           <select data-ui="InvitationForm.siteRoleSelect" name="siteRole" defaultValue="USER" className={styles.field}>
             {siteRoles.map((r) => (
               <option key={r.value} value={r.value}>
@@ -37,9 +39,9 @@ export function InvitationForm({
           </select>
         </label>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend style={{ marginBottom: 6 }}>参加するグループ（任意。ページを見る権限はグループで決まります）</legend>
+          <legend style={{ marginBottom: 6 }}>{ta("invitation.groups")}</legend>
           {groups.length === 0 ? (
-            <p className={styles.note}>グループがまだありません。「グループ」で作成できます。</p>
+            <p className={styles.note}>{ta("invitation.noGroups")}</p>
           ) : (
             <div style={{ display: "grid", gap: 4 }}>
               {groups.map((g) => (
@@ -53,7 +55,7 @@ export function InvitationForm({
           )}
         </fieldset>
         <label>
-          メールアドレス（{sendEmail ? "必須" : "任意"}。指定するとこのアドレスでしか登録できない）
+          {ta("invitation.email", { required: String(sendEmail) })}
           <input data-ui="InvitationForm.emailInput" type="email" name="email" required={sendEmail} className={styles.field} />
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -65,33 +67,33 @@ export function InvitationForm({
             disabled={!mailConfigured}
             onChange={(e) => setSendEmail(e.target.checked)}
           />
-          招待メールを送信する
+          {ta("invitation.sendEmail")}
         </label>
         {!mailConfigured && (
           <p className={styles.note}>
-            メール送信が未設定のため、送信できません。「概要」の「メール送信」で設定すると使えます。
+            {ta("invitation.mailNotConfigured")}
           </p>
         )}
         <p data-ui="InvitationForm.error" aria-live="polite" className={styles.error}>
           {state.error}
         </p>
         <button data-ui="InvitationForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-          {pending ? "発行しています…" : sendEmail ? "招待リンクを発行してメールで送る" : "招待リンクを発行"}
+          {pending ? ta("common.issuing") : sendEmail ? ta("invitation.issueAndSend") : ta("invitation.issue")}
         </button>
       </form>
 
       {state.link && (
         <div>
           {state.mailSentTo && (
-            <p data-ui="InvitationForm.mailSentMessage" className={styles.success}>{state.mailSentTo} に招待メールを送信しました。</p>
+            <p data-ui="InvitationForm.mailSentMessage" className={styles.success}>{ta("invitation.sent", { email: state.mailSentTo })}</p>
           )}
           {state.mailError && (
             <p data-ui="InvitationForm.mailError" className={styles.error}>
-              招待メールの送信に失敗しました（{state.mailError}）。招待リンクは有効なので、下のリンクを直接渡してください。
+              {ta("invitation.sendFailed", { error: state.mailError })}
             </p>
           )}
           <p className={styles.note}>
-            招待リンクは今だけ表示されます（{ttlDays}日間有効・1回限り）。相手に渡してください。
+            {ta("invitation.linkNote", { days: ttlDays })}
           </p>
           <p data-ui="InvitationForm.inviteLink" className={styles.secret}>{state.link}</p>
           <button
@@ -104,7 +106,7 @@ export function InvitationForm({
               setCopied(true);
             }}
           >
-            {copied ? "コピーしました" : "コピー"}
+            {copied ? ta("common.copied") : ta("common.copy")}
           </button>
         </div>
       )}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import QRCode from "qrcode";
 import {
   assertIpAllowed,
@@ -15,10 +16,10 @@ import { AuthenticatorQr } from "./authenticator-qr";
 import { EnrollForm } from "./enroll-form";
 import { QR_OPTIONS } from "./qr-options";
 
-export const metadata: Metadata = {
-  title: "認証アプリの登録 | KNOWLECTIVE",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations();
+  return { title: t("meta.titleSuffix", { title: t("admin.enroll.title") }), robots: { index: false, follow: false } };
+}
 
 export default async function AdminEnrollPage() {
   const ctx = await getRequestContext();
@@ -39,20 +40,19 @@ export default async function AdminEnrollPage() {
   const defaultName = session.user?.email ?? randomAuthenticatorName();
   const qr = await QRCode.toDataURL(otpauthUri(secretBase32, defaultName), QR_OPTIONS);
   const base32 = secretBase32.replace(/(.{4})/g, "$1 ").trim();
+  const t = await getTranslations("admin.enroll");
 
   return (
     <main className={styles.narrow} data-ui="AdminEnrollPage">
-      <h1 className={styles.title}>認証アプリの登録</h1>
+      <h1 className={styles.title}>{t("title")}</h1>
       <p className={styles.lead}>
-        管理画面へのログインには、{session.user ? "パスワード" : "マスターパスワード"}に加えて認証アプリのコードが必要です。
-        Google Authenticator・Microsoft Authenticator・1Password などのアプリで、次の QR
-        コードを読み取ってください。
+        {t("lead", { secret: session.user ? "password" : "master" })} {t("lead2")}
       </p>
       <AuthenticatorQr secretBase32={secretBase32} defaultName={defaultName} initialQr={qr} />
-      <p className={styles.note}>QR コードを読み取れない場合は、次のキーを手入力してください。</p>
+      <p className={styles.note}>{t("manualKey")}</p>
       <p className={styles.secret} data-ui="AdminEnrollPage.secretKey">{base32}</p>
       <p className={styles.note} style={{ margin: "16px 0" }}>
-        この画面は10分で無効になります。期限が切れたら、もう一度ログインしてください。
+        {t("expiresNote")}
       </p>
       <EnrollForm />
     </main>

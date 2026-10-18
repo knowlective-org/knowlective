@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db";
 import { emailColumns, emailWhere } from "@/lib/emails";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { auditTranslator } from "@/i18n/audit";
+import { getTranslations } from "next-intl/server";
 import { isDomainAllowed } from "@/lib/auth/signup";
 import { getPublicUrl } from "@/lib/site-url";
 
@@ -348,7 +349,8 @@ export async function finishLogin(
     },
   });
   // Every person's account comes with its own personal knowledge root.
-  await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id));
+  const title = (await getTranslations("account"))("personalRootTitle");
+  await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id, title));
   const audit = await auditTranslator();
   await recordAudit(
     { userId: user.id, label: userLabel({ name, email }) },

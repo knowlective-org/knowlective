@@ -1,35 +1,36 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { AppShell } from "@/components/app-shell";
 import { requireAdmin } from "@/lib/admin/auth";
-import { SITE_ROLE_LABELS } from "@/lib/roles";
 import { getSourceUrl } from "@/lib/source";
 import styles from "@/styles/ui.module.css";
 import { AdminSidebar, type AdminNavItem } from "./admin-sidebar";
 
-export const metadata: Metadata = {
-  title: "管理画面 | KNOWLECTIVE",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations();
+  return { title: t("meta.titleSuffix", { title: t("admin.title") }), robots: { index: false, follow: false } };
+}
 
-// Content managers only see users (invitations) and groups.
-const NAV: (AdminNavItem & { siteAdminOnly?: boolean })[] = [
-  { href: "/admin", label: "概要", siteAdminOnly: true },
-  { href: "/admin/users", label: "ユーザー" },
-  { href: "/admin/groups", label: "グループ" },
-  { href: "/admin/files", label: "ファイル", siteAdminOnly: true },
-  { href: "/admin/security", label: "セキュリティ", siteAdminOnly: true },
+// Content managers only see users (invitations) and groups. Labels: admin.shell.nav.
+const NAV: { href: string; key: "overview" | "users" | "groups" | "files" | "security"; siteAdminOnly?: boolean }[] = [
+  { href: "/admin", key: "overview", siteAdminOnly: true },
+  { href: "/admin/users", key: "users" },
+  { href: "/admin/groups", key: "groups" },
+  { href: "/admin/files", key: "files", siteAdminOnly: true },
+  { href: "/admin/security", key: "security", siteAdminOnly: true },
 ];
 
 // Navigation chrome only. Not a security boundary: every page and Server
 // Action calls requireAdmin() itself.
 export default async function AdminConsoleLayout({ children }: LayoutProps<"/admin">) {
   const { actorLabel, role } = await requireAdmin();
-  const items = NAV.filter((item) => role === "SITE_ADMIN" || !item.siteAdminOnly).map(({ href, label }) => ({
+  const t = await getTranslations();
+  const items: AdminNavItem[] = NAV.filter((item) => role === "SITE_ADMIN" || !item.siteAdminOnly).map(({ href, key }) => ({
     href,
-    label,
+    label: t(`admin.shell.nav.${key}`),
   }));
   return (
-    <AppShell sidebar={<AdminSidebar items={items} actor={`${actorLabel}（${SITE_ROLE_LABELS[role]}）`} sourceUrl={getSourceUrl()} />}>
+    <AppShell sidebar={<AdminSidebar items={items} actor={`${actorLabel} (${t(`roles.${role}`)})`} sourceUrl={getSourceUrl()} />}>
       <div className={`${styles.pane} ${styles.adminPane}`} data-ui="AdminConsoleLayout">
         {children}
       </div>

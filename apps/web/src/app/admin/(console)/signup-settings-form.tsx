@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { startTransition, useActionState, useState } from "react";
 import styles from "@/styles/ui.module.css";
 import { type SignupSettingsState, saveSignupSettings } from "./actions";
@@ -20,6 +21,7 @@ export function SignupSettingsForm({
   mailConfigured: boolean;
 }) {
   const [state, formAction, pending] = useActionState(saveSignupSettings, {} as SignupSettingsState);
+  const ta = useTranslations("admin");
   const [selected, setSelected] = useState(mode);
   const [role, setRole] = useState(siteRole);
 
@@ -36,7 +38,7 @@ export function SignupSettingsForm({
       }}
     >
       <fieldset style={{ border: 0, display: "grid", gap: 8 }}>
-        <legend style={{ marginBottom: 8 }}>アカウントの作り方</legend>
+        <legend style={{ marginBottom: 8 }}>{ta("signup.mode")}</legend>
         <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
           <input
             type="radio"
@@ -47,9 +49,9 @@ export function SignupSettingsForm({
             data-ui="SignupSettingsForm.inviteOnly"
           />
           <span>
-            招待のみ
+            {ta("signup.inviteOnly")}
             <span className={styles.note} style={{ display: "block" }}>
-              管理者が発行した招待リンクからだけ登録できます。
+              {ta("signup.inviteOnlyNote")}
             </span>
           </span>
         </label>
@@ -64,11 +66,10 @@ export function SignupSettingsForm({
             data-ui="SignupSettingsForm.open"
           />
           <span>
-            誰でも登録できる（メールアドレスの確認あり）
+            {ta("signup.open")}
             <span className={styles.note} style={{ display: "block" }}>
-              ログイン画面の「アカウント登録」からメールアドレスを入力すると、登録用のリンクがメールで届きます。
-              登録した人は下で選ぶロールになり、どのグループにも入りません（「全ユーザー」に公開されたページだけが見えます）。
-              {!mailConfigured && " ※ 先に「概要」でメール送信を設定してください。"}
+              {ta("signup.openNote")}
+              {!mailConfigured && ta("signup.needsMail")}
             </span>
           </span>
         </label>
@@ -76,7 +77,7 @@ export function SignupSettingsForm({
 
       {selected === "OPEN" && (
         <label>
-          登録した人のロール
+          {ta("signup.role")}
           <select
             name="siteRole"
             value={role}
@@ -84,18 +85,21 @@ export function SignupSettingsForm({
             className={styles.field}
             data-ui="SignupSettingsForm.siteRole"
           >
-            <option value="USER">{roleLabels.USER}（初期値）</option>
+            <option value="USER">
+              {roleLabels.USER}
+              {ta("common.defaultSuffix")}
+            </option>
             <option value="CONTENT_MANAGER">{roleLabels.CONTENT_MANAGER}</option>
           </select>
           <span className={styles.note}>
-            コンテンツ管理者は、ナレッジルートの作成や、ユーザーの招待・グループの管理（自分が管理するページの範囲）ができます。サイト管理者は選べません。
+            {ta("signup.roleNote")}
           </span>
         </label>
       )}
 
       {selected === "OPEN" && (
         <label>
-          登録できるメールアドレスのドメイン（任意）
+          {ta("signup.domains")}
           <textarea
             name="domains"
             rows={3}
@@ -106,16 +110,16 @@ export function SignupSettingsForm({
             data-ui="SignupSettingsForm.domains"
           />
           <span className={styles.note}>
-            1行に1つ（またはカンマ区切り）。空欄なら、どのドメインでも登録できます。サブドメインは別に書いてください。
+            {ta("signup.domainsNote")}
           </span>
         </label>
       )}
 
       <p data-ui="SignupSettingsForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? "保存しました。" : "")}
+        {state.error ?? (state.saved ? ta("common.saved") : "")}
       </p>
       <button data-ui="SignupSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? "保存しています…" : "保存"}
+        {pending ? ta("common.saving") : ta("common.save")}
       </button>
     </form>
   );

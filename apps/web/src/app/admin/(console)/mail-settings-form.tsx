@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import type { SmtpSecurity } from "shared";
 import type { MailSettingsView } from "@/lib/mail";
@@ -15,6 +16,7 @@ const DEFAULT_PORTS: Record<SmtpSecurity, string> = { NONE: "25", STARTTLS: "587
 
 export function MailSettingsForm({ current }: { current: MailSettingsView | null }) {
   const [state, formAction, pending] = useActionState(saveMail, {} as MailSettingsState);
+  const ta = useTranslations("admin");
   const [security, setSecurity] = useState<SmtpSecurity>(current?.security ?? "STARTTLS");
   const [port, setPort] = useState(String(current?.port ?? DEFAULT_PORTS.STARTTLS));
   const [authEnabled, setAuthEnabled] = useState(current?.authEnabled ?? true);
@@ -22,7 +24,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
   return (
     <form data-ui="MailSettingsForm" action={formAction} className={styles.form}>
       <label>
-        送信元メールアドレス
+        {ta("mail.from")}
         <input
           type="email"
           data-ui="MailSettingsForm.fromAddressInput"
@@ -34,7 +36,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
         />
       </label>
       <label>
-        送信者名（任意）
+        {ta("mail.fromName")}
         <input
           type="text"
           data-ui="MailSettingsForm.fromNameInput"
@@ -44,7 +46,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
         />
       </label>
       <label>
-        SMTP サーバー
+        {ta("mail.host")}
         <input
           type="text"
           data-ui="MailSettingsForm.hostInput"
@@ -57,7 +59,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
         />
       </label>
       <label>
-        暗号化
+        {ta("mail.security")}
         <select
           data-ui="MailSettingsForm.securitySelect"
           name="security"
@@ -70,13 +72,13 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
           }}
           className={styles.field}
         >
-          <option value="STARTTLS">STARTTLS（通常はポート 587）</option>
-          <option value="TLS">SSL/TLS（通常はポート 465）</option>
-          <option value="NONE">なし（社内の中継サーバー向け）</option>
+          <option value="STARTTLS">{ta("mail.starttls")}</option>
+          <option value="TLS">{ta("mail.tls")}</option>
+          <option value="NONE">{ta("mail.none")}</option>
         </select>
       </label>
       <label>
-        SMTP サーバーポート
+        {ta("mail.port")}
         <input
           type="number"
           data-ui="MailSettingsForm.portInput"
@@ -97,17 +99,17 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
           checked={authEnabled}
           onChange={(e) => setAuthEnabled(e.target.checked)}
         />
-        SMTP AUTH を使う
+        {ta("mail.auth")}
       </label>
       {authEnabled && (
         <>
           {security === "NONE" && (
             <p data-ui="MailSettingsForm.insecureAuthError" className={styles.error}>
-              暗号化なしでは SMTP AUTH は使えません（パスワードが平文で送られるため）。
+              {ta("mail.authNeedsTls")}
             </p>
           )}
           <label>
-            ユーザー名
+            {ta("mail.username")}
             <input
               type="text"
               data-ui="MailSettingsForm.usernameInput"
@@ -120,24 +122,24 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
             />
           </label>
           <label>
-            パスワード
+            {ta("mail.password")}
             <input
               type="password"
               data-ui="MailSettingsForm.passwordInput"
               name="password"
               required={!current?.hasPassword}
               autoComplete="new-password"
-              placeholder={current?.hasPassword ? "（保存済み。変更する場合のみ入力）" : ""}
+              placeholder={current?.hasPassword ? ta("common.inputHint") : ""}
               className={styles.field}
             />
           </label>
         </>
       )}
       <p data-ui="MailSettingsForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? "保存しました。" : "")}
+        {state.error ?? (state.saved ? ta("common.saved") : "")}
       </p>
       <button data-ui="MailSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? "保存しています…" : "保存"}
+        {pending ? ta("common.saving") : ta("common.save")}
       </button>
     </form>
   );
@@ -145,20 +147,21 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
 
 export function TestMailForm({ disabled }: { disabled: boolean }) {
   const [state, formAction, pending] = useActionState(sendTestMail, {} as TestMailState);
+  const ta = useTranslations("admin");
 
   return (
     <form data-ui="TestMailForm" action={formAction} className={styles.form}>
       <label>
-        テストメールの送信先
+        {ta("mail.testTo")}
         <input data-ui="TestMailForm.toInput" type="email" name="to" required disabled={disabled} className={styles.field} />
       </label>
       <p data-ui="TestMailForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
         {state.error ??
-          (state.sentTo ? `${state.sentTo} に送信しました。届いているか確認してください。` : "")}
-        {disabled && !state.error && "設定を保存すると、テストメールを送れます。"}
+          (state.sentTo ? ta("mail.testSent", { email: state.sentTo }) : "")}
+        {disabled && !state.error && ta("mail.testDisabled")}
       </p>
       <button data-ui="TestMailForm.submitButton" type="submit" disabled={pending || disabled} className={styles.buttonSecondary}>
-        {pending ? "送信しています…" : "テストメールを送信"}
+        {pending ? ta("mail.sending") : ta("mail.sendTest")}
       </button>
     </form>
   );

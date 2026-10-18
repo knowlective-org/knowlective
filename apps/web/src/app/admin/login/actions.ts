@@ -1,6 +1,7 @@
 "use server";
 
 import { notFound, redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { verifyMasterPassword, verifyPassword, verifyPasswordAgainstDummy } from "shared";
 import { prisma } from "@/lib/db";
 import { emailWhere } from "@/lib/emails";
@@ -23,9 +24,7 @@ import { generateTotpSecret, verifyTotp } from "@/lib/admin/totp";
 
 export type LoginState = { error?: string; email?: string };
 
-const LOCKED_MESSAGE = `ログインの失敗が続いたため、一時的にロックしています。${
-  LOCK_WINDOW_MS / 60000
-}分ほど待ってから再度お試しください。`;
+const lockedMessage = async () => (await getTranslations("admin.login.errors"))("locked", { minutes: LOCK_WINDOW_MS / 60000 });
 
 // IP allowlist + lockout checks shared by both login forms.
 async function precheck(ctx: RequestContext, email?: string): Promise<LoginState | null> {
@@ -37,7 +36,7 @@ async function precheck(ctx: RequestContext, email?: string): Promise<LoginState
   // Check the lock before the (deliberately slow) password check.
   if ((await getLockState(ctx.ip)).locked) {
     await recordLoginAttempt(ctx, false, "locked", email);
-    return { error: LOCKED_MESSAGE, email };
+    return { error: await lockedMessage(), email };
   }
   return null;
 }
@@ -45,8 +44,8 @@ async function precheck(ctx: RequestContext, email?: string): Promise<LoginState
 async function failure(ctx: RequestContext, message: string, email?: string): Promise<LoginState> {
   await recordLoginAttempt(ctx, false, "bad_credentials", email);
   const { locked, remaining } = await getLockState(ctx.ip);
-  if (locked) return { error: LOCKED_MESSAGE, email };
-  return { error: `${message}（あと${remaining}回でロックされます）。`, email };
+  if (locked) return { error: await lockedMessage(), email };
+  return { error: (await getTranslations("admin.login.errors"))("remaining", { message, remaining }), email };
 }
 
 // Normal sign-in: a SITE_ADMIN or CONTENT_MANAGER account, plus TOTP. First
@@ -57,7 +56,7 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
   const rawEmail = formData.get("email");
   const password = formData.get("password");
   if (typeof rawEmail !== "string" || typeof password !== "string" || !rawEmail || !password) {
-    return { error: "メールアドレスとパスワードを入力してください。" };
+    return { error: (await getTranslations("admin.login.errors"))("missing") };
   }
   const email = normalizeEmail(rawEmail);
   const blocked = await precheck(ctx, email);
@@ -75,7 +74,7 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
   const allowed = passwordOk && user !== null && (await getAdminConsoleRole(user.id)) !== null;
 
   if (!allowed) {
-    return failure(ctx, "メールアドレスまたはパスワードが正しくないか、管理者権限がありません", email);
+    return failure(ctx, (await getTranslations("admin.login.errors"))("wrongOrNotAdmin"), email);
   }
 
   if (user.totpSecret) {
@@ -129,7 +128,7 @@ export async function verifyAccountCode(_prev: LoginState, formData: FormData): 
     });
     totpOk = count === 1;
   }
-  if (!totpOk) return failure(ctx, "認証コードが正しくありません", email);
+  if (!totpOk) return failure(ctx, (await getTranslations("admin.login.errors"))("wrongCode"), email);
 
   await recordLoginAttempt(ctx, true, undefined, email);
   // Issue a fresh token for the fully authenticated session.
@@ -156,7 +155,7 @@ export async function loginWithMasterPassword(
   const password = formData.get("password");
   const code = formData.get("code");
   if (typeof password !== "string" || password === "") {
-    return { error: "マスターパスワードを入力してください。" };
+    return { error: (await getTranslations("admin.login.errors"))("masterMissing") };
   }
 
   const config = await getAdminConfig();
@@ -179,7 +178,8 @@ export async function loginWithMasterPassword(
 
   if (!passwordOk || !totpOk) {
     // Don't say which factor was wrong.
-    return failure(ctx, enrolled ? "マスターパスワードまたは認証コードが正しくありません" : "マスターパスワードが正しくありません");
+    const t = await getTranslations("admin.login.errors");
+    return failure(ctx, enrolled ? t("wrongMasterOrCode") : t("wrongMaster"));
   }
 
   await recordLoginAttempt(ctx, true);

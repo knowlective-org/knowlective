@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { startTransition, useActionState, useRef, useState } from "react";
 import styles from "@/styles/ui.module.css";
 import {
@@ -41,6 +42,7 @@ export function OidcSettingsForm({
     {} as OidcFormState,
   );
   const [enabled, setEnabled] = useState(values.enabled);
+  const ta = useTranslations("admin");
   const formRef = useRef<HTMLFormElement>(null);
   // Submitted by hand, not via `action`, so React doesn't reset the fields.
   const submit = (action: (data: FormData) => void) => {
@@ -67,7 +69,7 @@ export function OidcSettingsForm({
           onChange={(e) => setEnabled(e.target.checked)}
           data-ui="OidcSettingsForm.enabled"
         />
-        シングルサインオンを有効にする
+        {ta("oidc.enabled")}
       </label>
 
       {/* The rest only while enabled (hidden, not removed, so typed values
@@ -79,7 +81,7 @@ export function OidcSettingsForm({
         data-ui="OidcSettingsForm.details"
       >
         <div>
-          <div>リダイレクト URI（IdP 側に登録してください）</div>
+          <div>{ta("oidc.redirectUri")}</div>
           <code
             className={styles.secret}
             style={{ display: "block", marginTop: 4 }}
@@ -94,18 +96,17 @@ export function OidcSettingsForm({
           <input
             name="issuer"
             defaultValue={values.issuer}
-            placeholder="https://login.microsoftonline.com/<テナントID>/v2.0"
+            placeholder="https://login.microsoftonline.com/<tenant-id>/v2.0"
             className={styles.field}
             spellCheck={false}
             data-ui="OidcSettingsForm.issuer"
           />
           <span className={styles.note}>
-            この URL の /.well-known/openid-configuration
-            から設定を読み込みます。例: https://accounts.google.com
+            {ta("oidc.issuerNote")}
           </span>
         </label>
         <label>
-          クライアント ID
+          {ta("oidc.clientId")}
           <input
             name="clientId"
             defaultValue={values.clientId}
@@ -115,23 +116,23 @@ export function OidcSettingsForm({
           />
         </label>
         <label>
-          クライアントシークレット
+          {ta("oidc.clientSecret")}
           <input
             name="clientSecret"
             type="password"
             autoComplete="new-password"
             placeholder={
-              values.hasSecret ? "（保存済み。変更する場合だけ入力）" : ""
+              values.hasSecret ? ta("common.inputHint") : ""
             }
             className={styles.field}
             data-ui="OidcSettingsForm.clientSecret"
           />
           <span className={styles.note}>
-            暗号化して保存し、画面には表示しません。
+            {ta("oidc.secretNote")}
           </span>
         </label>
         <label>
-          ボタンの名前
+          {ta("oidc.buttonLabel")}
           <input
             name="buttonLabel"
             defaultValue={values.buttonLabel}
@@ -140,13 +141,13 @@ export function OidcSettingsForm({
             data-ui="OidcSettingsForm.buttonLabel"
           />
           <span className={styles.note}>
-            ログイン画面に「（ボタンの名前）でログイン」と表示します。例:
-            社内アカウント
+            {ta("oidc.buttonLabelNote")}
+            {ta("oidc.buttonLabelExample")}
           </span>
         </label>
 
         <label>
-          表示名に使う属性（任意）
+          {ta("oidc.nameClaim")}
           <input
             name="nameClaim"
             defaultValue={values.nameClaim}
@@ -157,33 +158,32 @@ export function OidcSettingsForm({
             data-ui="OidcSettingsForm.nameClaim"
           />
           <span className={styles.note}>
-            アカウントを作るときの表示名に使う、ID トークン（なければ
-            UserInfo）の属性名です。例: name、preferred_username、given_name。
-            空欄なら name、なければ preferred_username を使います。
+            {ta("oidc.nameClaimNote")}
           </span>
         </label>
 
         <label>
-          初めてログインした人のロール
+          {ta("oidc.newUserRole")}
           <select
             name="newUserRole"
             defaultValue={values.newUserRole}
             className={styles.field}
             data-ui="OidcSettingsForm.newUserRole"
           >
-            <option value="USER">{roleLabels.USER}（初期値）</option>
+            <option value="USER">
+              {roleLabels.USER}
+              {ta("common.defaultSuffix")}
+            </option>
             <option value="CONTENT_MANAGER">
               {roleLabels.CONTENT_MANAGER}
             </option>
           </select>
           <span className={styles.note}>
-            KNOWLECTIVE
-            にアカウントがない人は、初めてのログインでアカウントが作られます（どのグループにも入りません）。
-            すでにアカウントがある人は、確認済みのメールアドレスが一致すれば、そのアカウントでログインします。
+            {ta("oidc.newUserNote")}
           </span>
         </label>
         <label>
-          アカウントを作成できるメールアドレスのドメイン（任意）
+          {ta("oidc.domains")}
           <textarea
             name="allowedDomains"
             rows={2}
@@ -194,8 +194,7 @@ export function OidcSettingsForm({
             data-ui="OidcSettingsForm.allowedDomains"
           />
           <span className={styles.note}>
-            1行に1つ（またはカンマ区切り）。空欄なら、IdP
-            でログインできる人は誰でもアカウントが作られます。
+            {ta("oidc.domainsNote")}
           </span>
         </label>
         <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
@@ -206,18 +205,15 @@ export function OidcSettingsForm({
             data-ui="OidcSettingsForm.trustEmail"
           />
           <span>
-            IdP のメールアドレスを確認済みとして扱う
+            {ta("oidc.trustEmail")}
             <span className={styles.note} style={{ display: "block" }}>
-              IdP が「確認済み（email_verified）」を送ってこない場合（Microsoft
-              Entra ID など）にオンにします。
-              利用者が自由にメールアドレスを設定できる IdP
-              でオンにすると、他人のアカウントに入られるおそれがあります。
+              {ta("oidc.trustEmailNote")}
             </span>
           </span>
         </label>
 
         <fieldset style={{ border: 0, display: "grid", gap: 6 }}>
-          <legend style={{ marginBottom: 6 }}>パスワードでのログイン</legend>
+          <legend style={{ marginBottom: 6 }}>{ta("oidc.passwordLogin")}</legend>
           <label style={{ display: "flex", gap: 8 }}>
             <input
               type="radio"
@@ -225,7 +221,7 @@ export function OidcSettingsForm({
               value="ALLOWED"
               defaultChecked={values.passwordLogin === "ALLOWED"}
             />
-            シングルサインオンと併用する（初期値）
+            {ta("oidc.passwordAllowed")}
           </label>
           <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
             <input
@@ -236,10 +232,9 @@ export function OidcSettingsForm({
               data-ui="OidcSettingsForm.ssoOnly"
             />
             <span>
-              シングルサインオンのみ
+              {ta("oidc.passwordSiteAdminsOnly")}
               <span className={styles.note} style={{ display: "block" }}>
-                IdP
-                に障害があっても締め出されないよう、サイト管理者だけはパスワードでもログインできます。
+                {ta("oidc.passwordSiteAdminsOnlyNote")}
               </span>
             </span>
           </label>
@@ -259,7 +254,7 @@ export function OidcSettingsForm({
         aria-live="polite"
         className={state.error ? styles.error : styles.success}
       >
-        {state.error ?? (state.saved ? "保存しました。" : "")}
+        {state.error ?? (state.saved ? ta("common.saved") : "")}
       </p>
       <div className={styles.actions}>
         <button
@@ -270,7 +265,7 @@ export function OidcSettingsForm({
           onClick={() => submit(testAction)}
           data-ui="OidcSettingsForm.testButton"
         >
-          {testing ? "確認しています…" : "接続テスト"}
+          {testing ? ta("common.checking") : ta("oidc.test")}
         </button>
         <button
           type="submit"
@@ -278,7 +273,7 @@ export function OidcSettingsForm({
           disabled={saving}
           data-ui="OidcSettingsForm.submitButton"
         >
-          {saving ? "保存しています…" : "保存"}
+          {saving ? ta("common.saving") : ta("common.save")}
         </button>
       </div>
     </form>

@@ -23,7 +23,7 @@ async function main() {
     create: { id: DEMO_USER_ID, name: "Demo User", passwordHash: "unset" },
     update: {},
   });
-  await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id));
+  await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id, "My pages"));
 
   await prisma.$transaction(async (tx) => {
     const { rootId, rootPageId } = await createKnowledgeRoot(tx, {

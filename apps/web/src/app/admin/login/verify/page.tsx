@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { assertIpAllowed, getAdminConfig, getAdminSession } from "@/lib/admin/auth";
 import { getRequestContext } from "@/lib/request";
 import styles from "@/styles/ui.module.css";
 import { cancelAccountLogin } from "../actions";
 import { VerifyCodeForm } from "../login-form";
 
-export const metadata: Metadata = {
-  title: "認証コードの入力 | KNOWLECTIVE",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations();
+  return { title: t("meta.titleSuffix", { title: t("admin.login.verifyTitle") }), robots: { index: false, follow: false } };
+}
 
 // Second step of the account sign-in: the password is verified, the
 // authenticator code is not yet.
@@ -23,16 +24,17 @@ export default async function AdminLoginVerifyPage() {
   if (session.stage === "ACTIVE") redirect("/admin");
   if (session.stage === "ENROLL_TOTP") redirect("/admin/enroll");
   if (!session.user) redirect("/admin/login");
+  const t = await getTranslations("admin.login");
 
   return (
     <main className={styles.narrow} data-ui="AdminLoginVerifyPage">
-      <h1 className={styles.title}>認証コードの入力</h1>
+      <h1 className={styles.title}>{t("verifyHeading")}</h1>
       <p className={styles.lead}>
-        {session.user.email} でログインします。認証アプリに表示されている6桁のコードを入力してください。
+        {t("verifyLead", { email: session.user.email })}
       </p>
       <VerifyCodeForm />
       <p className={styles.note} style={{ margin: "16px 0" }}>
-        この画面は10分で無効になります。期限が切れたら、もう一度ログインしてください。
+        {t("expiresNote")}
       </p>
       <form action={cancelAccountLogin} data-ui="AdminLoginVerifyPage.cancelForm">
         <button
@@ -41,7 +43,7 @@ export default async function AdminLoginVerifyPage() {
           style={{ textDecoration: "underline", background: "none", border: "none", padding: 0, cursor: "pointer" }}
           data-ui="AdminLoginVerifyPage.cancelButton"
         >
-          別のアカウントでログインする
+          {t("otherAccount")}
         </button>
       </form>
     </main>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import styles from "@/styles/ui.module.css";
 import { type LoginState, loginWithAccount, loginWithMasterPassword, verifyAccountCode } from "./actions";
@@ -7,9 +8,10 @@ import { type LoginState, loginWithAccount, loginWithMasterPassword, verifyAccou
 const initialState: LoginState = {};
 
 function CodeField({ required, autoFocus }: { required: boolean; autoFocus?: boolean }) {
+  const t = useTranslations("admin.login");
   return (
     <label data-ui="CodeField">
-      認証コード（6桁）
+      {t("code")}
       <input
         data-ui="CodeField.input"
         type="text"
@@ -28,11 +30,12 @@ function CodeField({ required, autoFocus }: { required: boolean; autoFocus?: boo
 
 export function AccountLoginForm() {
   const [state, formAction, pending] = useActionState(loginWithAccount, initialState);
+  const t = useTranslations("admin");
 
   return (
     <form action={formAction} className={styles.form} data-ui="AccountLoginForm">
       <label>
-        メールアドレス
+        {t("login.email")}
         <input
           data-ui="AccountLoginForm.emailInput"
           type="email"
@@ -44,7 +47,7 @@ export function AccountLoginForm() {
         />
       </label>
       <label>
-        パスワード
+        {t("login.password")}
         <input
           data-ui="AccountLoginForm.passwordInput"
           type="password"
@@ -58,7 +61,7 @@ export function AccountLoginForm() {
         {state.error}
       </p>
       <button type="submit" disabled={pending} className={styles.button} data-ui="AccountLoginForm.submitButton">
-        {pending ? "確認しています…" : "次へ"}
+        {pending ? t("common.checking") : t("login.next")}
       </button>
     </form>
   );
@@ -67,6 +70,7 @@ export function AccountLoginForm() {
 // Second step of the account sign-in.
 export function VerifyCodeForm() {
   const [state, formAction, pending] = useActionState(verifyAccountCode, initialState);
+  const t = useTranslations("admin");
 
   return (
     <form action={formAction} className={styles.form} data-ui="VerifyCodeForm">
@@ -75,7 +79,7 @@ export function VerifyCodeForm() {
         {state.error}
       </p>
       <button type="submit" disabled={pending} className={styles.button} data-ui="VerifyCodeForm.submitButton">
-        {pending ? "確認しています…" : "ログイン"}
+        {pending ? t("common.checking") : t("login.submit")}
       </button>
     </form>
   );
@@ -83,11 +87,12 @@ export function VerifyCodeForm() {
 
 export function MasterLoginForm({ needsCode }: { needsCode: boolean }) {
   const [state, formAction, pending] = useActionState(loginWithMasterPassword, initialState);
+  const t = useTranslations("admin");
 
   return (
     <form action={formAction} className={styles.form} data-ui="MasterLoginForm">
       <label>
-        マスターパスワード
+        {t("login.masterPassword")}
         <input
           data-ui="MasterLoginForm.passwordInput"
           type="password"
@@ -102,7 +107,7 @@ export function MasterLoginForm({ needsCode }: { needsCode: boolean }) {
         {state.error}
       </p>
       <button type="submit" disabled={pending} className={styles.button} data-ui="MasterLoginForm.submitButton">
-        {pending ? "確認しています…" : "ログイン"}
+        {pending ? t("common.checking") : t("login.submit")}
       </button>
     </form>
   );

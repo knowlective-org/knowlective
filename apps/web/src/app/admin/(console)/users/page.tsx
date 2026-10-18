@@ -1,13 +1,13 @@
+import { getFormatter, getTranslations } from "next-intl/server";
 import type { SiteRole } from "shared";
 import { prisma } from "@/lib/db";
 import { withEmails } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
-import { dateFormat } from "@/lib/admin/format";
 import { INVITATION_TTL_DAYS, listPendingInvitations } from "@/lib/auth/invitations";
 import { isMailConfigured } from "@/lib/mail";
 import { getSignupSettings } from "@/lib/auth/signup";
 import { getOidcSettings, oidcCallbackUrl } from "@/lib/auth/oidc";
-import { SITE_ROLES, SITE_ROLE_LABELS, invitableRoles } from "@/lib/roles";
+import { SITE_ROLES, invitableRoles } from "@/lib/roles";
 import { manageableGroupIds } from "@/lib/group-access";
 import styles from "@/styles/ui.module.css";
 import { revokeInvitation } from "../actions";
@@ -19,28 +19,37 @@ import { changeSiteRole, disableUser, enableUser, openPasswordReset } from "./ac
 
 type UserRow = { id: string; email: string; name: string | null; siteRole: SiteRole; disabledAt: Date | null };
 
+// The menu's text, in the viewer's language.
+type UserMenuText = {
+  role: (role: SiteRole) => string;
+  makeRole: (role: SiteRole) => string;
+  roleConfirm: (who: string, role: SiteRole) => string;
+  issueReset: string;
+  enable: string;
+  disable: string;
+  disableConfirm: (who: string) => string;
+};
+
 // Site admins only: change role, password reset link, disable / enable.
-function userMenu(u: UserRow): RowMenuItem[] {
+function userMenu(u: UserRow, text: UserMenuText): RowMenuItem[] {
   const who = u.name ?? u.email;
   const roleItems: RowMenuItem[] = SITE_ROLES.filter((r) => r !== u.siteRole).map((r) => ({
-    label: `${SITE_ROLE_LABELS[r]}にする`,
+    label: text.makeRole(r),
     action: changeSiteRole,
     fields: { userId: u.id, siteRole: r },
-    confirm: `${who} のロールを「${SITE_ROLE_LABELS[r]}」に変更しますか？`,
+    confirm: text.roleConfirm(who, r),
   }));
   return [
     ...roleItems,
-    ...(u.disabledAt
-      ? []
-      : [{ label: "パスワード再設定リンクを発行", action: openPasswordReset, fields: { userId: u.id } }]),
+    ...(u.disabledAt ? [] : [{ label: text.issueReset, action: openPasswordReset, fields: { userId: u.id } }]),
     u.disabledAt
-      ? { label: "有効にする", action: enableUser, fields: { userId: u.id } }
+      ? { label: text.enable, action: enableUser, fields: { userId: u.id } }
       : {
-          label: "無効にする",
+          label: text.disable,
           action: disableUser,
           fields: { userId: u.id },
           danger: true,
-          confirm: `${who} を無効にしますか？\nログイン中のセッションはすべて終了し、ログインできなくなります。`,
+          confirm: text.disableConfirm(who),
         },
   ];
 }
@@ -49,7 +58,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
   const { session, role, actor } = await requireAdmin();
   const allowedGroups = await manageableGroupIds(actor);
   const isSiteAdmin = role === "SITE_ADMIN";
-  const [groups, invitations, users, mailConfigured, signup, oidc, callbackUrl] = await Promise.all([
+  const [groups, invitations, users, mailConfigured, signup, oidc, callbackUrl, t, format] = await Promise.all([
     // Content managers can only hand out groups within trees they manage.
     prisma.group.findMany({
       // Built-in groups (all users) need no invitation: everyone is in them.
@@ -60,37 +69,53 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
     listPendingInvitations(),
     // The user list (roles, disabling) is for site admins only.
     isSiteAdmin
-      ? prisma.user.findMany({
-          orderBy: { createdAt: "asc" },
-          select: {
-            id: true,
-            emailEnc: true,
-            name: true,
-            siteRole: true,
-            createdAt: true,
-            disabledAt: true,
-            groups: { select: { group: { select: { name: true } } } },
-          },
-        })
-      .then(withEmails)
+      ? prisma.user
+          .findMany({
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              emailEnc: true,
+              name: true,
+              siteRole: true,
+              createdAt: true,
+              disabledAt: true,
+              groups: { select: { group: { select: { name: true } } } },
+            },
+          })
+          .then(withEmails)
       : Promise.resolve([]),
     isMailConfigured(),
     getSignupSettings(),
     getOidcSettings(),
     oidcCallbackUrl(),
+    getTranslations(),
+    getFormatter(),
   ]);
   const error = (await searchParams).error;
+  const roleLabel = (r: SiteRole) => t(`roles.${r}`);
+  const formatDate = (d: Date) => format.dateTime(d, { dateStyle: "short", timeStyle: "medium" });
+  const separator = t("common.listSeparator");
+  const menuText: UserMenuText = {
+    role: roleLabel,
+    makeRole: (r) => t("admin.users.makeRole", { role: roleLabel(r) }),
+    roleConfirm: (who, r) => t("admin.users.roleConfirm", { who, role: roleLabel(r) }),
+    issueReset: t("admin.users.issueReset"),
+    enable: t("admin.users.enable"),
+    disable: t("admin.users.disable"),
+    disableConfirm: (who) => t("admin.users.disableConfirm", { who }),
+  };
+  const signupRoleLabels = { USER: roleLabel("USER"), CONTENT_MANAGER: roleLabel("CONTENT_MANAGER") };
 
   return (
     <>
       {isSiteAdmin && (
         <section className={styles.section} data-ui="AdminUsersPage.signupSection">
-          <h2 className={styles.sectionTitle}>アカウント登録</h2>
+          <h2 className={styles.sectionTitle}>{t("admin.users.signup")}</h2>
           <SignupSettingsForm
             mode={signup.mode}
             allowedDomains={signup.allowedDomains}
             siteRole={signup.siteRole}
-            roleLabels={{ USER: SITE_ROLE_LABELS.USER, CONTENT_MANAGER: SITE_ROLE_LABELS.CONTENT_MANAGER }}
+            roleLabels={signupRoleLabels}
             mailConfigured={signup.mailConfigured}
           />
         </section>
@@ -98,47 +123,43 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
 
       {isSiteAdmin && (
         <section className={styles.section} data-ui="AdminUsersPage.oidcSection">
-          <h2 className={styles.sectionTitle}>シングルサインオン（OpenID Connect）</h2>
-          <OidcSettingsForm
-            values={oidc}
-            callbackUrl={callbackUrl}
-            roleLabels={{ USER: SITE_ROLE_LABELS.USER, CONTENT_MANAGER: SITE_ROLE_LABELS.CONTENT_MANAGER }}
-          />
+          <h2 className={styles.sectionTitle}>{t("admin.users.oidc")}</h2>
+          <OidcSettingsForm values={oidc} callbackUrl={callbackUrl} roleLabels={signupRoleLabels} />
         </section>
       )}
 
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>ユーザーの招待</h2>
+        <h2 className={styles.sectionTitle}>{t("admin.users.invite")}</h2>
         <InvitationForm
           groups={groups}
           ttlDays={INVITATION_TTL_DAYS}
           mailConfigured={mailConfigured}
-          siteRoles={invitableRoles(role).map((r) => ({ value: r, label: SITE_ROLE_LABELS[r] }))}
+          siteRoles={invitableRoles(role).map((r) => ({ value: r, label: roleLabel(r) }))}
         />
         {invitations.length > 0 && (
           <div className={styles.tableWrap} style={{ marginTop: 24 }}>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>ロール</th>
-                  <th>参加するグループ</th>
-                  <th>宛先</th>
-                  <th>期限</th>
+                  <th>{t("admin.users.role")}</th>
+                  <th>{t("admin.users.joinGroups")}</th>
+                  <th>{t("admin.users.to")}</th>
+                  <th>{t("admin.users.expires")}</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {invitations.map((inv) => (
                   <tr data-ui="AdminUsersPage.invitationRow" data-id={inv.id} key={inv.id}>
-                    <td>{SITE_ROLE_LABELS[inv.siteRole]}</td>
-                    <td>{inv.groups.map((g) => g.group.name).join("、") || "-"}</td>
-                    <td>{inv.email ?? "指定なし"}</td>
-                    <td>{dateFormat.format(inv.expiresAt)}</td>
+                    <td>{roleLabel(inv.siteRole)}</td>
+                    <td>{inv.groups.map((g) => g.group.name).join(separator) || "-"}</td>
+                    <td>{inv.email ?? t("admin.users.noAddress")}</td>
+                    <td>{formatDate(inv.expiresAt)}</td>
                     <td>
                       <form data-ui="AdminUsersPage.revokeInvitationForm" action={revokeInvitation}>
                         <input type="hidden" name="id" value={inv.id} />
                         <button data-ui="AdminUsersPage.revokeInvitationButton" type="submit" className={styles.danger}>
-                          取り消す
+                          {t("admin.users.revoke")}
                         </button>
                       </form>
                     </td>
@@ -152,21 +173,21 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
 
       {isSiteAdmin && (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>ユーザー</h2>
+          <h2 className={styles.sectionTitle}>{t("admin.users.users")}</h2>
           {error === "last-site-admin" && (
             <p data-ui="AdminUsersPage.lastSiteAdminError" className={styles.error} style={{ marginBottom: 12 }}>
-              最後のサイト管理者は、降格・無効化できません。先に別のユーザーをサイト管理者にしてください。
+              {t("admin.users.lastSiteAdmin")}
             </p>
           )}
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>表示名</th>
-                  <th>メールアドレス</th>
-                  <th>ロール</th>
-                  <th>グループ</th>
-                  <th>登録日</th>
+                  <th>{t("admin.users.name")}</th>
+                  <th>{t("admin.users.email")}</th>
+                  <th>{t("admin.users.role")}</th>
+                  <th>{t("admin.users.groups")}</th>
+                  <th>{t("admin.users.registered")}</th>
                   <th />
                 </tr>
               </thead>
@@ -175,17 +196,17 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
                   <tr data-ui="AdminUsersPage.userRow" data-id={u.id} key={u.id} className={u.disabledAt ? styles.disabledRow : undefined}>
                     <td>
                       {u.name ?? "-"}
-                      {u.disabledAt && <span className={styles.badge}>無効</span>}
+                      {u.disabledAt && <span className={styles.badge}>{t("admin.common.disabled")}</span>}
                     </td>
                     <td>{u.email}</td>
-                    <td>{SITE_ROLE_LABELS[u.siteRole]}</td>
-                    <td>{u.groups.map((g) => g.group.name).join("、") || "-"}</td>
-                    <td>{dateFormat.format(u.createdAt)}</td>
+                    <td>{roleLabel(u.siteRole)}</td>
+                    <td>{u.groups.map((g) => g.group.name).join(separator) || "-"}</td>
+                    <td>{formatDate(u.createdAt)}</td>
                     <td>
                       {u.id === session.userId ? (
-                        <span className={styles.note}>自分</span>
+                        <span className={styles.note}>{t("admin.common.you")}</span>
                       ) : (
-                        <RowMenu label={`${u.name ?? u.email} の操作`} items={userMenu(u)} />
+                        <RowMenu label={t("admin.common.actionsFor", { name: u.name ?? u.email })} items={userMenu(u, menuText)} />
                       )}
                     </td>
                   </tr>

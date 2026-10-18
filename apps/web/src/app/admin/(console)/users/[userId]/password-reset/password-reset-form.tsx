@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import styles from "@/styles/ui.module.css";
 import { issuePasswordReset, type PasswordResetIssueState } from "../../actions";
@@ -16,6 +17,7 @@ export function PasswordResetIssueForm({
   mailConfigured: boolean;
 }) {
   const [state, formAction, pending] = useActionState(issuePasswordReset, {} as PasswordResetIssueState);
+  const ta = useTranslations("admin");
   const [copied, setCopied] = useState(false);
   const [sendEmail, setSendEmail] = useState(mailConfigured);
 
@@ -32,18 +34,18 @@ export function PasswordResetIssueForm({
             disabled={!mailConfigured}
             onChange={(e) => setSendEmail(e.target.checked)}
           />
-          {email} にメールで送る
+          {ta("passwordReset.sendEmail", { email })}
         </label>
         {!mailConfigured && (
           <p className={styles.note}>
-            メール送信が未設定のため、送信できません。発行したリンクを本人に直接渡してください。
+            {ta("passwordReset.mailNotConfigured")}
           </p>
         )}
         <p data-ui="PasswordResetIssueForm.error" aria-live="polite" className={styles.error}>
           {state.error}
         </p>
         <button data-ui="PasswordResetIssueForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-          {pending ? "発行しています…" : sendEmail ? "再設定リンクを発行してメールで送る" : "再設定リンクを発行"}
+          {pending ? ta("common.issuing") : sendEmail ? ta("passwordReset.issueAndSend") : ta("passwordReset.issue")}
         </button>
       </form>
 
@@ -51,16 +53,16 @@ export function PasswordResetIssueForm({
         <div>
           {state.mailSentTo && (
             <p data-ui="PasswordResetIssueForm.mailSentMessage" className={styles.success}>
-              {state.mailSentTo} に再設定のメールを送信しました。
+              {ta("passwordReset.sent", { email: state.mailSentTo })}
             </p>
           )}
           {state.mailError && (
             <p data-ui="PasswordResetIssueForm.mailError" className={styles.error}>
-              メールの送信に失敗しました（{state.mailError}）。リンクは有効なので、下のリンクを直接渡してください。
+              {ta("passwordReset.sendFailed", { error: state.mailError })}
             </p>
           )}
           <p className={styles.note}>
-            再設定リンクは今だけ表示されます（{ttlHours}時間有効・1回限り）。本人だけに渡してください。
+            {ta("passwordReset.linkNote", { hours: ttlHours })}
           </p>
           <p data-ui="PasswordResetIssueForm.resetLink" className={styles.secret}>{state.link}</p>
           <button
@@ -73,7 +75,7 @@ export function PasswordResetIssueForm({
               setCopied(true);
             }}
           >
-            {copied ? "コピーしました" : "コピー"}
+            {copied ? ta("common.copied") : ta("common.copy")}
           </button>
         </div>
       )}

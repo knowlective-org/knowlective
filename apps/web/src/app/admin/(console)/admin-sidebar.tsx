@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import styles from "@/components/sidebar.module.css";
 import { logout } from "./actions";
 
@@ -20,13 +21,14 @@ export function AdminSidebar({
   sourceUrl: string;
 }) {
   const pathname = usePathname();
+  const t = useTranslations("admin.shell");
   // "/admin" is only current on itself; the others also cover their subpages.
   const isCurrent = (href: string) =>
     href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <div className={styles.sidebar} data-ui="AdminSidebar">
-      <div className={styles.brand}>KNOWLECTIVE 管理画面</div>
+      <div className={styles.brand}>{t("brand")}</div>
       <nav className={styles.nav} data-ui="AdminSidebar.nav">
         {items.map((item) => (
           <Link
@@ -45,11 +47,11 @@ export function AdminSidebar({
           {actor}
         </span>
         <Link href="/" className={styles.footerLink} data-ui="AdminSidebar.appLink">
-          アプリに戻る
+          {t("backToApp")}
         </Link>
         <form action={logout}>
           <button type="submit" className={styles.footerLink} data-ui="AdminSidebar.logoutButton">
-            ログアウト
+            {t("logout")}
           </button>
         </form>
         <a
@@ -57,10 +59,10 @@ export function AdminSidebar({
           target="_blank"
           rel="noopener noreferrer"
           className={styles.footerLink}
-          title="KNOWLECTIVE は AGPL-3.0 で公開されています"
+          title={t("sourceTitle")}
           data-ui="AdminSidebar.sourceLink"
         >
-          ソースコード（AGPL-3.0）
+          {t("source")}
         </a>
       </div>
     </div>

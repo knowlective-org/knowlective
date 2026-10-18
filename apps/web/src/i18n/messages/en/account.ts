@@ -3,6 +3,8 @@
 export default {
   account: {
     title: "Account",
+    // The title a personal knowledge root starts with.
+    personalRootTitle: "My pages",
     details: "Your details",
     name: "Name",
     email: "Email address",

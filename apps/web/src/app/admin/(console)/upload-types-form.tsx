@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState, useRef, useState } from "react";
 import { MAX_ALLOWED_EXTENSIONS, RECOMMENDED_EXTENSIONS, parseExtensions } from "@/lib/upload-types";
 import styles from "@/styles/ui.module.css";
@@ -10,6 +11,7 @@ const SEPARATORS = /[\s,、，]/;
 
 export function UploadTypesForm({ current }: { current: string[] }) {
   const [state, formAction, pending] = useActionState(saveUploadTypes, {} as UploadTypesState);
+  const ta = useTranslations("admin");
   const [tags, setTags] = useState(current);
   // What's being typed and isn't a tag yet.
   const [text, setText] = useState("");
@@ -23,12 +25,12 @@ export function UploadTypesForm({ current }: { current: string[] }) {
   const commit = (value: string): boolean => {
     const parsed = parseExtensions(value);
     if ("invalid" in parsed) {
-      setInputError(`拡張子として使えません：${parsed.invalid.join("、")}（英数字と - _ + で、16文字まで）`);
+      setInputError(ta("uploadTypes.errors.invalid", { list: parsed.invalid.join(", ") }));
       return false;
     }
     const next = [...tags, ...parsed.extensions.filter((extension) => !tags.includes(extension))];
     if (next.length > MAX_ALLOWED_EXTENSIONS) {
-      setInputError(`拡張子は ${MAX_ALLOWED_EXTENSIONS} 個までです。`);
+      setInputError(ta("uploadTypes.errors.tooMany", { max: MAX_ALLOWED_EXTENSIONS }));
       return false;
     }
     setTags(next);
@@ -44,7 +46,7 @@ export function UploadTypesForm({ current }: { current: string[] }) {
     input.current?.focus();
   };
 
-  const message = inputError ?? (dirty ? "" : (state.error ?? (state.saved ? "保存しました。" : "")));
+  const message = inputError ?? (dirty ? "" : (state.error ?? (state.saved ? ta("common.saved") : "")));
 
   return (
     <form
@@ -58,7 +60,7 @@ export function UploadTypesForm({ current }: { current: string[] }) {
       {/* What's still in the field is sent too, so the server reports it if it's invalid. */}
       <input type="hidden" name="extensions" value={[...tags, text].join(" ")} />
       <div>
-        <label htmlFor="upload-types-input">追加できる拡張子</label>
+        <label htmlFor="upload-types-input">{ta("uploadTypes.label")}</label>
         {/* Clicking the box's empty space focuses the field, as in a text input. */}
         <div
           className={styles.tagField}
@@ -72,7 +74,7 @@ export function UploadTypesForm({ current }: { current: string[] }) {
               <button
                 type="button"
                 className={styles.tagRemove}
-                aria-label={`.${extension} を削除`}
+                aria-label={ta("uploadTypes.remove", { extension })}
                 data-ui="UploadTypesForm.removeButton"
                 data-id={extension}
                 onClick={() => remove(extension)}
@@ -88,7 +90,7 @@ export function UploadTypesForm({ current }: { current: string[] }) {
             data-ui="UploadTypesForm.extensionInput"
             className={styles.tagInput}
             value={text}
-            placeholder={tags.length === 0 ? "pdf, png, docx …（空のままなら制限なし）" : ""}
+            placeholder={tags.length === 0 ? ta("uploadTypes.placeholder") : ""}
             spellCheck={false}
             autoComplete="off"
             autoCapitalize="off"
@@ -121,7 +123,7 @@ export function UploadTypesForm({ current }: { current: string[] }) {
           />
         </div>
         <p id="upload-types-hint" className={styles.note} style={{ marginTop: 4 }}>
-          拡張子を入力してカンマ（または空白・Enter）で確定します。1つもないときは、すべての種類を追加できます。
+          {ta("uploadTypes.note")}
         </p>
       </div>
       <p
@@ -143,10 +145,10 @@ export function UploadTypesForm({ current }: { current: string[] }) {
             setDirty(true);
           }}
         >
-          デフォルトに戻す
+          {ta("uploadTypes.reset")}
         </button>
         <button data-ui="UploadTypesForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-          {pending ? "保存しています…" : "保存"}
+          {pending ? ta("common.saving") : ta("common.save")}
         </button>
       </div>
     </form>

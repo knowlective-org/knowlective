@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
 import {
   assertIpAllowed,
@@ -34,7 +35,7 @@ export async function confirmEnrollment(
   const step = typeof code === "string" ? verifyTotp(secret, code, null) : null;
   secret.fill(0);
   if (step === null) {
-    return { error: "認証コードが正しくありません。アプリに表示されている最新のコードを入力してください。" };
+    return { error: (await getTranslations("admin.enroll.errors"))("wrongCode") };
   }
 
   // Only the first enrollment wins; never overwrite an existing secret here.

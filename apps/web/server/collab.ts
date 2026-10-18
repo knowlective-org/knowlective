@@ -24,6 +24,8 @@ import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, regi
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 import { startSemanticSearch } from "./semantic-search";
+import { FALLBACK_LOCALE, isLocale } from "../src/i18n/locales";
+import { translatorFor } from "../src/i18n/translator";
 
 // Real-time collaboration (Yjs over WebSocket), served by the same process
 // and port as the Next.js app at COLLAB_PATH. server/index.ts routes the
@@ -38,6 +40,13 @@ export async function createCollab() {
   // Separate from the app's PrismaClient (src/lib/db.ts): this module is
   // loaded by the custom server, not bundled by Next.js.
   const prisma = createPrismaClient();
+
+  // The title personal roots start with, in the site's default language.
+  const personalRootTitle = async () => {
+    const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { defaultLocale: true } });
+    const locale = isLocale(config?.defaultLocale) ? config.defaultLocale : FALLBACK_LOCALE;
+    return translatorFor(locale)("account.personalRootTitle");
+  };
 
   // Last user whose update changed each document since it was last stored.
   // Server-side changes (the title seed) have no connection context.
@@ -305,7 +314,9 @@ export async function createCollab() {
     // Personal knowledge roots for accounts made before they existed, then
     // catch up the search index (pages edited before it existed, or while
     // indexing failed) without delaying startup.
-    void ensurePersonalRoots(prisma)
+    // Named in the site's default language (there's no request to go by).
+    void personalRootTitle()
+      .then((title) => ensurePersonalRoots(prisma, title))
       .then((n) => n > 0 && console.log(`[accounts] made ${n} personal knowledge root(s)`))
       .catch((err) => console.error("[accounts] making personal knowledge roots failed", err))
       .then(() => reindexStalePages(prisma))

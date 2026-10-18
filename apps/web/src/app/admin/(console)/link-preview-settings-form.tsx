@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { startTransition, useActionState, useState } from "react";
 import type { LinkPreviewSettingsView } from "@/lib/link-preview-settings";
 import styles from "@/styles/ui.module.css";
@@ -9,6 +10,7 @@ const checkRow = { display: "flex", gap: 8, alignItems: "flex-start" } as const;
 
 export function LinkPreviewSettingsForm({ current }: { current: LinkPreviewSettingsView }) {
   const [state, formAction, pending] = useActionState(saveLinkPreviewSettings, {} as LinkPreviewSettingsState);
+  const ta = useTranslations("admin");
   const [enabled, setEnabled] = useState(current.enabled);
   const [allowPrivate, setAllowPrivate] = useState(current.allowPrivate);
   const [proxyUrl, setProxyUrl] = useState(current.proxyUrl ?? "");
@@ -34,9 +36,9 @@ export function LinkPreviewSettingsForm({ current }: { current: LinkPreviewSetti
           data-ui="LinkPreviewSettingsForm.enabledCheckbox"
         />
         <span>
-          リンクのプレビューを使う
+          {ta("linkPreview.enabled")}
           <span className={styles.note} style={{ display: "block" }}>
-            オフにすると、貼り付けた URL は普通のリンクになり、サーバーは外部のサイトへ取りに行きません。すでにあるカードはそのまま表示されます。
+            {ta("linkPreview.enabledNote")}
           </span>
         </span>
       </label>
@@ -51,17 +53,15 @@ export function LinkPreviewSettingsForm({ current }: { current: LinkPreviewSetti
           data-ui="LinkPreviewSettingsForm.allowPrivateCheckbox"
         />
         <span>
-          社内（イントラネット）のサイトも対象にする
+          {ta("linkPreview.allowPrivate")}
           <span className={styles.note} style={{ display: "block" }}>
-            プライベートアドレス（10.x、172.16〜31.x、192.168.x など）のサイトからも取得します。
-            ログインしている利用者なら誰でも、このサーバーから届く社内のサイトのタイトルや説明を見られるようになります。
-            このサーバー自身（localhost）と、クラウドの管理用アドレス（169.254.x）は、オンにしても対象になりません。
+            {ta("linkPreview.allowPrivateNote")}
           </span>
         </span>
       </label>
 
       <label>
-        プロキシ（任意）
+        {ta("linkPreview.proxy")}
         <input
           type="url"
           name="proxyUrl"
@@ -75,15 +75,14 @@ export function LinkPreviewSettingsForm({ current }: { current: LinkPreviewSetti
           data-ui="LinkPreviewSettingsForm.proxyUrlInput"
         />
         <span className={styles.note}>
-          サーバーが外部へ直接つなげない環境で、取得に使う HTTP プロキシです。空欄なら直接つなぎます。
-          プロキシを使うと、最終的にどこへつなぐかはプロキシ側の設定で決まります。
+          {ta("linkPreview.proxyNote")}
         </span>
       </label>
 
       {enabled && proxyUrl.trim() !== "" && (
         <>
           <label>
-            プロキシのユーザー名（任意）
+            {ta("linkPreview.proxyUser")}
             <input
               type="text"
               name="proxyUsername"
@@ -94,16 +93,16 @@ export function LinkPreviewSettingsForm({ current }: { current: LinkPreviewSetti
             />
           </label>
           <label>
-            プロキシのパスワード
+            {ta("linkPreview.proxyPassword")}
             <input
               type="password"
               name="proxyPassword"
-              placeholder={current.hasProxyPassword ? "変更しない場合は空欄" : ""}
+              placeholder={current.hasProxyPassword ? ta("linkPreview.proxyPasswordKeep") : ""}
               autoComplete="new-password"
               className={styles.field}
               data-ui="LinkPreviewSettingsForm.proxyPasswordInput"
             />
-            <span className={styles.note}>暗号化して保存され、画面には表示されません。</span>
+            <span className={styles.note}>{ta("linkPreview.proxyPasswordNote")}</span>
           </label>
         </>
       )}
@@ -113,10 +112,10 @@ export function LinkPreviewSettingsForm({ current }: { current: LinkPreviewSetti
         aria-live="polite"
         className={state.error ? styles.error : styles.success}
       >
-        {state.error ?? (state.saved ? "保存しました。" : "")}
+        {state.error ?? (state.saved ? ta("common.saved") : "")}
       </p>
       <button data-ui="LinkPreviewSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? "保存しています…" : "保存"}
+        {pending ? ta("common.saving") : ta("common.save")}
       </button>
     </form>
   );

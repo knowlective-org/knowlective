@@ -48,7 +48,7 @@ pnpm dev           # http://localhost:3000（PORT で変更。共同編集は同
 
 ### コードの言語
 
-コード中のコメント・テスト名（`test()` / `test.describe()`）・ログ・スクリプト（`install.sh` など）の出力は英語で書く。メール（`lib/mail-templates.ts`）も英語（呼び出し側は値だけを渡し、文言はテンプレートの中だけに書く）。日本語を書くのは、画面に出る文言（ボタン・メッセージ・利用者に返すエラー）と、それを確かめるテストの期待値、テスト用のデータだけ（i18n で日本語に対応するまでの暫定）。画面の項目をコメントで指すときも、日本語の文言ではなく英語で説明する（例: 「保存中」→ the "saving" mark）。適用済みのマイグレーション（`migration.sql`）はチェックサムが変わるので書き換えない。
+コード中のコメント・テスト名（`test()` / `test.describe()`）・ログ・スクリプト（`install.sh` など）の出力は英語で書く。画面・メール・変更の記録に出る文言は、コードに直接書かず `src/i18n/messages/`（下の「表示言語」）に置く。日本語を書くのは、そこの `ja/`、日本語の画面を確かめるテストの期待値、テスト用のデータだけ。画面の項目をコメントで指すときも、日本語の文言ではなく英語で説明する（例: 「保存中」→ the "saving" mark）。適用済みのマイグレーション（`migration.sql`）はチェックサムが変わるので書き換えない。
 
 ### UI 要素の名前（`data-ui` 属性）
 
@@ -88,6 +88,16 @@ pnpm e2e           # テスト用のアカウントを作り直してから、�
 デモ: `/admin` で「Demo 管理」グループに入る招待リンクを発行して自分を登録し、`/pages/demo` を2つのタブで開く。片方で入力するともう片方に反映される（ページは権限のあるグループのメンバーしか開けない）。
 
 ## 実装上の注意（ハマりどころ）
+
+- **表示言語（i18n）**: next-intl（URL に言語を入れない構成）。日本語と英語。
+  - 言語の決め方（`src/i18n/locale.ts` の `requestLocale()`）: ユーザーが「アカウント」で選んだ言語（`User.locale`）→ ブラウザ（Accept-Language）→ サイトの既定（`InstanceConfig.defaultLocale`。管理画面「概要」と初期セットアップで選ぶ。初期値は日本語）。
+  - 文言は `src/i18n/messages/en/*.ts`（キーの正）と `ja/*.ts`（`MessageShape` 型でキーの過不足を検出）。書式は ICU（`{name}`、`{count, plural, ...}`、`{x, select, ...}`、`<link>…</link>` は `t.rich`）。数値の引数は `{n, number}` と書く（`{n}` だと文字列の型になる）。`{` を含む文（Mermaid の例など）は `t.raw()`。
+  - 画面: Server Component・Server Action・Route Handler は `getTranslations()`、Client Component は `useTranslations()`。日時は `getFormatter()` / `useFormatter()`（`Intl.DateTimeFormat("ja-JP")` を直接使わない）。BlockNote の文言は `blockNoteDictionary(locale)`。
+  - 見る人と言語が違う文: メールは受け取る人の言語（`userLocale(userId)`、アカウントがない宛先は `siteDefaultLocale()`）、変更の記録はサイトの既定の言語（`auditTranslator()`）。どちらもリクエストに依存しない `translatorFor(locale)` を使う。
+  - 空のタイトルは言語ごとの「無題」：`displayTitle(title, untitled)` を直接呼ばず、`useDisplayTitle()` / `getDisplayTitle()` / `displayTitleWith(auditT)` を使う。
+  - DB に入るデータは、作った時点の言語のまま（組み込みグループの名前は表示のときに `groupName()` で訳す。自分専用のルートのタイトル・子ページボードの「ステータス」列などは作った人の言語）。
+  - shared や lib から利用者向けの文を返すときは、文ではなく理由のコードを返し、画面側で訳す（例: `InvalidPublicUrlError.reason`、`chooseSearchMode().reason`、`isOidcErrorCode()`）。
+  - E2E はブラウザの言語を `ja-JP` にしている（`playwright.config.ts`）ので、期待値は日本語。英語は `e2e/i18n.spec.ts`。
 
 初期スキャフォールド時、記憶していた各パッケージのAPIはほぼ全て古かった。**新しい依存を使う前に、インストール済みの型定義・同梱ドキュメントを読んで確認すること。**
 

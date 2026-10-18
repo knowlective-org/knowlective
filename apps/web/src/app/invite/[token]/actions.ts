@@ -74,7 +74,7 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
       });
       await consumeInvitation(tx, invitation.id, user.id);
       // Every person's account comes with its own personal knowledge root.
-      await ensurePersonalRoot(tx, user.id);
+      await ensurePersonalRoot(tx, user.id, t("account.personalRootTitle"));
       return user.id;
     });
   } catch (err) {

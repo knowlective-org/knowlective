@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState, useState, type CSSProperties } from "react";
 import styles from "@/styles/ui.module.css";
 import {
@@ -14,16 +15,18 @@ import { type ThemeState, saveTheme } from "./actions";
 import themeStyles from "./theme-form.module.css";
 
 // Pairs that must stay readable (WCAG AA for normal text: 4.5:1).
-const CONTRAST_CHECKS: { text: ThemeKey; on: ThemeKey; label: string }[] = [
-  { text: "primary", on: "background", label: "プライマリの文字 × 背景" },
-  { text: "primary", on: "primaryLight", label: "プライマリの文字 × サイドバー" },
-  { text: "muted", on: "background", label: "補助テキスト × 背景" },
+// Named by admin.theme.pairs.<label>.
+const CONTRAST_CHECKS: { text: ThemeKey; on: ThemeKey; label: "primaryOnBackground" | "primaryOnSidebar" | "mutedOnBackground" }[] = [
+  { text: "primary", on: "background", label: "primaryOnBackground" },
+  { text: "primary", on: "primaryLight", label: "primaryOnSidebar" },
+  { text: "muted", on: "background", label: "mutedOnBackground" },
 ];
 
 export function ThemeForm({ current }: { current: ThemeColors }) {
   const [state, formAction, pending] = useActionState(saveTheme, {} as ThemeState);
   // What the fields show; may be half-typed. The preview uses the valid ones.
   const [draft, setDraft] = useState<Record<ThemeKey, string>>(current);
+  const tr = useTranslations("admin");
   const valid = Object.fromEntries(
     THEME_TOKENS.map((t) => [t.key, normalizeColor(draft[t.key]) ?? current[t.key]]),
   ) as ThemeColors;
@@ -39,7 +42,7 @@ export function ThemeForm({ current }: { current: ThemeColors }) {
           <div key={t.key} className={themeStyles.field}>
             <input
               type="color"
-              aria-label={`${t.label}の色を選ぶ`}
+              aria-label={tr("theme.pick", { label: tr(`theme.tokens.${t.key}`) })}
               value={valid[t.key]}
               onChange={(e) => setDraft((d) => ({ ...d, [t.key]: e.target.value }))}
               className={themeStyles.picker}
@@ -48,8 +51,8 @@ export function ThemeForm({ current }: { current: ThemeColors }) {
             />
             <label className={themeStyles.label}>
               <span>
-                {t.label}
-                <span className={themeStyles.default}>（初期値 {t.defaultValue.toUpperCase()}）</span>
+                {tr(`theme.tokens.${t.key}`)}
+                <span className={themeStyles.default}>{tr("theme.defaultValue", { value: t.defaultValue.toUpperCase() })}</span>
               </span>
               <input
                 name={t.key}
@@ -62,35 +65,35 @@ export function ThemeForm({ current }: { current: ThemeColors }) {
                 data-ui="ThemeForm.hexInput"
                 data-key={t.key}
               />
-              <span className={styles.note}>{t.description}</span>
+              <span className={styles.note}>{tr(`theme.tokens.${t.key}Description`)}</span>
             </label>
           </div>
         ))}
       </div>
 
-      <div className={themeStyles.preview} style={previewVars} data-ui="ThemeForm.preview" aria-label="プレビュー">
+      <div className={themeStyles.preview} style={previewVars} data-ui="ThemeForm.preview" aria-label={tr("theme.preview")}>
         <div className={themeStyles.previewSidebar}>
           <div className={themeStyles.previewBrand}>KNOWLECTIVE</div>
-          <div className={themeStyles.previewItemCurrent}>開いているページ</div>
-          <div className={themeStyles.previewItem}>ほかのページ</div>
+          <div className={themeStyles.previewItemCurrent}>{tr("theme.previewCurrent")}</div>
+          <div className={themeStyles.previewItem}>{tr("theme.previewOther")}</div>
         </div>
         <div className={themeStyles.previewMain}>
-          <div className={themeStyles.previewTitle}>ページのタイトル</div>
-          <p>本文の文字はこの色になります。</p>
-          <p className={themeStyles.previewMuted}>補助テキスト（更新日時・説明文など）</p>
-          <span className={themeStyles.previewButton}>ボタン</span>
+          <div className={themeStyles.previewTitle}>{tr("theme.previewTitle")}</div>
+          <p>{tr("theme.previewBody")}</p>
+          <p className={themeStyles.previewMuted}>{tr("theme.previewMuted")}</p>
+          <span className={themeStyles.previewButton}>{tr("theme.previewButton")}</span>
         </div>
       </div>
 
       {lowContrast.length > 0 && (
         <p className={styles.error} data-ui="ThemeForm.contrastWarning">
-          文字が読みにくい組み合わせがあります（推奨はコントラスト比 4.5 以上）:{" "}
-          {lowContrast.map((c) => `${c.label} ${c.ratio.toFixed(1)}`).join("、")}
+          {tr("theme.lowContrast")}
+          {lowContrast.map((c) => `${tr(`theme.pairs.${c.label}`)} ${c.ratio.toFixed(1)}`).join(", ")}
         </p>
       )}
 
       <p data-ui="ThemeForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? "保存しました。すべての画面に反映されます。" : "")}
+        {state.error ?? (state.saved ? tr("theme.saved") : "")}
       </p>
       <div className={styles.actions}>
         <button
@@ -99,10 +102,10 @@ export function ThemeForm({ current }: { current: ThemeColors }) {
           className={styles.buttonSecondary}
           onClick={() => setDraft(DEFAULT_THEME)}
         >
-          初期値に戻す
+          {tr("theme.reset")}
         </button>
         <button data-ui="ThemeForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-          {pending ? "保存しています…" : "保存"}
+          {pending ? tr("common.saving") : tr("common.save")}
         </button>
       </div>
     </form>

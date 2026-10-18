@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { TOTP_ISSUER, otpauthUri } from "@/lib/admin/otpauth";
@@ -23,6 +24,7 @@ export function AuthenticatorQr({
 }) {
   const [name, setName] = useState(defaultName);
   const [qr, setQr] = useState(initialQr);
+  const t = useTranslations("admin.enroll");
 
   useEffect(() => {
     let stale = false;
@@ -38,7 +40,7 @@ export function AuthenticatorQr({
   return (
     <div data-ui="AuthenticatorQr">
       <label>
-        認証アプリに表示する名前
+        {t("appName")}
         <span className={styles.prefixedField}>
           <span aria-hidden="true">{TOTP_ISSUER}:</span>
           <input
@@ -55,11 +57,10 @@ export function AuthenticatorQr({
         </span>
       </label>
       <p className={styles.note}>
-        認証アプリの一覧で見分けるための名前です。QR
-        コードを読み取る前に変更してください。この名前は KNOWLECTIVE には保存されません。
+        {t("appNameNote")}
       </p>
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL, nothing to optimize */}
-      <img src={qr} alt="認証アプリ登録用の QR コード" className={styles.qr} data-ui="AuthenticatorQr.qrCode" />
+      <img src={qr} alt={t("qrAlt")} className={styles.qr} data-ui="AuthenticatorQr.qrCode" />
     </div>
   );
 }

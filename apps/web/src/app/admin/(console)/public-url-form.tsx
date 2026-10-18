@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import styles from "@/styles/ui.module.css";
 import { type PublicUrlState, savePublicUrl } from "./actions";
@@ -8,11 +9,12 @@ const initialState: PublicUrlState = {};
 
 export function PublicUrlForm({ current, suggested }: { current: string | null; suggested: string }) {
   const [state, formAction, pending] = useActionState(savePublicUrl, initialState);
+  const ta = useTranslations("admin");
 
   return (
     <form data-ui="PublicUrlForm" action={formAction} className={styles.form}>
       <label>
-        サイトの公開 URL
+        {ta("publicUrl.label")}
         <input
           type="url"
           data-ui="PublicUrlForm.publicUrlInput"
@@ -25,13 +27,13 @@ export function PublicUrlForm({ current, suggested }: { current: string | null; 
         />
       </label>
       <p className={styles.note}>
-        メールや招待リンクに使われます。利用者がブラウザで開く URL（https://〜）を、パスを付けずに入力してください。
+        {ta("publicUrl.note")}
       </p>
       <p data-ui="PublicUrlForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? "保存しました。" : "")}
+        {state.error ?? (state.saved ? ta("common.saved") : "")}
       </p>
       <button data-ui="PublicUrlForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? "保存しています…" : "保存"}
+        {pending ? ta("common.saving") : ta("common.save")}
       </button>
     </form>
   );

@@ -1,4 +1,6 @@
+import { getTranslations } from "next-intl/server";
 import { isInsecurePublicUrl } from "shared";
+import { siteDefaultLocale } from "@/i18n/locale";
 import { BASE_PATH } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/auth";
@@ -7,6 +9,7 @@ import { getRequestOrigin } from "@/lib/request";
 import styles from "@/styles/ui.module.css";
 import { MailSettingsForm, TestMailForm } from "./mail-settings-form";
 import { PublicUrlForm } from "./public-url-form";
+import { DefaultLocaleForm } from "./default-locale-form";
 
 import { getTheme } from "@/lib/theme";
 import { ThemeForm } from "./theme-form";
@@ -19,7 +22,7 @@ import { LandingPageForm } from "./landing-page-form";
 
 export default async function AdminOverviewPage() {
   const { actor } = await requireAdmin(["SITE_ADMIN"]);
-  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages, landingOptions, guestLanding] =
+  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages, landingOptions, guestLanding, locale, t] =
     await Promise.all([
       getMailSettings(),
       prisma.instanceConfig.findUniqueOrThrow({
@@ -33,55 +36,61 @@ export default async function AdminOverviewPage() {
       publicPageIds(),
       landingPageOptions(actor.userId),
       landingPageFor(null),
+      siteDefaultLocale(),
+      getTranslations("admin.overview"),
     ]);
+  const code = (chunks: React.ReactNode) => <code>{chunks}</code>;
 
   return (
     <>
       {siteAdminCount === 0 && (
         <p data-ui="AdminOverviewPage.noSiteAdminError" className={styles.error} style={{ marginBottom: 24 }}>
-          サイト管理者のロールを持つユーザーがまだいません。「ユーザー」でユーザーのロールを「サイト管理者」にすると、そのユーザーは自分のアカウントで管理画面にログインできます。
+          {t("noSiteAdmin")}
         </p>
       )}
 
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>サイトの設定</h2>
+        <h2 className={styles.sectionTitle}>{t("site")}</h2>
         {site.publicUrl === null && (
           <p data-ui="AdminOverviewPage.publicUrlUnsetError" className={styles.error} style={{ marginBottom: 12 }}>
-            公開 URL が未設定です。設定するまでは、招待リンクやメールのリンクに、今アクセスしている URL（{requestOrigin}）が使われます。
+            {t("publicUrlUnset", { origin: requestOrigin })}
           </p>
         )}
         {site.publicUrl !== null && isInsecurePublicUrl(site.publicUrl) && (
           <p data-ui="AdminOverviewPage.insecurePublicUrlError" className={styles.error} style={{ marginBottom: 12 }}>
-            公開 URL が http:// です。本番では https:// を使ってください（ログイン情報が暗号化されずに送られます）。
+            {t("insecurePublicUrl")}
           </p>
         )}
         <PublicUrlForm current={site.publicUrl} suggested={requestOrigin} />
         <p className={styles.note} style={{ marginTop: 16 }} data-ui="AdminOverviewPage.basePath">
-          サブパス：{BASE_PATH ? <code>{BASE_PATH}</code> : "なし（ルートで公開）"}
-          {site.publicUrl !== null && BASE_PATH && (
-            <>
-              {" "}
-              — 外部に出すリンクは <code>{site.publicUrl + BASE_PATH}</code> から始まります。
-            </>
-          )}
+          {t("basePath")}
+          {BASE_PATH ? <code>{BASE_PATH}</code> : t("basePathNone")}
+          {site.publicUrl !== null && BASE_PATH && t.rich("basePathLinks", { url: site.publicUrl + BASE_PATH, code })}
           <br />
-          サブパスは、サーバーの環境変数 <code>KNOWLECTIVE_BASE_PATH</code>（例: <code>/knowlective</code>）で指定し、再起動すると反映されます。この画面からは変更できません。
-          公開 URL には、サブパスを含めずに入力してください。
+          {t.rich("basePathNote", { code })}
         </p>
       </section>
 
-      <section className={styles.section} data-ui="AdminOverviewPage.themeSection">
-        <h2 className={styles.sectionTitle}>テーマ</h2>
+      <section className={styles.section} data-ui="AdminOverviewPage.languageSection">
+        <h2 className={styles.sectionTitle}>{t("language")}</h2>
         <p className={styles.note} style={{ marginBottom: 16 }}>
-          サイト全体（ページ・管理画面・ログイン画面）の色です。保存すると、すべての利用者の画面に反映されます。
+          {t("languageLead")}
+        </p>
+        <DefaultLocaleForm current={locale} />
+      </section>
+
+      <section className={styles.section} data-ui="AdminOverviewPage.themeSection">
+        <h2 className={styles.sectionTitle}>{t("theme")}</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          {t("themeLead")}
         </p>
         <ThemeForm current={theme} />
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>メール送信</h2>
+        <h2 className={styles.sectionTitle}>{t("mail")}</h2>
         <p className={styles.note} style={{ marginBottom: 16 }}>
-          パスワード再設定などのメールを送るための SMTP サーバーを設定します。パスワードは暗号化して保存され、画面には表示されません。
+          {t("mailLead")}
         </p>
         <MailSettingsForm current={mail} />
         <div style={{ marginTop: 24 }}>
@@ -90,18 +99,17 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section className={styles.section} data-ui="AdminOverviewPage.linkPreviewSection">
-        <h2 className={styles.sectionTitle}>リンクのプレビュー</h2>
+        <h2 className={styles.sectionTitle}>{t("linkPreview")}</h2>
         <p className={styles.note} style={{ marginBottom: 16 }}>
-          ページの空の行に URL を貼り付けると、そのサイトのタイトル・説明・画像を表示するカードになります。
-          タイトルなどは、貼り付けたときにこのサーバーが相手のサイトへ取りに行きます。
+          {t("linkPreviewLead")}
         </p>
         <LinkPreviewSettingsForm current={linkPreview} />
       </section>
 
       <section className={styles.section} data-ui="AdminOverviewPage.publicPagesSection">
-        <h2 className={styles.sectionTitle}>ページの公開</h2>
+        <h2 className={styles.sectionTitle}>{t("publicPages")}</h2>
         <p className={styles.note} style={{ marginBottom: 16 }}>
-          ページを、ログインしていない人にも見せられるようにするかどうかです。「全ユーザー」（登録している人全員）よりも広い公開範囲です。
+          {t("publicPagesLead")}
         </p>
         <PublicPagesForm
           allowed={site.publicPagesAllowed}
@@ -111,13 +119,9 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section className={styles.section} data-ui="AdminOverviewPage.landingPageSection">
-        <h2 className={styles.sectionTitle}>トップページ</h2>
+        <h2 className={styles.sectionTitle}>{t("landing")}</h2>
         <p className={styles.note} style={{ marginBottom: 16 }}>
-          サイトのトップ（/）を開いて、ほかに移る先がないときに表示するページです。
-          ログインしている人には、まだページを開いたことがないとき（登録した直後など）に表示し、以降は前回開いたページに移ります。
-          ログインしていない人には毎回表示します（ページが公開されている場合だけ。公開されていなければログイン画面）。
-          このページを見る権限がない人には、その人が見られる最初のページを表示します。
-          一覧には、あなたが見られるページと公開しているページが出ます。
+          {t("landingLead")}
         </p>
         <LandingPageForm
           landingPageId={site.landingPageId}
@@ -125,7 +129,6 @@ export default async function AdminOverviewPage() {
           guestsCanView={guestLanding !== null}
         />
       </section>
-
     </>
   );
 }

@@ -4,12 +4,6 @@ import { prisma } from "@/lib/db";
 // Site-wide roles (User.siteRole). Page access never comes from a role — only
 // from group grants — so even SITE_ADMIN can't read pages it isn't granted.
 
-export const SITE_ROLE_LABELS: Record<SiteRole, string> = {
-  SITE_ADMIN: "サイト管理者",
-  CONTENT_MANAGER: "コンテンツ管理者",
-  USER: "一般ユーザー",
-};
-
 export const SITE_ROLES: SiteRole[] = ["SITE_ADMIN", "CONTENT_MANAGER", "USER"];
 
 // Roles that may sign in to /admin (with TOTP).
