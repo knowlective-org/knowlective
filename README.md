@@ -218,6 +218,20 @@ pnpm db:seed                # デモ用のナレッジルートとページ ("de
 - **メール**: 受け取る人の言語。アカウントのない宛先（招待）はサイトの既定。
 - **変更の記録**: サイトの既定の言語で残る。
 
+#### ほかの言語を追加する
+
+例としてフランス語（`fr`）を足す場合。
+
+1. **言語の一覧に加える**: `apps/web/src/i18n/locales.ts` の `LOCALES` に `"fr"` を、`LOCALE_NAMES` にその言語での名前（`fr: "Français"`）を足す。これでアカウント画面・管理画面・初期セットアップの選択肢に出て、ブラウザの言語（Accept-Language）からも選ばれるようになる。
+2. **文言のファイルを作る**: `apps/web/src/i18n/messages/ja/` をフォルダごと `messages/fr/` に複製し、文を訳す。キーは英語（`messages/en/`）が正で、各ファイルは `MessageShape<typeof en>` の型を付けているので、キーの過不足は型チェックで分かる。
+   - 書式は ICU（`{name}`、`{count, plural, one {…} other {…}}`、`{x, select, …}`）。複数形の書き分けは言語ごとに書ける。
+   - `editor.slash.*Aliases` は、スラッシュメニューでその言語の語でも探せるようにする別名（カンマ区切り）。
+3. **一覧に登録する**: `apps/web/src/i18n/messages/index.ts` の `MESSAGES` に `fr` を加える。
+4. **エディタの文言**: `apps/web/src/i18n/blocknote.ts` で、BlockNote が持つその言語の辞書（`@blocknote/core/locales` の `fr` など）を返すようにする。BlockNote に辞書がない言語は英語のままになる。
+5. **確かめる**: `pnpm --filter web exec tsc --noEmit` でキーの過不足がないことを確かめ、ブラウザの言語をその言語にして（またはアカウント画面で選んで）画面を見る。
+
+DB の変更は要らない（`User.locale` と `InstanceConfig.defaultLocale` は言語コードの文字列）。PDF の書き出しが同梱しているフォントは Inter と Noto Sans JP だけなので、それで表せない文字を使う言語（中国語・韓国語など）を足すときは、`/api/export-assets` にフォントを足す必要がある。
+
 ### パスワードの再設定
 
 - ログイン画面の「パスワードを忘れた場合」（`/forgot-password`）でメールアドレスを入力すると、再設定用のリンク（60分間有効・1回限り）がメールで届く。メール送信の設定が必要
