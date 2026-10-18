@@ -4,8 +4,8 @@ import { createPage, editorBody, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
-test.describe("ブロックの種類の変更", () => {
-  test("⋮⋮ のメニューから見出しの段を変え、本文に戻せる（見出し1は出ない）", async ({ page }) => {
+test.describe("Changing a block's type", () => {
+  test("changes the heading level from the ⋮⋮ menu and back to a paragraph (no heading 1)", async ({ page }) => {
     await createPage(page, "E2E 種類の変更");
     await typeInBody(page, "## 種類を変える見出し");
     const block = editorBody(page).locator(".bn-block-content", { hasText: "種類を変える見出し" });
@@ -30,7 +30,7 @@ test.describe("ブロックの種類の変更", () => {
     await trashOpenPage(page);
   });
 
-  test("文字を選んだときのツールバーにも見出し1は出ない", async ({ page }) => {
+  test("the formatting toolbar offers no heading 1 either", async ({ page }) => {
     await createPage(page, "E2E 種類の一覧");
     await typeInBody(page, "選ぶ文章");
     await page.keyboard.press("Shift+Home");

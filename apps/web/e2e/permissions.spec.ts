@@ -2,11 +2,11 @@ import { expect, test } from "@playwright/test";
 import { HOME_PAGE_ID, authFile } from "./accounts";
 import { editorBody, openPage } from "./helpers";
 
-test.describe("権限", () => {
-  test.describe("閲覧のみ", () => {
+test.describe("Permissions", () => {
+  test.describe("View only", () => {
     test.use({ storageState: authFile("viewer") });
 
-    test("ページは読めるが、編集と子ページの追加はできない", async ({ page }) => {
+    test("can read a page but not edit it or add child pages", async ({ page }) => {
       await openPage(page, HOME_PAGE_ID);
       await expect(page.getByTestId("PageView.readOnlyBadge")).toBeVisible();
       await expect(editorBody(page)).toHaveAttribute("contenteditable", "false");
@@ -15,10 +15,10 @@ test.describe("権限", () => {
     });
   });
 
-  test.describe("権限のないユーザー", () => {
+  test.describe("Users without access", () => {
     test.use({ storageState: authFile("outsider") });
 
-    test("ページを開くと 404 になり、サイドバーにも出ない", async ({ page }) => {
+    test("opening the page gives a 404, and it isn't in the sidebar", async ({ page }) => {
       const response = await page.goto(`pages/${HOME_PAGE_ID}`);
       expect(response?.status()).toBe(404);
       await page.goto("./");

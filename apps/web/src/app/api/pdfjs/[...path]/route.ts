@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 // The parts of pdf.js that the browser loads by URL rather than through the
-// bundle (PDF ブロック, components/editor/pdf-block.tsx): the worker script,
+// bundle (the PDF block, components/editor/pdf-block.tsx): the worker script,
 // and the data it fetches on demand — CMaps (needed for most Japanese PDFs),
 // the standard fonts, image decoders and a color profile. Served straight
 // from the installed package, so they always match the bundled pdf.js.

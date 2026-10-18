@@ -272,7 +272,7 @@ function insertMermaid(editor: BlockEditor, code: string) {
 // nothing is fetched that shouldn't be.
 let linkPreviewEnabled = false;
 
-// A URL pasted into an empty line becomes a リンクのプレビュー card. The card
+// A URL pasted into an empty line becomes a link preview card. The card
 // shows the URL at once; its title, description and image are filled in when
 // the server has fetched them (if it can). Returns false when the cursor
 // isn't on an empty paragraph: the URL is then pasted as an ordinary link.
@@ -294,7 +294,7 @@ function insertLinkPreview(editor: BlockEditor, url: string): boolean {
 }
 
 // A video's URL pasted into an empty line becomes a player: the site's own
-// for YouTube, Vimeo and ニコニコ動画, the browser's for a link to a video file.
+// for YouTube, Vimeo and Niconico, the browser's for a link to a video file.
 // Returns false for other URLs, and when the cursor isn't on an empty
 // paragraph.
 function insertVideo(editor: BlockEditor, url: string): boolean {
@@ -595,7 +595,7 @@ function EditorBody({
       });
   }, [readOnly]);
 
-  // 保存中 at the top of the page: while this connection has changes the
+  // The saving mark at the top of the page: while this connection has changes the
   // server hasn't acknowledged (typing, or offline with edits waiting).
   useEffect(() => {
     let finish: (() => void) | null = null;

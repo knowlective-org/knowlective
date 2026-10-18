@@ -56,7 +56,7 @@ export function reconnectDocuments(pageIds: string[]) {
   bridge?.reconnectDocuments(pageIds);
 }
 
-// Replaces a page's content with one of its saved versions (履歴表示).
+// Replaces a page's content with one of its saved versions (page history).
 // Throws outside the custom server: there is no document to change.
 export async function restoreVersion(pageId: string, versionId: string, userId: string) {
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;

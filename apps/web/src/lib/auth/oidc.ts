@@ -118,7 +118,7 @@ function discoveryOptions(issuer: URL) {
   return local ? { execute: [client.allowInsecureRequests] } : undefined;
 }
 
-// Unsaved settings (admin's 接続テスト / save).
+// Unsaved settings (the admin's connection test / save).
 export function discoverWith(settings: {
   issuer: string;
   clientId: string;

@@ -4,7 +4,7 @@ import { confirmBeforeSubmit } from "@/components/dialog";
 import styles from "@/styles/ui.module.css";
 import { publishPage, unpublishPage } from "./actions";
 
-// The buttons of the share screen's 「インターネットに公開」 section, each
+// The buttons of the share screen's publishing section, each
 // confirmed first.
 
 export function PublishForm({ pageId }: { pageId: string }) {

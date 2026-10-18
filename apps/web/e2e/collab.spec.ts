@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
 import { createPage, editorBody, openPage, trashOpenPage, typeInBody } from "./helpers";
 
-test.describe("共同編集", () => {
-  test("片方が入力すると、もう片方の画面にすぐ出る", async ({ browser }) => {
+test.describe("Collaborative editing", () => {
+  test("what one person types shows up on the other's screen at once", async ({ browser }) => {
     const editorContext = await browser.newContext({ storageState: authFile("editor") });
     const adminContext = await browser.newContext({ storageState: authFile("admin") });
     const editor = await editorContext.newPage();

@@ -7,7 +7,7 @@ import { confirmAndMovePage } from "@/components/move-page";
 import ui from "@/styles/ui.module.css";
 import styles from "@/components/dialog.module.css";
 
-// The page menu's 移動: pick a new parent from every page the user can see
+// The page menu's "move": pick a new parent from every page the user can see
 // (any knowledge root). The page goes last among its new siblings; the
 // order can then be changed by dragging in the sidebar.
 export function MoveDialog({ pageId, title, onClose }: { pageId: string; title: string; onClose: () => void }) {

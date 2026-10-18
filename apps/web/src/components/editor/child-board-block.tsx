@@ -19,9 +19,9 @@ import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-board-block.module.css";
 
-// 子ページボード (kanban): the page's child pages as cards, in one column per
-// option of a 選択肢 column — the same pages, columns and values as the
-// 子ページテーブル on the page, shown another way. Moving a card to another
+// Child page board (kanban): the page's child pages as cards, in one column per
+// option of a select column — the same pages, columns and values as the
+// child page table on the page, shown another way. Moving a card to another
 // column sets that page's value. The block itself only stores how it's
 // shown: its title and which column to group by.
 //
@@ -37,10 +37,10 @@ export const childBoardBlock = createReactBlockSpec(
   {
     type: "childBoard",
     propSchema: {
-      // Shown above the board; empty shows the placeholder 子ページボード.
+      // Shown above the board; empty shows the placeholder title.
       title: { default: "" },
-      // Id of the 選択肢 column the cards are grouped by. Empty (or a column
-      // that no longer exists) uses the page's first 選択肢 column.
+      // Id of the select column the cards are grouped by. Empty (or a column
+      // that no longer exists) uses the page's first select column.
       groupBy: { default: "" },
     },
     content: "none",
@@ -81,7 +81,7 @@ function ChildBoard({
   const [moved, setMoved] = useState<Record<string, string>>({});
   const [creatingColumn, setCreatingColumn] = useState(false);
 
-  // A move is shown at once and saved after: 保存中 until the server has it.
+  // A move is shown at once and saved after: "saving" until the server has it.
   const saving = Object.keys(moved).length > 0;
   useReportSaving(saving);
 
@@ -177,7 +177,7 @@ function ChildBoard({
     }
     if (optionId !== NO_VALUE) {
       // Shown in its lane at once: the page exists before its value does, and
-      // would otherwise flash in 未設定.
+      // would otherwise flash in the "unset" lane.
       setMoved((m) => ({ ...m, [result.id]: optionId }));
       await run(setCellValue(result.id, column.id, optionId));
     }
@@ -390,7 +390,7 @@ function Board({
   );
 }
 
-// A "＋ …" button that turns into a one-line field: Enter adds, Esc (or
+// A "+ …" button that turns into a one-line field: Enter adds, Esc (or
 // leaving it empty) cancels.
 function AddInline({
   label,

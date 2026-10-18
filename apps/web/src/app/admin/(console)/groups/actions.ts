@@ -71,7 +71,7 @@ export async function deleteGroup(formData: FormData): Promise<void> {
   const id = formData.get("id");
   if (typeof id !== "string" || !(await canManageGroup(actor, id))) return;
   const group = await prisma.group.findUnique({ where: { id }, select: { name: true, builtIn: true } });
-  // Built-in groups (e.g. 全ユーザー) can't be deleted.
+  // Built-in groups (e.g. all users) can't be deleted.
   if (!group || group.builtIn) return;
   await prisma.group.delete({ where: { id } });
   await recordAudit(actor, "group.delete", `グループ「${group.name}」を削除（付いていた権限も削除）`, { groupId: id });

@@ -4,13 +4,13 @@ import { setLandingPage } from "./admin-login";
 import { clearLastPage } from "./db";
 import { createPage, trashOpenPage } from "./helpers";
 
-// The top page in /admin (概要): where "/" goes for someone with nowhere else
+// The top page in /admin (overview): where "/" goes for someone with nowhere else
 // to go — logged in with no last opened page, or not logged in (if public).
 
-test.describe("トップページ", () => {
+test.describe("Top page", () => {
   test.use({ storageState: authFile("admin") });
 
-  test("前回のページがない人に表示し、見られない人には表示しない", async ({ page, browser }) => {
+  test("shown to those with no last page, not to those who can't see it", async ({ page, browser }) => {
     test.setTimeout(180_000);
     const contexts = await Promise.all([
       browser.newContext({ storageState: authFile("viewer") }),

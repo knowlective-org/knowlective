@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-// "Something on this page is still being saved", for the 保存中 mark at the
+// "Something on this page is still being saved", for the "saving" mark at the
 // top of a page. The parts that save (the editor's connection, the child-page
 // board) are far from the toolbar that shows it, so they report here.
 
@@ -59,7 +59,7 @@ const subscribe = (listener: () => void) => {
   };
 };
 
-// Whether the 保存中 mark should be showing.
+// Whether the "saving" mark should be showing.
 export function useSaving(): boolean {
   return useSyncExternalStore(
     subscribe,

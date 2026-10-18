@@ -46,12 +46,12 @@ function childPageList(pages: ChildPageItem[], parentId: string, levels: number,
 // The page's blocks with KNOWLECTIVE's own block types replaced by standard ones
 // (the exporters have no equivalent, and BlockNote's Markdown export would
 // otherwise write out their on-screen controls):
-// - Mermaid 図 → a ```mermaid code block; with `mermaid: "keep"` it's left
+// - Mermaid diagram → a ```mermaid code block; with `mermaid: "keep"` it's left
 //   for the exporter to draw (PDF)
 // - PDF → a link to the file
-// - リンクのプレビュー → a link with the page's title
-// - 動画の埋め込み → a link to the video
-// - 子ページ一覧 / 子ページテーブル / 子ページボード → a list of links to the child pages the
+// - Link preview → a link with the page's title
+// - Video embed → a link to the video
+// - Child page list / table / board → a list of links to the child pages the
 //   exporting user can see (the table's columns and the board's lanes are left out)
 // and with links to attachments made absolute, so they work outside the site.
 export function prepareBlocksForExport(

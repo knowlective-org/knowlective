@@ -90,7 +90,7 @@
   border-color: var(--color-danger);
 }
 
-/* 機密情報をマスク */
+/* Masking confidential text */
 .tools {
   display: flex;
   justify-content: flex-end;

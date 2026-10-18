@@ -17,9 +17,9 @@ async function addChild(page: import("@playwright/test").Page, parentId: string,
 const crumbs = (page: import("@playwright/test").Page) =>
   page.locator('[data-ui="Breadcrumb"] li');
 
-test.describe("パンくずリスト", () => {
-  test("3階層までは全部、4階層以上はナレッジルート・…・親・ページを表示する", async ({ page }) => {
-    // E2E / E2E ホーム / A
+test.describe("Breadcrumbs", () => {
+  test("shows every level up to three, and root · … · parent · page from four on", async ({ page }) => {
+    // E2E / e2e-home / A
     const a = await createPage(page, "E2E パンくず A");
     await expect(crumbs(page)).toHaveCount(3);
     await expect(crumbs(page).nth(0)).toHaveText(/E2E\s*\//);
@@ -27,7 +27,7 @@ test.describe("パンくずリスト", () => {
     await expect(page.getByTestId("Breadcrumb.current")).toHaveText(a.title);
     await expect(page.getByTestId("Breadcrumb.expandButton")).toHaveCount(0);
 
-    // E2E / E2E ホーム / A / B / C → E2E / … / B / C
+    // E2E / e2e-home / A / B / C → E2E / … / B / C
     const b = await addChild(page, a.id, "パンくず B");
     await expect(crumbs(page)).toHaveCount(4);
     await expect(page.getByTestId("Breadcrumb.expandButton")).toBeVisible();
@@ -55,7 +55,7 @@ test.describe("パンくずリスト", () => {
     await trashOpenPage(page);
   });
 
-  test("閲覧のみの人にも、見られるページの道筋が出る", async ({ browser }) => {
+  test("a viewer sees the path through the pages they can see", async ({ browser }) => {
     const context = await browser.newContext({ storageState: authFile("viewer") });
     const page = await context.newPage();
     try {

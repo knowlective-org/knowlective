@@ -18,8 +18,8 @@ async function openPersonalRoot(page: import("@playwright/test").Page): Promise<
   return id;
 }
 
-test.describe("自分専用のナレッジルート", () => {
-  test("自分だけが見られ、共有も移動もできない", async ({ page, browser }) => {
+test.describe("Personal knowledge root", () => {
+  test("only the owner can see it, and it can't be shared or moved out of", async ({ page, browser }) => {
     // Everyone has exactly one, marked in the sidebar.
     await openPage(page, HOME_PAGE_ID);
     await expect(personalRow(page)).toHaveCount(1);
@@ -38,7 +38,7 @@ test.describe("自分専用のナレッジルート", () => {
     await page.getByTestId("PageMenu.button").click();
     await expect(page.getByTestId("PageMenu.permissions")).toHaveCount(0);
     await expect(page.locator('[data-ui="PageMenu.item"][data-label="権限設定"]')).toContainText("自分専用");
-    // The 移動 dialog only offers places in the same personal root.
+    // The move dialog only offers places in the same personal root.
     await page.getByTestId("PageMenu.move").click();
     const options = await page.getByTestId("MoveDialog.parentSelect").locator("option").allTextContents();
     expect(options.some((o) => o.includes("E2E ホーム"))).toBe(false);
@@ -73,9 +73,9 @@ test.describe("自分専用のナレッジルート", () => {
     await page.waitForURL(new RegExp(`/pages/${rootId}$`));
   });
 
-  test("ほかのナレッジルートのページは、自分専用のルートへ移動できない", async ({ page }) => {
+  test("pages from other knowledge roots can't be moved into a personal root", async ({ page }) => {
     await openPage(page, HOME_PAGE_ID);
-    // As the 移動 dialog lists them: no personal root among the places.
+    // As the move dialog lists them: no personal root among the places.
     await page.locator(`[data-ui="DocTree.link"][data-id="${HOME_PAGE_ID}"]`).click();
     await page.getByTestId("PageMenu.button").click();
     await page.getByTestId("PageMenu.move").click();

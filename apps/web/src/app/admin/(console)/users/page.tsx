@@ -52,7 +52,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
   const [groups, invitations, users, mailConfigured, signup, oidc, callbackUrl] = await Promise.all([
     // Content managers can only hand out groups within trees they manage.
     prisma.group.findMany({
-      // Built-in groups (全ユーザー) need no invitation: everyone is in them.
+      // Built-in groups (all users) need no invitation: everyone is in them.
       where: { builtIn: null, ...(allowedGroups === "all" ? {} : { id: { in: [...allowedGroups] } }) },
       orderBy: { createdAt: "asc" },
       select: { id: true, name: true, description: true },

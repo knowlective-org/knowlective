@@ -9,7 +9,7 @@ import { showConfirm } from "@/components/dialog";
 
 type Check = { versions: number; matches: number; inCurrent: boolean };
 
-// 「機密情報をマスク」: replaces text (one string per line) with ●●●● in every
+// Masking confidential text: replaces text (one string per line) with ●●●● in every
 // saved version of the page. Search first, then apply. Masked versions stay
 // in the history (shown masked) but can't be restored.
 export function MaskPanel({ pageId, onDone }: { pageId: string; onDone: () => void }) {

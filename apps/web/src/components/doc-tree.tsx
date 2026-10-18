@@ -60,7 +60,7 @@ export function DocTree({
   // move the page, which a root page can't be — and Alt+↑/↓ on its link does
   // the same from the keyboard. Where it lands is up to the Sidebar.
   rootReorder?: { onDragStart: () => void; onDragEnd: () => void; onKeyMove: (by: -1 | 1) => void };
-  // A label after the root page's title (e.g. 自分専用 for a personal root).
+  // A label after the root page's title (e.g. "personal" for a personal root).
   rootBadge?: string;
 }) {
   const { byId, childrenOf } = useMemo(() => {

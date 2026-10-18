@@ -2,9 +2,9 @@
 //
 // - keyword: the words as they are (lib/search-index.ts). For what has to
 //   match exactly: quoted text, codes and names with digits or symbols
-//   (型番, URL, file names, addresses), and short queries (a word or two).
+//   (model numbers, URLs, file names, addresses), and short queries (a word or two).
 // - semantic: pages close in meaning too (lib/semantic-bridge.ts), merged
-//   with the keyword results. For sentence-like queries ("有給休暇の申請方法",
+//   with the keyword results. For sentence-like queries ("how to apply for paid leave",
 //   "how do I restore a backup"), where the page may use other words.
 //
 // The search screen says which one it used and offers the other.

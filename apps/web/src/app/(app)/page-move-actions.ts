@@ -9,7 +9,7 @@ import { displayTitle } from "@/lib/page-title";
 import { type AccessChange, MoveConflictError, executeMove, planMove } from "@/lib/page-move";
 
 // Page moves and reordering (lib/page-move.ts), from the sidebar's drag and
-// drop and the page menu's 移動.
+// drop and the page menu's "move".
 
 export type MoveCheck = {
   parentChanges: boolean;
@@ -93,7 +93,7 @@ export type MoveDestination = {
 export type MoveDestinationGroup = { label: string; pages: MoveDestination[] };
 
 // Every page the user can see, per knowledge root in tree order, for the
-// page menu's 移動 dialog. The page and its subtree are left out.
+// page menu's move dialog. The page and its subtree are left out.
 export async function loadMoveDestinations(pageId: string): Promise<MoveDestinationGroup[] | { error: string }> {
   const user = await requireUser();
   const page = typeof pageId === "string"

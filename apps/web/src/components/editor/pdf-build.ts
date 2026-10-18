@@ -60,7 +60,7 @@ export async function buildPdf(schema: unknown, blocks: ExportBlock[], options: 
       }
     },
 
-    // Mermaid 図: the drawn diagram; its source if it can't be drawn.
+    // Mermaid diagram: the drawn diagram; its source if it can't be drawn.
     mermaid: async (block, exporter) => {
       const code = String(block.props?.code ?? "").trim();
       if (!code) return "";

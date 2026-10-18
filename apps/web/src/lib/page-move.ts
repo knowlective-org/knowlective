@@ -21,7 +21,7 @@ import { prisma } from "@/lib/db";
 //
 // Positions are renumbered for all of the new parent's children (deleted
 // ones included, so restoring them keeps their place). Position and rootId
-// are written with SQL so the pages' updatedAt — shown as 更新日時 — stays
+// are written with SQL so the pages' updatedAt — shown as "updated at" — stays
 // the time of the last content edit.
 
 const CANNOT_MOVE = "このページは移動できません。";

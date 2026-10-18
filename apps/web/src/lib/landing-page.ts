@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { displayTitle } from "@/lib/page-title";
 import { publicPageIds, publicPageOptions } from "@/lib/public-pages";
 
-// The top page (InstanceConfig.landingPageId), set in /admin (概要): the page
+// The top page (InstanceConfig.landingPageId), set in /admin (overview): the page
 // "/" opens for someone with nowhere else to go. One setting for everyone:
 // - logged in: when there's no last opened page (User.lastPageId), which is
 //   the first visit after signing up;

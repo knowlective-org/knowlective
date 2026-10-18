@@ -12,7 +12,7 @@ export default async function AdminGroupsPage() {
   const groups = await prisma.group.findMany({
     // Content managers only see groups within trees they manage. The public
     // group isn't one to manage here: pages are made public from their
-    // 権限設定, and the 概要 page allows it at all.
+    // permission settings, and the overview page allows it at all.
     where: {
       OR: [{ builtIn: null }, { builtIn: { not: PUBLIC_GROUP } }],
       ...(allowed === "all" ? {} : { id: { in: [...allowed] } }),

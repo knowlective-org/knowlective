@@ -84,7 +84,7 @@
   }
 }
 
-/* "PDF を作成しています…" while an export runs. */
+/* The "making the PDF…" note while an export runs. */
 .exportStatus {
   position: fixed;
   right: 24px;

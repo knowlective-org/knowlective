@@ -5,7 +5,7 @@ import { safeHttpUrl } from "./link-preview-block";
 import { parseVideoUrl } from "./video-url";
 import styles from "./video-embed-block.module.css";
 
-// 動画の埋め込み: a video on YouTube, Vimeo or ニコニコ動画, played in the page.
+// Video embed: a video on YouTube, Vimeo or Niconico, played in the page.
 // The document holds only the URL that was pasted; which player to show is
 // worked out from it each time (video-url.ts), so the frame can only point at
 // those sites whatever is put in the prop. (A link to a video file becomes

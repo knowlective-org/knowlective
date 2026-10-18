@@ -2,7 +2,7 @@ import { decrypt, encrypt, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
 import type { FetchOptions } from "@/lib/link-preview";
 
-// Whether and how the server fetches pages for リンクのプレビュー blocks, set
+// Whether and how the server fetches pages for link preview blocks, set
 // in /admin (InstanceConfig.linkPreview*). The proxy password is encrypted
 // with the instance data key.
 

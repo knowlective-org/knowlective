@@ -4,10 +4,10 @@ import { editorBody, openPage } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
-test.describe("狭い画面（600px 未満）", () => {
+test.describe("Narrow screens (under 600px)", () => {
   test.use({ viewport: { width: 390, height: 800 } });
 
-  test("左ペインは隠れていて、左上のメニューボタンで出し入れできる", async ({ page }) => {
+  test("the sidebar is hidden and toggled by the menu button at the top left", async ({ page }) => {
     await openPage(page, HOME_PAGE_ID);
     const sidebar = page.getByTestId("AppShell.sidebar");
     const button = page.getByTestId("AppShell.menuButton");
@@ -43,7 +43,7 @@ test.describe("狭い画面（600px 未満）", () => {
     await expect(sidebar).toBeHidden();
   });
 
-  test("メニューからページを開くと、メニューは閉じる", async ({ page }) => {
+  test("opening a page from the menu closes the menu", async ({ page }) => {
     await openPage(page, HOME_PAGE_ID);
     await page.getByTestId("AppShell.menuButton").click();
     await page.getByTestId("Sidebar.trashLink").click();
@@ -53,8 +53,8 @@ test.describe("狭い画面（600px 未満）", () => {
   });
 });
 
-test.describe("広い画面", () => {
-  test("左ペインは常に表示され、メニューボタンは出ない", async ({ page }) => {
+test.describe("Wide screens", () => {
+  test("the sidebar is always shown, with no menu button", async ({ page }) => {
     await openPage(page, HOME_PAGE_ID);
     await expect(page.getByTestId("AppShell.sidebar")).toBeVisible();
     await expect(page.getByTestId("AppShell.menuButton")).toBeHidden();

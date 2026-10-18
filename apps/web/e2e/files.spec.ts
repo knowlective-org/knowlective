@@ -31,8 +31,8 @@ function twoPagePdf(): string {
   return base64(pdf);
 }
 
-test.describe("ファイル", () => {
-  test("テキストファイルを「ページに展開」すると、行が段落になる", async ({ page }) => {
+test.describe("Files", () => {
+  test("expanding a text file into the page makes each line a paragraph", async ({ page }) => {
     await createPage(page, "E2E テキスト");
     await pasteFile(page, { name: "メモ.txt", type: "text/plain", base64: base64("一行目です\n\n二行目です\n") });
 
@@ -47,7 +47,7 @@ test.describe("ファイル", () => {
     await trashOpenPage(page);
   });
 
-  test("Markdown の mermaid は図になる", async ({ page }) => {
+  test("a mermaid block in Markdown becomes a diagram", async ({ page }) => {
     await createPage(page, "E2E Mermaid");
     const markdown = "# 見出し\n\n```mermaid\nflowchart TD\n  A[開始] --> B[終了]\n```\n";
     await pasteFile(page, { name: "図.md", type: "text/markdown", base64: base64(markdown) });
@@ -59,7 +59,7 @@ test.describe("ファイル", () => {
     await trashOpenPage(page);
   });
 
-  test("画像を添付すると、アップロードされて表示される", async ({ page }) => {
+  test("an attached image is uploaded and shown", async ({ page }) => {
     await createPage(page, "E2E 画像");
     await pasteFile(page, { name: "点.png", type: "image/png", base64: PNG });
 
@@ -75,7 +75,7 @@ test.describe("ファイル", () => {
     await trashOpenPage(page);
   });
 
-  test("PDF を「ページ送りで表示」にすると、ページをめくれる", async ({ page }) => {
+  test("a PDF shown page by page can be paged through", async ({ page }) => {
     await createPage(page, "E2E PDF 表示");
     await pasteFile(page, { name: "資料.pdf", type: "application/pdf", base64: twoPagePdf() });
     await page.locator('[data-ui="AppDialog.choiceButton"][data-id="embed"]').click();
@@ -89,7 +89,7 @@ test.describe("ファイル", () => {
     await trashOpenPage(page);
   });
 
-  test("許可されていない拡張子のファイルは追加できない", async ({ page }) => {
+  test("a file with an extension that isn't allowed can't be added", async ({ page }) => {
     await createPage(page, "E2E 拒否");
     await pasteFile(page, { name: "tool.exe", type: "application/octet-stream", base64: base64("MZ") });
 

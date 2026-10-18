@@ -5,7 +5,7 @@ import styles from "./collaborative-editor.module.css";
 
 // The page's title as of the last save (Page.title), known before the editor
 // loads. Lets the loading state show it instead of an empty title, which
-// would read as 無題 until the collab document syncs.
+// would read as "untitled" until the collab document syncs.
 export const InitialTitleContext = createContext("");
 
 // Stands in for the title + editor until the document has synced. Same box

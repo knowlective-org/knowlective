@@ -15,14 +15,14 @@ const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", { dateStyle: "short", ti
 
 const LIST_PLACEHOLDER = "子ページ一覧";
 
-// 子ページ一覧: links to the page's children, always current. Only the
+// Child page list: links to the page's children, always current. Only the
 // settings (title, how many levels) are stored in the document; the list
 // itself is fetched with the viewer's permissions.
 export const childPagesBlock = createReactBlockSpec(
   {
     type: "childPages",
     propSchema: {
-      // Shown above the list; empty shows the placeholder 子ページ一覧.
+      // Shown above the list; empty shows the placeholder title.
       title: { default: "" },
       depth: { default: 1 },
     },

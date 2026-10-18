@@ -4,8 +4,8 @@ import { createPage, editorBody, pasteText, trashOpenPage, typeInBody } from "./
 
 test.use({ storageState: authFile("editor") });
 
-test.describe("リンクのプレビュー", () => {
-  test("空の行に URL を貼り付けると、カードになる", async ({ page }) => {
+test.describe("Link previews", () => {
+  test("a URL pasted into an empty line becomes a card", async ({ page }) => {
     await createPage(page, "E2E リンク");
     // The server refuses to fetch its own (non-public) address, so the card
     // keeps showing the URL: no network is needed for this test.
@@ -25,7 +25,7 @@ test.describe("リンクのプレビュー", () => {
     await trashOpenPage(page);
   });
 
-  test("YouTube の URL を貼り付けると、ページの中のプレーヤーになる", async ({ page }) => {
+  test("a pasted YouTube URL becomes a player in the page", async ({ page }) => {
     await createPage(page, "E2E 動画");
     await pasteText(page, "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m5s");
 
@@ -49,7 +49,7 @@ test.describe("リンクのプレビュー", () => {
     await trashOpenPage(page);
   });
 
-  test("動画ファイルの URL を貼り付けると、動画ブロックになる", async ({ page }) => {
+  test("a pasted video file URL becomes a video block", async ({ page }) => {
     await createPage(page, "E2E 動画ファイル");
     await pasteText(page, "https://example.com/media/clip.mp4");
     const video = editorBody(page).locator('[data-content-type="video"] video');
@@ -58,7 +58,7 @@ test.describe("リンクのプレビュー", () => {
     await trashOpenPage(page);
   });
 
-  test("文の途中に貼り付けた URL は、カードにならない", async ({ page }) => {
+  test("a URL pasted mid-sentence doesn't become a card", async ({ page }) => {
     await createPage(page, "E2E リンク 文中");
     await typeInBody(page, "参考: ");
     await page.evaluate(() => {

@@ -25,7 +25,7 @@ export async function freshAdminCode(): Promise<string> {
   });
 }
 
-// The top page in /admin (概要): a page id, or "" for none.
+// The top page in /admin (overview): a page id, or "" for none.
 export async function setLandingPage(page: Page, pageId: string) {
   await openAdmin(page);
   await page.getByTestId("LandingPageForm.pageSelect").selectOption(pageId);

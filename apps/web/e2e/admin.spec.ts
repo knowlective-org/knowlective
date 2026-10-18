@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 import { ACCOUNTS, PASSWORD, authFile } from "./accounts";
 import { freshAdminCode } from "./admin-login";
 
-test.describe("管理画面", () => {
-  test("サイト管理者は、パスワードと認証コードの2段階でログインできる", async ({ page }) => {
+test.describe("Admin console", () => {
+  test("a site admin logs in with a password, then an authenticator code", async ({ page }) => {
     await page.goto("admin");
     await expect(page).toHaveURL(/\/admin\/login/);
     await expect(page.getByTestId("AdminLoginPage.appLink")).toBeVisible();
@@ -58,10 +58,10 @@ test.describe("管理画面", () => {
     await expect(page.locator('[data-ui="UploadTypesForm.extensionItem"][data-id="e2etest"]')).toHaveCount(0);
   });
 
-  test.describe("一般ユーザー", () => {
+  test.describe("Regular users", () => {
     test.use({ storageState: authFile("editor") });
 
-    test("管理者でないアカウントは、パスワードが正しくても入れない", async ({ page }) => {
+    test("an account that isn't an admin can't get in, even with the right password", async ({ page }) => {
       await page.goto("admin/login");
       await page.getByTestId("AccountLoginForm.emailInput").fill(ACCOUNTS.editor.email);
       await page.getByTestId("AccountLoginForm.passwordInput").fill(PASSWORD);

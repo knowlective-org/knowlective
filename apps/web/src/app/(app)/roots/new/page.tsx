@@ -18,7 +18,7 @@ export default async function NewRootPage() {
     loadSidebar(user),
     canCreate
       ? prisma.group.findMany({
-          // Never offer 全ユーザー for MANAGE on a whole new tree.
+          // Never offer "all users" for MANAGE on a whole new tree.
           where: { builtIn: null, ...(allowed === "all" ? {} : { id: { in: [...allowed] } }) },
           orderBy: { createdAt: "asc" },
           select: { id: true, name: true, members: { where: { userId: user.id }, select: { userId: true } } },

@@ -124,7 +124,7 @@
   opacity: 0.7;
 }
 
-/* A label after a root's title (自分専用). */
+/* A label after a root's title ("personal"). */
 .badge {
   flex: none;
   padding: 0 5px;

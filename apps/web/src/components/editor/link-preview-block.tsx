@@ -22,7 +22,7 @@ export function singleUrl(text: string): string | null {
   return safeHttpUrl(trimmed) ? trimmed : null;
 }
 
-// リンクのプレビュー: a link shown as a card with the page's title,
+// Link preview: a link shown as a card with the page's title,
 // description and image. They're fetched once, when the block is made (by the
 // server, for the person who pasted the URL), and kept in the document — the
 // card doesn't ask the site again each time someone opens the page.

@@ -25,7 +25,7 @@ export function loadMermaid(): Promise<Mermaid> {
   return mermaidLoading;
 }
 
-// Mermaid 図: a diagram drawn from Mermaid source. The source is the block's
+// Mermaid diagram block: a diagram drawn from Mermaid source. The source is the block's
 // `code` prop (a plain string: when two people edit it at once, the last save
 // wins).
 export const mermaidBlock = createReactBlockSpec(

@@ -89,7 +89,7 @@ function plainText(content: unknown): string {
   return content.map((item) => (typeof item?.text === "string" ? item.text : "")).join("");
 }
 
-// ```mermaid code blocks become Mermaid 図 blocks.
+// ```mermaid code blocks become Mermaid diagram blocks.
 export function mermaidFromCodeBlock(block: ImportedBlock): ImportedBlock | null {
   if (!isMermaidCodeBlock(block)) return null;
   return { type: "mermaid", props: { code: plainText(block.content).trim() } };

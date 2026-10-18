@@ -9,7 +9,7 @@ import styles from "./dialog.module.css";
 // as the other dialogs (dialog.module.css), callable from anywhere —
 // components, event handlers, plain async functions:
 //
-//   if (!(await showConfirm("削除しますか？", { danger: true, confirmLabel: "削除" }))) return;
+//   if (!(await showConfirm("Delete it?", { danger: true, confirmLabel: "Delete" }))) return;
 //
 // <DialogHost /> (in the root layout) shows the requests one at a time.
 

@@ -9,10 +9,10 @@ import { ACCOUNTS, authFile } from "./accounts";
 
 const TABLES = ["User", "Invitation", "AdminLoginAttempt", "UserLoginAttempt", "AuditLog", "PasswordResetToken"];
 
-test.describe("個人情報の暗号化", () => {
+test.describe("Personal data encryption", () => {
   test.use({ storageState: authFile("editor") });
 
-  test("メールアドレスは DB に平文で残らず、画面には出る", async ({ page }) => {
+  test("email addresses aren't stored in plain text, yet show on screen", async ({ page }) => {
     if (!process.env.DATABASE_URL) process.loadEnvFile(path.resolve(__dirname, "../../../.env"));
     const prisma = createPrismaClient();
     try {

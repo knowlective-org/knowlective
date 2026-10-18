@@ -401,7 +401,7 @@ export async function savePublicPagesSetting(
 ): Promise<PublicPagesSettingState> {
   const { actor } = await requireAdmin(["SITE_ADMIN"]);
   const allowed = formData.get("allowed") === "on";
-  // The form's checkbox is "検索エンジンに載せない".
+  // The form's checkbox is "keep out of search engines".
   const searchEnginesAllowed = formData.get("noindex") !== "on";
   const before = await prisma.instanceConfig.findUniqueOrThrow({
     where: { id: 1 },
@@ -649,7 +649,7 @@ async function checkIssuer(input: OidcInput, secret: string): Promise<string | n
   }
 }
 
-// 接続テスト: fetches the IdP's discovery document with the entered values.
+// Connection test: fetches the IdP's discovery document with the entered values.
 // It can't check the client secret itself (only a real sign-in does).
 export async function testOidcSettings(_prev: OidcFormState, formData: FormData): Promise<OidcFormState> {
   await requireAdmin(["SITE_ADMIN"]);

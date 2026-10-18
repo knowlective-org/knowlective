@@ -1,4 +1,4 @@
-// Page history (履歴表示). Shared by the collab server, which saves versions,
+// Page history. Shared by the collab server, which saves versions,
 // and the app, which lists and restores them — keep dependency-free.
 
 // While a page is being edited, a version is saved at most this often. One

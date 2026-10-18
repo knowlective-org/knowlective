@@ -28,8 +28,8 @@ async function unlock(page: import("@playwright/test").Page) {
   await expect(page.getByTestId("PageView.lockBanner")).toHaveCount(0);
 }
 
-test.describe("ページのロック", () => {
-  test("ロックすると編集できなくなり、確認の文字を入力すると解除できる", async ({ page }) => {
+test.describe("Page locks", () => {
+  test("a locked page can't be edited, and is unlocked by typing the confirmation code", async ({ page }) => {
     const { id } = await createPage(page, "E2E ロック");
     await typeInBody(page, "ロック前の本文");
     await lock(page, "page");
@@ -63,7 +63,7 @@ test.describe("ページのロック", () => {
     await trashOpenPage(page);
   });
 
-  test("子ページも含めてロックすると、子ページも編集できず、解除は親でする", async ({ page }) => {
+  test("locking with child pages locks them too, and they're unlocked from the parent", async ({ page }) => {
     const parent = await createPage(page, "E2E ロック 親");
     // A child page under it.
     await page.locator(`[data-ui="DocTree.link"][data-id="${parent.id}"]`).hover();
@@ -95,7 +95,7 @@ test.describe("ページのロック", () => {
     await trashOpenPage(page);
   });
 
-  test("ほかの人が開いている画面も、ロックした時点で編集できなくなる", async ({ page, browser }) => {
+  test("someone else's open editor stops being editable as soon as the page is locked", async ({ page, browser }) => {
     const { id } = await createPage(page, "E2E ロック 同時");
     const adminContext = await browser.newContext({ storageState: authFile("admin") });
     const admin = await adminContext.newPage();

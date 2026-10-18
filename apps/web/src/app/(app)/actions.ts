@@ -87,7 +87,7 @@ async function insertChildPage(
   }
 
   const page = await prisma.page.create({
-    // An empty title shows as 無題 until renamed. The collab server seeds the
+    // An empty title shows as "untitled" until renamed. The collab server seeds the
     // document's title from this when the page is first opened.
     // Last among its siblings.
     data: { title, rootId: parentAccess.rootId, parentId, createdById: userId, sortOrder: await nextSortOrder(parentId) },
@@ -99,7 +99,7 @@ async function insertChildPage(
   return page;
 }
 
-// Creates an untitled child page under `parentId` and opens it (sidebar ＋).
+// Creates an untitled child page under `parentId` and opens it (the sidebar's + button).
 export async function createChildPage(parentId: string): Promise<{ error: string }> {
   const user = await requireUser();
   const result = await insertChildPage(user.id, parentId, "");
@@ -108,7 +108,7 @@ export async function createChildPage(parentId: string): Promise<{ error: string
 }
 
 // Creates a child page with a title and stays on the current page (child-page
-// table's 新しいページ row).
+// table's "new page" row).
 export async function createChildPageInPlace(parentId: string, title: string): Promise<{ id: string } | { error: string }> {
   const user = await requireUser();
   return insertChildPage(user.id, parentId, normalizeTitle(typeof title === "string" ? title : ""));

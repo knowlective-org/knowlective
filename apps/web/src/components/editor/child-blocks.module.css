@@ -1,4 +1,4 @@
-/* 子ページ一覧 / 子ページテーブル blocks inside the editor. */
+/* Child page list / child page table blocks inside the editor. */
 
 .block {
   width: 100%;
@@ -292,7 +292,7 @@
   border-radius: 10px;
 }
 
-/* Block title (block-title.tsx) and the table's 新しいページ row. */
+/* Block title (block-title.tsx) and the table's "new page" row. */
 .blockTitle {
   margin-right: auto;
   font-size: 15px;

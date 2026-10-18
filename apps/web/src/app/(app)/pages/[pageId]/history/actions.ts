@@ -16,7 +16,7 @@ import {
   normalizeMaskStrings,
 } from "@/lib/version-mask";
 
-// 履歴表示. Viewing needs access to the page (VIEW); restoring and masking
+// Page history. Viewing needs access to the page (VIEW); restoring and masking
 // need EDIT. Masked versions can't be restored.
 // A version id that doesn't belong to the page is treated as missing.
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# knowlective のインストール（本番用 Docker Compose）。
-# 設定を対話式で聞いて .env.production を作り、必要なら起動まで行う。
+# Installs knowlective (production Docker Compose). Asks for the settings,
+# writes .env.production and, if wanted, starts it.
 #
 #   ./install.sh
 #
-# もう一度実行すると、今の .env.production の値を初期値にして作り直せる
-# （元のファイルは .env.production.bak.<日時> に残す）。
+# Run again to remake it with the current .env.production values as defaults
+# (the old file is kept as .env.production.bak.<timestamp>).
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -14,7 +14,7 @@ COMPOSE_FILE_NAME="docker-compose.prod.yml"
 # The bundled database's image (pg_tde); its psql also checks an external one.
 PG_IMAGE="percona/percona-distribution-postgresql:17.11"
 
-# ---- 表示と入力 ------------------------------------------------------------
+# ---- Output and input --------------------------------------------------------
 
 if [ -t 1 ]; then
   BOLD=$'\e[1m'; DIM=$'\e[2m'; RED=$'\e[31m'; YELLOW=$'\e[33m'; GREEN=$'\e[32m'; RESET=$'\e[0m'
@@ -25,10 +25,10 @@ fi
 section() { printf '\n%s== %s ==%s\n' "$BOLD" "$1" "$RESET"; }
 info()    { printf '%s\n' "$*"; }
 note()    { printf '%s%s%s\n' "$DIM" "$*" "$RESET"; }
-warn()    { printf '%s注意: %s%s\n' "$YELLOW" "$*" "$RESET" >&2; }
-die()     { printf '%sエラー: %s%s\n' "$RED" "$*" "$RESET" >&2; exit 1; }
+warn()    { printf '%sWarning: %s%s\n' "$YELLOW" "$*" "$RESET" >&2; }
+die()     { printf '%sError: %s%s\n' "$RED" "$*" "$RESET" >&2; exit 1; }
 
-# ask <変数名> <質問> [初期値]
+# ask <variable> <question> [default]
 ask() {
   local __var=$1 __prompt=$2 __default=${3-} __answer
   if [ -n "$__default" ]; then
@@ -40,19 +40,19 @@ ask() {
   printf -v "$__var" '%s' "$__answer"
 }
 
-# ask_secret <変数名> <質問>（入力を表示しない。空は不可）
+# ask_secret <variable> <question> (input hidden; can't be empty)
 ask_secret() {
   local __var=$1 __prompt=$2 __answer
   while :; do
     read -r -s -p "$__prompt: " __answer || exit 1
     echo
     [ -n "$__answer" ] && break
-    info "入力してください。"
+    info "Please enter a value."
   done
   printf -v "$__var" '%s' "$__answer"
 }
 
-# ask_yes_no <質問> <y|n>（初期値）→ y なら 0
+# ask_yes_no <question> <y|n> (default) → 0 for yes
 ask_yes_no() {
   local __prompt=$1 __default=$2 __answer __hint
   [ "$__default" = y ] && __hint="Y/n" || __hint="y/N"
@@ -66,7 +66,7 @@ ask_yes_no() {
   done
 }
 
-# ask_choice <変数名> <初期値の番号> <選択肢1> <選択肢2> ... → 番号
+# ask_choice <variable> <default number> <choice 1> <choice 2> ... → number
 ask_choice() {
   local __var=$1 __default=$2 __answer i
   shift 2
@@ -74,7 +74,7 @@ ask_choice() {
     info "  $i) ${!i}"
   done
   while :; do
-    read -r -p "番号を選んでください [$__default]: " __answer || exit 1
+    read -r -p "Choose a number [$__default]: " __answer || exit 1
     __answer=${__answer:-$__default}
     if [[ "$__answer" =~ ^[0-9]+$ ]] && [ "$__answer" -ge 1 ] && [ "$__answer" -le $# ]; then
       break
@@ -83,7 +83,7 @@ ask_choice() {
   printf -v "$__var" '%s' "$__answer"
 }
 
-# ---- 値の生成と検証 --------------------------------------------------------
+# ---- Generating and checking values ------------------------------------------
 
 rand_hex() {
   if command -v openssl >/dev/null 2>&1; then
@@ -101,7 +101,7 @@ rand_base64_32() {
   fi
 }
 
-# KNOWLECTIVE_SERVER_KEY の形式（base64 で 32 バイト）
+# KNOWLECTIVE_SERVER_KEY's format (32 bytes in base64)
 valid_server_key() {
   [[ "$1" =~ ^[A-Za-z0-9+/]+=*$ ]] || return 1
   [ "$(printf '%s' "$1" | base64 --decode 2>/dev/null | wc -c | tr -d ' ')" = 32 ]
@@ -111,7 +111,7 @@ valid_port() {
   [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
 }
 
-# 接続 URL に入れるためのパーセントエンコード
+# Percent-encoding for a connection URL
 urlencode() {
   local LC_ALL=C s=$1 out="" c i
   for ((i = 0; i < ${#s}; i++)); do
@@ -124,7 +124,7 @@ urlencode() {
   printf '%s' "$out"
 }
 
-# .env.production の値（シングルクォートは外す）
+# A value from .env.production (without its single quotes)
 existing() {
   [ -f "$ENV_FILE" ] || return 0
   local line
@@ -135,37 +135,37 @@ existing() {
   printf '%s' "$line"
 }
 
-# 画面に出すときは先頭だけ
-mask() { printf '%s…（%d文字）' "${1:0:4}" "${#1}"; }
+# Only the start of a secret is shown
+mask() { printf '%s… (%d characters)' "${1:0:4}" "${#1}"; }
 
-# 接続 URL からパスワードを除いた表示（user@host:port/db?...）
+# A connection URL without its password (user@host:port/db?...)
 display_url() { printf '%s' "$1" | sed -E 's#^[a-z]+://##; s#^([^:@]*):[^@]*@#\1@#'; }
 
-# ---- 事前の確認 ------------------------------------------------------------
+# ---- Checks first ------------------------------------------------------------
 
-[ -f "$COMPOSE_FILE_NAME" ] || die "$COMPOSE_FILE_NAME が見つかりません。knowlective のディレクトリで実行してください。"
-command -v docker >/dev/null 2>&1 || die "docker が見つかりません。Docker Engine（または Docker Desktop）をインストールしてください。"
-docker compose version >/dev/null 2>&1 || die "docker compose（v2）が使えません。Docker Compose プラグインをインストールしてください。"
-docker info >/dev/null 2>&1 || die "Docker に接続できません。Docker が起動しているか、このユーザーで docker を実行できるか確認してください。"
+[ -f "$COMPOSE_FILE_NAME" ] || die "$COMPOSE_FILE_NAME not found. Run this in the knowlective directory."
+command -v docker >/dev/null 2>&1 || die "docker not found. Install Docker Engine (or Docker Desktop)."
+docker compose version >/dev/null 2>&1 || die "docker compose (v2) isn't available. Install the Docker Compose plugin."
+docker info >/dev/null 2>&1 || die "Can't connect to Docker. Check that Docker is running and that this user can run docker."
 
-info "${BOLD}knowlective のインストール${RESET}"
-info "質問に答えると $ENV_FILE を作成します。[ ] 内は初期値で、Enter だけでその値になります。"
+info "${BOLD}Installing knowlective${RESET}"
+info "Answer the questions to create $ENV_FILE. Values in [ ] are defaults: press Enter to use them."
 
 if [ -f "$ENV_FILE" ]; then
-  section "既存の設定"
-  info "$ENV_FILE がすでにあります。今の値を初期値にして作り直します（元のファイルは退避します）。"
-  ask_yes_no "続けますか" y || { info "中止しました。"; exit 0; }
+  section "Existing settings"
+  info "$ENV_FILE already exists. It will be remade with its current values as defaults (the old file is kept)."
+  ask_yes_no "Continue" y || { info "Cancelled."; exit 0; }
 fi
 
-# ---- データベース ----------------------------------------------------------
+# ---- Database ----------------------------------------------------------------
 
-section "データベース（PostgreSQL）"
-info "どの PostgreSQL を使いますか。"
+section "Database (PostgreSQL)"
+info "Which PostgreSQL should be used?"
 default_db=1
 [ -n "$(existing DATABASE_URL)" ] && default_db=2
 ask_choice DB_CHOICE "$default_db" \
-  "同梱の PostgreSQL を使う（このサーバーのコンテナで動かす）" \
-  "別途用意した PostgreSQL を使う（16 以上を推奨）"
+  "The bundled PostgreSQL (runs in a container on this server)" \
+  "A PostgreSQL of your own (16 or later recommended)"
 
 DATABASE_URL=""
 POSTGRES_PASSWORD=""
@@ -175,210 +175,210 @@ if [ "$DB_CHOICE" = 1 ]; then
   COMPOSE_PROFILES="bundled-db"
   POSTGRES_PASSWORD=$(existing POSTGRES_PASSWORD)
   if [ -n "$POSTGRES_PASSWORD" ]; then
-    note "パスワードは今の設定を引き継ぎます（初期化済みのデータベースは、パスワードを変えても反映されないため）。"
+    note "Keeping the current password (changing it has no effect on a database already initialized)."
   else
     POSTGRES_PASSWORD=$(rand_hex 32)
-    note "パスワードを自動で作成しました。"
+    note "Generated a password."
     if docker volume inspect knowlective-prod_postgres_tde_data >/dev/null 2>&1; then
-      warn "同梱の PostgreSQL のデータ（ボリューム knowlective-prod_postgres_tde_data）がすでにあります。"
-      warn "新しいパスワードでは接続できません。以前の $ENV_FILE を戻すか、不要ならボリュームを削除してください。"
-      ask_yes_no "このまま続けますか" n || { info "中止しました。"; exit 1; }
+      warn "Data of the bundled PostgreSQL already exists (volume knowlective-prod_postgres_tde_data)."
+      warn "The new password won't connect to it. Restore your previous $ENV_FILE, or delete the volume if it's not needed."
+      ask_yes_no "Continue anyway" n || { info "Cancelled."; exit 1; }
     fi
   fi
   # Data from before the bundled database was encrypted (pg_tde).
   if docker volume inspect knowlective-prod_postgres_data >/dev/null 2>&1 &&
     ! docker volume inspect knowlective-prod_postgres_tde_data >/dev/null 2>&1; then
-    warn "暗号化する前の同梱の PostgreSQL のデータ（ボリューム knowlective-prod_postgres_data）があります。"
-    warn "このデータは、暗号化したデータベースへ移す必要があります。$ENV_FILE を作ったあと、起動はせずに"
+    warn "There is data of the bundled PostgreSQL from before encryption (volume knowlective-prod_postgres_data)."
+    warn "It has to be moved into the encrypted database. After $ENV_FILE is written, don't start the app; run"
     warn "  bash docker/postgres/move-to-tde.sh prod"
-    warn "を実行してください（移したうえで起動します）。移さずに起動すると、空のデータベースで始まります。"
-    ask_yes_no "このまま続けますか" y || { info "中止しました。"; exit 1; }
+    warn "instead (it moves the data, then starts the app). Starting without moving it begins with an empty database."
+    ask_yes_no "Continue anyway" y || { info "Cancelled."; exit 1; }
   fi
 elif [ -n "$(existing DATABASE_URL)" ] &&
-  ask_yes_no "今の接続先（$(display_url "$(existing DATABASE_URL)")）を引き継ぎますか" y; then
+  ask_yes_no "Keep the current connection ($(display_url "$(existing DATABASE_URL)"))" y; then
   DATABASE_URL=$(existing DATABASE_URL)
 else
-  info "接続先を入力してください。データベースとユーザーは先に作っておき、ユーザーにはテーブルを作る権限を付けてください。"
-  info "（起動時にマイグレーションでテーブルを作ります）"
+  info "Enter the connection. Create the database and user beforehand, and let the user create tables."
+  info "(Migrations create the tables at startup.)"
   while :; do
     while :; do
-      ask DB_HOST "ホスト名または IP アドレス"
+      ask DB_HOST "Host name or IP address"
       case "$DB_HOST" in
-        "") info "入力してください。" ;;
+        "") info "Please enter a value." ;;
         localhost|127.0.0.1|::1)
-          warn "コンテナの中から見た localhost は、そのコンテナ自身です。このサーバーで動いている PostgreSQL なら、"
-          warn "サーバーの IP アドレス（Docker Desktop なら host.docker.internal）を指定してください。"
-          ask_yes_no "$DB_HOST のままにしますか" n && break ;;
+          warn "Inside a container, localhost is the container itself. For a PostgreSQL running on this server,"
+          warn "use the server's IP address (host.docker.internal on Docker Desktop)."
+          ask_yes_no "Keep $DB_HOST" n && break ;;
         *) break ;;
       esac
     done
     while :; do
-      ask DB_PORT "ポート番号" 5432
+      ask DB_PORT "Port" 5432
       valid_port "$DB_PORT" && break
-      info "1〜65535 の数字を入力してください。"
+      info "Enter a number from 1 to 65535."
     done
-    ask DB_NAME "データベース名" knowlective
-    ask DB_USER "ユーザー名" knowlective
-    ask_secret DB_PASSWORD "パスワード（入力は表示されません）"
-    info "SSL で接続しますか。"
-    ask_choice DB_SSL 1 "使わない（同じネットワーク内など）" "使う（sslmode=require）"
+    ask DB_NAME "Database name" knowlective
+    ask DB_USER "User name" knowlective
+    ask_secret DB_PASSWORD "Password (input hidden)"
+    info "Connect over SSL?"
+    ask_choice DB_SSL 1 "No (e.g. within the same network)" "Yes (sslmode=require)"
 
     DATABASE_URL="postgresql://$(urlencode "$DB_USER"):$(urlencode "$DB_PASSWORD")@${DB_HOST}:${DB_PORT}/$(urlencode "$DB_NAME")"
     [ "$DB_SSL" = 2 ] && DATABASE_URL+="?sslmode=require"
 
-    if ask_yes_no "接続を確認しますか（$PG_IMAGE のコンテナから接続します）" y; then
-      info "接続しています…"
+    if ask_yes_no "Test the connection (from a $PG_IMAGE container)" y; then
+      info "Connecting…"
       if version=$(docker run --rm -e PGCONNECT_TIMEOUT=10 "$PG_IMAGE" \
           psql "$DATABASE_URL" -tA -c "SHOW server_version" 2>&1); then
-        info "${GREEN}接続できました（PostgreSQL ${version%%$'\n'*}）。${RESET}"
+        info "${GREEN}Connected (PostgreSQL ${version%%$'\n'*}).${RESET}"
         break
       fi
-      warn "接続できませんでした:"
+      warn "Couldn't connect:"
       printf '%s\n' "$version" | tail -n 3 >&2
-      ask_yes_no "入力し直しますか" y && continue
-      ask_yes_no "このまま続けますか" n || { info "中止しました。"; exit 1; }
+      ask_yes_no "Enter it again" y && continue
+      ask_yes_no "Continue anyway" n || { info "Cancelled."; exit 1; }
     fi
     break
   done
 fi
 
-# ---- 意味での検索 ----------------------------------------------------------
+# ---- Semantic search ---------------------------------------------------------
 
-section "意味での検索"
-info "語が一致しなくても、意味の近いページを探せるようにします。検索語や本文はこのサーバーの中で処理し、外部には送りません。"
-info "同梱のベクトル用データベースと、イメージに入れた約 130MB のモデルを使います（メモリを数百 MB 余分に使います）。"
+section "Semantic search"
+info "Finds pages close in meaning, even without the same words. Queries and page text are processed on this server and never sent out."
+info "Uses the bundled vector database and a ~130MB model in the image (a few hundred MB more memory)."
 default_vector=y
 [ -f "$ENV_FILE" ] && [ -z "$(existing VECTORDB_PASSWORD)" ] && default_vector=n
 VECTORDB_PASSWORD=""
-if ask_yes_no "意味での検索を使いますか" "$default_vector"; then
+if ask_yes_no "Use semantic search" "$default_vector"; then
   VECTORDB_PASSWORD=$(existing VECTORDB_PASSWORD)
   [ -n "$VECTORDB_PASSWORD" ] || VECTORDB_PASSWORD=$(rand_hex 32)
   COMPOSE_PROFILES="${COMPOSE_PROFILES:+$COMPOSE_PROFILES,}bundled-vectordb"
 fi
 
-# ---- サーバー鍵 ------------------------------------------------------------
+# ---- Server key --------------------------------------------------------------
 
-section "サーバー鍵（KNOWLECTIVE_SERVER_KEY）"
-info "データを暗号化する鍵を取り出すための鍵です。マスターパスワードと両方を失うと、データは復旧できません。"
+section "Server key (KNOWLECTIVE_SERVER_KEY)"
+info "The key that unlocks the data encryption key. If both this and the master password are lost, the data can't be recovered."
 KNOWLECTIVE_SERVER_KEY=$(existing KNOWLECTIVE_SERVER_KEY)
 if [ -n "$KNOWLECTIVE_SERVER_KEY" ] && valid_server_key "$KNOWLECTIVE_SERVER_KEY"; then
-  note "今の鍵を引き継ぎます（変えるとデータを読めなくなるため。鍵の交換は pnpm rotate-server-key で行います）。"
+  note "Keeping the current key (changing it would make the data unreadable; rotate it with pnpm rotate-server-key)."
 else
-  ask_choice KEY_CHOICE 1 "新しく作る（新規インストール）" "既存の鍵を入力する（移行・復元）"
+  ask_choice KEY_CHOICE 1 "Generate a new one (new installation)" "Enter an existing key (moving or restoring)"
   if [ "$KEY_CHOICE" = 1 ]; then
     KNOWLECTIVE_SERVER_KEY=$(rand_base64_32)
-    note "鍵を作成しました。"
+    note "Generated a key."
   else
     while :; do
-      ask_secret KNOWLECTIVE_SERVER_KEY "サーバー鍵（入力は表示されません）"
+      ask_secret KNOWLECTIVE_SERVER_KEY "Server key (input hidden)"
       valid_server_key "$KNOWLECTIVE_SERVER_KEY" && break
-      info "形式が正しくありません（base64 で 32 バイト。例: openssl rand -base64 32 の出力）。"
+      info "Wrong format (32 bytes in base64, e.g. the output of openssl rand -base64 32)."
     done
   fi
 fi
 
-# ---- ファイル保存 ----------------------------------------------------------
+# ---- File storage ------------------------------------------------------------
 
-# 同梱の SeaweedFS の認証情報。利用者が決める必要はないので自動で作る。
+# The bundled SeaweedFS's credentials: nobody needs to choose them, so they're generated.
 SEAWEEDFS_ACCESS_KEY=$(existing SEAWEEDFS_ACCESS_KEY)
 SEAWEEDFS_SECRET_KEY=$(existing SEAWEEDFS_SECRET_KEY)
 [ -n "$SEAWEEDFS_ACCESS_KEY" ] || SEAWEEDFS_ACCESS_KEY=$(rand_hex 16)
 [ -n "$SEAWEEDFS_SECRET_KEY" ] || SEAWEEDFS_SECRET_KEY=$(rand_hex 32)
 
-# ---- 公開まわり ------------------------------------------------------------
+# ---- Serving -----------------------------------------------------------------
 
-section "ネットワーク"
-info "アプリは 127.0.0.1 の指定ポートで待ち受けます。外部にはリバースプロキシ（Caddy / nginx など）経由で公開してください。"
+section "Network"
+info "The app listens on a port of 127.0.0.1. Serve it to others through a reverse proxy (Caddy, nginx, etc.)."
 default_port=$(existing KNOWLECTIVE_PORT); default_port=${default_port:-3000}
 while :; do
-  ask KNOWLECTIVE_PORT "待ち受けるポート番号" "$default_port"
+  ask KNOWLECTIVE_PORT "Port to listen on" "$default_port"
   valid_port "$KNOWLECTIVE_PORT" && break
-  info "1〜65535 の数字を入力してください。"
+  info "Enter a number from 1 to 65535."
 done
 default_hops=$(existing KNOWLECTIVE_TRUSTED_PROXY_HOPS); default_hops=${default_hops:-1}
 while :; do
-  ask KNOWLECTIVE_TRUSTED_PROXY_HOPS "アプリの前にあるリバースプロキシの段数（CDN → nginx なら 2）" "$default_hops"
+  ask KNOWLECTIVE_TRUSTED_PROXY_HOPS "Number of reverse proxies in front of the app (2 for CDN → nginx)" "$default_hops"
   [[ "$KNOWLECTIVE_TRUSTED_PROXY_HOPS" =~ ^[1-9][0-9]*$ ]] && break
-  info "1 以上の数字を入力してください。"
+  info "Enter a number of 1 or more."
 done
-# サブパス（空でよい）。前回の値があれば初期値にし、消すときは - を入力する。
+# Sub-path (may be empty). The previous value is the default; - removes it.
 default_base=$(existing KNOWLECTIVE_BASE_PATH)
-info "リバースプロキシで https://example.com/knowlective/ のようにサブパスで公開する場合は、そのパス（例: /knowlective）を入力してください。"
-info "ルート（https://knowlective.example.com/）で公開する場合は、空のまま Enter を押します。"
+info "If the reverse proxy serves the app under a sub-path, like https://example.com/knowlective/, enter that path (e.g. /knowlective)."
+info "If it's served at the root (https://knowlective.example.com/), just press Enter."
 while :; do
   if [ -n "$default_base" ]; then
-    ask KNOWLECTIVE_BASE_PATH "サブパス（なしにするには - を入力）" "$default_base"
+    ask KNOWLECTIVE_BASE_PATH "Sub-path (- for none)" "$default_base"
     [ "$KNOWLECTIVE_BASE_PATH" = "-" ] && KNOWLECTIVE_BASE_PATH=""
   else
-    ask KNOWLECTIVE_BASE_PATH "サブパス（なければ空のまま）"
+    ask KNOWLECTIVE_BASE_PATH "Sub-path (empty for none)"
   fi
   KNOWLECTIVE_BASE_PATH=${KNOWLECTIVE_BASE_PATH%/}
   [ -z "$KNOWLECTIVE_BASE_PATH" ] && break
   [[ "$KNOWLECTIVE_BASE_PATH" =~ ^(/[A-Za-z0-9._~-]+)+$ ]] && break
-  info "/ で始まる英数字のパスを入力してください（例: /knowlective、/tools/knowlective）。"
+  info "Enter an alphanumeric path starting with / (e.g. /knowlective, /tools/knowlective)."
 done
 
-section "その他"
+section "Other"
 default_tz=$(existing TZ); default_tz=${default_tz:-Asia/Tokyo}
 while :; do
-  ask TZ_VALUE "タイムゾーン（管理画面の日時の表示）" "$default_tz"
+  ask TZ_VALUE "Time zone (for dates in the admin console)" "$default_tz"
   [[ "$TZ_VALUE" =~ ^[A-Za-z0-9_+/-]+$ ]] && break
-  info "Asia/Tokyo のような形式で入力してください。"
+  info "Enter it like Asia/Tokyo."
 done
-info "knowlective を改変して公開する場合は、改変後のソースコードの URL を入力してください（AGPL-3.0）。"
+info "If you serve a modified knowlective, enter the URL of the modified source code (AGPL-3.0)."
 url_pattern='^https?://[^[:space:]'"'"'"]+$'
 while :; do
-  ask KNOWLECTIVE_SOURCE_URL "ソースコードの URL（空欄なら公式のリポジトリ）" "$(existing KNOWLECTIVE_SOURCE_URL)"
+  ask KNOWLECTIVE_SOURCE_URL "Source code URL (empty for the official repository)" "$(existing KNOWLECTIVE_SOURCE_URL)"
   if [ -z "$KNOWLECTIVE_SOURCE_URL" ] || [[ "$KNOWLECTIVE_SOURCE_URL" =~ $url_pattern ]]; then break; fi
-  info "http:// か https:// で始まる URL を入力してください。"
+  info "Enter a URL starting with http:// or https://."
 done
 
-# ---- 確認と書き込み --------------------------------------------------------
+# ---- Review and write --------------------------------------------------------
 
-section "確認"
+section "Review"
 if [ "$DB_CHOICE" = 1 ]; then
-  info "データベース      : 同梱の PostgreSQL（パスワード $(mask "$POSTGRES_PASSWORD")）"
+  info "Database        : bundled PostgreSQL (password $(mask "$POSTGRES_PASSWORD"))"
 else
-  info "データベース      : $(display_url "$DATABASE_URL")"
+  info "Database        : $(display_url "$DATABASE_URL")"
 fi
-info "意味での検索      : $([ -n "$VECTORDB_PASSWORD" ] && echo "使う（同梱のベクトル用データベース）" || echo "使わない")"
-info "サーバー鍵        : $(mask "$KNOWLECTIVE_SERVER_KEY")"
-info "ファイル保存      : 同梱の SeaweedFS（認証情報は自動作成。外部の S3 は管理画面で設定）"
-info "ポート            : 127.0.0.1:${KNOWLECTIVE_PORT}"
-info "プロキシの段数    : ${KNOWLECTIVE_TRUSTED_PROXY_HOPS}"
-info "サブパス          : ${KNOWLECTIVE_BASE_PATH:-（なし。ルートで公開）}"
-info "タイムゾーン      : ${TZ_VALUE}"
-info "ソースコードの URL: ${KNOWLECTIVE_SOURCE_URL:-（公式のリポジトリ）}"
+info "Semantic search : $([ -n "$VECTORDB_PASSWORD" ] && echo "on (bundled vector database)" || echo "off")"
+info "Server key      : $(mask "$KNOWLECTIVE_SERVER_KEY")"
+info "File storage    : bundled SeaweedFS (credentials generated; set an external S3 in the admin console)"
+info "Port            : 127.0.0.1:${KNOWLECTIVE_PORT}"
+info "Proxy hops      : ${KNOWLECTIVE_TRUSTED_PROXY_HOPS}"
+info "Sub-path        : ${KNOWLECTIVE_BASE_PATH:-(none; served at the root)}"
+info "Time zone       : ${TZ_VALUE}"
+info "Source code URL : ${KNOWLECTIVE_SOURCE_URL:-(the official repository)}"
 echo
-ask_yes_no "この内容で $ENV_FILE を書き込みますか" y || { info "中止しました（何も書き込んでいません）。"; exit 0; }
+ask_yes_no "Write $ENV_FILE with these values" y || { info "Cancelled (nothing written)."; exit 0; }
 
 if [ -f "$ENV_FILE" ]; then
   backup="$ENV_FILE.bak.$(date +%Y%m%d%H%M%S)"
   cp -p "$ENV_FILE" "$backup"
   chmod 600 "$backup" 2>/dev/null || true
-  note "元のファイルを $backup に退避しました。"
+  note "Kept the old file as $backup."
 fi
 
 (
   umask 077
   {
-    echo "# knowlective の本番設定（install.sh で作成: $(date '+%Y-%m-%d %H:%M:%S')）"
+    echo "# knowlective production settings (written by install.sh: $(date '+%Y-%m-%d %H:%M:%S'))"
     echo "# docker compose -f $COMPOSE_FILE_NAME --env-file $ENV_FILE up -d --build"
-    echo "# 秘密の値を含みます。共有・コミットせず、安全な場所にバックアップしてください。"
+    echo "# Contains secrets. Don't share or commit it; back it up somewhere safe."
     echo
     if [ -n "$COMPOSE_PROFILES" ]; then
-      echo "# 同梱して動かすもの（bundled-db: PostgreSQL、bundled-vectordb: 意味での検索のデータベース）"
+      echo "# Bundled services to run (bundled-db: PostgreSQL, bundled-vectordb: the semantic search database)"
       echo "COMPOSE_PROFILES='$COMPOSE_PROFILES'"
     fi
     if [ "$DB_CHOICE" = 1 ]; then
-      echo "# 同梱の PostgreSQL を使う"
+      echo "# The bundled PostgreSQL"
       echo "POSTGRES_PASSWORD='$POSTGRES_PASSWORD'"
     else
-      echo "# 別途用意した PostgreSQL"
+      echo "# A PostgreSQL of your own"
       echo "DATABASE_URL='$DATABASE_URL'"
     fi
     if [ -n "$VECTORDB_PASSWORD" ]; then
-      echo "# 意味での検索（同梱のベクトル用データベース）"
+      echo "# Semantic search (the bundled vector database)"
       echo "VECTORDB_PASSWORD='$VECTORDB_PASSWORD'"
     fi
     echo
@@ -398,23 +398,23 @@ fi
   } > "$ENV_FILE"
 )
 chmod 600 "$ENV_FILE" 2>/dev/null || true
-info "${GREEN}$ENV_FILE を作成しました。${RESET}"
-warn "$ENV_FILE（特に KNOWLECTIVE_SERVER_KEY）を安全な場所にバックアップしてください。"
+info "${GREEN}Wrote $ENV_FILE.${RESET}"
+warn "Back up $ENV_FILE (KNOWLECTIVE_SERVER_KEY above all) somewhere safe."
 
-# ---- 起動 ------------------------------------------------------------------
+# ---- Start -------------------------------------------------------------------
 
 COMPOSE=(docker compose -f "$COMPOSE_FILE_NAME" --env-file "$ENV_FILE")
 
-section "起動"
-if ! ask_yes_no "イメージをビルドして起動しますか（初回は数分かかります）" y; then
-  info "あとで次のコマンドで起動できます:"
+section "Start"
+if ! ask_yes_no "Build the image and start (takes a few minutes the first time)" y; then
+  info "Start it later with:"
   info "  ${COMPOSE[*]} up -d --build"
   exit 0
 fi
 
 "${COMPOSE[@]}" up -d --build
 
-info "起動を待っています（データベースのマイグレーションを含みます）…"
+info "Waiting for it to start (including database migrations)…"
 app_id=$("${COMPOSE[@]}" ps -q app)
 status=""
 for _ in $(seq 1 60); do
@@ -427,20 +427,20 @@ for _ in $(seq 1 60); do
 done
 
 if [ "$status" != healthy ]; then
-  warn "起動を確認できませんでした（状態: $status）。ログを確認してください:"
+  warn "Couldn't confirm it started (status: $status). Check the logs:"
   "${COMPOSE[@]}" logs --tail 40 app >&2 || true
   exit 1
 fi
 
-section "完了"
-info "${GREEN}knowlective が起動しました（127.0.0.1:${KNOWLECTIVE_PORT}）。${RESET}"
-info "次の手順:"
-info "  1. リバースプロキシで公開用のドメインから 127.0.0.1:${KNOWLECTIVE_PORT} へ転送する"
-info "     （/collab の WebSocket も通し、X-Forwarded-For と X-Forwarded-Proto を渡す）"
-info "  2. https://<公開用のドメイン>/ を開き、初回セットアップ（マスターパスワードの設定）を行う"
-info "  3. $ENV_FILE をバックアップする"
+section "Done"
+info "${GREEN}knowlective is running (127.0.0.1:${KNOWLECTIVE_PORT}).${RESET}"
+info "Next steps:"
+info "  1. Have the reverse proxy forward your public domain to 127.0.0.1:${KNOWLECTIVE_PORT}"
+info "     (pass the /collab WebSocket too, and send X-Forwarded-For and X-Forwarded-Proto)"
+info "  2. Open https://<your domain>/ and do the first-time setup (set the master password)"
+info "  3. Back up $ENV_FILE"
 if [ "$DB_CHOICE" = 1 ]; then
-  info "  4. データベースの暗号化の鍵（ボリューム knowlective-prod_postgres_tde_keys）を、データとは別にバックアップする"
-  info "     （鍵がないとデータベースを読めません）"
+  info "  4. Back up the database encryption keys (volume knowlective-prod_postgres_tde_keys) separately from the data"
+  info "     (without them the database can't be read)"
 fi
-info "ログ: ${COMPOSE[*]} logs -f app"
+info "Logs: ${COMPOSE[*]} logs -f app"

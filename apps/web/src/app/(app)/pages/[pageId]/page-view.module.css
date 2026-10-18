@@ -31,7 +31,7 @@
   }
 }
 
-/* 保存中…: shown while an edit is on its way to the server. */
+/* "Saving…": shown while an edit is on its way to the server. */
 .saving {
   flex: none;
   font-size: 13px;
@@ -115,7 +115,7 @@
   color: var(--color-primary);
 }
 
-/* オーナー: one group per line, wrapped instead of cut off. */
+/* Owners: one group per line, wrapped instead of cut off. */
 .info .infoList {
   display: flex;
   flex-direction: column;

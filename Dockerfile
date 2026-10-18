@@ -1,5 +1,5 @@
 # Production image: one container runs the Next.js app and the collaboration
-# WebSocket (/collab) on one port, like `pnpm start`. See README「本番での起動」.
+# WebSocket (/collab) on one port, like `pnpm start`. See the README section on running in production.
 #
 #   docker build -t knowlective .
 

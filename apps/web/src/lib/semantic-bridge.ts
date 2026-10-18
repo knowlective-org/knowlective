@@ -1,4 +1,4 @@
-// Semantic search (意味での検索) runs in the custom server
+// Semantic search runs in the custom server
 // (server/semantic-search.ts): the embedding model and the vector database
 // live there, loaded once. The Next.js bundle is a separate module graph in
 // the same process, so it reaches them through globalThis, like

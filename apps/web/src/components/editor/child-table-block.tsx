@@ -38,7 +38,7 @@ import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-blocks.module.css";
 import { showAlert, showConfirm } from "@/components/dialog";
 
-// 子ページテーブル: one row per child page. Columns (and their values) live
+// Child page table: one row per child page. Columns (and their values) live
 // in the database, shared by every table on the same page; this block only
 // stores how it's shown: its title, column order, hidden columns and sort.
 //
@@ -55,10 +55,10 @@ export const childTableBlock = createReactBlockSpec(
   {
     type: "childTable",
     propSchema: {
-      // Shown above the table; empty shows the placeholder 子ページテーブル.
+      // Shown above the table; empty shows the placeholder title.
       title: { default: "" },
       // JSON array of column keys (built-in names or column ids) in display
-      // order, タイトル excluded (always first). Keys missing from it, e.g.
+      // order, the title column excluded (always first). Keys missing from it, e.g.
       // newly added columns, follow in their default order.
       order: { default: "" },
       // JSON array of column keys (built-in names or column ids).
@@ -140,7 +140,7 @@ function ChildTable({
     editable ? onChange({ sort: next ? `${next.key}:${next.dir}` : "" }) : setLocalSort(next);
   const [menu, setMenu] = useState<string | null>(null);
   // Column being dragged by its grip, and where it would land (index into
-  // the visible columns, 0 = right after タイトル).
+  // the visible columns, 0 = right after the title).
   const [drag, setDrag] = useState<{ key: string; dropIndex: number } | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -435,7 +435,7 @@ function HeaderCell({
   onMenuOpenChange,
   children,
 }: {
-  // Set on movable columns (タイトル has none); used to find drop positions.
+  // Set on movable columns (the title column has none); used to find drop positions.
   colKey?: string;
   label: string;
   sortKey: string;
@@ -605,7 +605,7 @@ function ColumnMenu({
   onHide,
   onDelete,
 }: {
-  // Null for built-in columns (作成日時 etc.): only moving and hiding apply.
+  // Null for built-in columns (created at, etc.): only moving and hiding apply.
   column: PropertyColumn | null;
   label: string;
   // EDIT on the page: may rename / delete the column itself.
@@ -799,7 +799,7 @@ function TextCell({ value, onSave }: { value: string; onSave: (value: string) =>
   );
 }
 
-// 「＋ 新しいページ」: becomes a title field. Enter creates the page and keeps
+// "+ New page": becomes a title field. Enter creates the page and keeps
 // the field open for the next one; Esc, or leaving it empty, closes it.
 function NewPageRow({ onCreate }: { onCreate: (title: string) => Promise<boolean> }) {
   const [open, setOpen] = useState(false);

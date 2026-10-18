@@ -32,7 +32,7 @@
   list-style: none;
 }
 
-/* "意味が近い": found by meaning, not by the words. */
+/* The "close in meaning" mark: found by meaning, not by the words. */
 .badge {
   margin-left: 8px;
   padding: 1px 6px;

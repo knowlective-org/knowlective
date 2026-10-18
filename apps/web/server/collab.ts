@@ -42,7 +42,7 @@ export async function createCollab() {
   // Last user whose update changed each document since it was last stored.
   // Server-side changes (the title seed) have no connection context.
   const editedBy = new Map<string, string>();
-  // Users who edited each document since its last saved version (履歴).
+  // Users who edited each document since its last saved version (page history).
   const pendingEditors = new Map<string, Set<string>>();
 
   // Saves the document's current state as a version of the page.
@@ -106,7 +106,7 @@ export async function createCollab() {
           update: { state: bytes },
         });
         // Mirror the live title into Page.title (sidebar, home, root name),
-        // and record who last edited (child-page table's 更新日時 / 更新者).
+        // and record who last edited (the child page table's "updated at" / "updated by").
         const title = normalizeTitle(document.getText(TITLE_FIELD).toString());
         const editorId = editedBy.get(documentName);
         editedBy.delete(documentName);

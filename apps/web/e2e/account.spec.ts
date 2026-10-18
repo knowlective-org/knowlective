@@ -4,15 +4,15 @@ import { openPage } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
-test.describe("アカウント", () => {
-  test("サイドバーからアカウントの画面を開ける", async ({ page }) => {
+test.describe("Account", () => {
+  test("opens the account screen from the sidebar", async ({ page }) => {
     await openPage(page, HOME_PAGE_ID);
     await page.getByTestId("Sidebar.accountLink").click();
     await expect(page).toHaveURL(/\/account$/);
     await expect(page.getByTestId("AccountPage.email")).toHaveText(ACCOUNTS.editor.email);
   });
 
-  test("パスワードの再設定は、メール送信の設定に応じて出し分けられる", async ({ page }) => {
+  test("offers a password reset depending on the mail settings", async ({ page }) => {
     await page.goto("account");
     const section = page.getByTestId("AccountPage.passwordSection");
     await expect(section).toBeVisible();
@@ -29,7 +29,7 @@ test.describe("アカウント", () => {
     }
   });
 
-  test("ログインしていないと開けない", async ({ browser }) => {
+  test("can't be opened without logging in", async ({ browser }) => {
     // A context made by hand still gets this file's signed-in state unless
     // told otherwise.
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import styles from "./child-blocks.module.css";
 
-// Title shown at the top left of a custom block (子ページ一覧 / 子ページテーブル),
+// Title shown at the top left of a custom block (child page list / child page table),
 // stored in the block's `title` prop. An empty title shows `placeholder` in
 // the small label style. Edited locally and saved on blur / Enter, so typing
 // doesn't push a document update per keystroke; Esc cancels.

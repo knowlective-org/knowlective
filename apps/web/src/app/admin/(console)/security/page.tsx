@@ -15,7 +15,7 @@ import styles from "@/styles/ui.module.css";
 import { revokeOtherSessions, revokeSession } from "../actions";
 import { IpAllowlistForm } from "../ip-allowlist-form";
 
-// Entries of 変更の記録 per page (?auditPage=N).
+// Audit log entries per page (?auditPage=N).
 const AUDIT_PAGE_SIZE = 20;
 
 export default async function AdminSecurityPage({ searchParams }: PageProps<"/admin/security">) {

@@ -65,7 +65,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
     loadSidebar(user),
     publicPagesAllowed(),
   ]);
-  // The public group has a section of its own (「インターネットに公開」).
+  // The public group has a section of its own (publishing to the internet).
   const isPublic = (g: { builtIn: string | null }) => g.builtIn === PUBLIC_GROUP;
   const own = allOwn.filter((g) => !isPublic(g.group));
   const inherited = allInherited.filter((g) => !isPublic(g.group));

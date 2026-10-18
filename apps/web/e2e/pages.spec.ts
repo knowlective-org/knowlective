@@ -5,8 +5,8 @@ import { createPage, editorBody, openPage, trashOpenPage, typeInBody } from "./h
 
 test.use({ storageState: authFile("editor") });
 
-test.describe("ページ", () => {
-  test("作成してタイトルと本文を書くと、再読み込みしても残る", async ({ page }) => {
+test.describe("Pages", () => {
+  test("a new page's title and body survive a reload", async ({ page }) => {
     const { id, title } = await createPage(page, "E2E 作成");
     await typeInBody(page, "本文のテキストです");
     // The sidebar shows the new title as it is typed.
@@ -19,7 +19,7 @@ test.describe("ページ", () => {
     await trashOpenPage(page);
   });
 
-  test("削除するとごみ箱に入り、サイドバーから消える", async ({ page }) => {
+  test("a deleted page goes to the trash and leaves the sidebar", async ({ page }) => {
     const { id, title } = await createPage(page, "E2E 削除");
     // The title reaches the database when the server saves the document.
     await page.waitForTimeout(3000);
@@ -30,7 +30,7 @@ test.describe("ページ", () => {
     await expect(page.getByText(title)).toBeVisible();
   });
 
-  test("Markdown で書き出すと、タイトルと本文が入ったファイルが落ちてくる", async ({ page }) => {
+  test("exporting as Markdown downloads a file with the title and body", async ({ page }) => {
     const { title } = await createPage(page, "E2E 書き出し");
     await typeInBody(page, "書き出す本文");
 
@@ -46,7 +46,7 @@ test.describe("ページ", () => {
     await trashOpenPage(page);
   });
 
-  test("PDF で書き出すと、PDF ファイルが落ちてくる", async ({ page }) => {
+  test("exporting as PDF downloads a PDF file", async ({ page }) => {
     // The first export downloads the compiler (~26MB) and the fonts.
     test.setTimeout(240_000);
     const { title } = await createPage(page, "E2E PDF");
@@ -67,7 +67,7 @@ test.describe("ページ", () => {
     await trashOpenPage(page);
   });
 
-  test("印刷では、左ペインとページのメニューが出ない", async ({ page }) => {
+  test("printing leaves out the sidebar and the page menu", async ({ page }) => {
     await openPage(page, HOME_PAGE_ID);
     await expect(page.getByTestId("AppShell.sidebar")).toBeVisible();
     await page.emulateMedia({ media: "print" });

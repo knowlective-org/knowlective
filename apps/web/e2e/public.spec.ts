@@ -3,15 +3,15 @@ import { HOME_PAGE_ID, authFile } from "./accounts";
 import { openAdmin, setLandingPage } from "./admin-login";
 import { createPage, editorBody, trashOpenPage, typeInBody } from "./helpers";
 
-// Public pages: a site admin allows them in /admin (概要), someone with
-// MANAGE publishes a page from its 権限設定, and then anyone can read it
+// Public pages: a site admin allows them in /admin (overview), someone with
+// MANAGE publishes a page from its permission settings, and then anyone can read it
 // without logging in.
 
 async function setPublicPagesAllowed(page: Page, allowed: boolean) {
   await setPublicSettings(page, { allowed });
 }
 
-// The 「ページの公開」 settings in /admin (概要). Leaves out what isn't given.
+// The public pages settings in /admin (overview). Leaves out what isn't given.
 async function setPublicSettings(page: Page, settings: { allowed?: boolean; noindex?: boolean }) {
   await openAdmin(page);
 
@@ -29,17 +29,17 @@ async function setPublicSettings(page: Page, settings: { allowed?: boolean; noin
   await expect(page.getByTestId("PublicPagesForm.status")).toHaveText("保存しました。");
 }
 
-test.describe("ページの公開", () => {
+test.describe("Public pages", () => {
   test.use({ storageState: authFile("admin") });
 
-  test("管理画面で許可すると、公開したページをログインせずに読める", async ({ page, browser }) => {
+  test("once allowed in the admin console, a published page can be read without logging in", async ({ page, browser }) => {
     test.setTimeout(180_000);
     // Explicitly empty: a new context would otherwise get the admin's
     // signed-in state from test.use().
     const guestContext = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const guest = await guestContext.newPage();
     try {
-      // Not allowed: the share screen has no 公開 section.
+      // Not allowed: the share screen has no publishing section.
       await setPublicPagesAllowed(page, false);
       const { id, title } = await createPage(page, "E2E 公開");
       await typeInBody(page, "誰でも読める文章");

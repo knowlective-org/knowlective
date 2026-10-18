@@ -233,7 +233,7 @@ export async function requireAdmin(allowed: SiteRole[] = ["SITE_ADMIN", "CONTENT
       data: { lastSeenAt: new Date() },
     });
   }
-  // Display name for "who is signed in"; "マスターパスワード" for the master login.
+  // Display name for "who is signed in"; the master password's label for that login.
   const actorLabel = session.user ? (session.user.name ?? session.user.email) : "マスターパスワード";
   // Who is acting, for the audit log and group access checks.
   const actor = {

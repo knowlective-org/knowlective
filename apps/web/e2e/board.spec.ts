@@ -4,7 +4,7 @@ import { createPage, editorBody, openPage, trashOpenPage } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
-// Adds a 子ページボード to the open page through the slash menu.
+// Adds a child page board to the open page through the slash menu.
 async function insertBoard(page: import("@playwright/test").Page) {
   await editorBody(page).click();
   await page.keyboard.press("Control+End");
@@ -16,12 +16,12 @@ async function insertBoard(page: import("@playwright/test").Page) {
 const lane = (page: import("@playwright/test").Page, name: string) =>
   page.locator(`[data-ui="ChildBoardBlock.lane"][aria-label="${name}"]`);
 
-test.describe("子ページボード", () => {
-  test("ステータスを作ってカードを追加し、列を移動できる", async ({ page }) => {
+test.describe("Child page board", () => {
+  test("makes a status column, adds cards and moves them between lanes", async ({ page }) => {
     const board = await createPage(page, "E2E ボード");
     await insertBoard(page);
 
-    // No 選択肢 column yet: the board offers to make ステータス.
+    // No select column yet: the board offers to make a status column.
     await page.getByTestId("ChildBoardBlock.createStatusButton").click();
     await expect(lane(page, "未着手")).toBeVisible();
     await expect(lane(page, "進行中")).toBeVisible();
@@ -77,7 +77,7 @@ test.describe("子ページボード", () => {
     await trashOpenPage(page);
   });
 
-  test("閲覧のみの人には、カードは見えるが動かせない", async ({ page, browser }) => {
+  test("a viewer sees the cards but can't move them", async ({ page, browser }) => {
     const board = await createPage(page, "E2E ボード 閲覧");
     await insertBoard(page);
     await page.getByTestId("ChildBoardBlock.createStatusButton").click();

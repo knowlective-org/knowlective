@@ -26,7 +26,7 @@ import type {
   SelectOption,
 } from "@/lib/page-property-types";
 
-// Data for the editor's child-page blocks (子ページ一覧 / 子ページテーブル).
+// Data for the editor's child-page blocks (child page list / child page table).
 // Only pages the caller can open are returned; unknown and forbidden ids get
 // the same answer. Every change notifies the parent page's collaborators
 // (lib/collab-events.ts) so their blocks refetch.
@@ -181,8 +181,8 @@ export async function addColumn(pageId: string, rawName: string, type: PropertyT
   return {};
 }
 
-// The column a 子ページボード starts with when the page has no 選択肢 column
-// yet: ステータス, with three options to group the cards by.
+// The column a child page board starts with when the page has no select
+// column yet: a status column, with three options to group the cards by.
 const DEFAULT_STATUS = { name: "ステータス", options: ["未着手", "進行中", "完了"] };
 
 export async function addStatusColumn(pageId: string): Promise<{ id: string } | { error: string }> {
@@ -248,7 +248,7 @@ export async function deleteColumn(defId: string): Promise<Result> {
 }
 
 // Sets one cell; "" clears it. Needs EDIT on the child page itself, and
-// counts as an edit of it (更新日時 / 更新者).
+// counts as an edit of it ("updated at" / "updated by").
 export async function setCellValue(childId: string, defId: string, value: string): Promise<Result> {
   const user = await requireUser();
   if (typeof childId !== "string" || typeof defId !== "string" || typeof value !== "string") {

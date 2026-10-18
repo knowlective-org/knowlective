@@ -8,7 +8,7 @@ export async function getRequestContext(): Promise<RequestContext> {
   return {
     ip: getClientIp(h),
     userAgent: h.get("user-agent"),
-    // Set by the reverse proxy; see README "本番運用の前提".
+    // Set by the reverse proxy; see the README section on running in production.
     secure: h.get("x-forwarded-proto") === "https",
   };
 }

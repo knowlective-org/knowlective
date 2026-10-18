@@ -4,7 +4,7 @@ import http from "node:http";
 import https from "node:https";
 import { BlockList, type LookupFunction, isIP } from "node:net";
 
-// Title, description and image of a web page, for the リンクのプレビュー block.
+// Title, description and image of a web page, for the link preview block.
 //
 // The server fetches a URL chosen by a user, so this is the one place where
 // the app makes requests on someone's behalf. It must not become a way to

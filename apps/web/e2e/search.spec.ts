@@ -4,8 +4,8 @@ import { createPage, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
-test.describe("検索", () => {
-  test("文章のような検索語では、同じ語がなくても意味の近いページが見つかる", async ({ page }) => {
+test.describe("Search", () => {
+  test("a sentence-like query finds pages close in meaning, without the same words", async ({ page }) => {
     // Pages are embedded in the background once edits settle (and the model
     // may still be loading on a fresh server).
     test.setTimeout(180_000);
@@ -37,7 +37,7 @@ test.describe("検索", () => {
     await trashOpenPage(page);
   });
 
-  test("短い語や型番は、そのまま探す", async ({ page }) => {
+  test("short words and model numbers are searched as typed", async ({ page }) => {
     for (const q of ["議事録", "ABC-123", "「申請方法について」"]) {
       await page.goto(`search?q=${encodeURIComponent(q)}`);
       await expect(page.getByTestId("SearchPage.status")).toHaveAttribute("data-mode", "keyword");

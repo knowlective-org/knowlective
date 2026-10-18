@@ -4,8 +4,8 @@ import { createPage, editorBody, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
-test.describe("ページ上部のバー", () => {
-  test("入力すると「保存中」と出て、保存が終わると消える", async ({ page }) => {
+test.describe("Page toolbar", () => {
+  test("typing shows the saving mark, which goes once saved", async ({ page }) => {
     await createPage(page, "E2E 保存中");
     const status = page.getByTestId("PageView.status");
     // The title typed just now has been saved by the time nothing is pending.
@@ -19,7 +19,7 @@ test.describe("ページ上部のバー", () => {
     await trashOpenPage(page);
   });
 
-  test("長いページをスクロールしても、上に表示されたままになる", async ({ page }) => {
+  test("stays at the top while a long page scrolls", async ({ page }) => {
     await createPage(page, "E2E 上部固定");
     await editorBody(page).click();
     for (let i = 0; i < 45; i++) {

@@ -4,7 +4,7 @@ import { DIMENSIONS, MODEL, MODEL_DTYPE, loadEmbedder, type Embedder } from "./s
 import { pageSearchText } from "../src/lib/search-index";
 import { registerSemanticSearch, type SemanticHit, type SemanticStatus } from "../src/lib/semantic-bridge";
 
-// Semantic search (意味での検索): each page's text is cut into passages, and
+// Semantic search: each page's text is cut into passages, and
 // each passage becomes a vector (embedding) of what it means. A query becomes
 // a vector the same way, and the passages nearest to it are the results.
 //

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import styles from "./pagination.module.css";
 
-// Page links for a long list: ‹ 前へ, page numbers (the first, the last and
-// those around the current one, with … between), 次へ ›. Plain links, so it
+// Page links for a long list: ‹ previous, page numbers (the first, the last and
+// those around the current one, with … between), next ›. Plain links, so it
 // works without JavaScript; `href(page)` makes each one.
 export function Pagination({
   page,
@@ -14,7 +14,7 @@ export function Pagination({
   page: number;
   pageCount: number;
   href: (page: number) => string;
-  // What is paged, for screen readers (e.g. "変更の記録").
+  // What is paged, for screen readers (e.g. the audit log).
   label: string;
 }) {
   if (pageCount <= 1) return null;

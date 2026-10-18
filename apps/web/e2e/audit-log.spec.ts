@@ -1,15 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { openAdmin } from "./admin-login";
 
-// 変更の記録 in /admin (セキュリティ): 20 entries a page, newest first.
+// The audit log in /admin (security): 20 entries a page, newest first.
 
-test.describe("変更の記録", () => {
-  test("20件ずつページ送りで見られる", async ({ page }) => {
+test.describe("Audit log", () => {
+  test("pages through 20 entries at a time", async ({ page }) => {
     await openAdmin(page, "/security");
     const rows = page.getByTestId("AdminSecurityPage.auditLogRow");
     const range = page.getByTestId("AdminSecurityPage.auditRange");
     const total = Number(/全 (\d+) 件/.exec((await range.textContent()) ?? "")?.[1] ?? 0);
-    test.skip(total <= 20, "記録が20件以下のため、ページ送りがない");
+    test.skip(total <= 20, "20 entries or fewer: nothing to page through");
 
     await expect(rows).toHaveCount(20);
     await expect(range).toContainText("1〜20 件目");

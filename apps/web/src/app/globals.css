@@ -96,7 +96,7 @@ a {
 
 /* BlockNote's floating UI (z-index 20 and so on, inline) sits below the
    page's sticky top bar (30), which hid the top of a menu opening upward
-   from a block near it, e.g. the ⋮⋮ menu's "種類を変更". While a menu is
+   from a block near it, e.g. the ⋮⋮ menu's "change type". While a menu is
    open, its floating element goes above the bar (the dialogs stay above). */
 [data-floating-ui-portal] > div:has(.bn-menu-dropdown) {
   z-index: 35 !important;

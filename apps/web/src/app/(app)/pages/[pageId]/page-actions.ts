@@ -133,7 +133,7 @@ export async function lockPage(pageId: string, withChildren: boolean): Promise<{
   if (withChildren && descendants.some((id) => !atLeast(access.get(id) ?? null, "EDIT"))) {
     return { error: "編集の権限がない子ページが含まれているため、子ページも含めたロックはできません。" };
   }
-  // Written with SQL: a lock isn't an edit, so 更新日時 must not change.
+  // Written with SQL: a lock isn't an edit, so "updated at" must not change.
   await prisma.$executeRaw`
     UPDATE "Page" SET "lockedAt" = now(), "lockedById" = ${user.id}, "lockSubtree" = ${withChildren}
     WHERE "id" = ${pageId} AND "lockedAt" IS NULL`;
