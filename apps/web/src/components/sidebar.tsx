@@ -7,6 +7,7 @@ import { useState } from "react";
 import { logout, saveRootOrder } from "@/app/(app)/actions";
 import { showAlert } from "./dialog";
 import { DocTree, type DocTreeNode } from "./doc-tree";
+import { AccountIcon, AdminIcon, LoginIcon, LogoutIcon, TrashIcon } from "./sidebar-icons";
 import styles from "./sidebar.module.css";
 
 // Height of a tree row: a drop in the top half of a root's own row puts the
@@ -200,6 +201,7 @@ export function Sidebar({
             className={styles.footerLink}
             data-ui="Sidebar.loginLink"
           >
+            <LoginIcon />
             ログイン
           </Link>
         </div>
@@ -208,20 +210,20 @@ export function Sidebar({
         <span className={styles.user} title={userName}>
           {userName}
         </span>
-        <Link href="/account" className={styles.footerLink} data-ui="Sidebar.accountLink">
-          アカウント
+        <Link href="/account" className={styles.footerIcon} aria-label="アカウント" title="アカウント" data-ui="Sidebar.accountLink">
+          <AccountIcon />
         </Link>
-        <Link href="/trash" className={styles.footerLink} data-ui="Sidebar.trashLink">
-          ごみ箱
+        <Link href="/trash" className={styles.footerIcon} aria-label="ごみ箱" title="ごみ箱" data-ui="Sidebar.trashLink">
+          <TrashIcon />
         </Link>
         {canOpenAdmin && (
-          <Link href="/admin" className={styles.footerLink}>
-            管理画面
+          <Link href="/admin" className={styles.footerIcon} aria-label="管理画面" title="管理画面" data-ui="Sidebar.adminLink">
+            <AdminIcon />
           </Link>
         )}
-        <form action={logout}>
-          <button type="submit" className={styles.footerLink}>
-            ログアウト
+        <form action={logout} className={styles.logoutForm}>
+          <button type="submit" className={styles.footerIcon} aria-label="ログアウト" title="ログアウト" data-ui="Sidebar.logoutButton">
+            <LogoutIcon />
           </button>
         </form>
       </div>

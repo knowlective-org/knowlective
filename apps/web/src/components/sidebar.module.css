@@ -102,7 +102,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 10px;
+  gap: 4px 2px;
   padding: 12px 8px 0;
   margin-top: 8px;
   border-top: 1px solid var(--color-border);
@@ -119,6 +119,9 @@
 }
 
 .footerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 2px 4px;
   font: inherit;
   color: var(--color-muted);
@@ -130,6 +133,37 @@
 
 .footerLink:hover {
   background: var(--color-hover);
+}
+
+/* A footer link drawn as an icon only (its name is the tooltip). */
+.footerIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--color-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.footerIcon:hover {
+  color: var(--color-primary);
+  background: var(--color-hover);
+}
+
+.footerIcon:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+/* Log out sits at the far end of the row. */
+.logoutForm {
+  display: flex;
+  margin-left: auto;
 }
 
 /* A knowledge root being dragged into a new place: the line where it lands. */
