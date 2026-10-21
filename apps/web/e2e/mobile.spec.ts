@@ -61,6 +61,14 @@ test.describe("Wide screens", () => {
     await expect(page.getByTestId("AppShell.closeButton")).toBeHidden();
   });
 
+  test("the page takes the whole width beside the sidebar", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await openPage(page, HOME_PAGE_ID);
+    const sidebar = (await page.getByTestId("AppShell.sidebar").boundingBox())!;
+    const body = (await editorBody(page).boundingBox())!;
+    expect(body.x).toBeLessThan(sidebar.x + sidebar.width + 80);
+    expect(body.width).toBeGreaterThan(1600 - sidebar.width - 160);
+  });
 });
 
 test.describe("Touch screens", () => {
