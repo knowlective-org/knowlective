@@ -23,6 +23,7 @@ type CollabBridge = {
   closeDocuments(pageIds: string[]): void;
   reconnectDocuments(pageIds: string[]): void;
   restoreVersion(pageId: string, versionId: string, userId: string): Promise<void>;
+  saveCurrentVersion(pageId: string): Promise<void>;
   liveState(pageId: string): Uint8Array | null;
 };
 
@@ -62,6 +63,14 @@ export async function restoreVersion(pageId: string, versionId: string, userId: 
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   if (!bridge) throw new Error("The collaboration server is not running");
   await bridge.restoreVersion(pageId, versionId, userId);
+}
+
+// Saves the page's edits not yet in a version (page history) as one, before
+// its content is replaced. Throws outside the custom server.
+export async function saveCurrentVersion(pageId: string) {
+  const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
+  if (!bridge) throw new Error("The collaboration server is not running");
+  await bridge.saveCurrentVersion(pageId);
 }
 
 // The page's document as currently open in the collab server (including

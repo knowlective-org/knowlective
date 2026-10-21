@@ -13,13 +13,14 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlock
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { getCollabToken, getUploadExtensions } from "@/app/(app)/actions";
+import { saveVersionBeforeReplace } from "@/app/(app)/pages/[pageId]/history/actions";
 import { getLinkPreviewEnabled, loadLinkPreview } from "@/app/(app)/link-preview-actions";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { BASE_PATH, resolveAppUrl, withBasePath } from "@/lib/base-path";
 import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED } from "@/lib/collab-events";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/page-export";
 import { beginSaving } from "@/lib/saving-status";
-import { MAX_TITLE_LENGTH, TITLE_FIELD } from "@/lib/page-title";
+import { MAX_TITLE_LENGTH, TITLE_FIELD, normalizeTitle } from "@/lib/page-title";
 import { blockNoteDictionary } from "@/i18n/blocknote";
 import { useDisplayTitle } from "@/i18n/use-display-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
@@ -36,11 +37,12 @@ import {
   mermaidFromCodeBlock,
   prepareImportedBlocks,
   readTextFile,
+  splitMarkdownTitle,
   textToBlocks,
 } from "./editor/markdown-import";
 import { PageEditorContext, type PageEditorContextValue } from "./editor/page-context";
 import { customSlashMenuItems, editorSchema } from "./editor/schema";
-import { showAlert, showChoice } from "./dialog";
+import { showAlert, showChoice, showConfirm } from "./dialog";
 import { EditorPlaceholder } from "./editor-placeholder";
 import styles from "./collaborative-editor.module.css";
 
@@ -368,6 +370,46 @@ async function expandFile(
   return discardFileBlock(editor, blockId);
 }
 
+// Replaces the whole page, title and body, with a Markdown file (the title
+// from its leading "# heading", or the file name). The current state goes
+// into the page history first, so the replacement can be undone there;
+// nothing is replaced if that fails.
+async function replacePage(
+  provider: HocuspocusProvider,
+  editor: BlockEditor,
+  pageId: string,
+  file: File,
+  blockId: string,
+): Promise<Record<string, never>> {
+  const confirmed = await showConfirm(text("editor.replaceConfirm", { name: file.name }), {
+    title: text("editor.replaceConfirmTitle"),
+    confirmLabel: text("editor.replace"),
+    danger: true,
+  });
+  if (!confirmed) return discardFileBlock(editor, blockId);
+  const saved = await saveVersionBeforeReplace(pageId).catch(() => ({ error: text("editor.replaceErrors.failed") }));
+  if (saved.error) {
+    void showAlert(saved.error, { title: text("editor.replaceFailedTitle") });
+    return discardFileBlock(editor, blockId);
+  }
+  const { title, body } = splitMarkdownTitle(await readTextFile(file), file.name);
+  const parsed = prepareImportedBlocks(editor.tryParseMarkdownToBlocks(body) as ImportedBlock[]);
+  if (!editor.getBlock(blockId)) return {};
+  // Done right after BlockNote has updated the file block with the return
+  // value (as in discardFileBlock), since the file block goes too. An empty
+  // file leaves an empty line: a page always has a block.
+  setTimeout(() => {
+    const all = (editor.document as AnyBlock[]).map((block) => block.id);
+    editor.replaceBlocks(all, (parsed.length > 0 ? parsed : [{ type: "paragraph" }]) as never[]);
+    const ytitle = provider.document.getText(TITLE_FIELD);
+    provider.document.transact(() => {
+      ytitle.delete(0, ytitle.length);
+      ytitle.insert(0, normalizeTitle(title));
+    });
+  }, 0);
+  return {};
+}
+
 // The editor of each connection, for uploadFile: it's set up before the
 // editor exists.
 const editors = new WeakMap<object, BlockEditor>();
@@ -393,13 +435,14 @@ async function attachOrEmbedPdf(editor: BlockEditor, pageId: string, file: File,
 }
 
 // A Markdown, text or Word file (dropped, pasted, or chosen in a file block)
-// can be attached like any other file or expanded into the page, and a PDF
-// attached or shown page by page; the user chooses.
+// can be attached like any other file or expanded into the page (a Markdown
+// file can also replace the whole page), and a PDF attached or shown page by
+// page; the user chooses.
 //
 // A file of a type the administrators don't allow (/admin/files) is refused
 // first, expanding included. If the list can't be fetched, the upload route
 // still refuses the file.
-async function expandOrUpload(provider: object, pageId: string, file: File, blockId?: string) {
+async function expandOrUpload(provider: HocuspocusProvider, pageId: string, file: File, blockId?: string) {
   const editor = editors.get(provider);
   const allowed = await getUploadExtensions().catch(() => []);
   if (!isUploadAllowed(file.name, allowed)) {
@@ -417,12 +460,15 @@ async function expandOrUpload(provider: object, pageId: string, file: File, bloc
     text("editor.expandChoice", { name: file.name }) + (kind === "docx" ? text("editor.expandDocxNote") : ""),
     [
       { value: "attach", label: text("editor.attach") },
+      // Markdown only: its leading heading can be the title.
+      ...(kind === "markdown" ? [{ value: "replace" as const, label: text("editor.replacePage") }] : []),
       { value: "expand", label: text("editor.expand") },
     ],
     { title: text(`editor.importTitles.${kind}`) },
   );
   if (choice === "attach") return uploadFile(pageId, file);
   if (choice === "expand") return expandFile(editor, pageId, file, kind, blockId);
+  if (choice === "replace") return replacePage(provider, editor, pageId, file, blockId);
   return discardFileBlock(editor, blockId);
 }
 
@@ -430,7 +476,7 @@ async function expandOrUpload(provider: object, pageId: string, file: File, bloc
 // breaks; uploadFile has already said why), the file block BlockNote created
 // for it is removed: left in place it has a name but no file, and shows
 // "Loading…" forever.
-async function addFile(provider: object, pageId: string, file: File, blockId?: string) {
+async function addFile(provider: HocuspocusProvider, pageId: string, file: File, blockId?: string) {
   try {
     return await expandOrUpload(provider, pageId, file, blockId);
   } catch (error) {

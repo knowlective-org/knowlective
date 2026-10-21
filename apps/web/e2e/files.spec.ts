@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
-import { createPage, editorBody, pasteFile, trashOpenPage } from "./helpers";
+import { createPage, editorBody, openPage, pasteFile, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
@@ -44,6 +44,48 @@ test.describe("Files", () => {
     await expect(editorBody(page)).toContainText("二行目です");
     // The file block BlockNote made for the upload is gone.
     await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("a Markdown file can replace the whole page, title included", async ({ page }) => {
+    const { id, title: oldTitle } = await createPage(page, "E2E 置き換え");
+    await typeInBody(page, "置き換える前の本文");
+    // Let the edit reach the server (it goes into the history before the replace).
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await page.waitForTimeout(500);
+
+    const markdown = "# 新しいタイトル\n\n置き換えた本文\n\n# 二つ目の見出し\n";
+    await pasteFile(page, { name: "置き換え.md", type: "text/markdown", base64: base64(markdown) });
+    await page.locator('[data-ui="AppDialog.choiceButton"][data-id="replace"]').click();
+    await page.getByTestId("AppDialog.confirmButton").click();
+
+    // The leading heading became the title; the rest is the body (a later H1 is an H2).
+    await expect(page.getByTestId("TitleField")).toHaveValue("新しいタイトル");
+    await expect(editorBody(page)).toContainText("置き換えた本文");
+    await expect(editorBody(page)).not.toContainText("置き換える前の本文");
+    await expect(editorBody(page)).not.toContainText("新しいタイトル");
+    await expect(editorBody(page).locator('[data-content-type="heading"]')).toHaveText("二つ目の見出し");
+    await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(0);
+
+    // Without a leading heading, the title is the file name.
+    await pasteFile(page, { name: "議事録.md", type: "text/markdown", base64: base64("本文だけ\n") });
+    await page.locator('[data-ui="AppDialog.choiceButton"][data-id="replace"]').click();
+    await page.getByTestId("AppDialog.confirmButton").click();
+    await expect(page.getByTestId("TitleField")).toHaveValue("議事録");
+    await expect(editorBody(page)).toContainText("本文だけ");
+    await expect(editorBody(page)).not.toContainText("置き換えた本文");
+
+    // What was there before each replace is in the history (newest first:
+    // before the second, then before the first).
+    await page.goto(`pages/${id}/history`);
+    const versions = page.getByTestId("HistoryView.version");
+    await expect(versions).toHaveCount(2);
+    await versions.nth(1).click();
+    await expect(page.getByTestId("HistoryView.preview")).toContainText(oldTitle);
+    await expect(page.getByTestId("HistoryView.preview")).toContainText("置き換える前の本文");
+    await versions.nth(0).click();
+    await expect(page.getByTestId("HistoryView.preview")).toContainText("置き換えた本文");
+    await openPage(page, id);
     await trashOpenPage(page);
   });
 

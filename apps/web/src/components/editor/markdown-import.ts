@@ -37,6 +37,16 @@ export async function readTextFile(file: File): Promise<string> {
   }
 }
 
+// For replacing a page with a Markdown file: the page title is the file's
+// leading "# heading" (taken out of the body), or else the file's name
+// without its extension.
+export function splitMarkdownTitle(markdown: string, fileName: string): { title: string; body: string } {
+  const match = /^\s*#[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*(?:\r\n?|\n|$)/.exec(markdown);
+  const heading = match?.[1].trim();
+  if (heading) return { title: heading, body: markdown.slice(match![0].length) };
+  return { title: fileName.replace(/\.(md|markdown)$/i, ""), body: markdown };
+}
+
 // A text file as blocks: one paragraph per line, nothing interpreted (a line
 // starting with "#" or "-" stays as it is). Blank lines are dropped.
 export function textToBlocks(text: string): ImportedBlock[] {

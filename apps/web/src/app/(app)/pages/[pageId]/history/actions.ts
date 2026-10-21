@@ -7,7 +7,7 @@ import { displayTitleWith } from "@/i18n/display-title";
 import { prisma } from "@/lib/db";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { requireUser } from "@/lib/auth/session";
-import { liveDocumentState, restoreVersion } from "@/lib/collab-events";
+import { liveDocumentState, restoreVersion, saveCurrentVersion } from "@/lib/collab-events";
 import { versionAad } from "@/lib/page-versions";
 import {
   MAX_MASK_LENGTH,
@@ -51,6 +51,24 @@ export async function restorePageVersion(pageId: string, versionId: string): Pro
     await restoreVersion(pageId, versionId, user.id);
   } catch (err) {
     console.error("[history] restore failed", err);
+    return { error: t("failed") };
+  }
+  return {};
+}
+
+// Before the editor replaces the whole page (title and body) with a Markdown
+// file: the current state goes into the history first, so the replacement
+// can be undone from there.
+export async function saveVersionBeforeReplace(pageId: string): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const t = await getTranslations("editor.replaceErrors");
+  const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
+  if (!access || !atLeast(access.access, "EDIT")) return { error: t("noPermission") };
+  if (access.lock) return { error: t("locked") };
+  try {
+    await saveCurrentVersion(pageId);
+  } catch (err) {
+    console.error("[history] saving the version before a replace failed", err);
     return { error: t("failed") };
   }
   return {};

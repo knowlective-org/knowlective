@@ -240,6 +240,21 @@ export async function createCollab() {
         hocuspocus.closeConnections(id);
       }
     },
+    // Saves the edits not yet in a version as one now, before the page's
+    // content is replaced from the browser (a Markdown file replacing the
+    // page). Without such edits the last version already has this state.
+    async saveCurrentVersion(pageId) {
+      const document = hocuspocus.documents.get(pageId);
+      const editors = pendingEditors.get(pageId);
+      if (!document || !editors?.size) return;
+      pendingEditors.delete(pageId);
+      try {
+        await saveVersion(pageId, document, "AUTO", [...editors]);
+      } catch (err) {
+        pendingEditors.set(pageId, new Set([...editors, ...(pendingEditors.get(pageId) ?? [])]));
+        throw err;
+      }
+    },
     liveState(pageId) {
       const document = hocuspocus.documents.get(pageId);
       return document ? Y.encodeStateAsUpdate(document) : null;

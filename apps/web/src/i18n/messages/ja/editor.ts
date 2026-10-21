@@ -25,6 +25,17 @@ const ja: MessageShape<typeof en> = {
     expandChoice: "「{name}」をファイルとして添付しますか？ それとも、内容をこのページに展開しますか？",
     expandDocxNote: "\n\n展開すると、見出し・リスト・表・画像などの構造だけが入ります。文字の色やレイアウトは再現されません。",
     expand: "ページに展開",
+    replacePage: "このページを置き換える",
+    replace: "置き換える",
+    replaceConfirmTitle: "ページを置き換えますか？",
+    replaceConfirm:
+      "このページのタイトルと本文を「{name}」の内容で置き換えます。タイトルはファイルの最初の見出し（# …）、なければファイル名になります。\n\n今の内容はページの履歴に残ります。",
+    replaceFailedTitle: "置き換えられません",
+    replaceErrors: {
+      noPermission: "このページを編集する権限がありません。",
+      locked: "このページはロックされているため、置き換えられません。先にロックを解除してください。",
+      failed: "今の内容を履歴に保存できなかったため、置き換えませんでした。もう一度お試しください。",
+    },
     refusedTitle: "追加できないファイルです",
     exportFailed: "{format} を書き出せませんでした。",
     exportFailedTitle: "エクスポートできません",

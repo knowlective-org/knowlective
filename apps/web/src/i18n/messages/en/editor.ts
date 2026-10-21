@@ -25,6 +25,17 @@ export default {
     expandChoice: "Attach \"{name}\" as a file, or expand its content into this page?",
     expandDocxNote: "\n\nExpanding brings in only the structure: headings, lists, tables, images and so on. Text colors and layout aren't kept.",
     expand: "Expand into the page",
+    replacePage: "Replace this page",
+    replace: "Replace",
+    replaceConfirmTitle: "Replace this page?",
+    replaceConfirm:
+      "The page's title and body will be replaced with the content of \"{name}\". The title is the file's first heading (# …), or the file name if it doesn't start with one.\n\nThe current content is kept in the page's history.",
+    replaceFailedTitle: "Can't replace the page",
+    replaceErrors: {
+      noPermission: "You don't have permission to edit this page.",
+      locked: "This page is locked, so it can't be replaced. Unlock it first.",
+      failed: "Couldn't save the current content to the history, so the page wasn't replaced. Please try again.",
+    },
     refusedTitle: "This file can't be added",
     exportFailed: "Couldn't export as {format}.",
     exportFailedTitle: "Can't export",

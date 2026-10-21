@@ -188,6 +188,7 @@ Drag and drop (or paste) files into the editor to attach them. Images, video and
 - The app encrypts files with the data key before storing them. The storage only ever holds encrypted data
 - Files are served through `/api/files/<id>`, only to people who can see the page they're attached to. Anything other than images, video and audio (HTML, SVG, PDF, etc.) is downloaded rather than shown in the browser
 - View-only permission can't add files
+- Markdown, text and Word files (.md / .txt / .docx) can be attached or have their content expanded into the page. A Markdown file can also "Replace this page": the page's title and body become the file's content (the title is the file's leading heading `# …`, or the file name if there isn't one). The content from before the replace stays in the page's history
 - The largest file size is set under "Files" → "Upload limit" in the admin console (100 MB by default, 500 MB at most). It applies wherever files are stored (bundled or external)
 
 ### Moving file storage
