@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { BASE_PATH } from "@/lib/base-path";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { normalizeEmail, type User } from "shared";
+import { type LoginMethod, normalizeEmail, type User } from "shared";
 import { prisma } from "@/lib/db";
 import { emailWhere, withEmail } from "@/lib/emails";
 import type { RequestContext } from "@/lib/request";
@@ -11,10 +11,17 @@ import type { RequestContext } from "@/lib/request";
 //
 // Every page and Server Action that needs a user must call requireUser()
 // itself — layouts don't run for Server Actions.
+//
+// When the site requires passkeys (InstanceConfig.passkeyRequired), a session
+// signed in with a password by an account that has none yet counts as not
+// signed in everywhere — getCurrentUser() returns null, so pages, Server
+// Actions, Route Handlers and collab tokens all refuse it — except the
+// registration screen (/passkey-setup, getPasskeySetupUser()). requireUser()
+// sends it there.
 
 const COOKIE_NAME = "knowlective_session";
 // Only sent to this app: under its base path if it shares the host with others.
-const COOKIE_PATH = BASE_PATH || "/";
+export const COOKIE_PATH = BASE_PATH || "/";
 
 const IDLE_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 const ABSOLUTE_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000;
@@ -52,6 +59,13 @@ export async function isLoginLocked(ip: string, email: string): Promise<boolean>
   return byIp >= MAX_FAILURES_PER_IP || byEmail >= MAX_FAILURES_PER_EMAIL;
 }
 
+// The IP part of isLoginLocked(), for sign-ins without an address (passkeys).
+export async function isIpLoginLocked(ip: string): Promise<boolean> {
+  const since = new Date(Date.now() - LOCK_WINDOW_MS);
+  const failures = await prisma.userLoginAttempt.count({ where: { ip, success: false, createdAt: { gte: since } } });
+  return failures >= MAX_FAILURES_PER_IP;
+}
+
 export async function recordLoginAttempt(
   ctx: RequestContext,
   email: string,
@@ -65,7 +79,7 @@ export async function recordLoginAttempt(
 // ---- Sessions ------------------------------------------------------------
 
 // Must be called from a Server Action (cookies can't be set while rendering).
-export async function createUserSession(ctx: RequestContext, userId: string): Promise<void> {
+export async function createUserSession(ctx: RequestContext, userId: string, method: LoginMethod): Promise<void> {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + ABSOLUTE_TIMEOUT_MS);
 
@@ -79,7 +93,7 @@ export async function createUserSession(ctx: RequestContext, userId: string): Pr
     },
   });
   await prisma.userSession.create({
-    data: { tokenHash: hashToken(token), userId, ip: ctx.ip, userAgent: ctx.userAgent, expiresAt },
+    data: { tokenHash: hashToken(token), userId, method, ip: ctx.ip, userAgent: ctx.userAgent, expiresAt },
   });
 
   (await cookies()).set(COOKIE_NAME, token, {
@@ -93,12 +107,38 @@ export async function createUserSession(ctx: RequestContext, userId: string): Pr
   });
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+// Single sign-on sessions don't need a passkey: the IdP authenticates. A
+// session from before the method was recorded counts as one if the account
+// is linked to an IdP.
+export function passkeyExempt(method: LoginMethod | null, oidcSubject: string | null): boolean {
+  return method === "OIDC" || (method === null && oidcSubject !== null);
+}
+
+export async function passkeyRequiredSetting(): Promise<boolean> {
+  const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { passkeyRequired: true } });
+  return config?.passkeyRequired ?? false;
+}
+
+type SessionState = { user: CurrentUser; passkeyExempt: boolean; passkeySetupRequired: boolean };
+
+async function loadSession(): Promise<SessionState | null> {
   const token = (await cookies()).get(COOKIE_NAME)?.value;
   if (!token) return null;
   const session = await prisma.userSession.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, emailEnc: true, name: true, siteRole: true, disabledAt: true } } },
+    include: {
+      user: {
+        select: {
+          id: true,
+          emailEnc: true,
+          name: true,
+          siteRole: true,
+          disabledAt: true,
+          oidcSubject: true,
+          _count: { select: { passkeys: true } },
+        },
+      },
+    },
   });
   if (!session) return null;
 
@@ -118,8 +158,30 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       data: { lastSeenAt: new Date() },
     });
   }
+  const exempt = passkeyExempt(session.method, session.user.oidcSubject);
+  const passkeySetupRequired =
+    session.user._count.passkeys === 0 && !exempt && (await passkeyRequiredSetting());
   const { id, email, name, siteRole } = await withEmail(session.user);
-  return { id, email, name, siteRole };
+  return { user: { id, email, name, siteRole }, passkeyExempt: exempt, passkeySetupRequired };
+}
+
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const state = await loadSession();
+  return state && !state.passkeySetupRequired ? state.user : null;
+}
+
+// The signed-in user who still has to register a passkey (the site requires
+// one), or null: for /passkey-setup and its Server Actions only.
+export async function getPasskeySetupUser(): Promise<CurrentUser | null> {
+  const state = await loadSession();
+  return state?.passkeySetupRequired ? state.user : null;
+}
+
+// The signed-in user, setup pending or not, and whether this session is
+// exempt from requiring a passkey (single sign-on): for managing passkeys.
+export async function getSessionUser(): Promise<{ user: CurrentUser; passkeyExempt: boolean } | null> {
+  const state = await loadSession();
+  return state && { user: state.user, passkeyExempt: state.passkeyExempt };
 }
 
 // The display language the signed-in user chose, if any. Only for picking
@@ -138,11 +200,11 @@ export async function sessionUserLocale(): Promise<string | null> {
 // Gate for every page and Server Action that needs a logged-in user.
 // `nextPath` is where to come back to after logging in.
 export async function requireUser(nextPath?: string): Promise<CurrentUser> {
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
-  }
-  return user;
+  const state = await loadSession();
+  const next = nextPath ? `?next=${encodeURIComponent(nextPath)}` : "";
+  if (!state) redirect(`/login${next}`);
+  if (state.passkeySetupRequired) redirect(`/passkey-setup${next}`);
+  return state.user;
 }
 
 // Must be called from a Server Action.

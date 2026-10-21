@@ -197,6 +197,16 @@ export default {
         proxyCredentials: "Enter the proxy's user name and password in the fields below, not in the URL.",
       },
     },
+    passkeys: {
+      require: "Require passkeys",
+      requireNote:
+        "Everyone who logs in with a password must register a passkey before using the site, and accounts with a passkey can no longer log in with their password. Single sign-on is exempt. Off: passkeys are optional (each user's account screen). Someone who loses their passkeys gets them removed from the user list's menu.",
+      requireTitle: "Require passkeys?",
+      requireConfirm:
+        "{count, plural, =0 {Every account has a passkey.} one {# account has no passkey yet: it will be asked to register one at its next access.} other {# accounts have no passkey yet: they will be asked to register one at their next access.}}\nAccounts with a passkey can no longer log in with their password.",
+      requireLabel: "Require",
+      withoutPasskey: "{count, plural, =0 {Every enabled account has a passkey.} one {# enabled account has no passkey.} other {# enabled accounts have no passkey.}}",
+    },
     publicPages: {
       allowConfirm:
         "People with \"Manage\" permission on a page will be able to publish it to the internet. A published page and the pages under it can be read by anyone who knows the URL, including people who aren't logged in.",
@@ -303,6 +313,10 @@ export default {
       disableConfirm: "Disable {who}?\nAll their sessions end, and they can no longer log in.",
       signup: "Registration",
       oidc: "Single sign-on (OpenID Connect)",
+      passkeys: "Passkeys",
+      resetPasskeys: "Remove passkeys",
+      resetPasskeysConfirm:
+        "Remove all of {who}'s passkeys ({count, number})?\nTheir sessions end. They log in with their password again, and register a new passkey if the site requires one.",
       invite: "Invite users",
       role: "Role",
       joinGroups: "Groups to join",

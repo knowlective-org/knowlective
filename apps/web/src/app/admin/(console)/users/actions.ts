@@ -70,6 +70,23 @@ export async function enableUser(formData: FormData): Promise<void> {
   revalidatePath("/admin", "layout");
 }
 
+// For someone who lost their passkeys (where the site requires them, the
+// only way back in): removes them all and ends the account's sessions, so it
+// signs in with its password again and registers a new one.
+export async function resetPasskeys(formData: FormData): Promise<void> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const userId = formData.get("userId");
+  if (typeof userId !== "string") return;
+  const [{ count }] = await prisma.$transaction([
+    prisma.userPasskey.deleteMany({ where: { userId } }),
+    prisma.userSession.deleteMany({ where: { userId } }),
+  ]);
+  if (count > 0) {
+    await audit(actor, "user.passkeys.reset", userId, (t, who) => t("audit.passkeysReset", { who, count }));
+  }
+  revalidatePath("/admin", "layout");
+}
+
 export async function changeSiteRole(formData: FormData): Promise<void> {
   const { session, actor } = await requireAdmin(["SITE_ADMIN"]);
   const userId = formData.get("userId");

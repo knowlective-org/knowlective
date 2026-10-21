@@ -56,5 +56,9 @@ export default {
     userEnable: "Enabled {who}",
     userRole: "Changed {who}'s role from \"{from}\" to \"{to}\"",
     userResetIssue: "Issued a password reset link for {who}",
+    passkeyAdd: "Registered a passkey \"{name}\"",
+    passkeyRemove: "Removed the passkey \"{name}\"",
+    passkeysReset: "Removed {who}'s passkeys ({count, number})",
+    passkeyRequired: "{required, select, true {Required passkeys} other {Made passkeys optional}}",
   },
 } as const;

@@ -5,12 +5,14 @@ import { isLocale } from "@/i18n/locales";
 import { prisma } from "@/lib/db";
 import { ownPasswordResetAvailability } from "@/lib/auth/own-password-reset";
 import { PASSWORD_RESET_TTL_MINUTES } from "@/lib/auth/password-reset";
-import { requireUser } from "@/lib/auth/session";
+import { listPasskeys, passkeyRequiredSetting } from "@/lib/auth/passkeys";
+import { getSessionUser, requireUser } from "@/lib/auth/session";
 import { loadSidebar } from "@/lib/sidebar-data";
 import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { LocaleForm } from "./locale-form";
+import { PasskeySection } from "./passkey-section";
 import { OwnPasswordResetForm } from "./password-reset-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -19,15 +21,18 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 // The signed-in user's own account: who they are, their display language,
-// and resetting their password.
+// their passkeys, and resetting their password.
 export default async function AccountPage() {
   await connection();
   const user = await requireUser("/account");
-  const [sidebar, reset, t, { locale }] = await Promise.all([
+  const [sidebar, reset, t, { locale }, passkeys, passkeyRequired, session] = await Promise.all([
     loadSidebar(user),
     ownPasswordResetAvailability(user.id),
     getTranslations(),
     prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { locale: true } }),
+    listPasskeys(user.id),
+    passkeyRequiredSetting(),
+    getSessionUser(),
   ]);
 
   return (
@@ -52,6 +57,19 @@ export default async function AccountPage() {
         <section className={styles.section} data-ui="AccountPage.languageSection">
           <h2 className={styles.sectionTitle}>{t("account.language.heading")}</h2>
           <LocaleForm current={isLocale(locale) ? locale : null} />
+        </section>
+
+        <section className={styles.section} data-ui="AccountPage.passkeySection">
+          <h2 className={styles.sectionTitle}>{t("account.passkeys.heading")}</h2>
+          <PasskeySection
+            passkeys={passkeys.map((p) => ({
+              id: p.id,
+              name: p.name,
+              createdAt: p.createdAt.toISOString(),
+              lastUsedAt: p.lastUsedAt?.toISOString() ?? null,
+            }))}
+            required={passkeyRequired && !session?.passkeyExempt}
+          />
         </section>
 
         <section className={styles.section} data-ui="AccountPage.passwordSection">

@@ -66,6 +66,7 @@ model User {
   groups          GroupMember[]
   uploadedFiles   FileObject[]
   adminSessions   AdminSession[]
+  passkeys        UserPasskey[]
 
   // TOTP secret for this user's two-step verification, encrypted with the DEK
   // (AAD bound to the user id). Required for site admins signing in to /admin.
@@ -338,6 +339,12 @@ model InstanceConfig {
   // CONTENT_MANAGER (never SITE_ADMIN). Applied when the account is created.
   signupSiteRole SiteRole @default(USER)
 
+  // Passkeys required: an account without one (signed in with its password)
+  // must register one before using the site, and an account with one can no
+  // longer sign in with its password (lib/auth/passkeys.ts). Sessions from
+  // single sign-on are exempt. Off: passkeys are optional (account screen).
+  passkeyRequired Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -396,6 +403,9 @@ model UserSession {
   tokenHash  String   @id
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // How this session was signed in. Null: from before this was recorded
+  // (treated as single sign-on if the account is linked to an IdP).
+  method     LoginMethod?
   ip         String
   userAgent  String?
   createdAt  DateTime @default(now())
@@ -404,6 +414,35 @@ model UserSession {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+enum LoginMethod {
+  PASSWORD
+  PASSKEY
+  OIDC
+}
+
+// A passkey (WebAuthn credential) a user signs in with instead of their
+// password. Registered from the account screen, or on /passkey-setup when the
+// site requires one (InstanceConfig.passkeyRequired).
+model UserPasskey {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The credential id (base64url), as the browser sends it back on sign-in.
+  credentialId String   @unique
+  publicKey    Bytes
+  // The authenticator's signature counter (0 for most passkeys, which don't
+  // keep one); a lower value than stored means a cloned authenticator.
+  counter      BigInt
+  transports   String[] @default([])
+  // The name the user gave it ("work laptop"), encrypted with the DEK (AAD:
+  // passkeyNameAad(id)), as it can contain a person's name.
+  nameEnc      Bytes
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
 }
 
 // Sign-up is invitation-only. Issued from /admin; the link carries a random

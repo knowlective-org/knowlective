@@ -267,6 +267,20 @@ Under "Users" → "Single sign-on (OpenID Connect)" in the admin console (site a
 - Logging in to the admin console (`/admin`) still takes a password plus an authenticator app. Accounts created by single sign-on have no password at first, so they can't get into the admin console (even ones created as content managers). With password login "Alongside", they can set one through a password reset
 - Logging out of knowlective doesn't log out of the identity provider
 
+### Passkeys
+
+Instead of a password, you can log in with a passkey (fingerprint, face, or the device's PIN). "Log in with a passkey" on the login screen has the browser offer its passkeys for the site (no email address needed).
+
+- Register and remove them from "Account" in the sidebar. You can register several, one per device, each with a name (stored encrypted)
+- Under "Users" → "Passkeys" in the admin console (site admins only), "Require passkeys" can be turned on (off by default: optional)
+  - On: someone who logs in with a password can't open anything else until they register a passkey (they're sent to `/passkey-setup`; logging out still works)
+  - Accounts with a passkey can no longer log in with their password. The last one can't be removed
+  - Logging in with single sign-on is exempt (the identity provider authenticates)
+- Someone who lost their passkeys gets them removed from the user list in the admin console ("⋯" → "Remove passkeys", which also ends their sessions). They log in with their password again, and register a new passkey if required
+- A passkey only works at the address (host name) it was registered at. Opened at an address other than the public URL (an internal IP address, etc.), it has to be registered again for that address. Browsers also only use passkeys over https or on localhost
+- With "Single sign-on only", passkeys, like passwords, log in site admins only
+- Logging in to the admin console (`/admin`) still takes a password plus an authenticator app (unaffected by the passkey settings)
+
 ## Admin console (`/admin`)
 
 Each user has one site-wide role. Permission to view and edit pages comes from groups, not roles (even a site admin can't see pages without a permission).
@@ -286,7 +300,7 @@ First steps: log in with the master password → under "Users", invite yourself 
 
 Groups are for giving permissions on page trees. The "Groups" page creates, renames and deletes them and manages their members. Content managers can only handle groups whose permissions are all on pages they manage (including groups with no permissions yet). The same goes for the groups they can choose when inviting.
 
-Changes to roles, enabling/disabling accounts, password resets, group members, page permissions, knowledge root creation and invitations are recorded in the audit log, which can be seen on the "Security" page (newest first, 20 per page).
+Changes to roles, enabling/disabling accounts, password resets, registering and removing passkeys, group members, page permissions, knowledge root creation and invitations are recorded in the audit log, which can be seen on the "Security" page (newest first, 20 per page).
 
 - **Login:** master password + the authenticator app's 6-digit code
 - **Rate limit:** 5 failures within 15 minutes from the same address lock that address

@@ -15,10 +15,14 @@ export default {
     submit: "Log in",
     submitting: "Checking…",
     forgotPasswordLink: "Forgot your password?",
+    passkeyButton: "Log in with a passkey",
     errors: {
       missing: "Enter your email address and password.",
       locked: "Too many failed attempts: logging in is locked for now. Please wait about {minutes, number} minutes and try again.",
       wrong: "The email address or password is incorrect.",
+      usePasskey: "This account logs in with a passkey. Use \"Log in with a passkey\" above.",
+      passkeyFailed: "Logging in with the passkey failed. Please try again.",
+      passkeyExpired: "The login expired. Please try again.",
     },
     ssoErrors: {
       unavailable: "Single sign-on isn't available right now.",
@@ -92,6 +96,13 @@ export default {
       emailTaken: "This email address is already registered. Log in, then open this link again.",
       emailTakenNow: "This email address is already registered.",
     },
+  },
+  passkeySetup: {
+    title: "Register a passkey",
+    heading: "Register a passkey",
+    lead: "This site requires a passkey to log in. Register one to continue: from now on you log in with it (fingerprint, face, or the device's PIN) instead of your password.",
+    account: "Account: {email}",
+    logout: "Log out",
   },
   setup: {
     title: "First-time setup",

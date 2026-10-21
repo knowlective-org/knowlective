@@ -620,6 +620,26 @@ export async function saveSignupSettings(_prev: SignupSettingsState, formData: F
   return { saved: true };
 }
 
+export type PasskeySettingState = { error?: string; saved?: boolean };
+
+// Passkeys required for everyone signing in with a password (lib/auth/passkeys.ts).
+// Takes effect on everyone's next request: those without a passkey are sent
+// to register one; those with one can't sign in with the password any more.
+export async function savePasskeySetting(_prev: PasskeySettingState, formData: FormData): Promise<PasskeySettingState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const required = formData.get("required") === "on";
+  const before = await prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { passkeyRequired: true } });
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { passkeyRequired: required } });
+  if (before.passkeyRequired !== required) {
+    const audit = await auditTranslator();
+    await recordAudit(actor, "passkey.settings", audit("audit.passkeyRequired", { required: String(required) }), {
+      required,
+    });
+  }
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
 export type OidcFormState = { error?: string; saved?: boolean; message?: string };
 
 type OidcInput = {

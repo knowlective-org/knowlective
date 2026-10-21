@@ -52,6 +52,10 @@ const ja: MessageShape<typeof en> = {
     userEnable: "{who} を有効化",
     userRole: "{who} のロールを「{from}」から「{to}」に変更",
     userResetIssue: "{who} のパスワード再設定リンクを発行",
+    passkeyAdd: "パスキー「{name}」を登録",
+    passkeyRemove: "パスキー「{name}」を削除",
+    passkeysReset: "{who} のパスキー（{count, number} 件）を削除",
+    passkeyRequired: "{required, select, true {パスキーを必須に変更} other {パスキーを任意に変更}}",
   },
 };
 

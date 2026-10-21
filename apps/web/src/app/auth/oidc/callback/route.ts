@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { userId, next } = await finishLogin(request.nextUrl.search, stateCookie);
-    await createUserSession(await getRequestContext(), userId);
+    await createUserSession(await getRequestContext(), userId, "OIDC");
     return redirect(next);
   } catch (err) {
     const code = err instanceof OidcLoginError ? err.code : "failed";

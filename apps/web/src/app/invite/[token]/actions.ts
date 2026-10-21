@@ -86,7 +86,7 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
     throw err;
   }
 
-  await createUserSession(await getRequestContext(), userId);
+  await createUserSession(await getRequestContext(), userId, "PASSWORD");
   redirect("/");
 }
 

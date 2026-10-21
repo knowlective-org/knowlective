@@ -5,11 +5,12 @@ import { getTranslations } from "next-intl/server";
 import { isSetupComplete } from "shared";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
-import { getCurrentUser, safeNextPath } from "@/lib/auth/session";
+import { getCurrentUser, getPasskeySetupUser, safeNextPath } from "@/lib/auth/session";
 import { getSignupSettings } from "@/lib/auth/signup";
 import { OIDC_START_PATH, type OidcErrorCode, getOidcSettings, isOidcErrorCode } from "@/lib/auth/oidc";
 import styles from "@/styles/ui.module.css";
 import { LoginForm } from "./login-form";
+import { PasskeyLoginButton } from "./passkey-login-button";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
@@ -22,6 +23,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const params = await searchParams;
   const next = safeNextPath(params.next);
   if (await getCurrentUser()) redirect(next);
+  // Signed in, but the site requires a passkey this account doesn't have yet.
+  if (await getPasskeySetupUser()) redirect(`/passkey-setup?next=${encodeURIComponent(next)}`);
   const [signup, oidc, t] = await Promise.all([getSignupSettings(), getOidcSettings(), getTranslations("login")]);
   // Only codes we know: the message itself never comes from the URL.
   const ssoError = isOidcErrorCode(params.sso_error) ? t(`ssoErrors.${params.sso_error as OidcErrorCode}`) : null;
@@ -59,12 +62,14 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             {t("adminPasswordLogin")}
           </summary>
           <div style={{ marginTop: 12 }}>
+            <PasskeyLoginButton next={next} />
             <LoginForm next={next} />
           </div>
         </details>
       ) : (
         <>
           {oidc.enabled && <p className={styles.note} style={{ marginBottom: 12 }}>{t("orPassword")}</p>}
+          <PasskeyLoginButton next={next} />
           <LoginForm next={next} />
         </>
       )}

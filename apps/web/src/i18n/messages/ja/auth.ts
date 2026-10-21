@@ -15,10 +15,14 @@ const ja: MessageShape<typeof en> = {
     submit: "ログイン",
     submitting: "確認しています…",
     forgotPasswordLink: "パスワードを忘れた場合",
+    passkeyButton: "パスキーでログイン",
     errors: {
       missing: "メールアドレスとパスワードを入力してください。",
       locked: "ログインの失敗が続いたため、一時的にロックしています。{minutes, number}分ほど待ってから再度お試しください。",
       wrong: "メールアドレスまたはパスワードが正しくありません。",
+      usePasskey: "このアカウントはパスキーでログインします。上の「パスキーでログイン」を使ってください。",
+      passkeyFailed: "パスキーでログインできませんでした。もう一度お試しください。",
+      passkeyExpired: "ログインの有効期限が切れました。もう一度お試しください。",
     },
     ssoErrors: {
       unavailable: "シングルサインオンは現在使えません。",
@@ -92,6 +96,13 @@ const ja: MessageShape<typeof en> = {
       emailTaken: "このメールアドレスはすでに登録されています。ログインしてから、もう一度このリンクを開いてください。",
       emailTakenNow: "このメールアドレスはすでに登録されています。",
     },
+  },
+  passkeySetup: {
+    title: "パスキーの登録",
+    heading: "パスキーを登録してください",
+    lead: "このサイトでは、ログインにパスキーが必要です。続けるにはパスキーを登録してください。これからは、パスワードの代わりにパスキー（指紋・顔・端末の PIN）でログインします。",
+    account: "アカウント: {email}",
+    logout: "ログアウト",
   },
   setup: {
     title: "初期セットアップ",

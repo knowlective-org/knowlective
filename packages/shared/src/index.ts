@@ -16,6 +16,8 @@ export type {
   AdminSessionStage,
   AdminLoginAttempt,
   UserSession,
+  LoginMethod,
+  UserPasskey,
   Invitation,
   UserLoginAttempt,
   PasswordResetToken,
