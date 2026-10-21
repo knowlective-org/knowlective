@@ -55,6 +55,14 @@
   }
 }
 
+/* Phone width: the minimal margin, the same as the editor's (globals.css). */
+@media (max-width: 599.98px) {
+  .title,
+  .loading {
+    padding: 0 12px;
+  }
+}
+
 /* The title as printed (TitleField): the textarea's height is fitted to the
    screen's width, so on paper a plain block takes its place. */
 .printTitle {

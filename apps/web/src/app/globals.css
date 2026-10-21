@@ -94,6 +94,15 @@ a {
   }
 }
 
+/* Phone width: BlockNote's side padding (54px, room for the block handles
+   beside the text) goes down to the page's minimal margin, lined up with the
+   title (collaborative-editor.module.css) and the top bar (page-view). */
+@media (max-width: 599.98px) {
+  .bn-root .bn-editor {
+    padding-inline: 12px;
+  }
+}
+
 /* BlockNote's floating UI (z-index 20 and so on, inline) sits below the
    page's sticky top bar (30), which hid the top of a menu opening upward
    from a block near it, e.g. the ⋮⋮ menu's "change type". While a menu is

@@ -28,6 +28,7 @@
   .toolbar {
     margin-top: -56px;
     padding-left: 60px;
+    padding-right: 12px;
   }
 }
 
@@ -204,6 +205,12 @@
 @media (max-width: 640px) {
   .lockBanner {
     margin-inline: 16px;
+  }
+}
+
+@media (max-width: 599.98px) {
+  .lockBanner {
+    margin-inline: 12px;
   }
 }
 
