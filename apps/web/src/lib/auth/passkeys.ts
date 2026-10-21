@@ -11,7 +11,7 @@ import type {
   RegistrationResponseJSON,
 } from "@simplewebauthn/server";
 import { randomUUID } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { decrypt, encrypt, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
 import { getRequestContext, getRequestOrigin } from "@/lib/request";
@@ -44,11 +44,16 @@ export function passkeyNameAad(id: string): string {
 // the address it was registered at (the browser enforces this), so one
 // registered at the public URL doesn't sign in at an internal address, and a
 // site moved to another host needs its passkeys registered again.
-// Taking it from the request (not the public URL setting) is safe here, unlike
-// for links: the browser signs the origin it's actually on, so a forged Host
-// header only makes the server expect an origin no genuine answer has.
+// It's the request's Origin header, which the browser sets itself on every
+// Server Action call: the page's real address, whatever the reverse proxy
+// forwards as Host / X-Forwarded-Host / X-Forwarded-Proto (getRequestOrigin()
+// is only the fallback). Taking it from the request (not the public URL
+// setting) is safe here, unlike for links: the browser signs the origin it's
+// actually on, so a forged header only makes the server expect an origin no
+// genuine answer has.
 async function relyingParty(): Promise<{ id: string; origin: string }> {
-  const url = new URL(await getRequestOrigin());
+  const origin = (await headers()).get("origin");
+  const url = new URL(origin && origin !== "null" ? origin : await getRequestOrigin());
   return { id: url.hostname, origin: url.origin };
 }
 
