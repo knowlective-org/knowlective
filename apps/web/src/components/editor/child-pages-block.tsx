@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PageLink } from "./page-link";
 import { useFormatter, useTranslations } from "next-intl";
 import { createReactBlockSpec } from "@blocknote/react";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
@@ -99,10 +99,10 @@ function PageList({ pages, parentId, levels }: { pages: ChildPageItem[]; parentI
     <ul className={styles.pageList}>
       {children.map((p) => (
         <li key={p.id}>
-          <Link href={`/pages/${p.id}`} className={styles.pageLink} data-ui="ChildPagesBlock.link" data-id={p.id}>
+          <PageLink href={`/pages/${p.id}`} className={styles.pageLink} data-ui="ChildPagesBlock.link" data-id={p.id}>
             <span aria-hidden>{p.icon ?? "📄"}</span>
             <span>{displayTitle(p.title)}</span>
-          </Link>
+          </PageLink>
           {p.updatedAt && (
             <time className={styles.pageMeta} dateTime={p.updatedAt} title={t("updatedAt")} data-ui="ChildPagesBlock.updatedAt">
               {format.dateTime(new Date(p.updatedAt), { dateStyle: "short", timeStyle: "short" })}

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { HOME_PAGE_ID, authFile } from "./accounts";
-import { editorBody, openPage } from "./helpers";
+import { createPage, editorBody, openPage, trashOpenPage } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
@@ -59,5 +59,43 @@ test.describe("Wide screens", () => {
     await expect(page.getByTestId("AppShell.sidebar")).toBeVisible();
     await expect(page.getByTestId("AppShell.menuButton")).toBeHidden();
     await expect(page.getByTestId("AppShell.closeButton")).toBeHidden();
+  });
+
+});
+
+test.describe("Touch screens", () => {
+  test.use({ hasTouch: true });
+
+  // A phone browser dropped the first tap's click (BlockNote's side menu
+  // appears on the tap's simulated mousemove), so PageLink opens on touchend.
+  test("a link in a child page block opens on the first tap", async ({ page }) => {
+    const parent = await createPage(page, "E2E タップ");
+    await editorBody(page).click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("/kanban");
+    await page.getByRole("option", { name: /子ページボード/ }).click();
+    await page.getByTestId("ChildBoardBlock.createStatusButton").click();
+    await page.getByTestId("ChildBoardBlock.addCardButton").first().click();
+    await page.getByTestId("ChildBoardBlock.addCardInput").fill("タップで開くページ");
+    await page.keyboard.press("Enter");
+    const card = page.getByTestId("ChildBoardBlock.card").filter({ hasText: "タップで開くページ" });
+    const childId = (await card.getAttribute("data-id"))!;
+
+    // The empty line after the board (the body's middle is the board).
+    await editorBody(page).locator('[data-content-type="paragraph"]').last().click();
+    await page.keyboard.type("/child");
+    await page.getByRole("option", { name: /子ページ一覧/ }).click();
+    const link = page.locator(`[data-ui="ChildPagesBlock.link"][data-id="${childId}"]`);
+    await link.tap();
+    await expect(page).toHaveURL(new RegExp(`/pages/${childId}$`));
+    await expect(page.getByTestId("TitleField")).toHaveValue("タップで開くページ");
+
+    // The board's card opens the same way.
+    await openPage(page, parent.id);
+    await card.getByTestId("ChildBoardBlock.cardLink").tap();
+    await expect(page).toHaveURL(new RegExp(`/pages/${childId}$`));
+
+    await openPage(page, parent.id);
+    await trashOpenPage(page);
   });
 });

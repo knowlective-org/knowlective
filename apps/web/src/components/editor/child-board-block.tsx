@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PageLink } from "./page-link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
@@ -361,10 +361,10 @@ function Board({
                   data-ui="ChildBoardBlock.card"
                   data-id={row.id}
                 >
-                  <Link href={`/pages/${row.id}`} className={styles.cardLink} draggable={false} data-ui="ChildBoardBlock.cardLink">
+                  <PageLink href={`/pages/${row.id}`} className={styles.cardLink} draggable={false} data-ui="ChildBoardBlock.cardLink">
                     {row.icon ? `${row.icon} ` : ""}
                     {displayTitle(row.title)}
-                  </Link>
+                  </PageLink>
                   {row.canEdit && (
                     // The same move without dragging (keyboard, touch).
                     <select

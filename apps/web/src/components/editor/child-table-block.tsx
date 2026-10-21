@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PageLink } from "./page-link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import {
@@ -336,10 +336,10 @@ function ChildTable({
             {rows.map((row) => (
               <div key={row.id} className={styles.tr} role="row" data-ui="ChildTableBlock.row" data-id={row.id}>
                 <div className={styles.titleCell} role="cell">
-                  <Link href={`/pages/${row.id}`} className={styles.pageLink}>
+                  <PageLink href={`/pages/${row.id}`} className={styles.pageLink} data-ui="ChildTableBlock.pageLink" data-id={row.id}>
                     <span aria-hidden>{row.icon ?? "📄"}</span>
                     <span>{displayTitle(row.title)}</span>
-                  </Link>
+                  </PageLink>
                 </div>
                 {visible.map((c) => (
                   <div
