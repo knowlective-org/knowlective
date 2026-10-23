@@ -620,6 +620,36 @@ export async function saveSignupSettings(_prev: SignupSettingsState, formData: F
   return { saved: true };
 }
 
+export type ApiSettingState = { error?: string; saved?: boolean };
+
+// The public API (lib/api/): on or off, and the site roles that may issue
+// themselves keys. Both take effect on the next request (keys are checked
+// against them every time).
+export async function saveApiSettings(_prev: ApiSettingState, formData: FormData): Promise<ApiSettingState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const enabled = formData.get("enabled") === "on";
+  const roles = SITE_ROLE_ORDER.filter((r) => formData.getAll("roles").includes(r));
+  const before = await prisma.instanceConfig.findUniqueOrThrow({
+    where: { id: 1 },
+    select: { apiEnabled: true, apiKeyRoles: true },
+  });
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { apiEnabled: enabled, apiKeyRoles: roles } });
+  const rolesBefore = SITE_ROLE_ORDER.filter((r) => before.apiKeyRoles.includes(r));
+  if (before.apiEnabled !== enabled || rolesBefore.join() !== roles.join()) {
+    const audit = await auditTranslator();
+    const roleNames = roles.map((r) => audit(`roles.${r}`)).join(audit("common.listSeparator")) || "-";
+    await recordAudit(actor, "api.settings", audit("audit.apiSettings", { enabled: String(enabled), roles: roleNames }), {
+      enabled,
+      roles,
+    });
+  }
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+// Most to least privileged, for showing and storing roles in a fixed order.
+const SITE_ROLE_ORDER = ["SITE_ADMIN", "CONTENT_MANAGER", "USER"] as const satisfies readonly SiteRole[];
+
 export type PasskeySettingState = { error?: string; saved?: boolean };
 
 // Passkeys required for everyone signing in with a password (lib/auth/passkeys.ts).

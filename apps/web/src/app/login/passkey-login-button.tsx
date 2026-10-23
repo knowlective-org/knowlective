@@ -1,9 +1,9 @@
 "use client";
 
-import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
+import { startAuthentication } from "@simplewebauthn/browser";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
-import { isPasskeyPromptDismissed } from "@/components/passkey-register-form";
+import { useState } from "react";
+import { isPasskeyPromptDismissed, useWebAuthnSupport } from "@/components/passkey-register-form";
 import styles from "@/styles/ui.module.css";
 import { beginPasskeyLogin, finishPasskeyLogin } from "./actions";
 
@@ -13,8 +13,7 @@ export function PasskeyLoginButton({ next }: { next: string }) {
   const t = useTranslations("login");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [supported, setSupported] = useState(false);
-  useEffect(() => setSupported(browserSupportsWebAuthn()), []);
+  const supported = useWebAuthnSupport();
   if (!supported) return null;
 
   return (

@@ -2,11 +2,18 @@
 
 import { WebAuthnError, browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { beginPasskeyRegistration, finishPasskeyRegistration } from "@/app/(app)/account/passkey-actions";
 import styles from "@/styles/ui.module.css";
 
 const MAX_NAME_LENGTH = 60;
+
+// Whether this browser can use passkeys: known only in the browser (null
+// while rendering on the server and hydrating).
+const noSubscription = () => () => {};
+export function useWebAuthnSupport(): boolean | null {
+  return useSyncExternalStore(noSubscription, browserSupportsWebAuthn, () => null);
+}
 
 // The person closed the browser's passkey prompt, or it timed out: nothing
 // went wrong. (SimpleWebAuthn passes NotAllowedError through as the cause.)
@@ -23,9 +30,8 @@ export function PasskeyRegisterForm({ onRegistered }: { onRegistered: () => void
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Known only in the browser: null until checked (rendered as supported).
-  const [supported, setSupported] = useState<boolean | null>(null);
-  useEffect(() => setSupported(browserSupportsWebAuthn()), []);
+  // Null until known (rendered as supported).
+  const supported = useWebAuthnSupport();
 
   if (supported === false) {
     return (

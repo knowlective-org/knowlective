@@ -19,6 +19,7 @@ import { OPTION_COLORS, type ChildTableRow, type PropertyColumn, type SelectOpti
 import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-board-block.module.css";
+import { BLOCK_CONFIGS } from "./block-configs";
 
 // Child page board (kanban): the page's child pages as cards, in one column per
 // option of a select column — the same pages, columns and values as the
@@ -34,17 +35,7 @@ const NO_VALUE = "";
 const MAX_OPTION_NAME = 50;
 
 export const childBoardBlock = createReactBlockSpec(
-  {
-    type: "childBoard",
-    propSchema: {
-      // Shown above the board; empty shows the placeholder title.
-      title: { default: "" },
-      // Id of the select column the cards are grouped by. Empty (or a column
-      // that no longer exists) uses the page's first select column.
-      groupBy: { default: "" },
-    },
-    content: "none",
-  },
+  BLOCK_CONFIGS.childBoard,
   {
     render: ({ block, editor }) => (
       <ChildBoard

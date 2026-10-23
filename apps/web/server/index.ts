@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import next from "next";
 import { BASE_PATH } from "../src/lib/base-path";
 import { COLLAB_PATH, createCollab } from "./collab";
+import { startMarkdownBridge } from "./page-markdown";
 import { createRobots } from "./robots";
 
 // One process, one port: the Next.js app (pages, Server Actions) and the
@@ -22,6 +23,7 @@ async function main() {
   const httpServer = createServer();
   const app = next({ dev, dir: appDir, port, hostname: "localhost", httpServer });
   const handle = app.getRequestHandler();
+  startMarkdownBridge();
   const collab = await createCollab();
   const robots = createRobots();
   await app.prepare();

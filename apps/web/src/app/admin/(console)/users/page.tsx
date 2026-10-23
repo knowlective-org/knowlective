@@ -15,8 +15,9 @@ import { InvitationForm } from "../invitation-form";
 import { RowMenu, type RowMenuItem } from "../row-menu";
 import { SignupSettingsForm } from "../signup-settings-form";
 import { OidcSettingsForm } from "../oidc-settings-form";
+import { ApiSettingsForm } from "../api-settings-form";
 import { PasskeySettingsForm } from "../passkey-settings-form";
-import { changeSiteRole, disableUser, enableUser, openPasswordReset, resetPasskeys } from "./actions";
+import { changeSiteRole, disableUser, enableUser, openPasswordReset, resetPasskeys, revokeApiKeys } from "./actions";
 
 type UserRow = {
   id: string;
@@ -24,7 +25,7 @@ type UserRow = {
   name: string | null;
   siteRole: SiteRole;
   disabledAt: Date | null;
-  _count: { passkeys: number };
+  _count: { passkeys: number; apiKeys: number };
 };
 
 // The menu's text, in the viewer's language.
@@ -38,10 +39,12 @@ type UserMenuText = {
   disableConfirm: (who: string) => string;
   resetPasskeys: string;
   resetPasskeysConfirm: (who: string, count: number) => string;
+  revokeApiKeys: string;
+  revokeApiKeysConfirm: (who: string, count: number) => string;
 };
 
 // Site admins only: change role, password reset link, remove passkeys,
-// disable / enable.
+// revoke API keys, disable / enable.
 function userMenu(u: UserRow, text: UserMenuText): RowMenuItem[] {
   const who = u.name ?? u.email;
   const roleItems: RowMenuItem[] = SITE_ROLES.filter((r) => r !== u.siteRole).map((r) => ({
@@ -64,6 +67,17 @@ function userMenu(u: UserRow, text: UserMenuText): RowMenuItem[] {
           },
         ]
       : []),
+    ...(u._count.apiKeys > 0
+      ? [
+          {
+            label: text.revokeApiKeys,
+            action: revokeApiKeys,
+            fields: { userId: u.id },
+            danger: true,
+            confirm: text.revokeApiKeysConfirm(who, u._count.apiKeys),
+          },
+        ]
+      : []),
     u.disabledAt
       ? { label: text.enable, action: enableUser, fields: { userId: u.id } }
       : {
@@ -80,7 +94,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
   const { session, role, actor } = await requireAdmin();
   const allowedGroups = await manageableGroupIds(actor);
   const isSiteAdmin = role === "SITE_ADMIN";
-  const [groups, invitations, users, mailConfigured, signup, oidc, callbackUrl, t, format, passkeys] = await Promise.all([
+  const [groups, invitations, users, mailConfigured, signup, oidc, callbackUrl, t, format, passkeys, api] = await Promise.all([
     // Content managers can only hand out groups within trees they manage.
     prisma.group.findMany({
       // Built-in groups (all users) need no invitation: everyone is in them.
@@ -102,7 +116,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
               createdAt: true,
               disabledAt: true,
               groups: { select: { group: { select: { name: true } } } },
-              _count: { select: { passkeys: true } },
+              _count: { select: { passkeys: true, apiKeys: true } },
             },
           })
           .then(withEmails)
@@ -121,6 +135,12 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
           prisma.user.count({ where: { disabledAt: null, passkeys: { none: {} } } }),
         ]).then(([config, withoutPasskey]) => ({ required: config.passkeyRequired, withoutPasskey }))
       : Promise.resolve(null),
+    isSiteAdmin
+      ? Promise.all([
+          prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { apiEnabled: true, apiKeyRoles: true } }),
+          prisma.apiKey.count(),
+        ]).then(([config, keyCount]) => ({ enabled: config.apiEnabled, roles: config.apiKeyRoles, keyCount }))
+      : Promise.resolve(null),
   ]);
   const error = (await searchParams).error;
   const roleLabel = (r: SiteRole) => t(`roles.${r}`);
@@ -136,6 +156,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
     disableConfirm: (who) => t("admin.users.disableConfirm", { who }),
     resetPasskeys: t("admin.users.resetPasskeys"),
     resetPasskeysConfirm: (who, count) => t("admin.users.resetPasskeysConfirm", { who, count }),
+    revokeApiKeys: t("admin.users.revokeApiKeys"),
+    revokeApiKeysConfirm: (who, count) => t("admin.users.revokeApiKeysConfirm", { who, count }),
   };
   const signupRoleLabels = { USER: roleLabel("USER"), CONTENT_MANAGER: roleLabel("CONTENT_MANAGER") };
 
@@ -158,6 +180,18 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
         <section className={styles.section} data-ui="AdminUsersPage.oidcSection">
           <h2 className={styles.sectionTitle}>{t("admin.users.oidc")}</h2>
           <OidcSettingsForm values={oidc} callbackUrl={callbackUrl} roleLabels={signupRoleLabels} />
+        </section>
+      )}
+
+      {isSiteAdmin && api && (
+        <section className={styles.section} data-ui="AdminUsersPage.apiSection">
+          <h2 className={styles.sectionTitle}>{t("admin.users.api")}</h2>
+          <ApiSettingsForm
+            enabled={api.enabled}
+            roles={api.roles}
+            roleLabels={{ SITE_ADMIN: roleLabel("SITE_ADMIN"), CONTENT_MANAGER: roleLabel("CONTENT_MANAGER"), USER: roleLabel("USER") }}
+            keyCount={api.keyCount}
+          />
         </section>
       )}
 

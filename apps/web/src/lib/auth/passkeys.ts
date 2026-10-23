@@ -59,10 +59,10 @@ async function relyingParty(): Promise<{ id: string; origin: string }> {
 
 // ---- Challenge cookie --------------------------------------------------------
 // The challenge of the ceremony in progress, encrypted (it must not be
-// replaced by the browser), bound to its purpose and, for registration, to
-// the user. Single use: taken (and deleted) by the second step.
+// replaced by the browser), bound to its purpose and, for registration and
+// re-verification, to the user. Single use: taken (and deleted) by the second step.
 
-type Challenge = { challenge: string; purpose: "register" | "login"; userId: string | null; exp: number };
+type Challenge = { challenge: string; purpose: "register" | "login" | "reauth"; userId: string | null; exp: number };
 
 async function putChallenge(challenge: Omit<Challenge, "exp">): Promise<void> {
   const sealed = encrypt(
@@ -180,8 +180,44 @@ export async function finishAuthentication(
 ): Promise<{ userId: string } | { error: "expired" | "invalid" }> {
   const expectedChallenge = await takeChallenge("login", null);
   if (!expectedChallenge) return { error: "expired" };
+  return verifyAssertion(response, expectedChallenge, null);
+}
+
+// ---- Confirming who the signed-in user is ------------------------------------
+// Before something that needs more than a session (issuing an API key): the
+// same check as signing in, with one of the user's own passkeys.
+
+export async function beginReauthentication(user: CurrentUser): Promise<PublicKeyCredentialRequestOptionsJSON> {
+  const rp = await relyingParty();
+  const own = await prisma.userPasskey.findMany({
+    where: { userId: user.id },
+    select: { credentialId: true, transports: true },
+  });
+  const options = await generateAuthenticationOptions({
+    rpID: rp.id,
+    userVerification: "required",
+    allowCredentials: own.map((p) => ({ id: p.credentialId, transports: p.transports })),
+  });
+  await putChallenge({ challenge: options.challenge, purpose: "reauth", userId: user.id });
+  return options;
+}
+
+export async function finishReauthentication(user: CurrentUser, response: AuthenticationResponseJSON): Promise<boolean> {
+  const expectedChallenge = await takeChallenge("reauth", user.id);
+  if (!expectedChallenge) return false;
+  const result = await verifyAssertion(response, expectedChallenge, user.id);
+  return "userId" in result;
+}
+
+// A passkey's signature over the challenge; `ownerId`: it must be one of that
+// user's passkeys.
+async function verifyAssertion(
+  response: AuthenticationResponseJSON,
+  expectedChallenge: string,
+  ownerId: string | null,
+): Promise<{ userId: string } | { error: "invalid" }> {
   const passkey = await prisma.userPasskey.findUnique({ where: { credentialId: response.id } });
-  if (!passkey) return { error: "invalid" };
+  if (!passkey || (ownerId !== null && passkey.userId !== ownerId)) return { error: "invalid" };
   const rp = await relyingParty();
   try {
     const result = await verifyAuthenticationResponse({
@@ -203,7 +239,7 @@ export async function finishAuthentication(
       data: { counter: BigInt(result.authenticationInfo.newCounter), lastUsedAt: new Date() },
     });
   } catch (err) {
-    console.error("[passkeys] sign-in not verified", err);
+    console.error("[passkeys] signature not verified", err);
     return { error: "invalid" };
   }
   return { userId: passkey.userId };

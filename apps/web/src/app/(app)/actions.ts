@@ -2,13 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { MAX_PAGE_DEPTH, atLeast, createCollabToken, getPageAccess } from "shared";
+import { MAX_PAGE_DEPTH, createCollabToken } from "shared";
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
-import { notifyChildrenChanged } from "@/lib/collab-events";
 import { normalizeTitle } from "@/lib/page-title";
-import { nextSortOrder } from "@/lib/page-move";
-import { reindexPage } from "@/lib/search-index";
+import { type CreatePageError, insertChildPage } from "@/lib/page-create";
 import { endUserSession, getCurrentUser, requireUser } from "@/lib/auth/session";
 import { getAllowedUploadExtensions } from "@/lib/storage";
 
@@ -54,57 +52,19 @@ export async function saveRootOrder(rootIds: string[]): Promise<{ error?: string
   return {};
 }
 
-// Creates a child page under `parentId`. Needs EDIT on the parent; the child
-// inherits the parent's grants, so no grant is added.
-async function insertChildPage(
-  userId: string,
-  parentId: unknown,
-  title: string,
-): Promise<{ id: string } | { error: string }> {
-  const parentAccess = typeof parentId === "string" ? await getPageAccess(prisma, userId, parentId) : null;
-  // Same message for missing and forbidden, so page ids can't be probed.
-  if (typeof parentId !== "string" || !parentAccess || !atLeast(parentAccess.access, "EDIT")) {
-    return { error: (await getTranslations("pageErrors"))("cannotCreateHere") };
-  }
-  // A lock on the parent alone doesn't stop pages being added under it; one
-  // that covers its child pages does (the new page would be born locked).
-  if (parentAccess.lock?.coversChildren) {
-    return { error: (await getTranslations("pageErrors"))("lockedWithChildren") };
-  }
-
-  // Depth of the parent (root page = 0), walked in memory over the root's
-  // tree. The cap also stops a corrupted cycle.
-  const tree = await prisma.page.findMany({
-    where: { rootId: parentAccess.rootId },
-    select: { id: true, parentId: true },
-  });
-  const parentOf = new Map(tree.map((p) => [p.id, p.parentId]));
-  let depth = 0;
-  for (let cursor = parentOf.get(parentId) ?? null; cursor; cursor = parentOf.get(cursor) ?? null) {
-    if (++depth >= MAX_PAGE_DEPTH) break;
-  }
-  if (depth + 1 > MAX_PAGE_DEPTH) {
-    return { error: (await getTranslations("pageErrors"))("tooDeep", { max: MAX_PAGE_DEPTH }) };
-  }
-
-  const page = await prisma.page.create({
-    // An empty title shows as "untitled" until renamed. The collab server seeds the
-    // document's title from this when the page is first opened.
-    // Last among its siblings.
-    data: { title, rootId: parentAccess.rootId, parentId, createdById: userId, sortOrder: await nextSortOrder(parentId) },
-    select: { id: true },
-  });
-  // Findable by title right away, before anyone opens it.
-  await reindexPage(prisma, page.id);
-  notifyChildrenChanged(parentId);
-  return page;
+// The page creation's error, in the request's language.
+async function createError(result: { error: CreatePageError }): Promise<{ error: string }> {
+  const t = await getTranslations("pageErrors");
+  if (result.error === "lockedWithChildren") return { error: t("lockedWithChildren") };
+  if (result.error === "tooDeep") return { error: t("tooDeep", { max: MAX_PAGE_DEPTH }) };
+  return { error: t("cannotCreateHere") };
 }
 
 // Creates an untitled child page under `parentId` and opens it (the sidebar's + button).
 export async function createChildPage(parentId: string): Promise<{ error: string }> {
   const user = await requireUser();
   const result = await insertChildPage(user.id, parentId, "");
-  if ("error" in result) return result;
+  if ("error" in result) return createError(result);
   redirect(`/pages/${result.id}`);
 }
 
@@ -112,5 +72,6 @@ export async function createChildPage(parentId: string): Promise<{ error: string
 // table's "new page" row).
 export async function createChildPageInPlace(parentId: string, title: string): Promise<{ id: string } | { error: string }> {
   const user = await requireUser();
-  return insertChildPage(user.id, parentId, normalizeTitle(typeof title === "string" ? title : ""));
+  const result = await insertChildPage(user.id, parentId, normalizeTitle(typeof title === "string" ? title : ""));
+  return "error" in result ? createError(result) : result;
 }

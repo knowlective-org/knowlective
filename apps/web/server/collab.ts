@@ -255,6 +255,45 @@ export async function createCollab() {
         throw err;
       }
     },
+    // Replaces the page's title and/or body (the public API), through the
+    // live document like a restore, so everyone editing sees it. `body` is a
+    // Yjs update of a document holding just the BlockNote fragment. Edits not
+    // yet in a version are saved as one first, so the previous content stays
+    // in the history; the change itself is recorded for `userId` (onChange)
+    // and saved with the next version. Access and locks are checked by the caller.
+    async replaceContent(pageId, userId, content) {
+      const connection = await hocuspocus.openDirectConnection(pageId, { userId });
+      try {
+        const document = connection.document!;
+        const before = pendingEditors.get(pageId);
+        if (before?.size) {
+          pendingEditors.delete(pageId);
+          await saveVersion(pageId, document, "AUTO", [...before]);
+        }
+        const body = content.body ? new Y.Doc() : null;
+        if (body) Y.applyUpdate(body, content.body!);
+        await connection.transact((doc) => {
+          if (body) {
+            const fragment = doc.getXmlFragment("blocknote");
+            fragment.delete(0, fragment.length);
+            fragment.insert(
+              0,
+              body
+                .getXmlFragment("blocknote")
+                .toArray()
+                .map((node) => (node as Y.XmlElement | Y.XmlText).clone()),
+            );
+          }
+          if (content.title !== undefined) {
+            const title = doc.getText(TITLE_FIELD);
+            title.delete(0, title.length);
+            title.insert(0, content.title);
+          }
+        });
+      } finally {
+        await connection.disconnect();
+      }
+    },
     liveState(pageId) {
       const document = hocuspocus.documents.get(pageId);
       return document ? Y.encodeStateAsUpdate(document) : null;

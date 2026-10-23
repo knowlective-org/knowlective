@@ -38,6 +38,7 @@ import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-blocks.module.css";
 import { showAlert, showConfirm } from "@/components/dialog";
+import { BLOCK_CONFIGS } from "./block-configs";
 
 // Child page table: one row per child page. Columns (and their values) live
 // in the database, shared by every table on the same page; this block only
@@ -47,27 +48,10 @@ import { showAlert, showConfirm } from "@/components/dialog";
 // extension treats any <td>/<th> under the mouse as part of a BlockNote
 // table block and throws on ours.
 
-const DEFAULT_HIDDEN: BuiltinColumn[] = ["createdAt", "createdBy"];
-
 type Sort = { key: string; dir: "asc" | "desc" } | null;
 
 export const childTableBlock = createReactBlockSpec(
-  {
-    type: "childTable",
-    propSchema: {
-      // Shown above the table; empty shows the placeholder title.
-      title: { default: "" },
-      // JSON array of column keys (built-in names or column ids) in display
-      // order, the title column excluded (always first). Keys missing from it, e.g.
-      // newly added columns, follow in their default order.
-      order: { default: "" },
-      // JSON array of column keys (built-in names or column ids).
-      hidden: { default: JSON.stringify(DEFAULT_HIDDEN) },
-      // "<key>:asc" / "<key>:desc", or "" for creation order.
-      sort: { default: "" },
-    },
-    content: "none",
-  },
+  BLOCK_CONFIGS.childTable,
   {
     render: ({ block, editor }) => (
       <ChildTable

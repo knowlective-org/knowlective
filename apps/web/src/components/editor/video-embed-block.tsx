@@ -5,6 +5,7 @@ import { createReactBlockSpec } from "@blocknote/react";
 import { safeHttpUrl } from "./link-preview-block";
 import { parseVideoUrl } from "./video-url";
 import styles from "./video-embed-block.module.css";
+import { BLOCK_CONFIGS } from "./block-configs";
 
 // Video embed: a video on YouTube, Vimeo or Niconico, played in the page.
 // The document holds only the URL that was pasted; which player to show is
@@ -12,13 +13,7 @@ import styles from "./video-embed-block.module.css";
 // those sites whatever is put in the prop. (A link to a video file becomes
 // BlockNote's own video block instead.)
 export const videoEmbedBlock = createReactBlockSpec(
-  {
-    type: "videoEmbed",
-    propSchema: {
-      url: { default: "" },
-    },
-    content: "none",
-  },
+  BLOCK_CONFIGS.videoEmbed,
   {
     render: ({ block, editor }) => (
       <VideoEmbed

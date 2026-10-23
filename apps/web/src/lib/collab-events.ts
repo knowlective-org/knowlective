@@ -24,6 +24,7 @@ type CollabBridge = {
   reconnectDocuments(pageIds: string[]): void;
   restoreVersion(pageId: string, versionId: string, userId: string): Promise<void>;
   saveCurrentVersion(pageId: string): Promise<void>;
+  replaceContent(pageId: string, userId: string, content: { title?: string; body?: Uint8Array }): Promise<void>;
   liveState(pageId: string): Uint8Array | null;
 };
 
@@ -71,6 +72,19 @@ export async function saveCurrentVersion(pageId: string) {
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   if (!bridge) throw new Error("The collaboration server is not running");
   await bridge.saveCurrentVersion(pageId);
+}
+
+// Replaces a page's title and/or body (`body`: a Yjs update of a document
+// holding the BlockNote fragment), as `userId`, through the live document.
+// Throws outside the custom server.
+export async function replacePageContent(
+  pageId: string,
+  userId: string,
+  content: { title?: string; body?: Uint8Array },
+): Promise<void> {
+  const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
+  if (!bridge) throw new Error("The collaboration server is not running");
+  await bridge.replaceContent(pageId, userId, content);
 }
 
 // The page's document as currently open in the collab server (including

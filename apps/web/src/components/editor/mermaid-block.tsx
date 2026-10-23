@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import styles from "./mermaid-block.module.css";
+import { BLOCK_CONFIGS } from "./block-configs";
 
 // Wait this long after the last keystroke before redrawing / saving.
 const RENDER_DELAY_MS = 300;
@@ -29,13 +30,7 @@ export function loadMermaid(): Promise<Mermaid> {
 // `code` prop (a plain string: when two people edit it at once, the last save
 // wins).
 export const mermaidBlock = createReactBlockSpec(
-  {
-    type: "mermaid",
-    propSchema: {
-      code: { default: "" },
-    },
-    content: "none",
-  },
+  BLOCK_CONFIGS.mermaid,
   {
     render: ({ block, editor }) => (
       <MermaidDiagram

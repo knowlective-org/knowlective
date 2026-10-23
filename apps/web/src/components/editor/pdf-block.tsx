@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import { resolveAppUrl, withBasePath } from "@/lib/base-path";
 import styles from "./pdf-block.module.css";
+import { BLOCK_CONFIGS } from "./block-configs";
 
 // The tallest a page is drawn, so a portrait page doesn't fill the screen.
 const MAX_PAGE_HEIGHT = 480;
@@ -29,14 +30,7 @@ function loadPdfJs(): Promise<PdfJs> {
 // file's URL (/api/files/<id>, which checks the viewer's access) and name;
 // the page being looked at is each viewer's own.
 export const pdfBlock = createReactBlockSpec(
-  {
-    type: "pdf",
-    propSchema: {
-      url: { default: "" },
-      name: { default: "" },
-    },
-    content: "none",
-  },
+  BLOCK_CONFIGS.pdf,
   {
     // The file is stored as "/api/files/<id>", without the base path.
     render: ({ block }) => <PdfViewer url={resolveAppUrl(block.props.url)} name={block.props.name} />,

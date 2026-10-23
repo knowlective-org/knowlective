@@ -198,6 +198,13 @@ const ja: MessageShape<typeof en> = {
         proxyCredentials: "プロキシのユーザー名とパスワードは、URL に書かずに下の欄に入力してください。",
       },
     },
+    api: {
+      enable: "API を有効にする",
+      enableNote: "プログラムから /api/v1 でページを読み書きできるようにします。キーは個人ごとに発行し、キーの持ち主と同じ権限で動きます（それ以上にはなりません）。オフにすると、すべてのリクエストを拒否し、キーも発行できません（発行済みのキーは残り、オンに戻せばまた使えます）。",
+      roles: "キーを発行できるロール",
+      rolesNote: "持ち主のロールがこの一覧から外れると、そのキーは使えなくなります。無効化したユーザーのキーは使えません。",
+      keyCount: "{count, plural, =0 {発行済みの API キーはありません。} other {発行済みの API キー: # 件}}",
+    },
     passkeys: {
       require: "パスキーを必須にする",
       requireNote:
@@ -314,6 +321,9 @@ const ja: MessageShape<typeof en> = {
       signup: "アカウント登録",
       oidc: "シングルサインオン（OpenID Connect）",
       passkeys: "パスキー",
+      api: "API",
+      revokeApiKeys: "API キーを失効",
+      revokeApiKeysConfirm: "{who} の API キー（{count, number} 件）をすべて失効させますか？\nこれらを使っているプログラムはすぐに使えなくなります。",
       resetPasskeys: "パスキーを削除",
       resetPasskeysConfirm:
         "{who} のパスキー（{count, number} 件）をすべて削除しますか？\nログイン中のセッションは終了します。パスワードでログインし直し、サイトで必須なら新しいパスキーを登録します。",

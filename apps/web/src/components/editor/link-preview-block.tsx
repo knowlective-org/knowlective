@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { createReactBlockSpec } from "@blocknote/react";
 import styles from "./link-preview-block.module.css";
+import { BLOCK_CONFIGS } from "./block-configs";
 
 // Only http(s) links are shown as links: the props come from the shared
 // document, where anyone who can edit the page can put anything.
@@ -28,17 +29,7 @@ export function singleUrl(text: string): string | null {
 // server, for the person who pasted the URL), and kept in the document — the
 // card doesn't ask the site again each time someone opens the page.
 export const linkPreviewBlock = createReactBlockSpec(
-  {
-    type: "linkPreview",
-    propSchema: {
-      url: { default: "" },
-      title: { default: "" },
-      description: { default: "" },
-      image: { default: "" },
-      siteName: { default: "" },
-    },
-    content: "none",
-  },
+  BLOCK_CONFIGS.linkPreview,
   {
     render: ({ block, editor }) => (
       <LinkPreviewCard

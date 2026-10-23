@@ -9,6 +9,7 @@ import type { ChildPageItem } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-blocks.module.css";
+import { BLOCK_CONFIGS } from "./block-configs";
 
 const DEPTHS = [1, 2, 3] as const;
 
@@ -16,15 +17,7 @@ const DEPTHS = [1, 2, 3] as const;
 // settings (title, how many levels) are stored in the document; the list
 // itself is fetched with the viewer's permissions.
 export const childPagesBlock = createReactBlockSpec(
-  {
-    type: "childPages",
-    propSchema: {
-      // Shown above the list; empty shows the placeholder title.
-      title: { default: "" },
-      depth: { default: 1 },
-    },
-    content: "none",
-  },
+  BLOCK_CONFIGS.childPages,
   {
     render: ({ block, editor }) => (
       <ChildPagesList

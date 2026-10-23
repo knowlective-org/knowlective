@@ -18,6 +18,8 @@ export type {
   UserSession,
   LoginMethod,
   UserPasskey,
+  ApiKey,
+  ApiKeyScope,
   Invitation,
   UserLoginAttempt,
   PasswordResetToken,

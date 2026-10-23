@@ -15,6 +15,7 @@ import { linkPreviewBlock } from "./link-preview-block";
 import { mermaidBlock } from "./mermaid-block";
 import { pdfBlock } from "./pdf-block";
 import { videoEmbedBlock } from "./video-embed-block";
+import { HEADING_LEVELS } from "./block-configs";
 
 // The editor's block types: BlockNote's defaults plus knowlective's own. Block
 // types are saved in page documents, so a custom type must never be removed
@@ -24,7 +25,7 @@ import { videoEmbedBlock } from "./video-embed-block";
 // in the schema it isn't offered (slash menu, toolbar, "# ", Ctrl+Alt+1);
 // H1s that still arrive (pasted HTML, older pages) are turned into H2 by the
 // editor (demoteH1 in collaborative-editor.tsx).
-export const HEADING_LEVELS = [2, 3, 4, 5, 6] as const;
+export { HEADING_LEVELS };
 
 export const editorSchema = BlockNoteSchema.create({
   blockSpecs: {

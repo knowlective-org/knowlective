@@ -87,6 +87,19 @@ export async function resetPasskeys(formData: FormData): Promise<void> {
   revalidatePath("/admin", "layout");
 }
 
+// Revokes all of a user's API keys at once (e.g. a key leaked, or the person
+// left). Their own screen can revoke one at a time.
+export async function revokeApiKeys(formData: FormData): Promise<void> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const userId = formData.get("userId");
+  if (typeof userId !== "string") return;
+  const { count } = await prisma.apiKey.deleteMany({ where: { userId } });
+  if (count > 0) {
+    await audit(actor, "user.apikeys.revoke", userId, (t, who) => t("audit.apiKeysRevoke", { who, count }));
+  }
+  revalidatePath("/admin", "layout");
+}
+
 export async function changeSiteRole(formData: FormData): Promise<void> {
   const { session, actor } = await requireAdmin(["SITE_ADMIN"]);
   const userId = formData.get("userId");

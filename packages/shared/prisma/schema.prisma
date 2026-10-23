@@ -67,6 +67,7 @@ model User {
   uploadedFiles   FileObject[]
   adminSessions   AdminSession[]
   passkeys        UserPasskey[]
+  apiKeys         ApiKey[]
 
   // TOTP secret for this user's two-step verification, encrypted with the DEK
   // (AAD bound to the user id). Required for site admins signing in to /admin.
@@ -345,6 +346,13 @@ model InstanceConfig {
   // single sign-on are exempt. Off: passkeys are optional (account screen).
   passkeyRequired Boolean @default(false)
 
+  // The public API (/api/v1, lib/api/): off, every request is refused and no
+  // keys can be issued (existing keys are kept, and work again once it's on).
+  apiEnabled Boolean @default(false)
+  // Site roles that may issue themselves API keys. A key stops working when
+  // its owner's role is taken off this list.
+  apiKeyRoles SiteRole[] @default([SITE_ADMIN, CONTENT_MANAGER, USER])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -441,6 +449,34 @@ model UserPasskey {
   nameEnc      Bytes
   createdAt    DateTime @default(now())
   lastUsedAt   DateTime?
+
+  @@index([userId])
+}
+
+enum ApiKeyScope {
+  READ
+  WRITE
+}
+
+// A personal API key: requests made with it act as its owner, with the
+// owner's page permissions (never more), limited further by its scope (READ:
+// reading only). Only the SHA-256 hash of the key is stored; the key is shown
+// once when issued. Stops working when it expires, when the owner is disabled
+// or their role may no longer hold keys, and while the API is off.
+model ApiKey {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String      @unique
+  // The start of the key ("kn_" + a few characters), to tell keys apart.
+  prefix     String
+  // The name the owner gave it, encrypted with the DEK (AAD: apiKeyNameAad(id)).
+  nameEnc    Bytes
+  scope      ApiKeyScope
+  createdAt  DateTime    @default(now())
+  // Null: never expires.
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
 
   @@index([userId])
 }

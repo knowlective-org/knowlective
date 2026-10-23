@@ -197,6 +197,13 @@ export default {
         proxyCredentials: "Enter the proxy's user name and password in the fields below, not in the URL.",
       },
     },
+    api: {
+      enable: "Turn on the API",
+      enableNote: "Programs read and change pages through /api/v1 with personal API keys, each acting as its owner (their permissions, never more). Off: every request is refused and no keys can be issued; existing keys are kept and work again once it's back on.",
+      roles: "Roles that can issue keys",
+      rolesNote: "A key stops working when its owner's role is taken off this list. Keys of disabled users never work.",
+      keyCount: "{count, plural, =0 {No API keys issued.} one {# API key issued.} other {# API keys issued.}}",
+    },
     passkeys: {
       require: "Require passkeys",
       requireNote:
@@ -314,6 +321,9 @@ export default {
       signup: "Registration",
       oidc: "Single sign-on (OpenID Connect)",
       passkeys: "Passkeys",
+      api: "API",
+      revokeApiKeys: "Revoke API keys",
+      revokeApiKeysConfirm: "Revoke all of {who}'s API keys ({count, number})?\nPrograms using them stop working at once.",
       resetPasskeys: "Remove passkeys",
       resetPasskeysConfirm:
         "Remove all of {who}'s passkeys ({count, number})?\nTheir sessions end. They log in with their password again, and register a new passkey if the site requires one.",

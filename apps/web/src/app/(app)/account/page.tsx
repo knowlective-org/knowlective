@@ -5,13 +5,19 @@ import { isLocale } from "@/i18n/locales";
 import { prisma } from "@/lib/db";
 import { ownPasswordResetAvailability } from "@/lib/auth/own-password-reset";
 import { PASSWORD_RESET_TTL_MINUTES } from "@/lib/auth/password-reset";
+import { canIssueApiKeys, getApiSettings, listApiKeys } from "@/lib/api/keys";
+import { OIDC_START_PATH } from "@/lib/auth/oidc";
 import { listPasskeys, passkeyRequiredSetting } from "@/lib/auth/passkeys";
+import { reauthMethods } from "@/lib/auth/reauth";
+import { withBasePath } from "@/lib/base-path";
+import { getPublicUrl } from "@/lib/site-url";
 import { getSessionUser, requireUser } from "@/lib/auth/session";
 import { loadSidebar } from "@/lib/sidebar-data";
 import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { LocaleForm } from "./locale-form";
+import { ApiKeySection } from "./api-key-section";
 import { PasskeySection } from "./passkey-section";
 import { OwnPasswordResetForm } from "./password-reset-form";
 
@@ -21,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 // The signed-in user's own account: who they are, their display language,
-// their passkeys, and resetting their password.
+// their passkeys and API keys, and resetting their password.
 export default async function AccountPage() {
   await connection();
   const user = await requireUser("/account");
@@ -34,6 +40,14 @@ export default async function AccountPage() {
     passkeyRequiredSetting(),
     getSessionUser(),
   ]);
+  const [apiKeys, canIssue, apiSettings, methods, publicUrl] = await Promise.all([
+    listApiKeys(user.id),
+    canIssueApiKeys(user.siteRole),
+    getApiSettings(),
+    reauthMethods(user, session!.session),
+    getPublicUrl(),
+  ]);
+  const now = new Date();
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={null} />}>
@@ -71,6 +85,29 @@ export default async function AccountPage() {
             required={passkeyRequired && !session?.passkeyExempt}
           />
         </section>
+
+        {(canIssue || apiKeys.length > 0) && (
+          <section className={styles.section} data-ui="AccountPage.apiKeySection">
+            <h2 className={styles.sectionTitle}>{t("account.apiKeys.heading")}</h2>
+            <ApiKeySection
+              keys={apiKeys.map((k) => ({
+                id: k.id,
+                name: k.name,
+                prefix: k.prefix,
+                scope: k.scope,
+                createdAt: k.createdAt.toISOString(),
+                expiresAt: k.expiresAt?.toISOString() ?? null,
+                expired: k.expiresAt !== null && k.expiresAt <= now,
+                lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+              }))}
+              methods={methods}
+              // A plain link (a Route Handler, not a page): the base path by hand.
+              ssoAgainHref={withBasePath(`${OIDC_START_PATH}?next=${encodeURIComponent("/account")}`)}
+              apiUrl={`${publicUrl}/api/v1`}
+              canIssue={canIssue && apiSettings.enabled}
+            />
+          </section>
+        )}
 
         <section className={styles.section} data-ui="AccountPage.passwordSection">
           <h2 className={styles.sectionTitle}>{t("account.passwordReset.heading")}</h2>

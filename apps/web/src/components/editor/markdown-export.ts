@@ -1,5 +1,6 @@
 import type { ChildPageItem } from "@/lib/page-property-types";
-import { displayTitle } from "@/lib/page-title";
+// Relative: also loaded by the custom server (server/page-markdown.ts).
+import { displayTitle } from "../../lib/page-title";
 
 // Getting a page's blocks ready for BlockNote's exporters (Markdown, PDF).
 

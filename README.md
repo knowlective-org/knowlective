@@ -281,6 +281,34 @@ Instead of a password, you can log in with a passkey (fingerprint, face, or the 
 - With "Single sign-on only", passkeys, like passwords, log in site admins only
 - Logging in to the admin console (`/admin`) still takes a password plus an authenticator app (unaffected by the passkey settings)
 
+## API
+
+Programs can read and change pages over HTTP (`/api/v1`) with a personal API key.
+
+- A site admin turns it on under "Users" → "API" in the admin console (off by default), and chooses the roles that can issue keys (all of them by default)
+- Each person issues their own keys under "Account" in the sidebar: a name, the access ("Read only" or "Read and write"), and an expiry (30, 90 or 365 days, or never). Issuing asks them to confirm it's them: with a passkey, their password, or a single sign-on login (a login in the last 10 minutes counts). The key is shown once
+- A request with a key acts as its owner: exactly the pages they can see and edit, never more. Locked pages can't be changed
+- A key stops working when it expires, is revoked (by its owner, or by a site admin from the user list: "⋯" → "Revoke API keys"), its owner is disabled, their role is taken off the list, or the API is turned off. Only a hash of the key is stored
+- Issuing and revoking keys and changing the API settings are recorded in the audit log. Each key is limited to 120 requests a minute
+
+| Request | |
+|---|---|
+| `GET /api/v1/me` | The key's owner and the key |
+| `GET /api/v1/pages` | Every page the owner can see (`id`, `title`, `parentId`, `rootId`, `access`, `locked`) |
+| `GET /api/v1/pages/<id>` | One page, with its content as Markdown (`markdown`) |
+| `POST /api/v1/pages` | A new page: `{ "parentId": "...", "title": "...", "markdown": "..." }` (`title` and `markdown` optional). Created last under the parent |
+| `PATCH /api/v1/pages/<id>` | Replaces the title and/or the whole body: `{ "title": "...", "markdown": "..." }` |
+
+```bash
+curl -H "Authorization: Bearer kn_..." https://<public URL>/api/v1/pages
+curl -X PATCH -H "Authorization: Bearer kn_..." -H "Content-Type: application/json" \
+  -d '{"markdown": "## Minutes\n\n- decided ..."}' https://<public URL>/api/v1/pages/<id>
+```
+
+- The title is separate from the body: headings in the Markdown map one to one (`## ` is the page's H2; a `# ` becomes an H2). What `GET` returns can be sent back unchanged. ```` ```mermaid ```` blocks are diagrams; child page lists and tables come out as links to the child pages the owner can see
+- Changes go through the live document, so people with the page open see them at once, and the content from before is kept in the page's history
+- Errors are `{ "error": { "code": "...", "message": "..." } }` (`invalid_key`, `insufficient_scope`, `not_found`, `forbidden`, `page_locked`, `rate_limited`, `api_disabled`, …)
+
 ## Admin console (`/admin`)
 
 Each user has one site-wide role. Permission to view and edit pages comes from groups, not roles (even a site admin can't see pages without a permission).
@@ -300,7 +328,7 @@ First steps: log in with the master password → under "Users", invite yourself 
 
 Groups are for giving permissions on page trees. The "Groups" page creates, renames and deletes them and manages their members. Content managers can only handle groups whose permissions are all on pages they manage (including groups with no permissions yet). The same goes for the groups they can choose when inviting.
 
-Changes to roles, enabling/disabling accounts, password resets, registering and removing passkeys, group members, page permissions, knowledge root creation and invitations are recorded in the audit log, which can be seen on the "Security" page (newest first, 20 per page).
+Changes to roles, enabling/disabling accounts, password resets, registering and removing passkeys, issuing and revoking API keys, group members, page permissions, knowledge root creation and invitations are recorded in the audit log, which can be seen on the "Security" page (newest first, 20 per page).
 
 - **Login:** master password + the authenticator app's 6-digit code
 - **Rate limit:** 5 failures within 15 minutes from the same address lock that address
