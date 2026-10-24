@@ -1,6 +1,7 @@
 "use server";
 
-import { MAX_PAGE_DEPTH, atLeast, getVisibleTrees } from "shared";
+import { MAX_PAGE_DEPTH, atLeast } from "shared";
+import { getVisibleTrees } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";

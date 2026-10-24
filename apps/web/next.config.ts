@@ -14,6 +14,10 @@ if (basePath !== "" && !/^(\/[A-Za-z0-9._~-]+)+$/.test(basePath)) {
 const nextConfig: NextConfig = {
   // packages/shared is consumed as TypeScript source (no build step).
   transpilePackages: ["shared"],
+  // Loaded by Node as is on the server, not bundled: reading attachments'
+  // text (lib/file-text.ts) uses pdf.js's own worker module, which bundling
+  // breaks. The browser's PDF viewer is unaffected.
+  serverExternalPackages: ["pdfjs-dist"],
   // The sub-path the app is served under ("" = the root). Fixed when the app
   // is built: Next.js writes it into the browser's code. Our own code reads it
   // from NEXT_PUBLIC_BASE_PATH (src/lib/base-path.ts).

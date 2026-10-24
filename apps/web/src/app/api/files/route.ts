@@ -2,7 +2,8 @@ import type { NextRequest } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { atLeast } from "shared";
 import { prisma } from "@/lib/db";
-import { reindexPage } from "@/lib/search-index";
+import { fileUploaded } from "@/lib/file-search";
+import { requestNetworkCaps } from "@/lib/page-access";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getAllowedUploadExtensions, getMaxUploadSizeMb, getStorageConfig, putFile } from "@/lib/storage";
@@ -39,6 +40,9 @@ export async function POST(req: NextRequest) {
 
   const user = await getCurrentUser();
   if (!user) return json(401, { error: t("login") });
+
+  // Attaching not allowed from this network (lib/network-policy.ts).
+  if (!(await requestNetworkCaps()).upload) return json(403, { error: t("network") });
 
   const pageId = req.nextUrl.searchParams.get("pageId");
   const page = pageId ? await findAccessiblePage(user.id, pageId) : null;
@@ -91,7 +95,9 @@ export async function POST(req: NextRequest) {
     return json(502, { error: t("failed") });
   }
 
-  // Attachment names are searchable.
-  await reindexPage(prisma, page.id);
+  // Attachments are searchable by name and content once the page shows them
+  // (the collab server reindexes when the block gets this URL); the content is
+  // read in the background.
+  fileUploaded(record.id, bytes);
   return json(201, { url: `/api/files/${record.id}` });
 }

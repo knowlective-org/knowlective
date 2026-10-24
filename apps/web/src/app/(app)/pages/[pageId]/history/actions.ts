@@ -1,7 +1,8 @@
 "use server";
 
 import { getTranslations } from "next-intl/server";
-import { atLeast, decrypt, encrypt, getPageAccess, loadDataKey } from "shared";
+import { atLeast, decrypt, encrypt, loadDataKey } from "shared";
+import { getPageAccess } from "@/lib/page-access";
 import { auditTranslator } from "@/i18n/audit";
 import { displayTitleWith } from "@/i18n/display-title";
 import { prisma } from "@/lib/db";

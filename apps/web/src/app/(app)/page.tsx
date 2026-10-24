@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { getPageAccess } from "shared";
+import { getPageAccess } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { landingPageFor } from "@/lib/landing-page";

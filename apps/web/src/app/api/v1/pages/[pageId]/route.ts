@@ -1,4 +1,5 @@
-import { atLeast, canEditPage, getPageAccess } from "shared";
+import { atLeast, canEditPage } from "shared";
+import { getPageAccess } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { apiError, apiJson, pageDetail, readPageInput, withApiKey } from "@/lib/api/http";
 import { markdownToBody } from "@/lib/api/page-content";

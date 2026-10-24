@@ -1,4 +1,4 @@
-import { getPageAccess, getVisibleTrees } from "shared";
+import { getPageAccess, getVisibleTrees } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { getDisplayTitle } from "@/i18n/display-title";
 import { publicPageIds, publicPageOptions } from "@/lib/public-pages";

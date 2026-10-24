@@ -1,13 +1,5 @@
-import {
-  MAX_PAGE_DEPTH,
-  PAGE_ORDER,
-  type PageAccess,
-  type Prisma,
-  atLeast,
-  getGroupAccessForPage,
-  getTreeWithAccess,
-  isPersonalRoot,
-} from "shared";
+import { MAX_PAGE_DEPTH, PAGE_ORDER, type PageAccess, type Prisma, atLeast, getGroupAccessForPage, isPersonalRoot } from "shared";
+import { getTreeWithAccess } from "@/lib/page-access";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
 

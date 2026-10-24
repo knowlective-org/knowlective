@@ -1,0 +1,40 @@
+.brand {
+  display: grid;
+  gap: 2px;
+  padding: 0 10px 12px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-height: 28px;
+}
+
+.poweredBy {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+/* Newsreader is Latin only: other scripts (a Japanese site name) fall back
+   to a serif of the system. */
+.name {
+  font-family: var(--font-brand), serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.logo {
+  display: block;
+  max-width: 100%;
+  max-height: 36px;
+}
+
+.suffix {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-muted);
+}

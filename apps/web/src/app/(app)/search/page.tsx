@@ -99,7 +99,19 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
                   {r.snippet.map((part, i) => (part.hit ? <mark key={i}>{part.text}</mark> : <span key={i}>{part.text}</span>))}
                 </p>
               )}
-              {r.matchedFile && <p className={searchStyles.snippet}>{t("file", { name: r.matchedFile })}</p>}
+              {r.matchedFile && (
+                <p className={searchStyles.snippet} data-ui="SearchPage.matchedFile">
+                  {t("file", { name: r.matchedFile.name })}
+                  {r.matchedFile.snippet && (
+                    <>
+                      {" "}
+                      {r.matchedFile.snippet.map((part, i) =>
+                        part.hit ? <mark key={i}>{part.text}</mark> : <span key={i}>{part.text}</span>,
+                      )}
+                    </>
+                  )}
+                </p>
+              )}
               <div className={searchStyles.meta}>
                 {t("updated", { date: format.dateTime(new Date(r.updatedAt), { dateStyle: "medium", timeStyle: "short" }) })}
               </div>

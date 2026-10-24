@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { connection } from "next/server";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -18,6 +18,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// The site's name at the top left of the sidebars (components/brand.tsx).
+const newsreader = Newsreader({
+  variable: "--font-brand",
+  weight: "600",
+  subsets: ["latin"],
+});
+
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("meta");
   return { title: "KNOWLECTIVE", description: t("description") };
@@ -28,7 +35,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   await connection();
   const [theme, locale] = await Promise.all([getTheme(), getLocale()]);
   return (
-    <html lang={locale} className={`${geistSans.variable} ${geistMono.variable}`} data-ui="RootLayout">
+    <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`} data-ui="RootLayout">
       <head>
         {/* Overrides the defaults in globals.css. Values are validated #rrggbb only. */}
         <style id="knowlective-theme" dangerouslySetInnerHTML={{ __html: themeCss(theme) }} />

@@ -13,6 +13,8 @@ import { DefaultLocaleForm } from "./default-locale-form";
 
 import { getTheme } from "@/lib/theme";
 import { ThemeForm } from "./theme-form";
+import { BrandForm } from "./brand-form";
+import { MAX_BRAND_NAME_LENGTH, getBrand } from "@/lib/brand";
 import { getLinkPreviewSettings } from "@/lib/link-preview-settings";
 import { LinkPreviewSettingsForm } from "./link-preview-settings-form";
 import { publicPageIds } from "@/lib/public-pages";
@@ -22,7 +24,7 @@ import { LandingPageForm } from "./landing-page-form";
 
 export default async function AdminOverviewPage() {
   const { actor } = await requireAdmin(["SITE_ADMIN"]);
-  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages, landingOptions, guestLanding, locale, t] =
+  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages, landingOptions, guestLanding, locale, t, brand] =
     await Promise.all([
       getMailSettings(),
       prisma.instanceConfig.findUniqueOrThrow({
@@ -38,6 +40,7 @@ export default async function AdminOverviewPage() {
       landingPageFor(null),
       siteDefaultLocale(),
       getTranslations("admin.overview"),
+      getBrand(),
     ]);
   const code = (chunks: React.ReactNode) => <code>{chunks}</code>;
 
@@ -77,6 +80,14 @@ export default async function AdminOverviewPage() {
           {t("languageLead")}
         </p>
         <DefaultLocaleForm current={locale} />
+      </section>
+
+      <section className={styles.section} data-ui="AdminOverviewPage.brandSection">
+        <h2 className={styles.sectionTitle}>{t("brand")}</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          {t("brandLead")}
+        </p>
+        <BrandForm current={brand} maxNameLength={MAX_BRAND_NAME_LENGTH} />
       </section>
 
       <section className={styles.section} data-ui="AdminOverviewPage.themeSection">

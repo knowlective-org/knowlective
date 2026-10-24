@@ -1,4 +1,6 @@
-import { getVisibleTrees, type SiteRole } from "shared";
+import { type SiteRole } from "shared";
+// The admin console isn't covered by the network caps (lib/page-access.ts).
+import { getVisibleTrees } from "shared";
 import { prisma } from "@/lib/db";
 
 // Which groups an admin-console user may see and edit (members, name,

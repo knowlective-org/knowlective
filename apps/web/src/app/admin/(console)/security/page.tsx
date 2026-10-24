@@ -14,6 +14,8 @@ import {
 import styles from "@/styles/ui.module.css";
 import { revokeOtherSessions, revokeSession } from "../actions";
 import { IpAllowlistForm } from "../ip-allowlist-form";
+import { NetworkAccessForm } from "../network-access-form";
+import { isIpAllowed } from "@/lib/ip";
 
 // Audit log entries per page (?auditPage=N).
 const AUDIT_PAGE_SIZE = 20;
@@ -21,6 +23,17 @@ const AUDIT_PAGE_SIZE = 20;
 export default async function AdminSecurityPage({ searchParams }: PageProps<"/admin/security">) {
   const { ctx, config, session } = await requireAdmin(["SITE_ADMIN"]);
   const auditCount = await countAuditLogs();
+  const network = await prisma.instanceConfig.findUniqueOrThrow({
+    where: { id: 1 },
+    select: {
+      networkFullAccess: true,
+      networkOtherAccess: true,
+      networkOtherRead: true,
+      networkOtherWrite: true,
+      networkOtherDownload: true,
+      networkOtherUpload: true,
+    },
+  });
   const auditPages = Math.max(1, Math.ceil(auditCount / AUDIT_PAGE_SIZE));
   const auditPage = pageParam((await searchParams).auditPage, auditPages);
   const [sessions, attempts, auditLogs, t, format] = await Promise.all([
@@ -92,6 +105,25 @@ export default async function AdminSecurityPage({ searchParams }: PageProps<"/ad
           pageCount={auditPages}
           href={(n) => `/admin/security?auditPage=${n}#audit`}
           label={t("audit")}
+        />
+      </section>
+
+      <section className={styles.section} data-ui="AdminSecurityPage.networkSection">
+        <h2 className={styles.sectionTitle}>{t("network")}</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          {t("networkLead")}
+        </p>
+        <NetworkAccessForm
+          fullAccess={network.networkFullAccess}
+          others={{
+            access: network.networkOtherAccess,
+            read: network.networkOtherRead,
+            write: network.networkOtherWrite,
+            download: network.networkOtherDownload,
+            upload: network.networkOtherUpload,
+          }}
+          clientIp={ctx.ip}
+          clientFull={isIpAllowed(ctx.ip, network.networkFullAccess)}
         />
       </section>
 

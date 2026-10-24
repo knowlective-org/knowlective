@@ -6,7 +6,7 @@ const ja: MessageShape<typeof en> = {
     title: "管理画面",
     masterPassword: "マスターパスワード",
     shell: {
-      brand: "KNOWLECTIVE 管理画面",
+      brandSuffix: "管理画面",
       backToApp: "アプリに戻る",
       logout: "ログアウト",
       sourceTitle: "KNOWLECTIVE は AGPL-3.0 で公開されています",
@@ -97,6 +97,8 @@ const ja: MessageShape<typeof en> = {
       language: "既定の言語",
       languageLead:
         "ブラウザがほかの言語を求めている人の画面、アカウントのない人へのメール（招待）、変更の記録に使います。各ユーザーは「アカウント」の画面で自分の言語を選べます。",
+      brand: "サイト名とロゴ",
+      brandLead: "すべての画面の左上（サイドバー・管理画面）に表示するものです。",
       theme: "テーマ",
       themeLead: "サイト全体（ページ・管理画面・ログイン画面）の色です。保存すると、すべての利用者の画面に反映されます。",
       mail: "メール送信",
@@ -116,6 +118,30 @@ const ja: MessageShape<typeof en> = {
     publicUrl: {
       label: "サイトの公開 URL",
       note: "メールや招待リンクに使われます。利用者がブラウザで開く URL（https://〜）を、パスを付けずに入力してください。",
+    },
+    brand: {
+      mode: "表示するもの",
+      modes: { TEXT: "サイト名", IMAGE: "ロゴ（SVG）" },
+      modeNotes: {
+        TEXT: "名前を文字で表示します（Newsreader）。",
+        IMAGE: "アップロードした SVG の画像を表示します（高さ 36px まで）。",
+      },
+      name: "サイト名",
+      nameNoteText: "左上に表示します。",
+      nameNoteImage: "ロゴの代わりに、読み上げソフトが読む名前です。",
+      logo: "ロゴ（SVG）",
+      replaceLogo: "ロゴを差し替える（SVG。空のままなら今のロゴのまま）",
+      logoNote: "200KB までの SVG ファイル。安全のため、スクリプト・リンク・埋め込みの画像や外部のフォントを含むものは使えません（図形・パス・色・文字だけ）。",
+      current: "今の表示:",
+      errors: {
+        invalid: "リクエストが正しくありません。ページを再読み込みしてください。",
+        nameRequired: "サイト名を入力してください。",
+        nameTooLong: "名前は {max, number} 文字以内にしてください。",
+        notSvg: "SVG ファイルを選んでください。",
+        tooLarge: "SVG ファイルが 200KB を超えています。",
+        unsafe: "この SVG にはスクリプト・リンク・外部の内容が含まれているため使えません。図形だけ（リンク・埋め込み画像・フォントなし）で書き出して、もう一度お試しください。",
+        logoRequired: "ロゴの SVG ファイルを選んでください。",
+      },
     },
     theme: {
       tokens: {
@@ -495,6 +521,8 @@ const ja: MessageShape<typeof en> = {
       change: "内容",
       auditRange: "新しい順に {from}〜{to} 件目（全 {total} 件）",
       ipAllowlist: "管理画面の IP 制限",
+      network: "ネットワークごとのアクセス",
+      networkLead: "ここに挙げたネットワークからはサイトにフルアクセスでき、それ以外からは下でチェックしたことだけができます。管理画面は対象外です（下の、管理画面専用の制限が効きます）。",
       sessions: "ログイン中のセッション",
       user: "ユーザー",
       address: "接続元",
@@ -515,6 +543,30 @@ const ja: MessageShape<typeof en> = {
         locked: "ロック中",
         bad_credentials_cleared: "認証失敗（ロック解除済み）",
         ip_denied: "IP 制限",
+      },
+    },
+    network: {
+      fullAccess: "フルアクセスできるネットワーク（IP アドレス・CIDR を1行に1つ。空なら制限なし）",
+      fullAccessNote: "空のままなら今までどおり誰でも使え、下の設定は効きません。",
+      youFull: "今のあなたのアドレス <code>{ip}</code> はフルアクセスです。",
+      youLimited: "今のあなたのアドレス <code>{ip}</code> は一覧にないため、保存すると下でチェックしたことだけができます（管理画面には入れます）。",
+      others: "ほかのネットワークから",
+      flags: {
+        access: "アクセスを許可する",
+        read: "ページを読む",
+        write: "ページを変更する",
+        download: "添付ファイルをダウンロードする",
+        upload: "ファイルを添付する",
+      },
+      flagNotes: {
+        access: "オフ: すべてのリクエスト（ページ・ログイン・API・共同編集）を拒否します。",
+        read: "オフ: 権限にかかわらず、どのページも見えません。",
+        write: "オフ: ページは読み取り専用です（編集・作成・移動・削除・共有・API での変更）。",
+        download: "オフ: 添付ファイル（画像を含む）を配信しません。",
+        upload: "オフ: ページにファイルを追加できません。",
+      },
+      errors: {
+        invalid: "IP アドレスまたは CIDR として読めない行があります: {lines}",
       },
     },
     ipAllowlist: {

@@ -19,6 +19,20 @@ function pathnameOf(req: IncomingMessage): string {
   return new URL(req.url ?? "/", "http://localhost").pathname;
 }
 
+// Paths open to every network: the admin console (it has its own IP
+// restriction, so an administrator can always reach the network settings),
+// Next.js's own assets (the admin console needs them) and the health check.
+function exemptFromNetworkPolicy(pathname: string): boolean {
+  return (
+    pathname === `${BASE_PATH}/admin` ||
+    pathname.startsWith(`${BASE_PATH}/admin/`) ||
+    pathname.startsWith(`${BASE_PATH}/_next/`) ||
+    pathname === `${BASE_PATH}/api/health`
+  );
+}
+
+const escapeHtml = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+
 async function main() {
   const httpServer = createServer();
   const app = next({ dev, dir: appDir, port, hostname: "localhost", httpServer });
@@ -29,8 +43,32 @@ async function main() {
   await app.prepare();
 
   httpServer.on("request", (req, res) => {
-    // Search engines kept out unless allowed in /admin (server/robots.ts).
-    void robots.apply(res).finally(() => handle(req, res));
+    void (async () => {
+      const pathname = pathnameOf(req);
+      // A network that may not use the site at all (lib/network-policy.ts):
+      // refused before the app.
+      if (!exemptFromNetworkPolicy(pathname) && !(await collab.networkCaps(req)).access) {
+        const { title, message } = await collab.networkDenied(req);
+        if (pathname.startsWith(`${BASE_PATH}/api/`)) {
+          res.writeHead(403, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+          res.end(JSON.stringify({ error: { code: "network_denied", message: "Access from this network isn't allowed." } }));
+        } else {
+          res.writeHead(403, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+          res.end(
+            `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(title)}</title>` +
+              `<main style="font-family:sans-serif;max-width:480px;margin:64px auto;padding:0 16px"><h1 style="font-size:20px">${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p></main>`,
+          );
+        }
+        return;
+      }
+      // Search engines kept out unless allowed in /admin (server/robots.ts).
+      await robots.apply(res).catch(() => {});
+      await handle(req, res);
+    })().catch((err) => {
+      console.error("[server] request failed", err);
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+    });
   });
 
   // Next.js attaches its own "upgrade" listener on the first request and
@@ -43,7 +81,14 @@ async function main() {
       if (!pathname.startsWith(`${BASE_PATH}/_next/`)) socket.destroy();
       return;
     }
-    collab.handleUpgrade(req, socket, head).catch((err) => {
+    void (async () => {
+      // Refused like any request from a network that may not use the site.
+      if (!(await collab.networkCaps(req)).access) {
+        socket.destroy();
+        return;
+      }
+      await collab.handleUpgrade(req, socket, head);
+    })().catch((err) => {
       console.error("[collab] upgrade failed", err);
       socket.destroy();
     });

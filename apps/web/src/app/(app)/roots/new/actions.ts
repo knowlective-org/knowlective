@@ -7,6 +7,7 @@ import { ALL_USERS_GROUP, createKnowledgeRoot } from "shared";
 import { prisma } from "@/lib/db";
 import { reindexPage } from "@/lib/search-index";
 import { requireUser } from "@/lib/auth/session";
+import { requestNetworkCaps } from "@/lib/page-access";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { canManageGroup } from "@/lib/group-access";
 import { MAX_TITLE_LENGTH, normalizeTitle } from "@/lib/page-title";
@@ -23,6 +24,8 @@ export async function createRoot(_prev: CreateRootState, formData: FormData): Pr
   if (!CREATOR_ROLES.includes(user.siteRole)) {
     return { error: t("notAllowed") };
   }
+  // A change, like any page change (lib/network-policy.ts).
+  if (!(await requestNetworkCaps()).write) return { error: t("network") };
 
   const rawTitle = formData.get("title");
   const title = typeof rawTitle === "string" ? normalizeTitle(rawTitle) : "";

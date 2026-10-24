@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Brand } from "@/components/brand";
 import styles from "@/components/sidebar.module.css";
+import type { Brand as BrandSettings } from "@/lib/brand";
 import { logout } from "./actions";
 
 export type AdminNavItem = { href: string; label: string };
@@ -12,9 +14,12 @@ export type AdminNavItem = { href: string; label: string };
 // layout) and the signed-in admin. Same look as the app's page sidebar.
 export function AdminSidebar({
   items,
+  brand,
   actor,
   sourceUrl,
 }: {
+  // The site's name or logo, as in the app's sidebar.
+  brand: BrandSettings;
   items: AdminNavItem[];
   actor: string;
   // Source code of this instance (AGPL-3.0; lib/source.ts).
@@ -28,7 +33,7 @@ export function AdminSidebar({
 
   return (
     <div className={styles.sidebar} data-ui="AdminSidebar">
-      <div className={styles.brand}>{t("brand")}</div>
+      <Brand brand={brand} suffix={t("brandSuffix")} />
       <nav className={styles.nav} data-ui="AdminSidebar.nav">
         {items.map((item) => (
           <Link

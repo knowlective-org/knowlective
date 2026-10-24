@@ -1,4 +1,4 @@
-import { getVisibleTrees } from "shared";
+import { getVisibleTrees } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { apiError, apiJson, pageDetail, pageSummary, readPageInput, withApiKey } from "@/lib/api/http";
 import { markdownToBody } from "@/lib/api/page-content";

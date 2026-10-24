@@ -2,7 +2,8 @@
 
 import { randomUUID } from "node:crypto";
 import { getTranslations } from "next-intl/server";
-import { PAGE_ORDER, atLeast, canEditPage, getPageAccess, getUsersWithPageAccess, getVisibleTree, loadDataKey } from "shared";
+import { PAGE_ORDER, atLeast, canEditPage, getUsersWithPageAccess, loadDataKey } from "shared";
+import { getPageAccess, getVisibleTree } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
 import { getCurrentUser, requireUser } from "@/lib/auth/session";

@@ -20,6 +20,7 @@ export type {
   UserPasskey,
   ApiKey,
   ApiKeyScope,
+  BrandMode,
   Invitation,
   UserLoginAttempt,
   PasswordResetToken,

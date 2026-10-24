@@ -1,5 +1,7 @@
-import { MAX_PAGE_DEPTH, atLeast, getVisibleTrees } from "shared";
+import { MAX_PAGE_DEPTH, atLeast } from "shared";
+import { getVisibleTrees } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
+import { getBrand } from "@/lib/brand";
 import type { CurrentUser } from "@/lib/auth/session";
 import type { SidebarInfo } from "@/app/(app)/pages/[pageId]/page-view";
 
@@ -14,9 +16,10 @@ function orderRoots<T extends { rootId: string }>(trees: T[], order: string[]): 
 
 // Everything the sidebar needs for a signed-in user.
 export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
-  const [visible, prefs] = await Promise.all([
+  const [visible, prefs, brand] = await Promise.all([
     getVisibleTrees(prisma, user.id),
     prisma.user.findUnique({ where: { id: user.id }, select: { rootOrder: true } }),
+    getBrand(),
   ]);
   const trees = orderRoots(visible, prefs?.rootOrder ?? []);
   const isManager = user.siteRole === "SITE_ADMIN" || user.siteRole === "CONTENT_MANAGER";
@@ -27,18 +30,21 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
     canCreateRoot: isManager,
     canOpenAdmin: isManager,
     guest: false,
+    brand,
   };
 }
 
 // The sidebar of someone not logged in: the public pages only.
 export async function loadPublicSidebar(): Promise<SidebarInfo> {
+  const [trees, brand] = await Promise.all([getVisibleTrees(prisma, null), getBrand()]);
   return {
-    trees: (await getVisibleTrees(prisma, null)).map(sidebarTree),
+    trees: trees.map(sidebarTree),
     maxDepth: MAX_PAGE_DEPTH,
     userName: "",
     canCreateRoot: false,
     canOpenAdmin: false,
     guest: true,
+    brand,
   };
 }
 

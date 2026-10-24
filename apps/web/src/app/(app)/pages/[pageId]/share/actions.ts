@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { PUBLIC_GROUP, atLeast, getPageAccess, type PageAccess } from "shared";
+import { PUBLIC_GROUP, atLeast, type PageAccess } from "shared";
+import { getPageAccess } from "@/lib/page-access";
 import { reconnectDocuments } from "@/lib/collab-events";
 import { publicGroup, publicPagesAllowed, subtreeIds } from "@/lib/public-pages";
 import { prisma } from "@/lib/db";

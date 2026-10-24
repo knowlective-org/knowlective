@@ -9,6 +9,7 @@ import { isLocale, LOCALE_NAMES } from "@/i18n/locales";
 import { prisma } from "@/lib/db";
 import { endAdminSession, requireAdmin } from "@/lib/admin/auth";
 import { formatCidr, isIpAllowed, parseCidr } from "@/lib/ip";
+import { networkSettingsChanged } from "@/lib/network-policy";
 import { INVITATION_TTL_DAYS, createInvitation } from "@/lib/auth/invitations";
 import { normalizeEmail } from "@/lib/auth/session";
 import { getPublicUrl } from "@/lib/site-url";
@@ -21,6 +22,7 @@ import { publicPageIds } from "@/lib/public-pages";
 import { searchEngineSettingChanged } from "@/lib/search-engines";
 import { manageableGroupIds } from "@/lib/group-access";
 import { saveTheme as storeTheme } from "@/lib/theme";
+import { MAX_BRAND_NAME_LENGTH, checkLogoSvg, getBrand, getBrandLogo, saveBrand } from "@/lib/brand";
 import { getSignupSettings, isSignupRole, parseDomains } from "@/lib/auth/signup";
 import { decrypt, loadDataKey } from "shared";
 import { discoverWith, getOidcSettings, isOidcRole, sealClientSecret } from "@/lib/auth/oidc";
@@ -102,6 +104,73 @@ export async function saveIpAllowlist(
 
   await prisma.instanceConfig.update({ where: { id: 1 }, data: { adminIpAllowlist: allowlist } });
   revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+export type NetworkAccessState = { error?: string; saved?: boolean };
+
+const NETWORK_FLAGS = ["access", "read", "write", "download", "upload"] as const;
+
+// Who has full access to the site, by network, and what other networks may do
+// (lib/network-policy.ts). The admin console isn't covered, so this can't lock
+// the administrator out of it.
+export async function saveNetworkAccess(_prev: NetworkAccessState, formData: FormData): Promise<NetworkAccessState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const t = await getTranslations();
+  const raw = formData.get("fullAccess");
+  if (typeof raw !== "string") return { error: t("common.errors.invalidInput") };
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l !== "" && !l.startsWith("#"));
+  const invalid = lines.filter((l) => parseCidr(l) === null);
+  if (invalid.length > 0) return { error: t("admin.network.errors.invalid", { lines: invalid.join(", ") }) };
+  const fullAccess = [...new Set(lines.map((l) => formatCidr(parseCidr(l)!)))];
+  const on = (name: (typeof NETWORK_FLAGS)[number]) => formData.get(name) === "on";
+  // Each needs the one before it: nothing without access, no change without reading.
+  const access = on("access");
+  const read = access && on("read");
+  const data = {
+    networkFullAccess: fullAccess,
+    networkOtherAccess: access,
+    networkOtherRead: read,
+    networkOtherWrite: read && on("write"),
+    networkOtherDownload: access && on("download"),
+    networkOtherUpload: read && on("upload"),
+  };
+  const before = await prisma.instanceConfig.findUniqueOrThrow({
+    where: { id: 1 },
+    select: {
+      networkFullAccess: true,
+      networkOtherAccess: true,
+      networkOtherRead: true,
+      networkOtherWrite: true,
+      networkOtherDownload: true,
+      networkOtherUpload: true,
+    },
+  });
+  await prisma.instanceConfig.update({ where: { id: 1 }, data });
+  networkSettingsChanged();
+  if (JSON.stringify(before) !== JSON.stringify(data)) {
+    const audit = await auditTranslator();
+    const allowed = [
+      data.networkOtherAccess && audit("audit.networkFlags.access"),
+      data.networkOtherRead && audit("audit.networkFlags.read"),
+      data.networkOtherWrite && audit("audit.networkFlags.write"),
+      data.networkOtherDownload && audit("audit.networkFlags.download"),
+      data.networkOtherUpload && audit("audit.networkFlags.upload"),
+    ].filter(Boolean);
+    await recordAudit(
+      actor,
+      "network.settings",
+      audit("audit.network", {
+        networks: fullAccess.length > 0 ? fullAccess.join(audit("common.listSeparator")) : "none",
+        others: allowed.length > 0 ? allowed.join(audit("common.listSeparator")) : "none",
+      }),
+      data,
+    );
+  }
+  revalidatePath("/", "layout");
   return { saved: true };
 }
 
@@ -570,6 +639,47 @@ export async function saveTheme(_prev: ThemeState, formData: FormData): Promise<
   }
   await storeTheme(theme);
   // The theme is injected by the root layout, so every screen needs it.
+  revalidatePath("/", "layout");
+  return { saved: true };
+}
+
+export type BrandState = { error?: string; saved?: boolean };
+
+// The top left of the sidebars (lib/brand.ts): the site's name in text, or an
+// SVG logo. A new logo replaces the stored one; without one, the stored one
+// is kept (also when switching to text).
+export async function saveBrandSettings(_prev: BrandState, formData: FormData): Promise<BrandState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const t = await getTranslations("admin.brand.errors");
+  const mode = formData.get("mode");
+  if (mode !== "TEXT" && mode !== "IMAGE") return { error: t("invalid") };
+  const rawName = formData.get("name");
+  const name = typeof rawName === "string" ? rawName.replace(/\s+/g, " ").trim() : "";
+  if (!name) return { error: t("nameRequired") };
+  if (name.length > MAX_BRAND_NAME_LENGTH) return { error: t("nameTooLong", { max: MAX_BRAND_NAME_LENGTH }) };
+
+  const file = formData.get("logo");
+  let logoSvg: string | undefined;
+  if (file instanceof File && file.size > 0) {
+    if (!/\.svg$/i.test(file.name) && file.type !== "image/svg+xml") return { error: t("notSvg") };
+    const checked = checkLogoSvg(await file.text());
+    if ("error" in checked) return { error: t(checked.error) };
+    logoSvg = checked.svg;
+  }
+  if (mode === "IMAGE" && logoSvg === undefined && !(await getBrandLogo())) return { error: t("logoRequired") };
+
+  const before = await getBrand();
+  await saveBrand({ mode, name, logoSvg });
+  if (before.mode !== mode || before.name !== name || logoSvg !== undefined) {
+    const audit = await auditTranslator();
+    await recordAudit(
+      actor,
+      "brand.settings",
+      audit("audit.brand", { mode, name, logo: String(logoSvg !== undefined) }),
+      { mode, name, logoChanged: logoSvg !== undefined },
+    );
+  }
+  // Every screen's sidebar shows it.
   revalidatePath("/", "layout");
   return { saved: true };
 }

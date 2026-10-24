@@ -1,4 +1,5 @@
-import { getVisibleTrees, loadDataKey, type VisiblePage } from "shared";
+import { loadDataKey, type VisiblePage } from "shared";
+import { getVisibleTrees } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { getDisplayTitle } from "@/i18n/display-title";
 import {
@@ -44,9 +45,10 @@ export type SearchResult = {
   title: string;
   // Visible ancestors, root first (hidden ones are left out).
   path: string[];
-  // Where it matched: the body (with context), an attachment name, or only the title.
+  // Where it matched: the body (with context), an attachment (its name, and
+  // the passage when it's in the file's text), or only the title.
   snippet: SnippetPart[] | null;
-  matchedFile: string | null;
+  matchedFile: { name: string; snippet: SnippetPart[] | null } | null;
   // Found by meaning only (no matching words): the snippet is the passage.
   bySemantic: boolean;
   updatedAt: string;
@@ -221,6 +223,20 @@ async function updatedTimes(ids: string[]): Promise<Map<string, Date>> {
 }
 
 // Pages containing every word of the query.
+
+// The attachment a query matched in, when not in the body: in its text (with
+// the passage) first, else in its name.
+function matchedFile(text: PageSearchText, terms: string[]): SearchResult["matchedFile"] {
+  for (const f of text.fileTexts) {
+    const ranges = terms.every((t) => findTerms(f.text, [t])) ? findTerms(f.text, terms) : null;
+    if (ranges) return { name: f.name, snippet: snippet(f.text, ranges) };
+  }
+  const named = text.files.find((f) => terms.some((t) => findTerms(f, [t])));
+  if (named) return { name: named, snippet: null };
+  const partly = text.fileTexts.find((f) => terms.some((t) => findTerms(f.text, [t])));
+  return partly ? { name: partly.name, snippet: snippet(partly.text, findTerms(partly.text, terms.filter((t) => findTerms(partly.text, [t])))!) } : null;
+}
+
 async function keywordSearch(query: string, ctx: SearchContext): Promise<SearchResult[]> {
   const key = searchKey(await loadDataKey(prisma));
   const { terms, tokens } = queryTokens(key, query);
@@ -240,14 +256,14 @@ async function keywordSearch(query: string, ctx: SearchContext): Promise<SearchR
   for (const id of candidates) {
     const text = await textOf(ctx, id);
     if (!text) continue;
-    const all = [text.title, text.body, ...text.files].join("\n");
+    const all = [text.title, text.body, ...text.files, ...text.fileTexts.map((f) => f.text)].join("\n");
     if (!findTerms(all, terms)) continue; // index false positive
     // Snippet from the body, around the terms found there (a term may
     // instead be in the title or an attachment name).
     const bodyTerms = terms.filter((t) => findTerms(text.body, [t]));
     const bodyRanges =
       bodyTerms.length > 0 ? findTerms(text.body, bodyTerms) : null;
-    const file = text.files.find((f) => terms.some((t) => findTerms(f, [t])));
+    const file = bodyRanges ? null : matchedFile(text, terms);
     results.push({
       inTitle: terms.every((t) => findTerms(text.title, [t])),
       result: {
@@ -255,7 +271,7 @@ async function keywordSearch(query: string, ctx: SearchContext): Promise<SearchR
         title: text.title,
         path: pathOf(ctx.visible, id, ctx.displayTitle),
         snippet: bodyRanges ? snippet(text.body, bodyRanges) : null,
-        matchedFile: bodyRanges ? null : (file ?? null),
+        matchedFile: file,
         bySemantic: false,
         updatedAt: (updated.get(id) ?? new Date(0)).toISOString(),
       },

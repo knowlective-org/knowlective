@@ -1,4 +1,5 @@
-import { MAX_PAGE_DEPTH, atLeast, getPageAccess } from "shared";
+import { MAX_PAGE_DEPTH, atLeast } from "shared";
+import { getPageAccess } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { notifyChildrenChanged } from "@/lib/collab-events";
 import { nextSortOrder } from "@/lib/page-move";

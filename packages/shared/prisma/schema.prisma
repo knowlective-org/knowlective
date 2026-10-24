@@ -347,6 +347,20 @@ model InstanceConfig {
   // single sign-on are exempt. Off: passkeys are optional (account screen).
   passkeyRequired Boolean @default(false)
 
+  // Networks with full access to the site (CIDR or single addresses,
+  // lib/network-policy.ts). Empty: no restriction, everyone has full access.
+  // Otherwise requests from elsewhere get only what the settings below allow
+  // (the admin console is governed by adminIpAllowlist instead).
+  networkFullAccess   String[] @default([])
+  // From elsewhere: may use the site at all (off: refused before the app).
+  networkOtherAccess  Boolean  @default(true)
+  // ...and then read pages, change them, download and attach files. Changing
+  // needs reading. These cap page permissions; they never add any.
+  networkOtherRead     Boolean @default(true)
+  networkOtherWrite    Boolean @default(false)
+  networkOtherDownload Boolean @default(false)
+  networkOtherUpload   Boolean @default(false)
+
   // The public API (/api/v1, lib/api/): off, every request is refused and no
   // keys can be issued (existing keys are kept, and work again once it's on).
   apiEnabled Boolean @default(false)
@@ -669,6 +683,11 @@ model FileObject {
   // Plaintext size in bytes.
   size         Int
   createdAt    DateTime      @default(now())
+  // The file's text for search (lib/file-search.ts), encrypted with the DEK
+  // (AAD: fileTextAad(id)). Null: no text (an image, an unreadable file).
+  textEnc         Bytes?
+  // When the text was read (null: not yet; filled in in the background).
+  textExtractedAt DateTime?
 
   @@index([rootId])
 }
@@ -727,6 +746,23 @@ model AuditLog {
 // Site colors set in /admin (one row, id = 1). Keys and defaults live in
 // apps/web/src/lib/theme-tokens.ts; unknown or invalid entries are ignored,
 // so tokens can be added without a migration.
+enum BrandMode {
+  TEXT
+  IMAGE
+}
+
+// What the top left of the sidebars shows (lib/brand.ts): the site's name in
+// text, or an SVG logo. One row; without it, the name "KNOWLECTIVE".
+model BrandSettings {
+  id        Int       @id @default(1)
+  mode      BrandMode @default(TEXT)
+  name      String    @default("KNOWLECTIVE")
+  // The logo (IMAGE), checked when uploaded (lib/brand.ts) and served with a
+  // CSP that runs nothing (/api/brand-logo). Kept when switching back to TEXT.
+  logoSvg   String?
+  updatedAt DateTime  @updatedAt
+}
+
 model ThemeSettings {
   id        Int      @id @default(1)
   colors    Json

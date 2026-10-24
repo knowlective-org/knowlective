@@ -108,28 +108,78 @@ export function documentText(doc: Y.Doc): string {
   return lines.join("\n");
 }
 
-export type PageSearchText = { title: string; body: string; files: string[] };
+// The AAD of an attachment's extracted text (FileObject.textEnc).
+export function fileTextAad(fileId: string): string {
+  return `knowlective:file-text:${fileId}`;
+}
 
-// Title, body and attachment names of a page. `state` is the document's Yjs
+// Attachments the page's body shows (file, image, video, audio and PDF blocks
+// keep "/api/files/<id>" in their url), in document order. A file whose
+// block was removed isn't among them, so it drops out of search.
+export function referencedFileIds(doc: Y.Doc): string[] {
+  const ids: string[] = [];
+  const visit = (node: Y.XmlElement | Y.XmlText | Y.XmlFragment) => {
+    if (node instanceof Y.XmlText) return;
+    if (node instanceof Y.XmlElement) {
+      const url = node.getAttribute("url") as unknown;
+      const id = typeof url === "string" ? /^\/api\/files\/([A-Za-z0-9_-]+)/.exec(url)?.[1] : undefined;
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+    for (const child of node.toArray()) visit(child as Y.XmlElement | Y.XmlText);
+  };
+  visit(doc.getXmlFragment("blocknote"));
+  return ids;
+}
+
+// `files`: the names of the attachments the page shows; `fileTexts`: the
+// text of those that have some (lib/file-text.ts).
+export type PageSearchText = {
+  title: string;
+  body: string;
+  files: string[];
+  fileTexts: { name: string; text: string }[];
+};
+
+// Title, body and attachments of a page. `state` is the document's Yjs
 // state if the caller has it (the collab server); otherwise the stored one.
 export async function pageSearchText(prisma: PrismaClient, pageId: string, state?: Uint8Array): Promise<PageSearchText | null> {
-  const [page, files, stored] = await Promise.all([
-    prisma.page.findUnique({ where: { id: pageId }, select: { title: true } }),
-    prisma.fileObject.findMany({ where: { pageId }, select: { name: true }, orderBy: { createdAt: "asc" } }),
+  const [page, stored] = await Promise.all([
+    prisma.page.findUnique({ where: { id: pageId }, select: { title: true, rootId: true } }),
     state ? null : prisma.pageDocument.findUnique({ where: { pageId }, select: { state: true } }),
   ]);
   if (!page) return null;
   let body = "";
   let title = page.title;
-  const update = state ?? (stored ? decrypt(await loadDataKey(prisma), stored.state, pageId) : null);
+  let fileIds: string[] = [];
+  const dataKey = await loadDataKey(prisma);
+  const update = state ?? (stored ? decrypt(dataKey, stored.state, pageId) : null);
   if (update) {
     const doc = new Y.Doc();
     Y.applyUpdate(doc, update);
     body = documentText(doc);
     // The live title can be ahead of Page.title (mirrored on store).
     title = normalizeTitle(doc.getText("title").toString()) || title;
+    fileIds = referencedFileIds(doc);
   }
-  return { title, body, files: files.map((f) => f.name) };
+  // Only this knowledge root's files: a link pasted from another root's page
+  // doesn't make that file searchable here.
+  const rows =
+    fileIds.length === 0
+      ? []
+      : await prisma.fileObject.findMany({
+          where: { id: { in: fileIds }, rootId: page.rootId },
+          select: { id: true, name: true, textEnc: true },
+        });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const files = fileIds.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+  return {
+    title,
+    body,
+    files: files.map((f) => f.name),
+    fileTexts: files.flatMap((f) =>
+      f.textEnc ? [{ name: f.name, text: decrypt(dataKey, f.textEnc, fileTextAad(f.id)).toString("utf8") }] : [],
+    ),
+  };
 }
 
 // Rebuilds a page's index row. Never throws: search falling behind must not
@@ -139,7 +189,7 @@ export async function reindexPage(prisma: PrismaClient, pageId: string, state?: 
     const text = await pageSearchText(prisma, pageId, state);
     if (!text) return;
     const key = searchKey(await loadDataKey(prisma));
-    const tokens = tokensFor(key, [text.title, text.body, ...text.files].join("\n"));
+    const tokens = tokensFor(key, [text.title, text.body, ...text.files, ...text.fileTexts.map((f) => f.text)].join("\n"));
     await prisma.pageSearchIndex.upsert({
       where: { pageId },
       create: { pageId, tokens, indexedAt: new Date() },

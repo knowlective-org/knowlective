@@ -114,7 +114,10 @@ Drag pages in the page list on the left to change their order or place.
 
 ### Full-text search
 
-The search box at the top of the sidebar (or `/search`) searches the titles, text and attachment names of the pages you can see.
+The search box at the top of the sidebar (or `/search`) searches the titles, text and attachments (names and contents) of the pages you can see.
+
+- Attachments' contents are read for text files, PDF, Word, Excel and PowerPoint (images and the like by name only). They're read in the background after uploading; files from before are read gradually too. The text is stored encrypted with the data key
+- Only the files a page shows now are searched: removing a file's block takes its name and contents out of search
 
 - Partial matches. Full-width/half-width and upper/lower case are ignored. Separating words with spaces finds pages containing all of them
 - Results with a title match come first, then the most recently updated (top 50). The matching parts of the text are highlighted
@@ -267,6 +270,15 @@ Under "Users" → "Single sign-on (OpenID Connect)" in the admin console (site a
 - Logging in to the admin console (`/admin`) still takes a password plus an authenticator app. Accounts created by single sign-on have no password at first, so they can't get into the admin console (even ones created as content managers). With password login "Alongside", they can set one through a password reset
 - Logging out of knowlective doesn't log out of the identity provider
 
+### Access by network
+
+Under "Security" → "Access by network" in the admin console (site admins only), choose the networks with full access to the site (IP addresses and CIDRs, one per line, as many as needed). Empty means no restriction (the default).
+
+- From networks not in the list, only what's checked works: access at all (off refuses everything, the login screen included), reading pages, changing pages (needs reading), downloading attachments (images included) and attaching files
+- These never widen page permissions; they only narrow what permissions allow. They apply to API key requests and collaborative editing too
+- The admin console isn't covered (its own "Admin console IP restriction" applies), so a wrong setting can always be fixed from there
+- The client IP is determined as for the other restrictions (run behind a reverse proxy and set `KNOWLECTIVE_TRUSTED_PROXY_HOPS` to match)
+
 ### Passkeys
 
 Instead of a password, you can log in with a passkey (fingerprint, face, or the device's PIN). "Log in with a passkey" on the login screen has the browser offer its passkeys for the site (no email address needed).
@@ -334,6 +346,16 @@ Changes to roles, enabling/disabling accounts, password resets, registering and 
 - **Rate limit:** 5 failures within 15 minutes from the same address lock that address
 - **Sessions:** separate from regular users'. They end after 30 minutes without activity, or 12 hours after logging in
 - **IP restriction:** the IP addresses and CIDRs allowed into the admin console can be set. Other addresses get a 404
+
+### Site name and logo
+
+"Overview" → "Site name and logo" chooses what the top left of every screen shows (the sidebar, the admin console):
+
+- "The site's name": the name in text (Newsreader, weight 600; "KNOWLECTIVE" by default). Japanese text falls back to the system's serif font
+- Once changed from the default, "powered by KNOWLECTIVE" is shown under it
+- "A logo (SVG)": an SVG you upload, up to 36px tall. The site's name becomes its text for screen readers
+- SVGs of up to 200 KB. For safety, ones with scripts, event attributes, links, embedded images or fonts and styles from elsewhere are refused (only shapes, paths, colors and text). It's also served so that nothing in it can run
+- Changes are recorded in the audit log
 
 ### Theme
 

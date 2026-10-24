@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { AppShell } from "@/components/app-shell";
 import { requireAdmin } from "@/lib/admin/auth";
+import { getBrand } from "@/lib/brand";
 import { getSourceUrl } from "@/lib/source";
 import styles from "@/styles/ui.module.css";
 import { AdminSidebar, type AdminNavItem } from "./admin-sidebar";
@@ -24,13 +25,13 @@ const NAV: { href: string; key: "overview" | "users" | "groups" | "files" | "sec
 // Action calls requireAdmin() itself.
 export default async function AdminConsoleLayout({ children }: LayoutProps<"/admin">) {
   const { actorLabel, role } = await requireAdmin();
-  const t = await getTranslations();
+  const [t, brand] = await Promise.all([getTranslations(), getBrand()]);
   const items: AdminNavItem[] = NAV.filter((item) => role === "SITE_ADMIN" || !item.siteAdminOnly).map(({ href, key }) => ({
     href,
     label: t(`admin.shell.nav.${key}`),
   }));
   return (
-    <AppShell sidebar={<AdminSidebar items={items} actor={`${actorLabel} (${t(`roles.${role}`)})`} sourceUrl={getSourceUrl()} />}>
+    <AppShell sidebar={<AdminSidebar items={items} brand={brand} actor={`${actorLabel} (${t(`roles.${role}`)})`} sourceUrl={getSourceUrl()} />}>
       <div className={`${styles.pane} ${styles.adminPane}`} data-ui="AdminConsoleLayout">
         {children}
       </div>

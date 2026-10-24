@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { getPageAccess } from "shared";
+import { getPageAccess, requestNetworkCaps } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getFile, getStorageConfig } from "@/lib/storage";
@@ -48,6 +48,10 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/files/[file
   });
   // A file whose page was deleted (pageId set to null) is no longer served.
   if (!file?.pageId || !(await getPageAccess(prisma, user?.id ?? null, file.pageId))) return notFound();
+  // Downloads not allowed from this network (lib/network-policy.ts).
+  if (!(await requestNetworkCaps()).download) {
+    return new Response("Downloading files isn't allowed from this network", { status: 403 });
+  }
 
   const config = await getStorageConfig();
   if (!config) return new Response("File storage is not configured", { status: 503 });

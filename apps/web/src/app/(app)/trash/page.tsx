@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { connection } from "next/server";
-import { getTrash } from "shared";
+import { getTrash } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
 import { requireUser } from "@/lib/auth/session";

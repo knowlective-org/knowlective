@@ -1,4 +1,5 @@
-import { type ApiKeyScope, type VisiblePage, getVisibleTree } from "shared";
+import { type ApiKeyScope, type VisiblePage } from "shared";
+import { getVisibleTree } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { MAX_TITLE_LENGTH, normalizeTitle } from "@/lib/page-title";
 import { translatorFor } from "@/i18n/translator";

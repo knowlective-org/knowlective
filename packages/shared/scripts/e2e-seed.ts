@@ -129,6 +129,10 @@ async function main() {
 
   // Restored if a test (or a person) moved it to the trash.
   await prisma.page.update({ where: { id: HOME_PAGE_ID }, data: { deletedAt: null, deletedById: null } });
+  // Pages tests made under it and didn't get to put in the trash (a run that
+  // failed partway): to the trash now, so they don't pile up in the sidebar
+  // (and push other roots out of reach of the tests that drag them).
+  await prisma.page.updateMany({ where: { parentId: HOME_PAGE_ID, deletedAt: null }, data: { deletedAt: new Date() } });
 
   // Earlier runs' failed sign-ins must not lock this one out.
   const hashes = USERS.map((u) => emailHash(dataKey, u.email));

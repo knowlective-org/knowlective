@@ -2,6 +2,11 @@
 // trash, search, new knowledge roots.
 
 export default {
+  // The answer to a network that may not use the site (server/index.ts).
+  network: {
+    deniedTitle: "Access not allowed",
+    denied: "This site can't be used from your network. Connect from your organization's network, or ask an administrator.",
+  },
   appShell: {
     openMenu: "Open the menu",
     closeMenu: "Close the menu",
@@ -336,6 +341,7 @@ export default {
     managerGroupDescription: "Managers group created with a knowledge root",
     errors: {
       notAllowed: "Only content managers and site admins can create knowledge roots.",
+      network: "Knowledge roots can't be created from this network.",
       nameRequired: "Enter a name for the knowledge root.",
       nameTooLong: "Names can be up to {max, number} characters.",
       groupRequired: "Choose the group to manage it.",
@@ -352,6 +358,7 @@ export default {
       pageNotFound: "The page can't be found.",
       viewOnly: "Files can't be added with view-only permission.",
       locked: "This page is locked, so files can't be added.",
+      network: "Files can't be attached from this network.",
       notConfigured: "File storage isn't set up. Please contact an administrator.",
       tooLarge: "The file is too large (the limit is {max, number} MB).",
       unreadable: "Couldn't read the file.",

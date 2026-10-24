@@ -9,6 +9,8 @@ import { logout, saveRootOrder } from "@/app/(app)/actions";
 import { showAlert } from "./dialog";
 import { DocTree, type DocTreeNode } from "./doc-tree";
 import { AccountIcon, AdminIcon, LoginIcon, LogoutIcon, TrashIcon } from "./sidebar-icons";
+import type { Brand as BrandSettings } from "@/lib/brand";
+import { Brand } from "./brand";
 import styles from "./sidebar.module.css";
 
 // Height of a tree row: a drop in the top half of a root's own row puts the
@@ -42,6 +44,7 @@ export function Sidebar({
   canOpenAdmin,
   guest = false,
   searchQuery = "",
+  brand,
 }: {
   trees: SidebarTree[];
   currentPageId: string | null;
@@ -54,6 +57,7 @@ export function Sidebar({
   guest?: boolean;
   // Prefills the search box (on the search screen).
   searchQuery?: string;
+  brand: BrandSettings;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -100,8 +104,8 @@ export function Sidebar({
     .filter((t) => t.entryIds.length > 0);
 
   return (
-    <div className={styles.sidebar}>
-      <div className={styles.brand}>KNOWLECTIVE</div>
+    <div className={styles.sidebar} data-ui="Sidebar">
+      <Brand brand={brand} />
       {/* A plain GET form, so it works before hydration too. */}
       {!guest && (
       <form action={withBasePath("/search")} role="search" className={styles.search} data-ui="Sidebar.searchForm">

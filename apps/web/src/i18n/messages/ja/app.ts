@@ -2,6 +2,10 @@ import type en from "../en/app";
 import type { MessageShape } from "../en";
 
 const ja: MessageShape<typeof en> = {
+  network: {
+    deniedTitle: "アクセスできません",
+    denied: "このネットワークからは、このサイトを使えません。組織のネットワークから接続するか、管理者に問い合わせてください。",
+  },
   appShell: {
     openMenu: "メニューを開く",
     closeMenu: "メニューを閉じる",
@@ -334,6 +338,7 @@ const ja: MessageShape<typeof en> = {
     managerGroupDescription: "ナレッジルート作成時に作られた管理グループ",
     errors: {
       notAllowed: "ナレッジルートを作成できるのは、コンテンツ管理者とサイト管理者だけです。",
+      network: "このネットワークからは、ナレッジルートを作成できません。",
       nameRequired: "ナレッジルートの名前を入力してください。",
       nameTooLong: "名前は{max, number}文字以内にしてください。",
       groupRequired: "管理するグループを選んでください。",
@@ -350,6 +355,7 @@ const ja: MessageShape<typeof en> = {
       pageNotFound: "ページが見つかりません。",
       viewOnly: "閲覧のみの権限ではファイルを追加できません。",
       locked: "このページはロックされているため、ファイルを追加できません。",
+      network: "このネットワークからは、ファイルを添付できません。",
       notConfigured: "ファイル保存が設定されていません。管理者に連絡してください。",
       tooLarge: "ファイルが大きすぎます（上限 {max, number}MB）。",
       unreadable: "ファイルを読み取れませんでした。",

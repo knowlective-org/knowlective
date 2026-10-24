@@ -1,4 +1,4 @@
-import { getPageAccess } from "shared";
+import { getPageAccess } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 
 // The page plus the viewer's access to it (from group grants), or null if the

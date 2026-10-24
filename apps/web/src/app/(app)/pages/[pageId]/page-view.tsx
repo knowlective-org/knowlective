@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Brand } from "@/lib/brand";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 import { useDisplayTitle } from "@/i18n/use-display-title";
@@ -21,6 +22,8 @@ export type SidebarInfo = {
   canOpenAdmin: boolean;
   // Someone not logged in, viewing public pages.
   guest: boolean;
+  // The top left: the site's name or logo.
+  brand: Brand;
 };
 
 // The page screen: sidebar with every visible knowledge root on the left,

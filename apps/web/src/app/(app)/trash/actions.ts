@@ -1,7 +1,8 @@
 "use server";
 
 import { getTranslations } from "next-intl/server";
-import { MAX_PAGE_DEPTH, atLeast, getTreeWithAccess } from "shared";
+import { MAX_PAGE_DEPTH, atLeast } from "shared";
+import { getTreeWithAccess } from "@/lib/page-access";
 import { auditTranslator } from "@/i18n/audit";
 import { displayTitleWith } from "@/i18n/display-title";
 import { prisma } from "@/lib/db";

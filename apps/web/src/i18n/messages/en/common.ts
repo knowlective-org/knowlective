@@ -40,6 +40,8 @@ export default {
     sending: "Sending…",
     none: "None",
     untitled: "Untitled",
+    // Under a site name or logo other than the default (components/brand.tsx).
+    poweredBy: "powered by KNOWLECTIVE",
     listSeparator: ", ",
     // Between two sentences shown together.
     sentenceSeparator: " ",

@@ -5,7 +5,7 @@ export default {
     title: "Admin console",
     masterPassword: "Master password",
     shell: {
-      brand: "KNOWLECTIVE admin console",
+      brandSuffix: "Admin console",
       backToApp: "Back to the app",
       logout: "Log out",
       sourceTitle: "KNOWLECTIVE is published under AGPL-3.0",
@@ -96,6 +96,8 @@ export default {
       language: "Default language",
       languageLead:
         "For visitors whose browser asks for another language, for emails to people without an account (invitations), and for the audit log. Each user can choose their own on their account screen.",
+      brand: "Site name and logo",
+      brandLead: "What the top left of every screen shows (the sidebar, the admin console).",
       theme: "Theme",
       themeLead: "The colors of the whole site (pages, admin console, login screen). Saving applies them to everyone's screen.",
       mail: "Sending email",
@@ -115,6 +117,30 @@ export default {
     publicUrl: {
       label: "Public URL of the site",
       note: "Used in emails and invitation links. Enter the URL people open in their browser (https://…), without a path.",
+    },
+    brand: {
+      mode: "Show",
+      modes: { TEXT: "The site's name", IMAGE: "A logo (SVG)" },
+      modeNotes: {
+        TEXT: "The name in text (Newsreader).",
+        IMAGE: "An SVG image you upload. It's shown up to 36px tall.",
+      },
+      name: "Site name",
+      nameNoteText: "Shown at the top left.",
+      nameNoteImage: "Read out by screen readers in place of the logo.",
+      logo: "Logo (SVG)",
+      replaceLogo: "Replace the logo (SVG; leave empty to keep the current one)",
+      logoNote: "An SVG file of up to 200 KB. For safety, files with scripts, links, embedded images or fonts from elsewhere are refused: only drawing (shapes, paths, colors, text).",
+      current: "Now:",
+      errors: {
+        invalid: "The request isn't valid. Please reload the page.",
+        nameRequired: "Enter the site's name.",
+        nameTooLong: "Keep the name to {max, number} characters.",
+        notSvg: "Choose an SVG file.",
+        tooLarge: "The SVG file is larger than 200 KB.",
+        unsafe: "This SVG has scripts, links or external content, so it can't be used. Export it as plain shapes (no links, embedded images or fonts) and try again.",
+        logoRequired: "Choose an SVG file for the logo.",
+      },
     },
     theme: {
       tokens: {
@@ -495,6 +521,8 @@ export default {
       change: "Change",
       auditRange: "Newest first: {from, number}–{to, number} of {total, number}",
       ipAllowlist: "Admin console IP restriction",
+      network: "Access by network",
+      networkLead: "Networks listed here have full access to the site; others get only what's checked below. The admin console isn't affected (it has its own restriction, below).",
       sessions: "Active sessions",
       user: "User",
       address: "Address",
@@ -515,6 +543,30 @@ export default {
         locked: "Locked",
         bad_credentials_cleared: "Wrong credentials (lock cleared)",
         ip_denied: "IP restriction",
+      },
+    },
+    network: {
+      fullAccess: "Networks with full access (IP addresses and CIDRs, one per line; empty: no restriction)",
+      fullAccessNote: "Leave it empty to keep the site open as now: the settings below then don't apply.",
+      youFull: "Your current address <code>{ip}</code> has full access.",
+      youLimited: "Your current address <code>{ip}</code> isn't in the list: once saved, it gets only what's checked below (the admin console stays reachable).",
+      others: "From other networks",
+      flags: {
+        access: "Allow access",
+        read: "Read pages",
+        write: "Change pages",
+        download: "Download attachments",
+        upload: "Attach files",
+      },
+      flagNotes: {
+        access: "Off: every request (pages, log-in, the API, collaboration) is refused.",
+        read: "Off: no page is visible, whatever the permissions.",
+        write: "Off: pages are read-only (editing, creating, moving, deleting, sharing, the API's changes).",
+        download: "Off: attachments (images included) aren't served.",
+        upload: "Off: files can't be added to pages.",
+      },
+      errors: {
+        invalid: "Some lines can't be read as an IP address or CIDR: {lines}",
       },
     },
     ipAllowlist: {

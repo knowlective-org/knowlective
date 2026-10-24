@@ -1,5 +1,6 @@
 import * as Y from "yjs";
-import { decrypt, getPageAccess, getVisibleTree, loadDataKey } from "shared";
+import { decrypt, loadDataKey } from "shared";
+import { getPageAccess, getVisibleTree } from "@/lib/page-access";
 import { liveDocumentState } from "@/lib/collab-events";
 import { prisma } from "@/lib/db";
 import { bodyToMarkdown } from "@/lib/markdown-bridge";

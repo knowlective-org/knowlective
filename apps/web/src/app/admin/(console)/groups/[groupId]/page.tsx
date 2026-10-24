@@ -6,6 +6,7 @@ import { groupName } from "@/i18n/group-name";
 import { prisma } from "@/lib/db";
 import { withEmail } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
+// The admin console isn't covered by the network caps (lib/page-access.ts).
 import { getVisibleTrees } from "shared";
 import { canManageGroup } from "@/lib/group-access";
 import styles from "@/styles/ui.module.css";

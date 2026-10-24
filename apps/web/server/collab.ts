@@ -24,8 +24,10 @@ import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, regi
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 import { startSemanticSearch } from "./semantic-search";
-import { FALLBACK_LOCALE, isLocale } from "../src/i18n/locales";
+import { FALLBACK_LOCALE, isLocale, negotiateLocale } from "../src/i18n/locales";
 import { translatorFor } from "../src/i18n/translator";
+import { getClientIp } from "../src/lib/ip";
+import { type NetworkCaps, capsFor, getNetworkSettings } from "../src/lib/network-policy";
 
 // Real-time collaboration (Yjs over WebSocket), served by the same process
 // and port as the Next.js app at COLLAB_PATH. server/index.ts routes the
@@ -168,7 +170,7 @@ export async function createCollab() {
     // logged-in user and a single page. Access is re-checked here (group
     // grants, disabled account) so a revoked grant takes effect on the next
     // connection, not when the token expires.
-    async onAuthenticate({ token, documentName, connectionConfig }) {
+    async onAuthenticate({ token, documentName, connectionConfig, requestHeaders }) {
       // Without setup there is no data key, so nothing could be loaded or saved.
       if (!(await isSetupComplete(prisma))) {
         throw new Error("Instance setup has not been completed");
@@ -176,6 +178,12 @@ export async function createCollab() {
       const payload = verifyCollabToken(token ?? "");
       if (!payload || payload.p !== documentName) {
         throw new Error("Invalid collab token");
+      }
+      // The network's caps (lib/network-policy.ts), as in the app: reading not
+      // allowed refuses the page, changing not allowed makes it read-only.
+      const caps = capsFor(getClientIp(requestHeaders), await getNetworkSettings(prisma));
+      if (!caps.read) {
+        throw new Error("Not allowed from this network");
       }
       // User "": someone not logged in, on a public page (always VIEW).
       const userId = payload.u || null;
@@ -185,7 +193,7 @@ export async function createCollab() {
       }
       // VIEW, or a locked page: the server drops any update this connection
       // sends.
-      if (!canEditPage(result) || userId === null) {
+      if (!canEditPage(result) || userId === null || !caps.write) {
         connectionConfig.readOnly = true;
       }
       return { userId: userId ?? undefined };
@@ -383,6 +391,29 @@ export async function createCollab() {
   return {
     handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
       return ws.handleUpgrade(req, socket, head);
+    },
+    // What a request may do, by its network (server/index.ts refuses requests
+    // that may not use the site at all). X-Forwarded-For is filled in from the
+    // socket as Next.js does, so both see the same address.
+    async networkCaps(req: IncomingMessage): Promise<NetworkCaps> {
+      req.headers["x-forwarded-for"] ??= req.socket.remoteAddress ?? "";
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(req.headers)) {
+        if (typeof value === "string") headers.set(name, value);
+        else if (Array.isArray(value)) headers.set(name, value.join(", "));
+      }
+      return capsFor(getClientIp(headers), await getNetworkSettings(prisma));
+    },
+    // The answer to a request from a network that may not use the site, in
+    // the browser's language, else the site's default (as the app chooses;
+    // nobody is signed in here).
+    async networkDenied(req: IncomingMessage): Promise<{ title: string; message: string }> {
+      const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { defaultLocale: true } });
+      const t = translatorFor(
+        negotiateLocale(req.headers["accept-language"]) ??
+          (isLocale(config?.defaultLocale) ? config.defaultLocale : FALLBACK_LOCALE),
+      );
+      return { title: t("network.deniedTitle"), message: t("network.denied") };
     },
 
     // Persist pending edits and close connections before the process exits.
