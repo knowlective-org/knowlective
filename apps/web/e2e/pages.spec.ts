@@ -75,4 +75,18 @@ test.describe("Pages", () => {
     await expect(page.getByTestId("PageMenu.button")).toBeHidden();
     await expect(editorBody(page)).toBeVisible();
   });
+
+  test("printing puts the page on a white background", async ({ page }) => {
+    await openPage(page, HOME_PAGE_ID);
+    const background = (selector: string) =>
+      page.locator(selector).first().evaluate((el) => getComputedStyle(el).backgroundColor);
+    // Off-white on screen.
+    expect(await background("body")).not.toBe("rgb(255, 255, 255)");
+    await page.emulateMedia({ media: "print" });
+    for (const selector of ["html", "body", "main", ".bn-editor"]) {
+      const color = await background(selector);
+      // White, or transparent over the white page.
+      expect(["rgb(255, 255, 255)", "rgba(0, 0, 0, 0)"], `${selector}: ${color}`).toContain(color);
+    }
+  });
 });

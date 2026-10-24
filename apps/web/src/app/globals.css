@@ -119,9 +119,16 @@ a {
 }
 
 @media print {
+  /* A white page: the page background (also the editor's, the top bar's,
+     …) is white on paper, whatever the theme sets it to on screen
+     (important: the theme's <style> comes after this file). */
+  :root {
+    --color-background: #ffffff !important;
+  }
+
   html,
   body {
-    background: #fff;
+    background: #ffffff;
     /* Keep highlights, table headers and tag colors. */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
