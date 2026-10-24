@@ -4,6 +4,7 @@ import { WebAuthnError, browserSupportsWebAuthn, startRegistration } from "@simp
 import { useTranslations } from "next-intl";
 import { useState, useSyncExternalStore } from "react";
 import { beginPasskeyRegistration, finishPasskeyRegistration } from "@/app/(app)/account/passkey-actions";
+import { StatusRow } from "@/components/status-row";
 import styles from "@/styles/ui.module.css";
 
 const MAX_NAME_LENGTH = 60;
@@ -92,12 +93,11 @@ export function PasskeyRegisterForm({ onRegistered }: { onRegistered: () => void
           data-ui="PasskeyRegisterForm.nameInput"
         />
       </label>
-      <p aria-live="polite" className={styles.error} data-ui="PasskeyRegisterForm.error">
-        {error}
-      </p>
-      <button type="submit" disabled={pending} className={styles.button} data-ui="PasskeyRegisterForm.submitButton">
-        {pending ? t("registering") : t("register")}
-      </button>
+      <StatusRow message={error} className={styles.error} dataUi="PasskeyRegisterForm.error">
+        <button type="submit" disabled={pending} className={styles.button} data-ui="PasskeyRegisterForm.submitButton">
+          {pending ? t("registering") : t("register")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

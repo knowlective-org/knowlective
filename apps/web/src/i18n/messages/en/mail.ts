@@ -38,6 +38,12 @@ export default {
       expires: "The link works once and expires in {duration}. Resetting your password logs you out on every device.",
       ignore: "If you didn't ask for this, you can ignore this email (your password stays the same).",
     },
+    emailCode: {
+      subject: "Your KNOWLECTIVE confirmation code: {code}",
+      intro: "Enter this code in KNOWLECTIVE to confirm it's you and issue an API key:",
+      expires: "The code works once and expires in {duration}.",
+      ignore: "If you didn't ask for this, someone may be signed in to your account: change your password, and tell an administrator.",
+    },
     test: {
       subject: "KNOWLECTIVE test email",
       body: "This is a test email sent from the KNOWLECTIVE admin console.",

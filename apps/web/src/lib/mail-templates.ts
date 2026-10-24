@@ -102,6 +102,22 @@ export function passwordResetMail(
   };
 }
 
+// A one-time code confirming it's the user (issuing an API key), in their language.
+export function emailCodeMail(locale: AppLocale, input: { code: string; ttlMinutes: number }): Mail {
+  const t = translatorFor(locale);
+  return {
+    subject: t("mail.emailCode.subject", { code: input.code }),
+    text: [
+      t("mail.emailCode.intro"),
+      "",
+      input.code,
+      "",
+      t("mail.emailCode.expires", { duration: duration(locale, input.ttlMinutes) }),
+      t("mail.emailCode.ignore"),
+    ].join("\n"),
+  };
+}
+
 // The admin console's test email (overview → mail settings), in the
 // sending admin's language.
 export function testMail(locale: AppLocale): Mail {

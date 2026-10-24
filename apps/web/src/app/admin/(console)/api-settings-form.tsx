@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { startTransition, useActionState, useState } from "react";
 import type { SiteRole } from "shared";
+import { StatusRow } from "@/components/status-row";
 import styles from "@/styles/ui.module.css";
 import { type ApiSettingState, saveApiSettings } from "./actions";
 
@@ -73,12 +74,11 @@ export function ApiSettingsForm({
       <p className={styles.note} data-ui="ApiSettingsForm.count">
         {ta("api.keyCount", { count: keyCount })}
       </p>
-      <p data-ui="ApiSettingsForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? ta("common.saved") : "")}
-      </p>
-      <button data-ui="ApiSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? ta("common.saving") : ta("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? ta("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="ApiSettingsForm.status">
+        <button data-ui="ApiSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? ta("common.saving") : ta("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

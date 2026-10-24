@@ -6,10 +6,8 @@ import { prisma } from "@/lib/db";
 import { ownPasswordResetAvailability } from "@/lib/auth/own-password-reset";
 import { PASSWORD_RESET_TTL_MINUTES } from "@/lib/auth/password-reset";
 import { canIssueApiKeys, getApiSettings, listApiKeys } from "@/lib/api/keys";
-import { OIDC_START_PATH } from "@/lib/auth/oidc";
 import { listPasskeys, passkeyRequiredSetting } from "@/lib/auth/passkeys";
-import { reauthMethods } from "@/lib/auth/reauth";
-import { withBasePath } from "@/lib/base-path";
+import { reauthMethod } from "@/lib/auth/reauth";
 import { getPublicUrl } from "@/lib/site-url";
 import { getSessionUser, requireUser } from "@/lib/auth/session";
 import { loadSidebar } from "@/lib/sidebar-data";
@@ -40,11 +38,11 @@ export default async function AccountPage() {
     passkeyRequiredSetting(),
     getSessionUser(),
   ]);
-  const [apiKeys, canIssue, apiSettings, methods, publicUrl] = await Promise.all([
+  const [apiKeys, canIssue, apiSettings, method, publicUrl] = await Promise.all([
     listApiKeys(user.id),
     canIssueApiKeys(user.siteRole),
     getApiSettings(),
-    reauthMethods(user, session!.session),
+    reauthMethod(user.id),
     getPublicUrl(),
   ]);
   const now = new Date();
@@ -100,9 +98,7 @@ export default async function AccountPage() {
                 expired: k.expiresAt !== null && k.expiresAt <= now,
                 lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
               }))}
-              methods={methods}
-              // A plain link (a Route Handler, not a page): the base path by hand.
-              ssoAgainHref={withBasePath(`${OIDC_START_PATH}?next=${encodeURIComponent("/account")}`)}
+              method={method}
               apiUrl={`${publicUrl}/api/v1`}
               canIssue={canIssue && apiSettings.enabled}
             />

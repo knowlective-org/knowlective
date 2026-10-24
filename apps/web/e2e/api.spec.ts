@@ -1,14 +1,18 @@
 import { type APIRequestContext, type Browser, type Page, expect, test } from "@playwright/test";
-import { ACCOUNTS, HOME_PAGE_ID, PASSWORD, type Role, authFile } from "./accounts";
+import { ACCOUNTS, HOME_PAGE_ID, type Role, authFile } from "./accounts";
 import { openAdmin } from "./admin-login";
 import { userWhere, withPrisma } from "./db";
 import { editorBody, openPage } from "./helpers";
+import { startMailCapture } from "./mail-capture";
 
 // The public API (/api/v1) with personal API keys: issued on the account
-// screen after confirming the password, then used over HTTP. The cleanup
-// turns the API off again and removes the keys and the pages made here.
+// screen after confirming it's the owner (a code mailed to them, or their
+// passkey), then used over HTTP. Mail goes to a capture server for the
+// test. The cleanup turns the API off again and removes the keys and the
+// pages made here.
 
 const createdPages: string[] = [];
+let mail: Awaited<ReturnType<typeof startMailCapture>>;
 
 async function setApi(enabled: boolean) {
   await withPrisma((prisma) =>
@@ -19,14 +23,22 @@ async function setApi(enabled: boolean) {
   );
 }
 
-// Issues a key on the account screen (confirmed with the password) and
+// The code in the latest confirmation mail to `email`.
+async function mailedCode(email: string): Promise<string> {
+  const message = await mail.next(email);
+  return /^(\d{6})$/m.exec(message.text)![1];
+}
+
+// Issues a key on the account screen (confirmed with a mailed code) and
 // returns it, as shown once in the dialog.
-async function issueKey(page: Page, name: string, scope: "READ" | "WRITE", password = PASSWORD): Promise<string> {
+async function issueKey(page: Page, email: string, name: string, scope: "READ" | "WRITE"): Promise<string> {
   await page.goto("account");
   await page.getByTestId("ApiKeySection.nameInput").fill(name);
   await page.locator(`[data-ui="ApiKeySection.scopeRadio"][data-id="${scope}"]`).check();
-  await page.getByTestId("ApiKeySection.passwordInput").fill(password);
-  await page.getByTestId("ApiKeySection.passwordButton").click();
+  const code = mailedCode(email);
+  await page.getByTestId("ApiKeySection.sendCodeButton").click();
+  await page.getByTestId("ApiKeySection.codeInput").fill(await code);
+  await page.getByTestId("ApiKeySection.codeButton").click();
   const key = await page.getByTestId("AppDialog.copyInput").inputValue();
   expect(key).toMatch(/^kn_/);
   await page.getByTestId("AppDialog.closeButton").click();
@@ -36,7 +48,7 @@ async function issueKey(page: Page, name: string, scope: "READ" | "WRITE", passw
 async function issueKeyAs(browser: Browser, role: Role, name: string, scope: "READ" | "WRITE") {
   const context = await browser.newContext({ storageState: authFile(role) });
   try {
-    return await issueKey(await context.newPage(), name, scope);
+    return await issueKey(await context.newPage(), ACCOUNTS[role].email, name, scope);
   } finally {
     await context.close();
   }
@@ -71,12 +83,15 @@ test.describe("Public API", () => {
 
   test.beforeEach(async () => {
     await setApi(true);
+    mail = await startMailCapture();
   });
 
   test.afterEach(async () => {
+    await mail.close();
     await setApi(false);
     await withPrisma(async (prisma) => {
       await prisma.apiKey.deleteMany({});
+      await prisma.emailCode.deleteMany({});
       if (createdPages.length > 0) {
         await prisma.page.updateMany({ where: { id: { in: createdPages } }, data: { deletedAt: new Date() } });
       }
@@ -85,15 +100,20 @@ test.describe("Public API", () => {
   });
 
   test("a key from the account screen creates, reads and updates pages as its owner", async ({ page, request }) => {
-    // The password is asked for again; a wrong one issues nothing.
+    // Without a passkey, a code is mailed to the owner; a wrong one issues nothing.
     await page.goto("account");
+    await expect(page.getByTestId("ApiKeySection.passkeyButton")).toHaveCount(0);
     await page.getByTestId("ApiKeySection.nameInput").fill("E2E のキー");
-    await page.getByTestId("ApiKeySection.passwordInput").fill("wrong-password");
-    await page.getByTestId("ApiKeySection.passwordButton").click();
+    const first = mailedCode(ACCOUNTS.editor.email);
+    await page.getByTestId("ApiKeySection.sendCodeButton").click();
+    await expect(page.getByTestId("ApiKeySection.status")).toContainText(ACCOUNTS.editor.email);
+    const wrong = (await first) === "000000" ? "111111" : "000000";
+    await page.getByTestId("ApiKeySection.codeInput").fill(wrong);
+    await page.getByTestId("ApiKeySection.codeButton").click();
     await expect(page.getByTestId("ApiKeySection.error")).toContainText("本人確認ができませんでした");
     await expect(page.getByTestId("ApiKeySection.row")).toHaveCount(0);
 
-    const key = await issueKey(page, "E2E のキー", "WRITE");
+    const key = await issueKey(page, ACCOUNTS.editor.email, "E2E のキー", "WRITE");
     await expect(page.getByTestId("ApiKeySection.row")).toContainText("E2E のキー");
 
     const me = await request.get("api/v1/me", { headers: auth(key) });

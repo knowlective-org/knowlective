@@ -14,13 +14,15 @@ import {
   isApiKeyScope,
   listApiKeys,
 } from "@/lib/api/keys";
+import { CODE_TTL_MINUTES, sendEmailCode } from "@/lib/auth/email-code";
 import { beginReauthentication } from "@/lib/auth/passkeys";
-import { verifyReauth } from "@/lib/auth/reauth";
-import { LOCK_WINDOW_MS, getSessionUser, requireUser } from "@/lib/auth/session";
+import { reauthMethod, verifyReauth } from "@/lib/auth/reauth";
+import { requireUser } from "@/lib/auth/session";
 
 // The signed-in user's own API keys (account screen). Issuing one needs the
 // API on, a role that may hold keys, and confirming who they are again
-// (lib/auth/reauth.ts): a key outlives the session it was made in.
+// (lib/auth/reauth.ts: their passkey, or else a code mailed to them): a key
+// outlives the session it was made in.
 
 // The passkey prompt's options, for confirming with a passkey.
 export async function beginApiKeyPasskeyCheck(): Promise<PublicKeyCredentialRequestOptionsJSON> {
@@ -28,18 +30,33 @@ export async function beginApiKeyPasskeyCheck(): Promise<PublicKeyCredentialRequ
   return beginReauthentication(user);
 }
 
+// Mails a confirmation code, for an account without a passkey.
+export async function sendApiKeyCode(): Promise<{ sentTo: string; ttlMinutes: number } | { error: string }> {
+  const user = await requireUser("/account");
+  const t = await getTranslations("account.apiKeys.errors");
+  if (!(await canIssueApiKeys(user.siteRole))) return { error: t("notAllowed") };
+  if ((await reauthMethod(user.id)) !== "code") return { error: t("invalid") };
+  try {
+    if ((await sendEmailCode(user, "api-key")) === "tooMany") return { error: t("tooManyCodes") };
+  } catch (err) {
+    console.error("[api keys] sending the confirmation code failed", err);
+    return { error: t("mailFailed") };
+  }
+  return { sentTo: user.email, ttlMinutes: CODE_TTL_MINUTES };
+}
+
 export type IssueApiKeyInput = {
   name: string;
   scope: string;
   // Days, or null for no expiry.
   expiresInDays: number | null;
-  password?: string;
+  // One of these, by the account's way of confirming.
   passkey?: AuthenticationResponseJSON;
+  code?: string;
 };
 
 export async function issueApiKey(input: IssueApiKeyInput): Promise<{ key: string } | { error: string }> {
   const user = await requireUser("/account");
-  const session = (await getSessionUser())!.session;
   const t = await getTranslations("account.apiKeys.errors");
   if (!(await canIssueApiKeys(user.siteRole))) return { error: t("notAllowed") };
   const name = typeof input?.name === "string" ? input.name.replace(/\s+/g, " ").trim() : "";
@@ -51,9 +68,9 @@ export async function issueApiKey(input: IssueApiKeyInput): Promise<{ key: strin
     return { error: t("invalid") };
   }
 
-  const confirmed = await verifyReauth(user, session, { password: input.password, passkey: input.passkey });
-  if (confirmed === "locked") return { error: t("locked", { minutes: LOCK_WINDOW_MS / 60000 }) };
-  if (confirmed !== "ok") return { error: t("notConfirmed") };
+  if (!(await verifyReauth(user, "api-key", { passkey: input.passkey, code: input.code }))) {
+    return { error: t("notConfirmed") };
+  }
 
   const { id, key } = await createApiKey(user.id, { name, scope: input.scope, expiresInDays });
   const audit = await auditTranslator();

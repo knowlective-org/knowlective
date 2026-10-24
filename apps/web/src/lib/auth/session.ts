@@ -119,15 +119,7 @@ export async function passkeyRequiredSetting(): Promise<boolean> {
   return config?.passkeyRequired ?? false;
 }
 
-// How and when this session was signed in (confirming who someone is: lib/auth/reauth.ts).
-export type SessionInfo = { method: LoginMethod | null; createdAt: Date };
-
-type SessionState = {
-  user: CurrentUser;
-  passkeyExempt: boolean;
-  passkeySetupRequired: boolean;
-  session: SessionInfo;
-};
+type SessionState = { user: CurrentUser; passkeyExempt: boolean; passkeySetupRequired: boolean };
 
 async function loadSession(): Promise<SessionState | null> {
   const token = (await cookies()).get(COOKIE_NAME)?.value;
@@ -170,12 +162,7 @@ async function loadSession(): Promise<SessionState | null> {
   const passkeySetupRequired =
     session.user._count.passkeys === 0 && !exempt && (await passkeyRequiredSetting());
   const { id, email, name, siteRole } = await withEmail(session.user);
-  return {
-    user: { id, email, name, siteRole },
-    passkeyExempt: exempt,
-    passkeySetupRequired,
-    session: { method: session.method, createdAt: session.createdAt },
-  };
+  return { user: { id, email, name, siteRole }, passkeyExempt: exempt, passkeySetupRequired };
 }
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
@@ -192,13 +179,9 @@ export async function getPasskeySetupUser(): Promise<CurrentUser | null> {
 
 // The signed-in user, setup pending or not, and whether this session is
 // exempt from requiring a passkey (single sign-on): for managing passkeys.
-export async function getSessionUser(): Promise<{
-  user: CurrentUser;
-  passkeyExempt: boolean;
-  session: SessionInfo;
-} | null> {
+export async function getSessionUser(): Promise<{ user: CurrentUser; passkeyExempt: boolean } | null> {
   const state = await loadSession();
-  return state && { user: state.user, passkeyExempt: state.passkeyExempt, session: state.session };
+  return state && { user: state.user, passkeyExempt: state.passkeyExempt };
 }
 
 // The display language the signed-in user chose, if any. Only for picking

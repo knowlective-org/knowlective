@@ -120,7 +120,15 @@ test.describe("Passkeys", () => {
     await outsiderRow.getByTestId("RowMenu.toggle").click();
     await admin.getByTestId("RowMenu.item").filter({ hasText: "パスキーを削除" }).click();
     await admin.getByTestId("AppDialog.confirmButton").click();
-    await expect(outsiderRow.getByTestId("RowMenu.toggle")).toBeVisible();
+    // Done once the passkeys are gone (the menu's action runs in the background).
+    await expect
+      .poll(() =>
+        withPrisma(async (prisma) => {
+          const user = await prisma.user.findUniqueOrThrow({ where: await userWhere(prisma, ACCOUNTS.outsider.email) });
+          return prisma.userPasskey.count({ where: { userId: user.id } });
+        }),
+      )
+      .toBe(0);
     await page.goto("account");
     await expect(page).toHaveURL(/\/login/);
     await signIn(page, ACCOUNTS.outsider.email);

@@ -39,6 +39,12 @@ const ja: MessageShape<typeof en> = {
       expires: "このリンクは{duration}有効で、1回だけ使えます。再設定すると、ログイン中の端末はすべてログアウトします。",
       ignore: "心当たりがない場合は、このメールを無視してください（パスワードは変わりません）。",
     },
+    emailCode: {
+      subject: "KNOWLECTIVE の確認コード: {code}",
+      intro: "API キーを発行するための本人確認です。KNOWLECTIVE の画面で次のコードを入力してください。",
+      expires: "コードは1回だけ使え、{duration}で使えなくなります。",
+      ignore: "心当たりがない場合は、誰かがあなたのアカウントにログインしている可能性があります。パスワードを変更し、管理者に連絡してください。",
+    },
     test: {
       subject: "KNOWLECTIVE テストメール",
       body: "KNOWLECTIVE の管理画面から送信したテストメールです。",

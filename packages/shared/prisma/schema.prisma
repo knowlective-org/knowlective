@@ -68,6 +68,7 @@ model User {
   adminSessions   AdminSession[]
   passkeys        UserPasskey[]
   apiKeys         ApiKey[]
+  emailCodes      EmailCode[]
 
   // TOTP secret for this user's two-step verification, encrypted with the DEK
   // (AAD bound to the user id). Required for site admins signing in to /admin.
@@ -479,6 +480,25 @@ model ApiKey {
   lastUsedAt DateTime?
 
   @@index([userId])
+}
+
+// A one-time code mailed to a user, to confirm it's them (lib/auth/
+// email-code.ts): issuing an API key without a passkey. Only a hash of the
+// code is stored. Usable once, for a few minutes, and for a few wrong tries.
+model EmailCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // What the code confirms ("api-key").
+  purpose   String
+  codeHash  String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  // Used, given up after too many wrong tries, or replaced by a newer code.
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, purpose])
 }
 
 // Sign-up is invitation-only. Issued from /admin; the link carries a random

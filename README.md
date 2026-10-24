@@ -286,7 +286,7 @@ Instead of a password, you can log in with a passkey (fingerprint, face, or the 
 Programs can read and change pages over HTTP (`/api/v1`) with a personal API key.
 
 - A site admin turns it on under "Users" → "API" in the admin console (off by default), and chooses the roles that can issue keys (all of them by default)
-- Each person issues their own keys under "Account" in the sidebar: a name, the access ("Read only" or "Read and write"), and an expiry (30, 90 or 365 days, or never). Issuing asks them to confirm it's them: with a passkey, their password, or a single sign-on login (a login in the last 10 minutes counts). The key is shown once
+- Each person issues their own keys under "Account" in the sidebar: a name, the access ("Read only" or "Read and write"), and an expiry (30, 90 or 365 days, or never). Issuing asks them to confirm it's them: with their passkey if they have registered one, otherwise with a 6-digit code emailed to their address (valid for 10 minutes, once). Without a passkey and without mail sending set up, keys can't be issued. The key is shown once
 - A request with a key acts as its owner: exactly the pages they can see and edit, never more. Locked pages can't be changed
 - A key stops working when it expires, is revoked (by its owner, or by a site admin from the user list: "⋯" → "Revoke API keys"), its owner is disabled, their role is taken off the list, or the API is turned off. Only a hash of the key is stored
 - Issuing and revoking keys and changing the API settings are recorded in the audit log. Each key is limited to 120 requests a minute
