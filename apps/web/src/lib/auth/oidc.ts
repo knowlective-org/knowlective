@@ -178,16 +178,30 @@ export async function discover() {
 // console's (which signs in to the admin console instead, still with TOTP).
 export type OidcPurpose = "app" | "admin";
 
-type LoginState = {
+// A test login from the admin console (lib/auth/oidc-test.ts): the settings
+// being tested (maybe not saved yet) and the admin who started it.
+export type OidcTestTarget = {
+  issuer: string;
+  clientId: string;
+  clientSecret: string;
+  nameClaim: string;
+  groupsClaim: string;
+  // The user name to fill in at the IdP ("" = none).
+  loginHint: string;
+  adminUserId: string | null;
+};
+
+export type LoginState = {
   state: string;
   nonce: string;
   verifier: string;
   next: string;
   purpose?: OidcPurpose;
+  test?: OidcTestTarget;
   exp: number;
 };
 
-async function sealState(state: LoginState): Promise<string> {
+export async function sealState(state: LoginState): Promise<string> {
   const sealed = encrypt(
     await loadDataKey(prisma),
     Buffer.from(JSON.stringify(state), "utf8"),
@@ -196,7 +210,7 @@ async function sealState(state: LoginState): Promise<string> {
   return Buffer.from(sealed).toString("base64url");
 }
 
-async function openState(
+export async function openState(
   cookie: string | undefined,
 ): Promise<LoginState | null> {
   if (!cookie) return null;
@@ -285,13 +299,13 @@ export class OidcLoginError extends Error {
   }
 }
 
-// Completes the sign-in from the callback's query string. Returns the user
-// to sign in, where to go next, and where the sign-in was started.
+// Completes the sign-in from the callback's query string and the opened
+// state cookie. Returns the user to sign in, where to go next, and where the
+// sign-in was started.
 export async function finishLogin(
   search: string,
-  stateCookie: string | undefined,
+  state: LoginState | null,
 ): Promise<{ userId: string; next: string; purpose: OidcPurpose }> {
-  const state = await openState(stateCookie);
   const purpose = state?.purpose ?? "app";
   try {
     if (!state) throw new OidcLoginError("expired");
@@ -409,16 +423,17 @@ async function completeLogin(search: string, state: LoginState): Promise<{ userI
 
 // The claims to read the profile from: the ID token's, with the UserInfo
 // endpoint's over them (when the IdP has one). `userInfo`: whether UserInfo
-// was read (a failed request mustn't look like "no groups").
-async function profileClaims(
+// was read (a failed request mustn't look like "no groups"); `info`: what it
+// returned.
+export async function profileClaims(
   config: client.Configuration,
   claims: client.IDToken,
   accessToken: string,
-): Promise<{ claims: Claims; userInfo: boolean | null }> {
+): Promise<{ claims: Claims; userInfo: boolean | null; info?: Claims }> {
   if (!config.serverMetadata().userinfo_endpoint) return { claims, userInfo: null };
   try {
     const info = await client.fetchUserInfo(config, accessToken, claims.sub);
-    return { claims: { ...claims, ...info }, userInfo: true };
+    return { claims: { ...claims, ...info }, userInfo: true, info };
   } catch (err) {
     console.error("[oidc] UserInfo request failed", err);
     return { claims, userInfo: false };

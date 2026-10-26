@@ -4,6 +4,7 @@ import { ACCOUNTS, HOME_PAGE_ID } from "./accounts";
 import { userWhere, withPrisma } from "./db";
 import { editorBody, openPage } from "./helpers";
 import { type MockIdp, startMockIdp } from "./mock-idp";
+import { openAdmin } from "./admin-login";
 
 // Single sign-on through a stand-in identity provider (mock-idp.ts): the
 // display name from a template of ID token and UserInfo claims, and groups
@@ -136,6 +137,51 @@ test.describe("Single sign-on profile", () => {
     const logged = await withPrisma((prisma) => prisma.auditLog.count({ where: { action: "group.member.oidc" } }));
     expect(logged).toBeGreaterThanOrEqual(2);
     await context.close();
+  });
+
+  test("the test login shows a user's display name and groups, or what couldn't be had, and changes nothing", async ({ page, context }) => {
+    const UNMADE = `E2E SSO テストだけ ${stamp}`;
+    await openAdmin(page, "/users");
+    const runTest = async () => {
+      await page.getByTestId("OidcSettingsForm.testUserInput").fill("taro@example.com");
+      const [tab] = await Promise.all([context.waitForEvent("page"), page.getByTestId("OidcSettingsForm.testLoginButton").click()]);
+      await expect(tab).toHaveURL(/\/admin\/oidc-test\/[\w-]+$/);
+      return tab;
+    };
+
+    idp.idToken = { email: "taro@example.com", email_verified: true, given_name: "太郎" };
+    idp.userInfo = { family_name: "山田", department: "営業部", groups: [UNMADE, "E2E 閲覧"] };
+    let tab = await runTest();
+    // The user name is filled in at the IdP, with a fresh login asked for.
+    expect(idp.lastAuthorize?.get("login_hint")).toBe("taro@example.com");
+    expect(idp.lastAuthorize?.get("prompt")).toBe("login");
+    await expect(tab.getByTestId("AdminOidcTestPage.user")).toContainText("taro@example.com");
+    await expect(tab.getByTestId("AdminOidcTestPage.displayName")).toContainText("山田 太郎@営業部");
+    await expect(tab.getByTestId("AdminOidcTestPage.groups")).toHaveText(`${UNMADE}, E2E 閲覧`);
+    await expect(tab.getByTestId("AdminOidcTestPage.userInfo")).toHaveText("取得しました");
+    await expect(tab.locator('[data-ui="AdminOidcTestPage.claimRow"][data-id="department"]')).toContainText("UserInfo");
+    await expect(tab.locator('[data-ui="AdminOidcTestPage.claimRow"][data-id="given_name"]')).toContainText("ID トークン");
+    // Nothing made: no group, no account for the address.
+    expect(await withPrisma((prisma) => prisma.group.count({ where: { name: UNMADE } }))).toBe(0);
+    await tab.close();
+
+    // UserInfo fails: what's missing is said.
+    idp.failUserInfo = true;
+    tab = await runTest();
+    await expect(tab.getByTestId("AdminOidcTestPage.userInfo")).toContainText("取得できませんでした");
+    await expect(tab.getByTestId("AdminOidcTestPage.displayName")).toContainText("太郎@");
+    await expect(tab.getByTestId("AdminOidcTestPage.missingNameClaims")).toContainText("family_name, department");
+    await expect(tab.getByTestId("AdminOidcTestPage.groups")).toContainText("属性「groups」が IdP から届いていません");
+    await tab.close();
+    idp.failUserInfo = false;
+
+    // The login is refused at the IdP: no data, and why.
+    idp.deny = true;
+    tab = await runTest();
+    await expect(tab.getByTestId("AdminOidcTestPage.error")).toContainText("ユーザーのデータを取得できませんでした");
+    await expect(tab.getByTestId("AdminOidcTestPage.error")).toContainText("キャンセル");
+    await tab.close();
+    idp.deny = false;
   });
 
   test("the admin console's login page signs in through single sign-on too, then asks for the authenticator", async ({ browser }) => {

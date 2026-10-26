@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { auditTranslator } from "@/i18n/audit";
 import { groupName } from "@/i18n/group-name";
 import { isLocale, LOCALE_NAMES } from "@/i18n/locales";
+import { withBasePath } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
 import { endAdminSession, requireAdmin } from "@/lib/admin/auth";
 import { formatCidr, isIpAllowed, parseCidr } from "@/lib/ip";
@@ -25,7 +27,16 @@ import { saveTheme as storeTheme } from "@/lib/theme";
 import { MAX_BRAND_NAME_LENGTH, checkLogoSvg, getBrand, getBrandLogo, saveBrand } from "@/lib/brand";
 import { getSignupSettings, isSignupRole, parseDomains } from "@/lib/auth/signup";
 import { decrypt, loadDataKey } from "shared";
-import { discoverWith, getOidcSettings, isOidcRole, sealClientSecret } from "@/lib/auth/oidc";
+import {
+  OIDC_STATE_COOKIE,
+  OIDC_STATE_COOKIE_PATH,
+  OIDC_STATE_MAX_AGE,
+  discoverWith,
+  getOidcSettings,
+  isOidcRole,
+  sealClientSecret,
+} from "@/lib/auth/oidc";
+import { beginTestLogin } from "@/lib/auth/oidc-test";
 import { CLAIM_PATH, MAX_TEMPLATE_LENGTH, parseNameTemplate } from "@/lib/auth/oidc-profile";
 import { THEME_TOKENS, normalizeColor, type ThemeColors } from "@/lib/theme-tokens";
 import {
@@ -904,6 +915,47 @@ export async function testOidcSettings(_prev: OidcFormState, formData: FormData)
   const t = await getTranslations("admin.oidc.errors");
   if (!issuer) return { error: t("unreachableTitle"), message: t("unreachable") };
   return { message: t("reachable", { issuer }) };
+}
+
+const MAX_LOGIN_HINT_LENGTH = 200;
+
+// Test login (lib/auth/oidc-test.ts): starts a sign-in at the IdP with the
+// entered settings and the user name to test. Returns the URL for the tab
+// the form opened; the callback sends that tab to the result.
+export async function startOidcTestLogin(formData: FormData): Promise<{ url?: string; error?: string }> {
+  const { ctx, session } = await requireAdmin(["SITE_ADMIN"]);
+  const input = readOidcForm(formData);
+  if (typeof input === "string") return { error: await oidcErrorText(input) };
+  const t = await getTranslations("admin.oidc.errors");
+  const secret = await secretFor(input);
+  if (secret === null) return { error: t("secret") };
+  const hint = formData.get("testUser");
+  const loginHint = typeof hint === "string" ? hint.trim() : "";
+  if (loginHint.length > MAX_LOGIN_HINT_LENGTH) return { error: (await getTranslations())("common.errors.invalidInput") };
+
+  let started: Awaited<ReturnType<typeof beginTestLogin>>;
+  try {
+    started = await beginTestLogin({
+      issuer: input.issuer,
+      clientId: input.clientId,
+      clientSecret: secret,
+      nameClaim: input.nameClaim,
+      groupsClaim: input.groupsClaim,
+      loginHint,
+      adminUserId: session.userId,
+    });
+  } catch (err) {
+    console.error("[oidc] test: discovery failed", err);
+    return { error: t("unreachable") };
+  }
+  (await cookies()).set(OIDC_STATE_COOKIE, started.cookie, {
+    path: withBasePath(OIDC_STATE_COOKIE_PATH),
+    maxAge: OIDC_STATE_MAX_AGE,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: ctx.secure,
+  });
+  return { url: started.url.href };
 }
 
 export async function saveOidcSettings(_prev: OidcFormState, formData: FormData): Promise<OidcFormState> {

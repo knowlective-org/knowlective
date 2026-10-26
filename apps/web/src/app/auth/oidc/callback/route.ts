@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { withBasePath } from "@/lib/base-path";
 import type { NextRequest } from "next/server";
-import { OIDC_STATE_COOKIE, OIDC_STATE_COOKIE_PATH, OidcLoginError, finishLogin } from "@/lib/auth/oidc";
+import { OIDC_STATE_COOKIE, OIDC_STATE_COOKIE_PATH, OidcLoginError, finishLogin, openState } from "@/lib/auth/oidc";
+import { finishTestLogin } from "@/lib/auth/oidc-test";
 import { beginAdminSessionAfterSso, getAdminConfig } from "@/lib/admin/auth";
 import { createUserSession } from "@/lib/auth/session";
 import { isIpAllowed } from "@/lib/ip";
@@ -33,9 +34,14 @@ export async function GET(request: NextRequest) {
   // Single use, whatever happens next.
   jar.delete({ name: OIDC_STATE_COOKIE, path: withBasePath(OIDC_STATE_COOKIE_PATH) });
 
+  const state = await openState(stateCookie);
+  // A test from the admin console: nobody is signed in; the result page
+  // (which checks the admin session) shows what came back.
+  if (state?.test) return sameSiteRedirect(`/admin/oidc-test/${await finishTestLogin(request.nextUrl.search, state, state.test)}`);
+
   try {
     const ctx = await getRequestContext();
-    const { userId, next, purpose } = await finishLogin(request.nextUrl.search, stateCookie);
+    const { userId, next, purpose } = await finishLogin(request.nextUrl.search, state);
     if (purpose === "admin") {
       // The admin console's own restriction (this path is outside /admin).
       if (!isIpAllowed(ctx.ip, (await getAdminConfig()).adminIpAllowlist)) return new Response(null, { status: 404 });

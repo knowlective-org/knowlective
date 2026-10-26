@@ -6,6 +6,7 @@ import styles from "@/styles/ui.module.css";
 import {
   type OidcFormState,
   saveOidcSettings,
+  startOidcTestLogin,
   testOidcSettings,
 } from "./actions";
 
@@ -45,6 +46,7 @@ export function OidcSettingsForm({
     {} as OidcFormState,
   );
   const [enabled, setEnabled] = useState(values.enabled);
+  const [loginTest, setLoginTest] = useState<{ starting: boolean; error?: string }>({ starting: false });
   const ta = useTranslations("admin");
   const formRef = useRef<HTMLFormElement>(null);
   // Submitted by hand, not via `action`, so React doesn't reset the fields.
@@ -52,6 +54,23 @@ export function OidcSettingsForm({
     if (!formRef.current) return;
     const data = new FormData(formRef.current);
     startTransition(() => action(data));
+  };
+  // The test login runs in a new tab (the IdP's login, then the result), so
+  // what's typed here stays. The tab is opened at the click: one opened
+  // after the action returns would be taken for a pop-up and blocked.
+  const startTestLogin = async () => {
+    if (!formRef.current) return;
+    const data = new FormData(formRef.current);
+    const tab = window.open("about:blank", "_blank");
+    setLoginTest({ starting: true });
+    const result = await startOidcTestLogin(data).catch(() => ({ url: undefined, error: ta("oidc.testLoginFailed") }));
+    if (result.url && tab) {
+      tab.location.href = result.url;
+      setLoginTest({ starting: false });
+    } else {
+      tab?.close();
+      setLoginTest({ starting: false, error: result.error ?? ta("oidc.testLoginBlocked") });
+    }
   };
 
   return (
@@ -281,6 +300,39 @@ export function OidcSettingsForm({
               </span>
             </span>
           </label>
+        </fieldset>
+
+        <fieldset style={{ border: 0, display: "grid", gap: 6 }} data-ui="OidcSettingsForm.testLogin">
+          <legend style={{ marginBottom: 6 }}>{ta("oidc.testLogin")}</legend>
+          <span className={styles.note}>{ta("oidc.testLoginNote")}</span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              // Not a setting: only sent to the test.
+              name="testUser"
+              aria-label={ta("oidc.testUser")}
+              placeholder={ta("oidc.testUser")}
+              maxLength={200}
+              className={styles.field}
+              style={{ flex: "1 1 240px" }}
+              spellCheck={false}
+              autoComplete="off"
+              data-ui="OidcSettingsForm.testUserInput"
+            />
+            <button
+              type="button"
+              className={styles.buttonSecondary}
+              disabled={loginTest.starting}
+              onClick={() => void startTestLogin()}
+              data-ui="OidcSettingsForm.testLoginButton"
+            >
+              {loginTest.starting ? ta("common.checking") : ta("oidc.testLoginButton")}
+            </button>
+          </div>
+          {loginTest.error && (
+            <p className={styles.error} data-ui="OidcSettingsForm.testLoginError">
+              {loginTest.error}
+            </p>
+          )}
         </fieldset>
       </div>
 

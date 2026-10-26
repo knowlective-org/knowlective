@@ -62,6 +62,16 @@ export function parseNameTemplate(input: string): { parts: (string | { claim: st
   return parts.some((p) => typeof p !== "string") ? { parts } : null;
 }
 
+// The claims a display-name setting reads (the default's two included).
+export function nameTemplateClaims(template: string | null): string[] {
+  const parsed = template ? parseNameTemplate(template) : null;
+  if (!parsed || parsed.parts.length === 0) return ["name", "preferred_username"];
+  return [...new Set(parsed.parts.flatMap((p) => (typeof p === "string" ? [] : [p.claim])))];
+}
+
+// Whether the claims have a usable value at `path` (as the display name reads it).
+export const hasClaimText = (claims: Claims, path: string) => claimText(claims, path) !== null;
+
 // The display name from the claims, or null if it comes out empty (a
 // template whose claims are all missing). Default: "name", else
 // "preferred_username".

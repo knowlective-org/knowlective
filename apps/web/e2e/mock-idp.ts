@@ -6,7 +6,9 @@ import type { AddressInfo } from "node:net";
 // 127.0.0.1, which the app accepts as a development issuer): discovery,
 // authorize (answers at once, as if the person had logged in), token (a
 // signed ID token), JWKS and UserInfo. `idToken` and `userInfo` are the
-// claims it hands out; change them between sign-ins.
+// claims it hands out; change them between sign-ins. `failUserInfo` makes
+// UserInfo answer 500, `deny` makes authorize answer access_denied, and
+// `lastAuthorize` is the last authorization request's parameters.
 
 export type MockIdp = {
   issuer: string;
@@ -14,6 +16,9 @@ export type MockIdp = {
   clientSecret: string;
   idToken: Record<string, unknown>;
   userInfo: Record<string, unknown>;
+  failUserInfo: boolean;
+  deny: boolean;
+  lastAuthorize: URLSearchParams | null;
   close(): Promise<void>;
 };
 
@@ -31,6 +36,9 @@ export async function startMockIdp(subject: string): Promise<MockIdp> {
     clientSecret: "e2e-secret",
     idToken: {},
     userInfo: {},
+    failUserInfo: false,
+    deny: false,
+    lastAuthorize: null,
     close: async () => {},
   };
 
@@ -63,6 +71,14 @@ export async function startMockIdp(subject: string): Promise<MockIdp> {
     }
     if (url.pathname === "/jwks") return json(200, { keys: [jwk] });
     if (url.pathname === "/authorize") {
+      idp.lastAuthorize = url.searchParams;
+      if (idp.deny) {
+        const back = new URL(url.searchParams.get("redirect_uri")!);
+        back.searchParams.set("error", "access_denied");
+        back.searchParams.set("state", url.searchParams.get("state") ?? "");
+        res.writeHead(302, { Location: back.toString() });
+        return res.end();
+      }
       const code = randomBytes(16).toString("hex");
       codes.set(code, { nonce: url.searchParams.get("nonce") });
       const back = new URL(url.searchParams.get("redirect_uri")!);
@@ -103,6 +119,7 @@ export async function startMockIdp(subject: string): Promise<MockIdp> {
     if (url.pathname === "/userinfo") {
       const token = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
       if (!tokens.has(token)) return json(401, { error: "invalid_token" });
+      if (idp.failUserInfo) return json(500, { error: "server_error" });
       return json(200, { sub: subject, ...idp.userInfo });
     }
     json(404, { error: "not_found" });
