@@ -69,6 +69,7 @@ model User {
   passkeys        UserPasskey[]
   apiKeys         ApiKey[]
   emailCodes      EmailCode[]
+  emailChanges    EmailChangeRequest[]
 
   // TOTP secret for this user's two-step verification, encrypted with the DEK
   // (AAD bound to the user id). Required for site admins signing in to /admin.
@@ -515,6 +516,24 @@ model EmailCode {
   @@index([userId, purpose])
 }
 
+// A change of a user's email address, waiting for the link mailed to the new
+// address (lib/auth/email-change.ts). Only the link's token hash is stored,
+// and the new address as usual (encrypted, plus its keyed hash). Single use.
+model EmailChangeRequest {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  newEmailHash Bytes
+  newEmailEnc  Bytes
+  expiresAt    DateTime
+  // Used, or replaced by a newer request.
+  usedAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+}
+
 // Sign-up is invitation-only. Issued from /admin; the link carries a random
 // token and only its SHA-256 hash is stored. Single use.
 enum SignupMode {
@@ -627,6 +646,8 @@ model Group {
   // InstanceConfig.publicPagesAllowed is on; VIEW only. See permissions.ts.
   // Built-in groups can't be deleted or have members edited.
   builtIn     String?  @unique
+  // Made by single sign-on for a groups claim value (OidcSettings.groupsClaim).
+  oidcCreated Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   members     GroupMember[]
@@ -639,6 +660,10 @@ model GroupMember {
   group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Added by single sign-on's group sync, which also takes it away again when
+  // the claim no longer has the group. Memberships added by hand are never
+  // touched by it.
+  viaOidc   Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@id([groupId, userId])
@@ -788,10 +813,18 @@ model OidcSettings {
   clientSecretEnc Bytes
   // Label of the login button ("Log in with …").
   buttonLabel     String
-  // Claim used as a new account's display name (e.g. "name", "given_name").
-  // Null = "name", else "preferred_username". Fetched from the UserInfo
-  // endpoint if the ID token doesn't have it.
+  // The display name: a claim ("name"), or a template of claims and text
+  // ("{family_name} {given_name}", "{name}@{department}"), from the ID token
+  // and the UserInfo endpoint (lib/auth/oidc-profile.ts). Null = "name", else
+  // "preferred_username".
   nameClaim       String?
+  // Set the display name again at every sign-in (not only when the account is
+  // created). While on, allowNameChange has no effect.
+  syncName        Boolean           @default(true)
+  // Claim whose value(s) — a string or an array of strings — are the groups
+  // the user is in: each is the group of that name (made if missing). Synced at
+  // every sign-in, for memberships it made only (GroupMember.viaOidc). Null: off.
+  groupsClaim     String?
   // New users are created on their first sign-in with this role
   // (USER or CONTENT_MANAGER), if their email domain is allowed.
   newUserRole     SiteRole          @default(USER)
@@ -800,6 +833,9 @@ model OidcSettings {
   // Treat the IdP's email as verified even without email_verified: true
   // (e.g. Microsoft Entra ID omits it). Only for IdPs that control emails.
   trustEmail      Boolean           @default(false)
+  // Accounts linked to the IdP may change their display name on the account
+  // screen. Off: the name stays as the IdP gave it at the first sign-in.
+  allowNameChange Boolean           @default(false)
   passwordLogin   PasswordLoginMode @default(ALLOWED)
   updatedAt       DateTime          @updatedAt
 }

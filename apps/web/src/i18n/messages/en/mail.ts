@@ -38,6 +38,19 @@ export default {
       expires: "The link works once and expires in {duration}. Resetting your password logs you out on every device.",
       ignore: "If you didn't ask for this, you can ignore this email (your password stays the same).",
     },
+    emailChange: {
+      subject: "Confirm your new KNOWLECTIVE email address",
+      intro: "Someone asked to use this address for their KNOWLECTIVE account.",
+      open: "If it was you, open this link to confirm the change:",
+      expires: "The link works once and expires in {duration}.",
+      inUse: "This address is already used by another KNOWLECTIVE account, so it can't be used for this one. Nothing was changed.",
+      ignore: "If you didn't ask for this, you can ignore this email.",
+    },
+    emailChanged: {
+      subject: "Your KNOWLECTIVE email address was changed",
+      body: "Your KNOWLECTIVE account's email address was changed to {email}. Emails go there from now on.",
+      notYou: "If you didn't do this, contact an administrator right away.",
+    },
     emailCode: {
       subject: "Your KNOWLECTIVE confirmation code: {code}",
       intro: "Enter this code in KNOWLECTIVE to confirm it's you and issue an API key:",

@@ -10,7 +10,8 @@ import {
   ensurePersonalRoot,
 } from "shared";
 import { prisma } from "@/lib/db";
-import { emailColumns, emailWhere } from "@/lib/emails";
+import { emailColumns, emailWhere, withEmail } from "@/lib/emails";
+import { type Claims, groupNames, renderDisplayName, syncOidcGroups } from "./oidc-profile";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { auditTranslator } from "@/i18n/audit";
 import { getTranslations } from "next-intl/server";
@@ -55,9 +56,12 @@ export type OidcSettingsView = {
   hasSecret: boolean;
   buttonLabel: string;
   nameClaim: string;
+  syncName: boolean;
+  groupsClaim: string;
   newUserRole: OidcRole;
   allowedDomains: string[];
   trustEmail: boolean;
+  allowNameChange: boolean;
   passwordLogin: PasswordLoginMode;
 };
 
@@ -70,9 +74,12 @@ const DEFAULTS: OidcSettingsView = {
   // Empty: the login screen's own name for it, in the viewer's language.
   buttonLabel: "",
   nameClaim: "",
+  syncName: true,
+  groupsClaim: "",
   newUserRole: "USER",
   allowedDomains: [],
   trustEmail: false,
+  allowNameChange: false,
   passwordLogin: "ALLOWED",
 };
 
@@ -87,9 +94,12 @@ export async function getOidcSettings(): Promise<OidcSettingsView> {
     hasSecret: row.clientSecretEnc.length > 0,
     buttonLabel: row.buttonLabel,
     nameClaim: row.nameClaim ?? "",
+    syncName: row.syncName,
+    groupsClaim: row.groupsClaim ?? "",
     newUserRole: isOidcRole(row.newUserRole) ? row.newUserRole : "USER",
     allowedDomains: row.allowedDomains,
     trustEmail: row.trustEmail,
+    allowNameChange: row.allowNameChange,
     passwordLogin: row.passwordLogin,
   };
 }
@@ -283,6 +293,7 @@ export async function finishLogin(
 
   const issuer = claims.iss;
   const subject = claims.sub;
+  const profile = await profileClaims(config, claims, accessToken);
   const email =
     typeof claims.email === "string" ? claims.email.trim().toLowerCase() : null;
   const emailVerified = claims.email_verified === true || settings.trustEmail;
@@ -296,6 +307,7 @@ export async function finishLogin(
   });
   if (linked) {
     if (linked.disabledAt) throw new OidcLoginError("disabled");
+    await applyProfile(linked.id, settings, profile);
     return { userId: linked.id, next: state.next };
   }
 
@@ -318,6 +330,7 @@ export async function finishLogin(
       where: { id: existing.id },
       data: { oidcIssuer: issuer, oidcSubject: subject },
     });
+    await applyProfile(existing.id, settings, profile);
     return { userId: existing.id, next: state.next };
   }
 
@@ -325,12 +338,7 @@ export async function finishLogin(
   if (!isDomainAllowed(email, settings.allowedDomains)) {
     throw new OidcLoginError("domain");
   }
-  const name = await displayName(
-    config,
-    settings.nameClaim,
-    claims,
-    accessToken,
-  );
+  const name = renderDisplayName(settings.nameClaim, profile.claims);
   const role: OidcRole = isOidcRole(settings.newUserRole)
     ? settings.newUserRole
     : "USER";
@@ -358,52 +366,52 @@ export async function finishLogin(
     audit("audit.oidcUserCreated", { email, role: audit(`roles.${role}`) }),
     { userId: user.id, issuer },
   );
+  // Its groups (the name is set already).
+  await applyProfile(user.id, { ...settings, syncName: false }, profile);
   return { userId: user.id, next: state.next };
 }
 
-// A claim's value as a display name: strings only, trimmed, at most 100
-// characters. `path` may be dotted for nested claims (e.g. "profile.name").
-function claimText(
-  claims: Record<string, unknown>,
-  path: string,
-): string | null {
-  let value: unknown = claims;
-  for (const key of path.split(".")) {
-    value =
-      value && typeof value === "object"
-        ? (value as Record<string, unknown>)[key]
-        : undefined;
-  }
-  return typeof value === "string" && value.trim()
-    ? value.trim().slice(0, 100)
-    : null;
-}
-
-// Display name for a new account: the configured claim (from the ID token,
-// else the UserInfo endpoint), or by default "name" then "preferred_username".
-async function displayName(
+// The claims to read the profile from: the ID token's, with the UserInfo
+// endpoint's over them (when the IdP has one). `userInfo`: whether UserInfo
+// was read (a failed request mustn't look like "no groups").
+async function profileClaims(
   config: client.Configuration,
-  nameClaim: string | null,
   claims: client.IDToken,
   accessToken: string,
-): Promise<string | null> {
-  const paths = nameClaim ? [nameClaim] : ["name", "preferred_username"];
-  for (const path of paths) {
-    const value = claimText(claims, path);
-    if (value) return value;
-  }
-  if (!config.serverMetadata().userinfo_endpoint) return null;
+): Promise<{ claims: Claims; userInfo: boolean | null }> {
+  if (!config.serverMetadata().userinfo_endpoint) return { claims, userInfo: null };
   try {
     const info = await client.fetchUserInfo(config, accessToken, claims.sub);
-    for (const path of paths) {
-      const value = claimText(info, path);
-      if (value) return value;
-    }
+    return { claims: { ...claims, ...info }, userInfo: true };
   } catch (err) {
-    // A display name isn't worth failing the sign-in for.
     console.error("[oidc] UserInfo request failed", err);
+    return { claims, userInfo: false };
   }
-  return null;
+}
+
+// At every sign-in of an account linked to the IdP: the display name again
+// (OidcSettings.syncName) and the groups (groupsClaim).
+async function applyProfile(
+  userId: string,
+  settings: { nameClaim: string | null; syncName: boolean; groupsClaim: string | null },
+  profile: { claims: Claims; userInfo: boolean | null },
+): Promise<void> {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailEnc: true } });
+  let name = user.name;
+  if (settings.syncName) {
+    const fresh = renderDisplayName(settings.nameClaim, profile.claims);
+    if (fresh && fresh !== user.name) {
+      await prisma.user.update({ where: { id: userId }, data: { name: fresh } });
+      name = fresh;
+    }
+  }
+  if (settings.groupsClaim) {
+    const names = groupNames(profile.claims, settings.groupsClaim);
+    // Not there because UserInfo couldn't be read: leave the groups as they are.
+    if (names === null && profile.userInfo === false) return;
+    const { email } = await withEmail(user);
+    await syncOidcGroups(prisma, { id: userId, label: `${userLabel({ name, email })} (SSO)` }, names ?? []);
+  }
 }
 
 // Password sign-in is allowed for this user under the current settings.

@@ -135,7 +135,7 @@ export default async function AdminSecurityPage({ searchParams }: PageProps<"/ad
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>{t("sessions")}</h2>
         <div className={styles.tableWrap}>
-          <table className={styles.table}>
+          <table className={`${styles.table} ${styles.tableMiddle}`}>
             <thead>
               <tr>
                 <th>{t("user")}</th>
@@ -184,7 +184,7 @@ export default async function AdminSecurityPage({ searchParams }: PageProps<"/ad
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>{t("attempts")}</h2>
         <div className={styles.tableWrap}>
-          <table className={styles.table}>
+          <table className={`${styles.table} ${styles.tableMiddle}`}>
             <thead>
               <tr>
                 <th>{t("time")}</th>

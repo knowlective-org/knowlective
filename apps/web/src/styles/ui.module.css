@@ -257,6 +257,12 @@
   vertical-align: top;
 }
 
+/* Rows of single-line cells (sessions, login attempts): center everything vertically. */
+.tableMiddle th,
+.tableMiddle td {
+  vertical-align: middle;
+}
+
 .ua {
   max-width: 280px;
   overflow: hidden;

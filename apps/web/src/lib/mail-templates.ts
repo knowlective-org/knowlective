@@ -118,6 +118,38 @@ export function emailCodeMail(locale: AppLocale, input: { code: string; ttlMinut
   };
 }
 
+// The link confirming a new email address, sent to that address.
+export function emailChangeConfirmMail(locale: AppLocale, input: { link: string; ttlMinutes: number }): Mail {
+  const t = translatorFor(locale);
+  return {
+    subject: t("mail.emailChange.subject"),
+    text: [
+      t("mail.emailChange.intro"),
+      "",
+      t("mail.emailChange.open"),
+      input.link,
+      "",
+      t("mail.emailChange.expires", { duration: duration(locale, input.ttlMinutes) }),
+      t("mail.emailChange.ignore"),
+    ].join("\n"),
+  };
+}
+
+// To a new address that already belongs to an account here: it can't be used.
+export function emailChangeInUseMail(locale: AppLocale): Mail {
+  const t = translatorFor(locale);
+  return { subject: t("mail.emailChange.subject"), text: [t("mail.emailChange.inUse"), "", t("mail.emailChange.ignore")].join("\n") };
+}
+
+// To the old address, once the change is made.
+export function emailChangedNoticeMail(locale: AppLocale, input: { newEmail: string }): Mail {
+  const t = translatorFor(locale);
+  return {
+    subject: t("mail.emailChanged.subject"),
+    text: [t("mail.emailChanged.body", { email: input.newEmail }), "", t("mail.emailChanged.notYou")].join("\n"),
+  };
+}
+
 // The admin console's test email (overview → mail settings), in the
 // sending admin's language.
 export function testMail(locale: AppLocale): Mail {

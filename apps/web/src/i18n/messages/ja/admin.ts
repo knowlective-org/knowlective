@@ -421,9 +421,14 @@ const ja: MessageShape<typeof en> = {
       buttonLabel: "ボタンの名前",
       buttonLabelNote: "ログイン画面に「（ボタンの名前）でログイン」と表示します。空欄なら、見る人の言語で「シングルサインオン」。例: ",
       buttonLabelExample: "社内アカウント",
-      nameClaim: "表示名に使う属性（任意）",
+      nameClaim: "表示名（任意）",
       nameClaimNote:
-        "アカウントを作るときの表示名に使う、ID トークン（なければ UserInfo）の属性名です。例: name、preferred_username、given_name。空欄なら name、なければ preferred_username を使います。",
+        "ID トークンか UserInfo の属性（例: name、preferred_username）、または属性と文字を組み合わせたテンプレート（例: {family_name} {given_name}、{name}@{department}）。両方にあるときは UserInfo の値を使います。空なら name、なければ preferred_username。",
+      syncName: "ログインのたびに表示名を更新する",
+      syncNameNote: "オフのときは、アカウントを作るときだけ設定します。オンの間は、下の設定にかかわらず、利用者はアカウントの画面で名前を変えられません（上書きされるため）。",
+      groupsClaim: "グループに使う属性（任意）",
+      groupsClaimNote:
+        "グループ名、またはその一覧を持つ属性（ID トークンか UserInfo。例: groups、department）。ログインのたびに、その名前のグループに入れます（なければ作り、同じ名前のグループがあればそれを使います）。一覧からなくなったグループからは外しますが、外すのはシングルサインオンが入れた所属だけです（手で入れたメンバーはそのまま）。作ったグループには、権限を付けるまで何の権限もありません。空ならオフ。",
       newUserRole: "初めてログインした人のロール",
       newUserNote:
         "KNOWLECTIVE にアカウントがない人は、初めてのログインでアカウントが作られます（どのグループにも入りません）。すでにアカウントがある人は、確認済みのメールアドレスが一致すれば、そのアカウントでログインします。",
@@ -432,6 +437,8 @@ const ja: MessageShape<typeof en> = {
       trustEmail: "IdP のメールアドレスを確認済みとして扱う",
       trustEmailNote:
         "IdP が「確認済み（email_verified）」を送ってこない場合（Microsoft Entra ID など）にオンにします。利用者が自由にメールアドレスを設定できる IdP でオンにすると、他人のアカウントに入られるおそれがあります。",
+      allowNameChange: "シングルサインオンでログインするアカウントにも、名前の変更を許可する",
+      allowNameChangeNote: "オフのときは、初めてログインしたときに IdP から受け取った名前のままです。ほかのアカウントはいつでも変更できます（「アカウント」の画面）。",
       passwordLogin: "パスワードでのログイン",
       passwordAllowed: "シングルサインオンと併用する（初期値）",
       passwordSiteAdminsOnly: "シングルサインオンのみ",
@@ -442,8 +449,9 @@ const ja: MessageShape<typeof en> = {
         issuerHttps: "Issuer URL は https:// で始まる必要があります。",
         clientId: "クライアント ID を入力してください。",
         buttonLabel: "ボタンの名前は40文字以内にしてください。",
-        nameClaim: "表示名に使う属性は、属性名（英数字・_・-・:、入れ子は . 区切り）で入力してください。",
-        nameClaimLength: "表示名に使う属性は100文字以内にしてください。",
+        nameClaim: "表示名は、属性の名前（英数字・_・-・:、入れ子は .）か、属性を波かっこで囲んだテンプレート（例: {family_name} {given_name}）で入力してください。",
+        nameClaimLength: "表示名の設定は200文字以内にしてください。",
+        groupsClaim: "グループに使う属性は、属性の名前（英数字・_・-・:、入れ子は .）で入力してください。",
         domains: "ドメインの形式が正しくありません（例: example.co.jp）。50個まで指定できます。",
         secret: "クライアントシークレットを入力してください。",
         cannotEnable: "Issuer に接続できなかったため、有効にできません。「接続テスト」で確認してください。",

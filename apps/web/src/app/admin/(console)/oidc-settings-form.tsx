@@ -16,9 +16,12 @@ type Values = {
   hasSecret: boolean;
   buttonLabel: string;
   nameClaim: string;
+  syncName: boolean;
+  groupsClaim: string;
   newUserRole: "USER" | "CONTENT_MANAGER";
   allowedDomains: string[];
   trustEmail: boolean;
+  allowNameChange: boolean;
   passwordLogin: "ALLOWED" | "SITE_ADMINS_ONLY";
 };
 
@@ -152,13 +155,39 @@ export function OidcSettingsForm({
             name="nameClaim"
             defaultValue={values.nameClaim}
             placeholder="name"
-            maxLength={100}
+            maxLength={200}
             className={styles.field}
             spellCheck={false}
             data-ui="OidcSettingsForm.nameClaim"
           />
           <span className={styles.note}>
-            {ta("oidc.nameClaimNote")}
+            {/* Raw: the examples are templates with {braces}. */}
+            {ta.raw("oidc.nameClaimNote")}
+          </span>
+        </label>
+        <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <input type="checkbox" name="syncName" defaultChecked={values.syncName} data-ui="OidcSettingsForm.syncName" />
+          <span>
+            {ta("oidc.syncName")}
+            <span className={styles.note} style={{ display: "block" }}>
+              {ta("oidc.syncNameNote")}
+            </span>
+          </span>
+        </label>
+
+        <label>
+          {ta("oidc.groupsClaim")}
+          <input
+            name="groupsClaim"
+            defaultValue={values.groupsClaim}
+            placeholder="groups"
+            maxLength={100}
+            className={styles.field}
+            spellCheck={false}
+            data-ui="OidcSettingsForm.groupsClaim"
+          />
+          <span className={styles.note}>
+            {ta("oidc.groupsClaimNote")}
           </span>
         </label>
 
@@ -208,6 +237,20 @@ export function OidcSettingsForm({
             {ta("oidc.trustEmail")}
             <span className={styles.note} style={{ display: "block" }}>
               {ta("oidc.trustEmailNote")}
+            </span>
+          </span>
+        </label>
+        <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <input
+            type="checkbox"
+            name="allowNameChange"
+            defaultChecked={values.allowNameChange}
+            data-ui="OidcSettingsForm.allowNameChange"
+          />
+          <span>
+            {ta("oidc.allowNameChange")}
+            <span className={styles.note} style={{ display: "block" }}>
+              {ta("oidc.allowNameChangeNote")}
             </span>
           </span>
         </label>

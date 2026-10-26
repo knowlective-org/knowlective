@@ -421,9 +421,14 @@ export default {
       buttonLabel: "Button name",
       buttonLabelNote: "The login screen shows \"Log in with (button name)\". Empty: \"single sign-on\" in each viewer's language. e.g. ",
       buttonLabelExample: "Company account",
-      nameClaim: "Attribute for the display name (optional)",
+      nameClaim: "Display name (optional)",
       nameClaimNote:
-        "The attribute of the ID token (or UserInfo) used for the display name when an account is created. e.g. name, preferred_username, given_name. Empty uses name, then preferred_username.",
+        "An attribute of the ID token or UserInfo (e.g. name, preferred_username), or a template combining attributes and text, like {family_name} {given_name} or {name}@{department}. UserInfo's value is used when both have it. Empty uses name, then preferred_username.",
+      syncName: "Update the display name at every log-in",
+      syncNameNote: "Off: it's set only when the account is created. While on, people can't change their name on the account screen (it would be overwritten), whatever the setting below.",
+      groupsClaim: "Attribute for groups (optional)",
+      groupsClaimNote:
+        "An attribute (ID token or UserInfo) holding a group name, or a list of them (e.g. groups, department). At every log-in the person is put in the group of each name, made if missing; an existing group of the same name is used. Groups that are no longer listed are left, but only those that single sign-on added (members added by hand stay). New groups have no permissions until given some. Empty: off.",
       newUserRole: "Role of people logging in for the first time",
       newUserNote:
         "People without an account here get one at their first login (in no groups). People who already have one log in to it when their verified email address matches.",
@@ -432,6 +437,8 @@ export default {
       trustEmail: "Treat the identity provider's email addresses as verified",
       trustEmailNote:
         "Turn on when the identity provider doesn't send \"verified\" (email_verified), e.g. Microsoft Entra ID. On with an identity provider where users can set any email address, someone could get into another person's account.",
+      allowNameChange: "Let accounts that log in with single sign-on change their name",
+      allowNameChangeNote: "Off: the name stays as the identity provider gave it at the first log-in. Other accounts can always change theirs (Account screen).",
       passwordLogin: "Logging in with a password",
       passwordAllowed: "Alongside single sign-on (default)",
       passwordSiteAdminsOnly: "Single sign-on only",
@@ -442,8 +449,9 @@ export default {
         issuerHttps: "The issuer URL must start with https://.",
         clientId: "Enter the client ID.",
         buttonLabel: "The button name can be up to 40 characters.",
-        nameClaim: "Enter the display-name attribute as an attribute name (letters, digits, _, -, :, nested with .).",
-        nameClaimLength: "The display-name attribute can be up to 100 characters.",
+        nameClaim: "Enter the display name as an attribute name (letters, digits, _, -, :, nested with .), or a template with attributes in braces, like {family_name} {given_name}.",
+        nameClaimLength: "The display name setting can be up to 200 characters.",
+        groupsClaim: "Enter the groups attribute as an attribute name (letters, digits, _, -, :, nested with .).",
         domains: "The domains aren't valid (e.g. example.com). Up to 50.",
         secret: "Enter the client secret.",
         cannotEnable: "The issuer couldn't be reached, so it can't be enabled. Check with \"Connection test\".",

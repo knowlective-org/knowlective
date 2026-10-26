@@ -6,11 +6,11 @@ import { emailCodeMail } from "@/lib/mail-templates";
 import type { CurrentUser } from "./session";
 
 // One-time codes mailed to the signed-in user, to confirm it's them (issuing
-// an API key without a passkey). Six digits, valid for CODE_TTL_MINUTES,
+// an API key or changing the email address, without a passkey). Six digits, valid for CODE_TTL_MINUTES,
 // usable once; a newer code replaces older ones, and after MAX_ATTEMPTS wrong
 // tries the code is given up. Only a hash of the code is stored.
 
-export type EmailCodePurpose = "api-key";
+export type EmailCodePurpose = "api-key" | "email-change";
 export const CODE_TTL_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
 // Codes mailed per user and purpose within an hour.

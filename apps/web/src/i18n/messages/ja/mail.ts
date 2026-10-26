@@ -39,6 +39,19 @@ const ja: MessageShape<typeof en> = {
       expires: "このリンクは{duration}有効で、1回だけ使えます。再設定すると、ログイン中の端末はすべてログアウトします。",
       ignore: "心当たりがない場合は、このメールを無視してください（パスワードは変わりません）。",
     },
+    emailChange: {
+      subject: "KNOWLECTIVE の新しいメールアドレスの確認",
+      intro: "このアドレスを KNOWLECTIVE のアカウントのメールアドレスにする依頼がありました。",
+      open: "ご本人であれば、次のリンクを開いて変更を確定してください。",
+      expires: "リンクは1回だけ使え、{duration}で使えなくなります。",
+      inUse: "このアドレスはほかの KNOWLECTIVE のアカウントで使われているため、使えません。何も変更していません。",
+      ignore: "心当たりがない場合は、このメールは無視してください。",
+    },
+    emailChanged: {
+      subject: "KNOWLECTIVE のメールアドレスが変更されました",
+      body: "KNOWLECTIVE のアカウントのメールアドレスが {email} に変更されました。これからのメールはそちらに届きます。",
+      notYou: "心当たりがない場合は、すぐに管理者に連絡してください。",
+    },
     emailCode: {
       subject: "KNOWLECTIVE の確認コード: {code}",
       intro: "API キーを発行するための本人確認です。KNOWLECTIVE の画面で次のコードを入力してください。",

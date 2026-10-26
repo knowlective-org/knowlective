@@ -26,6 +26,7 @@ import { MAX_BRAND_NAME_LENGTH, checkLogoSvg, getBrand, getBrandLogo, saveBrand 
 import { getSignupSettings, isSignupRole, parseDomains } from "@/lib/auth/signup";
 import { decrypt, loadDataKey } from "shared";
 import { discoverWith, getOidcSettings, isOidcRole, sealClientSecret } from "@/lib/auth/oidc";
+import { CLAIM_PATH, MAX_TEMPLATE_LENGTH, parseNameTemplate } from "@/lib/auth/oidc-profile";
 import { THEME_TOKENS, normalizeColor, type ThemeColors } from "@/lib/theme-tokens";
 import {
   MailNotConfiguredError,
@@ -789,11 +790,15 @@ type OidcInput = {
   // Null: keep the saved one.
   clientSecret: string | null;
   buttonLabel: string;
-  // "" = default (name, then preferred_username).
+  // A claim or a template of claims; "" = default (name, then preferred_username).
   nameClaim: string;
+  syncName: boolean;
+  // "" = no group sync.
+  groupsClaim: string;
   newUserRole: "USER" | "CONTENT_MANAGER";
   allowedDomains: string[];
   trustEmail: boolean;
+  allowNameChange: boolean;
   passwordLogin: "ALLOWED" | "SITE_ADMINS_ONLY";
 };
 
@@ -806,12 +811,14 @@ type OidcFormError =
   | "buttonLabel"
   | "nameClaim"
   | "nameClaimLength"
+  | "groupsClaim"
   | "domains"
   | "invalid";
 
 async function oidcErrorText(error: OidcFormError): Promise<string> {
   const t = await getTranslations();
-  return error === "invalid" ? t("common.errors.invalidInput") : t(`admin.oidc.errors.${error}`);
+  // Raw: some show a template with {braces} as is.
+  return error === "invalid" ? t("common.errors.invalidInput") : t.raw(`admin.oidc.errors.${error}`);
 }
 
 function readOidcForm(formData: FormData): OidcInput | OidcFormError {
@@ -837,11 +844,11 @@ function readOidcForm(formData: FormData): OidcInput | OidcFormError {
   const buttonLabel = text("buttonLabel");
   if (buttonLabel.length > 40) return "buttonLabel";
   const nameClaim = text("nameClaim");
-  // A claim name, or a dotted path to a nested one.
-  if (nameClaim && !/^[A-Za-z0-9_:\-]+(\.[A-Za-z0-9_:\-]+)*$/.test(nameClaim)) {
-    return "nameClaim";
-  }
-  if (nameClaim.length > 100) return "nameClaimLength";
+  if (nameClaim.length > MAX_TEMPLATE_LENGTH) return "nameClaimLength";
+  // A claim name (a dotted path to a nested one), or a template of them.
+  if (!parseNameTemplate(nameClaim)) return "nameClaim";
+  const groupsClaim = text("groupsClaim");
+  if (groupsClaim && (!CLAIM_PATH.test(groupsClaim) || groupsClaim.length > 100)) return "groupsClaim";
   const role = formData.get("newUserRole");
   if (!isOidcRole(role)) return "invalid";
   const domains = parseDomains(text("allowedDomains"));
@@ -855,9 +862,12 @@ function readOidcForm(formData: FormData): OidcInput | OidcFormError {
     clientSecret: typeof secret === "string" && secret !== "" ? secret : null,
     buttonLabel,
     nameClaim,
+    syncName: formData.get("syncName") === "on",
+    groupsClaim,
     newUserRole: role,
     allowedDomains: domains,
     trustEmail: formData.get("trustEmail") === "on",
+    allowNameChange: formData.get("allowNameChange") === "on",
     passwordLogin,
   };
 }
@@ -929,9 +939,12 @@ export async function saveOidcSettings(_prev: OidcFormState, formData: FormData)
     clientId: input.clientId,
     buttonLabel: input.buttonLabel,
     nameClaim: input.nameClaim || null,
+    syncName: input.syncName,
+    groupsClaim: input.groupsClaim || null,
     newUserRole: input.newUserRole,
     allowedDomains: input.allowedDomains,
     trustEmail: input.trustEmail,
+    allowNameChange: input.allowNameChange,
     passwordLogin: input.passwordLogin,
     ...(sealed && { clientSecretEnc: sealed }),
   };
@@ -951,6 +964,10 @@ export async function saveOidcSettings(_prev: OidcFormState, formData: FormData)
   if (before.nameClaim !== input.nameClaim) {
     changes.push(audit("audit.oidcNameClaim", { claim: input.nameClaim || audit("audit.oidcNameClaimDefault") }));
   }
+  if (before.syncName !== input.syncName) changes.push(audit("audit.oidcSyncName", { sync: String(input.syncName) }));
+  if (before.groupsClaim !== input.groupsClaim) {
+    changes.push(audit("audit.oidcGroupsClaim", { claim: input.groupsClaim || "none" }));
+  }
   if (before.newUserRole !== input.newUserRole) changes.push(audit("audit.oidcRole", { role: audit(`roles.${input.newUserRole}`) }));
   if (before.allowedDomains.join() !== input.allowedDomains.join()) {
     changes.push(
@@ -960,6 +977,9 @@ export async function saveOidcSettings(_prev: OidcFormState, formData: FormData)
     );
   }
   if (before.trustEmail !== input.trustEmail) changes.push(audit("audit.oidcTrustEmail", { trust: String(input.trustEmail) }));
+  if (before.allowNameChange !== input.allowNameChange) {
+    changes.push(audit("audit.oidcNameChange", { allowed: String(input.allowNameChange) }));
+  }
   if (before.passwordLogin !== input.passwordLogin) {
     changes.push(audit("audit.oidcPasswordLogin", { siteAdminsOnly: String(input.passwordLogin === "SITE_ADMINS_ONLY") }));
   }

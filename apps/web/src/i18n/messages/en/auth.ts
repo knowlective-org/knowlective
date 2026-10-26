@@ -97,6 +97,19 @@ export default {
       emailTakenNow: "This email address is already registered.",
     },
   },
+  emailChange: {
+    title: "Change the email address",
+    heading: "Change the email address",
+    summary: "Change this account's email address from {from} to {to}?",
+    confirm: "Change it",
+    done: "Done: the email address is now {email}. Log in with it from now on.",
+    invalid: "This link has expired or was already used. Start the change again from your account screen.",
+    toAccount: "Go to the account screen",
+    errors: {
+      invalid: "This link has expired or was already used.",
+      taken: "This address is already used by another account, so it can't be used.",
+    },
+  },
   passkeySetup: {
     title: "Register a passkey",
     heading: "Register a passkey",

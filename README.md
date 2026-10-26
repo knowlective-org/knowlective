@@ -235,6 +235,15 @@ For example, to add French (`fr`):
 
 No database changes are needed (`User.locale` and `InstanceConfig.defaultLocale` are language-code strings). PDF export bundles only the Inter and Noto Sans JP fonts, so a language with characters they can't show (Chinese, Korean, etc.) also needs a font added to `/api/export-assets`.
 
+### Changing the name and email address
+
+Under "Account" in the sidebar, people change their own name and email address (recorded in the audit log).
+
+- The name changes right away (up to 100 characters). Accounts linked to single sign-on only when "Let accounts that log in with single sign-on change their name" is on under "Users" → "Single sign-on" in the admin console and "Update the display name at every log-in" is off (by default they can't: the name follows the identity provider)
+- The email address: after confirming it's them (a passkey, or else a code mailed to the current address), a link (an hour, once) goes to the new address; the change is made when it's opened and confirmed. The old address is then told
+- Whether the new address belongs to another account isn't shown on the screen (so registered addresses can't be probed); that address gets a mail saying it can't be used
+- Without mail sending set up, the email address can't be changed
+
 ### Password reset
 
 - Entering an email address under "Forgot your password?" on the login screen (`/forgot-password`) emails a reset link (valid for 60 minutes, works once). Needs email sending to be set up
@@ -261,10 +270,12 @@ Under "Users" → "Registration" in the admin console (site admins only), switch
 Under "Users" → "Single sign-on (OpenID Connect)" in the admin console (site admins only), logging in with an identity provider (Microsoft Entra ID, Google, Keycloak, etc.) can be enabled.
 
 - Checking "Enable single sign-on" shows the other settings (unchecking and saving disables it; the settings are kept)
-- Settings: issuer URL, client ID, client secret (stored encrypted), button name (empty: "single sign-on" in each viewer's language), and the attribute for the display name (optional; empty uses name, then preferred_username; taken from UserInfo if not in the ID token; used only when an account is created). Register the redirect URI shown on screen (`<public URL>/auth/oidc/callback`) with the identity provider. "Connection test" checks that the identity provider's settings can be read
+- Settings: issuer URL, client ID, client secret (stored encrypted), button name (empty: "single sign-on" in each viewer's language), and the display name (optional; an attribute, or a template of attributes and text like `{family_name} {given_name}@{department}`; empty uses name, then preferred_username). Register the redirect URI shown on screen (`<public URL>/auth/oidc/callback`) with the identity provider. "Connection test" checks that the identity provider's settings can be read
 - Authorization code flow (PKCE, state, nonce). ID tokens are verified by the certified `openid-client` implementation
 - People logging in for the first time: if their verified email address matches an existing account they're linked to it; otherwise an account is created (the role is user or content manager; the email domains allowed to get accounts can be limited). At the first login the identity provider's user ID (`sub`) is saved in the User's `oidcSubject` (and `oidcIssuer`), and from then on that links them, so the same account is used even if the email address changes. If another identity-provider user with the same email address tries to use an account already linked to a different user ID, it's refused
 - "Verified" is the identity provider's `email_verified`. For identity providers that don't send it (Microsoft Entra ID, etc.) there's a "Treat the identity provider's email addresses as verified" setting (don't use it with identity providers where users can set any email address)
+- Attributes are read from both the ID token and UserInfo (UserInfo's when both have one). With "Update the display name at every log-in" on (the default), the display name follows the identity provider at every log-in (meanwhile people can't change their name on the "Account" screen)
+- With "Attribute for groups" set (e.g. groups, department; a string or a list of them), people are put in the group of each name at every log-in (made if missing; an existing group of the same name is used). Groups no longer listed are left, but only memberships single sign-on added: members added by hand stay. New groups have no permissions until given some. Membership changes are recorded in the audit log. If UserInfo can't be read, the groups are left as they are
 - Password login is either "Alongside single sign-on" (the default) or "Single sign-on only". Even with the latter, site admins can log in with a password, so nobody is locked out if the identity provider fails
 - Disabled users can't log in with single sign-on either
 - Logging in to the admin console (`/admin`) still takes a password plus an authenticator app. Accounts created by single sign-on have no password at first, so they can't get into the admin console (even ones created as content managers). With password login "Alongside", they can set one through a password reset

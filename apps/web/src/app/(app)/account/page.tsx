@@ -17,6 +17,8 @@ import styles from "@/styles/ui.module.css";
 import { LocaleForm } from "./locale-form";
 import { ApiKeySection } from "./api-key-section";
 import { PasskeySection } from "./passkey-section";
+import { ProfileSection } from "./profile-section";
+import { MAX_NAME_LENGTH, profileRules } from "@/lib/auth/profile";
 import { OwnPasswordResetForm } from "./password-reset-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -38,12 +40,13 @@ export default async function AccountPage() {
     passkeyRequiredSetting(),
     getSessionUser(),
   ]);
-  const [apiKeys, canIssue, apiSettings, method, publicUrl] = await Promise.all([
+  const [apiKeys, canIssue, apiSettings, method, publicUrl, rules] = await Promise.all([
     listApiKeys(user.id),
     canIssueApiKeys(user.siteRole),
     getApiSettings(),
     reauthMethod(user.id),
     getPublicUrl(),
+    profileRules(user.id),
   ]);
   const now = new Date();
 
@@ -54,13 +57,14 @@ export default async function AccountPage() {
 
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>{t("account.details")}</h2>
-          <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "8px 16px", margin: 0 }}>
-            <dt className={styles.note}>{t("account.name")}</dt>
-            <dd style={{ margin: 0 }}>{user.name ?? "—"}</dd>
-            <dt className={styles.note}>{t("account.email")}</dt>
-            <dd style={{ margin: 0 }} data-ui="AccountPage.email">
-              {user.email}
-            </dd>
+          <ProfileSection
+            name={user.name}
+            email={user.email}
+            rules={rules}
+            method={method}
+            maxNameLength={MAX_NAME_LENGTH}
+          />
+          <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "8px 16px", margin: "24px 0 0" }}>
             <dt className={styles.note}>{t("account.role")}</dt>
             <dd style={{ margin: 0 }}>{t(`roles.${user.siteRole}`)}</dd>
           </dl>
