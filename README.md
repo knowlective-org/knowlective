@@ -407,10 +407,16 @@ Runs the app (Next.js and collaborative editing in one container), SeaweedFS (fi
 ./install.sh
 ```
 
-`install.sh` asks for the settings, writes `.env.production`, and builds and starts everything (needs Docker, Docker Compose v2 and bash).
+`install.sh` asks for the settings, writes `.env.production`, and builds and starts everything (needs Docker with Docker Compose v2, or Podman, and bash).
+
+- **Podman works too**: without a working Docker, Podman is used (with both, `KNOWLECTIVE_ENGINE=podman ./install.sh` picks Podman). It needs `podman compose` (Podman 4.7 or later) with docker-compose or podman-compose (1.1 or later) as its provider. Rootless is fine (`podman info` has to work). The commands it shows are then `podman compose …`
+  - To start it again after the server restarts: `systemctl --user enable --now podman-restart.service` and `loginctl enable-linger <user>` (rootless)
+  - On SELinux systems (RHEL, Fedora, Oracle Linux, …) the files mounted into the databases are readable (they carry `:z`)
+  - For your own PostgreSQL on the same server, `host.containers.internal` works as its host name
 
 - For the database, choose "the bundled PostgreSQL" (Percona Server for PostgreSQL 17, with the whole database encrypted by pg_tde) or "a PostgreSQL of your own" (16 or later recommended). For your own, create the database and user first and let the user create tables (migrations create them at startup). After entering the connection, you can check that the container can actually connect. Inside a container `localhost` is the container itself, so use the server's address even for a PostgreSQL on the same server
 - Choose whether to use search by meaning. If so, the bundled vector database (`bundled-vectordb`) is started too (it uses a few hundred MB more memory)
+- For file storage, choose "the bundled SeaweedFS" or "an S3-compatible storage of your own". With your own, SeaweedFS doesn't run and `SEAWEEDFS_ACCESS_KEY` / `SEAWEEDFS_SECRET_KEY` aren't needed (set the storage under "Files" → "File storage" in the admin console after the first-time setup; until then, files can't be attached)
 - The server key (`KNOWLECTIVE_SERVER_KEY`) is either generated, or entered when moving or restoring. The bundled SeaweedFS's credentials and the bundled PostgreSQL's password are generated
 - Running it again remakes `.env.production` with its current values as defaults (the old file is kept as `.env.production.bak.<timestamp>`). The server key and the bundled PostgreSQL's password are kept (changing them would make the data unreadable or the database unreachable)
 
@@ -425,6 +431,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 - On stopping (`docker compose stop`, etc.), open documents are saved before exiting
 - The health check is `GET /api/health` (200 if the database can be reached; `<sub-path>/api/health` when served under a sub-path). The container has a health check set too
 - Run recovery commands inside the container: `docker compose -f docker-compose.prod.yml --env-file .env.production exec app pnpm admin:recover --clear-lockout` (`rotate-server-key` likewise)
+- **Updating from an earlier version**: the bundled SeaweedFS now runs only with the `bundled-storage` profile. If `.env.production` has `SEAWEEDFS_ACCESS_KEY`, add `bundled-storage` to `COMPOSE_PROFILES` (running `./install.sh` again adds it). Started without it, attachments can't be read or saved, and the log says so
 - **Backups**: the PostgreSQL and SeaweedFS volumes (`knowlective-prod_seaweedfs_data`), plus `.env.production` (`KNOWLECTIVE_SERVER_KEY`). The contents are encrypted, so backups can't be restored without the key
   - The bundled PostgreSQL also needs its encryption keys (volume `knowlective-prod_postgres_tde_keys`). Keep them **somewhere separate from the data (`knowlective-prod_postgres_tde_data`)** (kept together, encrypting the whole database means nothing)
   - `pg_dump` output has the whole-database encryption removed (columns the app encrypts stay encrypted), so store the file encrypted

@@ -1,5 +1,5 @@
-# Production: knowlective + bundled SeaweedFS (file attachments), with either the
-# bundled PostgreSQL or one you run yourself. Put a reverse proxy (Caddy /
+# Production: knowlective with, optionally, the bundled PostgreSQL and the
+# bundled SeaweedFS (file attachments) — or a PostgreSQL / S3 you run yourself. Put a reverse proxy (Caddy /
 # nginx) in front: the app only listens on 127.0.0.1:3000. See the README section on running in production.
 #
 #   ./install.sh      # asks for the settings and writes .env.production
@@ -7,10 +7,19 @@
 #
 # Database:
 # - bundled:  COMPOSE_PROFILES=bundled-db and POSTGRES_PASSWORD in .env.production
-# - external: DATABASE_URL in .env.production (COMPOSE_PROFILES unset)
+# - external: DATABASE_URL in .env.production
+# File storage:
+# - bundled:  COMPOSE_PROFILES including bundled-storage, and SEAWEEDFS_ACCESS_KEY /
+#             SEAWEEDFS_SECRET_KEY in .env.production
+# - external: neither; set the S3 storage in the admin console (Files → File storage)
 #
 # A separate project name, so it never shares containers or volumes with the
 # development stack (docker-compose.yml) on the same machine.
+#
+# Also runs with Podman (`podman compose`; install.sh picks it): images are
+# fully qualified (Podman asks which registry a short name means), and the
+# files mounted into the databases carry "z" so SELinux lets them be read
+# (Docker on a system without SELinux ignores it).
 name: knowlective-prod
 
 services:
@@ -18,26 +27,25 @@ services:
     build: .
     image: knowlective:latest
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-        # Not started when an external database is used.
-        required: false
-      seaweedfs:
-        condition: service_started
-      vectordb:
-        condition: service_healthy
-        required: false
+    # No depends_on: every other service is optional (profiles), and
+    # podman-compose can't depend on a service its profile leaves out (even
+    # with required: false). The app waits for its databases itself
+    # (docker-entrypoint.sh, server/semantic-search.ts).
     environment:
-      # External database if set, otherwise the bundled one.
-      DATABASE_URL: ${DATABASE_URL:-postgresql://knowlective:${POSTGRES_PASSWORD:?set DATABASE_URL, or POSTGRES_PASSWORD for the bundled database}@postgres:5432/knowlective}
-      # Semantic search: the bundled vector database if VECTORDB_PASSWORD is
-      # set (with COMPOSE_PROFILES including bundled-vectordb), or your own
-      # PostgreSQL + pgvector. Unset = search by words only.
-      VECTOR_DATABASE_URL: ${VECTOR_DATABASE_URL:-${VECTORDB_PASSWORD:+postgresql://knowlective:${VECTORDB_PASSWORD}@vectordb:5432/knowlective_vectors}}
+      # External database if set, otherwise the bundled one (the container
+      # makes its URL from POSTGRES_PASSWORD: docker-entrypoint.sh).
+      DATABASE_URL: ${DATABASE_URL:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      # Semantic search: your own PostgreSQL + pgvector if set, else the
+      # bundled vector database if VECTORDB_PASSWORD is set (with
+      # COMPOSE_PROFILES including bundled-vectordb). Neither = search by
+      # words only.
+      VECTOR_DATABASE_URL: ${VECTOR_DATABASE_URL:-}
+      VECTORDB_PASSWORD: ${VECTORDB_PASSWORD:-}
       KNOWLECTIVE_SERVER_KEY: ${KNOWLECTIVE_SERVER_KEY:?set KNOWLECTIVE_SERVER_KEY}
-      SEAWEEDFS_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:?set SEAWEEDFS_ACCESS_KEY}
-      SEAWEEDFS_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY}
+      # The bundled SeaweedFS (unset: files go to the S3 set in the admin console).
+      SEAWEEDFS_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:-}
+      SEAWEEDFS_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:-}
       KNOWLECTIVE_BUNDLED_S3_ENDPOINT: http://seaweedfs:8333
       KNOWLECTIVE_TRUSTED_PROXY_HOPS: ${KNOWLECTIVE_TRUSTED_PROXY_HOPS:-1}
       # Sub-path the app is served under, e.g. /knowlective ("" = the root).
@@ -53,7 +61,7 @@ services:
   # disk with pg_tde (see docker-compose.yml); the keys are in the
   # postgres_tde_keys volume — back it up apart from the data.
   postgres:
-    image: percona/percona-distribution-postgresql:17.11
+    image: docker.io/percona/percona-distribution-postgresql:17.11
     profiles: [bundled-db]
     restart: unless-stopped
     user: "0"
@@ -72,8 +80,8 @@ services:
     volumes:
       - postgres_tde_data:/data/db
       - postgres_tde_keys:/tde
-      - ./docker/postgres/tde-entrypoint.sh:/knowlective/tde-entrypoint.sh:ro
-      - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
+      - ./docker/postgres/tde-entrypoint.sh:/knowlective/tde-entrypoint.sh:ro,z
+      - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro,z
 
   # Bundled vector database for semantic search: only with COMPOSE_PROFILES
   # including bundled-vectordb. Same image and on-disk encryption as the
@@ -81,7 +89,7 @@ services:
   # rebuilt from the content database: no backup needed (if lost, delete
   # both of its volumes and the app fills it again).
   vectordb:
-    image: percona/percona-distribution-postgresql:17.11
+    image: docker.io/percona/percona-distribution-postgresql:17.11
     profiles: [bundled-vectordb]
     restart: unless-stopped
     user: "0"
@@ -98,19 +106,27 @@ services:
     volumes:
       - vectordb_tde_data:/data/db
       - vectordb_tde_keys:/tde
-      - ./docker/postgres/tde-entrypoint.sh:/knowlective/tde-entrypoint.sh:ro
-      - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro
+      - ./docker/postgres/tde-entrypoint.sh:/knowlective/tde-entrypoint.sh:ro,z
+      - ./docker/postgres/init-tde.sql:/docker-entrypoint-initdb.d/init-tde.sql:ro,z
 
-  # Same setup as in docker-compose.yml, but only reachable by the app.
+  # Bundled file storage: only with COMPOSE_PROFILES including
+  # bundled-storage. Same setup as in docker-compose.yml, but only reachable by
+  # the app. (Not ":?" for its keys: compose checks variables of disabled
+  # services too.)
   seaweedfs:
-    image: chrislusf/seaweedfs:4.48
+    image: docker.io/chrislusf/seaweedfs:4.48
+    profiles: [bundled-storage]
     restart: unless-stopped
     environment:
-      S3_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:?set SEAWEEDFS_ACCESS_KEY}
-      S3_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:?set SEAWEEDFS_SECRET_KEY}
+      S3_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:-}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        if [ -z "$${S3_ACCESS_KEY}" ] || [ -z "$${S3_SECRET_KEY}" ]; then
+          echo "Set SEAWEEDFS_ACCESS_KEY and SEAWEEDFS_SECRET_KEY for the bundled storage" >&2
+          exit 1
+        fi
         cat > /etc/seaweedfs-s3.json <<JSON
         {"identities":[{"name":"knowlective","credentials":[{"accessKey":"$${S3_ACCESS_KEY}","secretKey":"$${S3_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
         JSON

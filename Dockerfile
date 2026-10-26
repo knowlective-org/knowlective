@@ -3,7 +3,8 @@
 #
 #   docker build -t knowlective .
 
-FROM node:24-bookworm-slim AS base
+# Fully qualified, for Podman (it asks which registry a short name means).
+FROM docker.io/library/node:24-bookworm-slim AS base
 # openssl: Prisma's schema engine (used by `prisma migrate deploy`).
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \

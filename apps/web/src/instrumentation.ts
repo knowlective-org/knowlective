@@ -4,4 +4,7 @@ export async function register() {
   // Attachments not read for search yet (lib/file-search.ts).
   const { startFileTextBackfill } = await import("@/lib/file-search");
   startFileTextBackfill();
+  // A little later: the storage container may still be starting.
+  const { warnIfBundledStorageDown } = await import("@/lib/storage");
+  setTimeout(() => void warnIfBundledStorageDown(), 20_000).unref();
 }

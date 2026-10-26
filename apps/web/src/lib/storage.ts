@@ -3,6 +3,7 @@ import {
   CreateBucketCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -242,6 +243,28 @@ export async function deleteFileObject(config: StorageConfig, fileId: string): P
 // testStorage()'s message when what was read back differs (shown in the
 // admin's language by the caller).
 export const READ_BACK_MISMATCH = "read-back-mismatch";
+
+// At startup: whether the bundled storage, if it's the one in use, answers.
+// It runs only with the bundled-storage profile (docker-compose.prod.yml), so
+// settings from before that profile existed start without it: said loudly in
+// the log. Any S3 answer counts as running (a fresh one has no bucket yet).
+export async function warnIfBundledStorageDown(): Promise<void> {
+  const config = await getStorageConfig().catch(() => null);
+  if (!config || config.source !== "bundled") return;
+  const client = clientFor(config);
+  try {
+    await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
+  } catch (err) {
+    if (err instanceof S3ServiceException && err.$metadata.httpStatusCode) return;
+    console.warn(
+      "[files] The bundled file storage (SeaweedFS) isn't reachable, so attachments can't be read or saved. " +
+        "With docker-compose.prod.yml, add bundled-storage to COMPOSE_PROFILES in .env.production " +
+        "(or run ./install.sh again), then start it again.",
+    );
+  } finally {
+    client.destroy();
+  }
+}
 
 export type StorageTestResult =
   | { ok: true; checkedExisting: number; missingExisting: number }

@@ -13,17 +13,22 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
+die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+# Docker or Podman (KNOWLECTIVE_ENGINE to choose), as install.sh.
+# shellcheck source=docker/engine.sh
+. docker/engine.sh
+select_engine
+
 if [ "${1-}" = prod ]; then
-  COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env.production)
+  COMPOSE=("${ENGINE_COMPOSE[@]}" -f docker-compose.prod.yml --env-file .env.production)
   PROJECT=knowlective-prod
 else
-  COMPOSE=(docker compose)
+  COMPOSE=("${ENGINE_COMPOSE[@]}")
   PROJECT=knowlective
 fi
 OLD_VOLUME="${PROJECT}_postgres_data"
 OLD_CONTAINER="${PROJECT}-move-to-tde"
 
-die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 wait_ready() { # <command prefix...>
   for _ in $(seq 1 60); do
     "$@" pg_isready -q -U knowlective -d knowlective && return 0
@@ -32,7 +37,7 @@ wait_ready() { # <command prefix...>
   return 1
 }
 
-docker volume inspect "$OLD_VOLUME" >/dev/null 2>&1 || die "The source volume $OLD_VOLUME doesn't exist."
+"$ENGINE" volume inspect "$OLD_VOLUME" >/dev/null 2>&1 || die "The source volume $OLD_VOLUME doesn't exist."
 
 echo "== Stopping the app and the source database"
 "${COMPOSE[@]}" stop app postgres 2>/dev/null || "${COMPOSE[@]}" stop postgres
@@ -41,11 +46,11 @@ echo "== Stopping the app and the source database"
 "${COMPOSE[@]}" rm -f postgres >/dev/null
 
 echo "== Starting the source ($OLD_VOLUME) in a temporary container"
-docker rm -f "$OLD_CONTAINER" >/dev/null 2>&1 || true
-docker run -d --name "$OLD_CONTAINER" -v "$OLD_VOLUME:/var/lib/postgresql/data" \
-  -e POSTGRES_PASSWORD=unused postgres:16-alpine >/dev/null
-trap 'docker rm -f "$OLD_CONTAINER" >/dev/null 2>&1 || true' EXIT
-wait_ready docker exec "$OLD_CONTAINER" || die "The source database didn't start."
+"$ENGINE" rm -f "$OLD_CONTAINER" >/dev/null 2>&1 || true
+"$ENGINE" run -d --name "$OLD_CONTAINER" -v "$OLD_VOLUME:/var/lib/postgresql/data" \
+  -e POSTGRES_PASSWORD=unused docker.io/library/postgres:16-alpine >/dev/null
+trap '"$ENGINE" rm -f "$OLD_CONTAINER" >/dev/null 2>&1 || true' EXIT
+wait_ready "$ENGINE" exec "$OLD_CONTAINER" || die "The source database didn't start."
 
 echo "== Starting the encrypted database (makes its keys the first time)"
 "${COMPOSE[@]}" up -d postgres
@@ -62,7 +67,7 @@ tables=$("${COMPOSE[@]}" exec -T postgres psql -U knowlective -d knowlective -tA
 
 echo "== Moving the data"
 # Tables get the default access method (tde_heap), not the dump's "heap".
-docker exec "$OLD_CONTAINER" pg_dump -U knowlective -d knowlective -Fc --no-owner |
+"$ENGINE" exec "$OLD_CONTAINER" pg_dump -U knowlective -d knowlective -Fc --no-owner |
   "${COMPOSE[@]}" exec -T postgres pg_restore -U knowlective -d knowlective --no-owner --no-table-access-method --exit-on-error
 
 unencrypted=$("${COMPOSE[@]}" exec -T postgres psql -U knowlective -d knowlective -tAc \
@@ -76,7 +81,7 @@ echo "== Starting the app"
 cat <<EOF
 
 Done. Once the app works, delete the source volume (it isn't encrypted):
-  docker volume rm $OLD_VOLUME
+  "$ENGINE" volume rm $OLD_VOLUME
 The encryption keys are in the volume ${PROJECT}_postgres_tde_keys. Back it up separately
 from the data (${PROJECT}_postgres_tde_data): without the keys, the database can't be read.
 EOF

@@ -410,10 +410,16 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 ./install.sh
 ```
 
-`install.sh` が設定を対話式で聞いて `.env.production` を作り、ビルドと起動まで行う（Docker と Docker Compose v2、bash が必要）。
+`install.sh` が設定を対話式で聞いて `.env.production` を作り、ビルドと起動まで行う（Docker と Docker Compose v2、または Podman、と bash が必要）。
+
+- **Podman でも動く**: Docker が使えなければ Podman を使う（両方あって Podman にしたいときは `KNOWLECTIVE_ENGINE=podman ./install.sh`）。Podman 4.7 以降の `podman compose` と、そのプロバイダーとして docker-compose か podman-compose（1.1 以降）が必要。rootless のままでよい（`podman info` が通ること）。表示されるコマンドは `podman compose …` になる
+  - サーバーの再起動後も起動させるには、`systemctl --user enable --now podman-restart.service` と `loginctl enable-linger <ユーザー>`（rootless の場合）
+  - SELinux の環境（RHEL・Fedora・Oracle Linux など）でも、データベースに渡すファイルは読める（`:z` を付けている）
+  - 外部の PostgreSQL が同じサーバーにあるときは、ホスト名に `host.containers.internal` も使える
 
 - データベースは「同梱の PostgreSQL」（Percona Server for PostgreSQL 17。pg_tde で DB 全体を暗号化する）か「別途用意した PostgreSQL」（16 以上を推奨）を選ぶ。別途用意する場合は、データベースとユーザーを先に作り、ユーザーにテーブルを作る権限を付けておく（起動時のマイグレーションでテーブルを作る）。接続先を入力すると、コンテナから実際に接続できるかを確認できる。コンテナの中から見た `localhost` はコンテナ自身なので、同じサーバーの PostgreSQL でもサーバーのアドレスを指定する
 - 意味での検索を使うかを選ぶ。使う場合は、同梱のベクトル用データベース（`bundled-vectordb`）も起動する（メモリを数百 MB 余分に使う）
+- ファイルの保存先は「同梱の SeaweedFS」か「自分で用意した S3 互換ストレージ」を選ぶ。後者なら SeaweedFS は起動せず、`SEAWEEDFS_ACCESS_KEY` / `SEAWEEDFS_SECRET_KEY` も要らない（初回セットアップの後、管理画面「ファイル」→「ファイル保存」で設定する。それまではファイルを添付できない）
 - サーバー鍵（`KNOWLECTIVE_SERVER_KEY`）は新しく作るか、移行・復元なら既存の鍵を入力する。同梱の SeaweedFS の認証情報と同梱の PostgreSQL のパスワードは自動で作る
 - もう一度実行すると、今の `.env.production` の値を初期値にして作り直す（元のファイルは `.env.production.bak.<日時>` に残す）。サーバー鍵と同梱の PostgreSQL のパスワードは引き継ぐ（変えるとデータを読めない・接続できないため）
 
@@ -428,6 +434,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 - 停止時（`docker compose stop` など）は、開いているドキュメントを保存してから終了する
 - 稼働確認は `GET /api/health`（DB に接続できれば 200。サブパスで公開している場合は `<サブパス>/api/health`）。コンテナにもヘルスチェックを設定している
 - 復旧コマンドはコンテナの中で実行する: `docker compose -f docker-compose.prod.yml --env-file .env.production exec app pnpm admin:recover --clear-lockout`（`rotate-server-key` も同様）
+- **以前の版から更新するとき**: 同梱の SeaweedFS は `bundled-storage` のプロファイルのときだけ起動するようになった。`.env.production` に `SEAWEEDFS_ACCESS_KEY` があるなら、`COMPOSE_PROFILES` に `bundled-storage` を足す（`./install.sh` を実行し直せば自動で足す）。足さずに起動すると、添付ファイルを読み書きできず、ログに警告が出る
 - **バックアップ**: PostgreSQL と SeaweedFS のボリューム（`knowlective-prod_seaweedfs_data`）、それに `.env.production`（`KNOWLECTIVE_SERVER_KEY`）。中身は暗号化されているので、鍵がないとバックアップから復元できない
   - 同梱の PostgreSQL は、DB の暗号化の鍵（ボリューム `knowlective-prod_postgres_tde_keys`）も必要。**データ（`knowlective-prod_postgres_tde_data`）とは別の場所に**保管する（一緒に置くと、DB 全体の暗号化の意味がなくなる）
   - `pg_dump` の出力は DB 全体の暗号化が外れた状態（アプリで暗号化した列は暗号化されたまま）なので、ファイルを暗号化して保管する

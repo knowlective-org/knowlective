@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Installs knowlective (production Docker Compose). Asks for the settings,
-# writes .env.production and, if wanted, starts it.
+# writes .env.production and, if wanted, starts it. Works with Docker (Compose
+# v2) or Podman (`podman compose`, see docker/engine.sh).
 #
 #   ./install.sh
+#   KNOWLECTIVE_ENGINE=podman ./install.sh    # Podman even if Docker is there
 #
 # Run again to remake it with the current .env.production values as defaults
 # (the old file is kept as .env.production.bak.<timestamp>).
@@ -12,7 +14,8 @@ cd "$(dirname "$0")"
 ENV_FILE=".env.production"
 COMPOSE_FILE_NAME="docker-compose.prod.yml"
 # The bundled database's image (pg_tde); its psql also checks an external one.
-PG_IMAGE="percona/percona-distribution-postgresql:17.11"
+# Fully qualified: Podman asks which registry a short name means.
+PG_IMAGE="docker.io/percona/percona-distribution-postgresql:17.11"
 
 # ---- Output and input --------------------------------------------------------
 
@@ -144,11 +147,11 @@ display_url() { printf '%s' "$1" | sed -E 's#^[a-z]+://##; s#^([^:@]*):[^@]*@#\1
 # ---- Checks first ------------------------------------------------------------
 
 [ -f "$COMPOSE_FILE_NAME" ] || die "$COMPOSE_FILE_NAME not found. Run this in the knowlective directory."
-command -v docker >/dev/null 2>&1 || die "docker not found. Install Docker Engine (or Docker Desktop)."
-docker compose version >/dev/null 2>&1 || die "docker compose (v2) isn't available. Install the Docker Compose plugin."
-docker info >/dev/null 2>&1 || die "Can't connect to Docker. Check that Docker is running and that this user can run docker."
+# shellcheck source=docker/engine.sh
+. docker/engine.sh
+select_engine
 
-info "${BOLD}Installing knowlective${RESET}"
+info "${BOLD}Installing knowlective${RESET} (with $ENGINE)"
 info "Answer the questions to create $ENV_FILE. Values in [ ] are defaults: press Enter to use them."
 
 if [ -f "$ENV_FILE" ]; then
@@ -179,15 +182,15 @@ if [ "$DB_CHOICE" = 1 ]; then
   else
     POSTGRES_PASSWORD=$(rand_hex 32)
     note "Generated a password."
-    if docker volume inspect knowlective-prod_postgres_tde_data >/dev/null 2>&1; then
+    if "$ENGINE" volume inspect knowlective-prod_postgres_tde_data >/dev/null 2>&1; then
       warn "Data of the bundled PostgreSQL already exists (volume knowlective-prod_postgres_tde_data)."
       warn "The new password won't connect to it. Restore your previous $ENV_FILE, or delete the volume if it's not needed."
       ask_yes_no "Continue anyway" n || { info "Cancelled."; exit 1; }
     fi
   fi
   # Data from before the bundled database was encrypted (pg_tde).
-  if docker volume inspect knowlective-prod_postgres_data >/dev/null 2>&1 &&
-    ! docker volume inspect knowlective-prod_postgres_tde_data >/dev/null 2>&1; then
+  if "$ENGINE" volume inspect knowlective-prod_postgres_data >/dev/null 2>&1 &&
+    ! "$ENGINE" volume inspect knowlective-prod_postgres_tde_data >/dev/null 2>&1; then
     warn "There is data of the bundled PostgreSQL from before encryption (volume knowlective-prod_postgres_data)."
     warn "It has to be moved into the encrypted database. After $ENV_FILE is written, don't start the app; run"
     warn "  bash docker/postgres/move-to-tde.sh prod"
@@ -207,7 +210,11 @@ else
         "") info "Please enter a value." ;;
         localhost|127.0.0.1|::1)
           warn "Inside a container, localhost is the container itself. For a PostgreSQL running on this server,"
-          warn "use the server's IP address (host.docker.internal on Docker Desktop)."
+          if [ "$ENGINE" = podman ]; then
+            warn "use the server's IP address (or host.containers.internal)."
+          else
+            warn "use the server's IP address (host.docker.internal on Docker Desktop)."
+          fi
           ask_yes_no "Keep $DB_HOST" n && break ;;
         *) break ;;
       esac
@@ -228,7 +235,7 @@ else
 
     if ask_yes_no "Test the connection (from a $PG_IMAGE container)" y; then
       info "Connecting…"
-      if version=$(docker run --rm -e PGCONNECT_TIMEOUT=10 "$PG_IMAGE" \
+      if version=$("$ENGINE" run --rm -e PGCONNECT_TIMEOUT=10 "$PG_IMAGE" \
           psql "$DATABASE_URL" -tA -c "SHOW server_version" 2>&1); then
         info "${GREEN}Connected (PostgreSQL ${version%%$'\n'*}).${RESET}"
         break
@@ -279,11 +286,32 @@ fi
 
 # ---- File storage ------------------------------------------------------------
 
-# The bundled SeaweedFS's credentials: nobody needs to choose them, so they're generated.
-SEAWEEDFS_ACCESS_KEY=$(existing SEAWEEDFS_ACCESS_KEY)
-SEAWEEDFS_SECRET_KEY=$(existing SEAWEEDFS_SECRET_KEY)
-[ -n "$SEAWEEDFS_ACCESS_KEY" ] || SEAWEEDFS_ACCESS_KEY=$(rand_hex 16)
-[ -n "$SEAWEEDFS_SECRET_KEY" ] || SEAWEEDFS_SECRET_KEY=$(rand_hex 32)
+section "File storage (attachments)"
+info "Where attached files are kept (encrypted by the app either way)."
+# The bundled one unless the current settings are without it. Settings from
+# before this question (keys, but no bundled-storage profile) used it too.
+default_storage=1
+[ -f "$ENV_FILE" ] && [ -z "$(existing SEAWEEDFS_ACCESS_KEY)" ] && default_storage=2
+ask_choice STORAGE_CHOICE "$default_storage" \
+  "The bundled SeaweedFS (runs in a container on this server)" \
+  "An S3-compatible storage of your own (AWS S3, Cloudflare R2, MinIO, …; set in the admin console)"
+SEAWEEDFS_ACCESS_KEY=""
+SEAWEEDFS_SECRET_KEY=""
+if [ "$STORAGE_CHOICE" = 1 ]; then
+  COMPOSE_PROFILES="${COMPOSE_PROFILES:+$COMPOSE_PROFILES,}bundled-storage"
+  # Its credentials: nobody needs to choose them, so they're generated.
+  SEAWEEDFS_ACCESS_KEY=$(existing SEAWEEDFS_ACCESS_KEY)
+  SEAWEEDFS_SECRET_KEY=$(existing SEAWEEDFS_SECRET_KEY)
+  [ -n "$SEAWEEDFS_ACCESS_KEY" ] || SEAWEEDFS_ACCESS_KEY=$(rand_hex 16)
+  [ -n "$SEAWEEDFS_SECRET_KEY" ] || SEAWEEDFS_SECRET_KEY=$(rand_hex 32)
+else
+  note "After the first-time setup, set it under Files → File storage in the admin console. Until then, files can't be attached."
+  if [ -n "$(existing SEAWEEDFS_ACCESS_KEY)" ]; then
+    warn "The bundled storage won't run any more. Files kept in it are unreachable unless the admin console"
+    warn "already points to your own storage with those files copied over (README: moving file storage)."
+    ask_yes_no "Continue" n || { info "Cancelled."; exit 1; }
+  fi
+fi
 
 # ---- Serving -----------------------------------------------------------------
 
@@ -343,7 +371,11 @@ else
 fi
 info "Semantic search : $([ -n "$VECTORDB_PASSWORD" ] && echo "on (bundled vector database)" || echo "off")"
 info "Server key      : $(mask "$KNOWLECTIVE_SERVER_KEY")"
-info "File storage    : bundled SeaweedFS (credentials generated; set an external S3 in the admin console)"
+if [ "$STORAGE_CHOICE" = 1 ]; then
+  info "File storage    : bundled SeaweedFS (credentials generated)"
+else
+  info "File storage    : your own S3 (set in the admin console after setup)"
+fi
 info "Port            : 127.0.0.1:${KNOWLECTIVE_PORT}"
 info "Proxy hops      : ${KNOWLECTIVE_TRUSTED_PROXY_HOPS}"
 info "Sub-path        : ${KNOWLECTIVE_BASE_PATH:-(none; served at the root)}"
@@ -363,11 +395,14 @@ fi
   umask 077
   {
     echo "# knowlective production settings (written by install.sh: $(date '+%Y-%m-%d %H:%M:%S'))"
-    echo "# docker compose -f $COMPOSE_FILE_NAME --env-file $ENV_FILE up -d --build"
+    profile_note=""
+    IFS=',' read -r -a profile_list <<< "$COMPOSE_PROFILES"
+    for p in "${profile_list[@]}"; do [ -n "$p" ] && profile_note+=" --profile $p"; done
+    echo "# $ENGINE compose -f $COMPOSE_FILE_NAME --env-file $ENV_FILE$profile_note up -d --build"
     echo "# Contains secrets. Don't share or commit it; back it up somewhere safe."
     echo
     if [ -n "$COMPOSE_PROFILES" ]; then
-      echo "# Bundled services to run (bundled-db: PostgreSQL, bundled-vectordb: the semantic search database)"
+      echo "# Bundled services to run (bundled-db: PostgreSQL, bundled-vectordb: the semantic search database, bundled-storage: SeaweedFS for files)"
       echo "COMPOSE_PROFILES='$COMPOSE_PROFILES'"
     fi
     if [ "$DB_CHOICE" = 1 ]; then
@@ -383,8 +418,11 @@ fi
     fi
     echo
     echo "KNOWLECTIVE_SERVER_KEY='$KNOWLECTIVE_SERVER_KEY'"
-    echo "SEAWEEDFS_ACCESS_KEY='$SEAWEEDFS_ACCESS_KEY'"
-    echo "SEAWEEDFS_SECRET_KEY='$SEAWEEDFS_SECRET_KEY'"
+    if [ "$STORAGE_CHOICE" = 1 ]; then
+      echo "# The bundled file storage (SeaweedFS)"
+      echo "SEAWEEDFS_ACCESS_KEY='$SEAWEEDFS_ACCESS_KEY'"
+      echo "SEAWEEDFS_SECRET_KEY='$SEAWEEDFS_SECRET_KEY'"
+    fi
     echo
     echo "KNOWLECTIVE_PORT='$KNOWLECTIVE_PORT'"
     echo "KNOWLECTIVE_TRUSTED_PROXY_HOPS='$KNOWLECTIVE_TRUSTED_PROXY_HOPS'"
@@ -403,7 +441,14 @@ warn "Back up $ENV_FILE (KNOWLECTIVE_SERVER_KEY above all) somewhere safe."
 
 # ---- Start -------------------------------------------------------------------
 
-COMPOSE=(docker compose -f "$COMPOSE_FILE_NAME" --env-file "$ENV_FILE")
+# The profiles as arguments too: podman-compose doesn't read COMPOSE_PROFILES
+# from the env file (Docker does; both take --profile).
+PROFILE_ARGS=()
+IFS=',' read -r -a profile_list <<< "$COMPOSE_PROFILES"
+for p in "${profile_list[@]}"; do
+  [ -n "$p" ] && PROFILE_ARGS+=(--profile "$p")
+done
+COMPOSE=("${ENGINE_COMPOSE[@]}" -f "$COMPOSE_FILE_NAME" --env-file "$ENV_FILE" "${PROFILE_ARGS[@]}")
 
 section "Start"
 if ! ask_yes_no "Build the image and start (takes a few minutes the first time)" y; then
@@ -415,10 +460,25 @@ fi
 "${COMPOSE[@]}" up -d --build
 
 info "Waiting for it to start (including database migrations)…"
-app_id=$("${COMPOSE[@]}" ps -q app)
+# The app's own health check over HTTP when curl is there (the same for both
+# engines: Podman only runs container health checks where systemd timers
+# can), else the container's health status.
+health_url="http://127.0.0.1:${KNOWLECTIVE_PORT}${KNOWLECTIVE_BASE_PATH}/api/health"
+# (podman-compose's ps takes no service name: found by its labels then.)
+app_id=$("${COMPOSE[@]}" ps -q app 2>/dev/null) || app_id=""
+[ -n "$app_id" ] || app_id=$("$ENGINE" ps -aq --filter label=com.docker.compose.project=knowlective-prod \
+  --filter label=com.docker.compose.service=app 2>/dev/null | head -n 1)
 status=""
 for _ in $(seq 1 60); do
-  status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$app_id" 2>/dev/null || echo unknown)
+  if command -v curl >/dev/null 2>&1; then
+    if curl -fsS -o /dev/null --max-time 5 "$health_url" 2>/dev/null; then
+      status=healthy
+    else
+      status=$("$ENGINE" inspect -f '{{.State.Status}}' "$app_id" 2>/dev/null || echo unknown)
+    fi
+  else
+    status=$("$ENGINE" inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$app_id" 2>/dev/null || echo unknown)
+  fi
   case "$status" in
     healthy) break ;;
     exited|dead) break ;;
@@ -438,9 +498,18 @@ info "Next steps:"
 info "  1. Have the reverse proxy forward your public domain to 127.0.0.1:${KNOWLECTIVE_PORT}"
 info "     (pass the /collab WebSocket too, and send X-Forwarded-For and X-Forwarded-Proto)"
 info "  2. Open https://<your domain>/ and do the first-time setup (set the master password)"
-info "  3. Back up $ENV_FILE"
+if [ "$STORAGE_CHOICE" = 2 ]; then
+  info "  3. In the admin console (/admin), set your S3 storage under Files → File storage"
+else
+  info "  3. Back up the file storage (volume knowlective-prod_seaweedfs_data) with the database"
+fi
+info "  4. Back up $ENV_FILE"
 if [ "$DB_CHOICE" = 1 ]; then
-  info "  4. Back up the database encryption keys (volume knowlective-prod_postgres_tde_keys) separately from the data"
+  info "  5. Back up the database encryption keys (volume knowlective-prod_postgres_tde_keys) separately from the data"
   info "     (without them the database can't be read)"
+fi
+if [ "$ENGINE" = podman ]; then
+  info "Podman: to start it again after the server restarts, enable the restart service"
+  info "  (rootless: systemctl --user enable --now podman-restart.service; loginctl enable-linger \"$USER\")"
 fi
 info "Logs: ${COMPOSE[*]} logs -f app"

@@ -277,8 +277,19 @@ export function startSemanticSearch(prisma: PrismaClient): { stop(): Promise<voi
   };
 
   void (async () => {
+    // The vector database may start after the app (compose doesn't wait for
+    // it): tried again, less and less often, until it answers ("loading" meanwhile).
+    for (let delay = 10_000; !stopped; delay = Math.min(delay * 2, 60_000)) {
+      try {
+        await store.init();
+        break;
+      } catch (err) {
+        console.error(`[semantic] the vector database isn't reachable yet, trying again in ${delay / 1000}s`, err);
+        await new Promise((resolve) => setTimeout(resolve, delay).unref());
+      }
+    }
+    if (stopped) return;
     try {
-      await store.init();
       const started = Date.now();
       embed = await loadEmbedder();
       console.log(`[semantic] model ready (${Math.round((Date.now() - started) / 1000)}s)`);
