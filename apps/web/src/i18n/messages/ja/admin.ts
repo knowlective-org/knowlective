@@ -484,6 +484,8 @@ const ja: MessageShape<typeof en> = {
         "IdP が「確認済み（email_verified）」を送ってこない場合（Microsoft Entra ID など）にオンにします。利用者が自由にメールアドレスを設定できる IdP でオンにすると、他人のアカウントに入られるおそれがあります。",
       allowNameChange: "シングルサインオンでログインするアカウントにも、名前の変更を許可する",
       allowNameChangeNote: "オフのときは、初めてログインしたときに IdP から受け取った名前のままです。ほかのアカウントはいつでも変更できます（「アカウント」の画面）。",
+      allowEmailChangeUnconfirmed: "シングルサインオンでログインするアカウントは、確認なしでメールアドレスを変更できる",
+      allowEmailChangeUnconfirmedNote: "オンのときは、「アカウント」の画面で任意のアドレスにすぐ変更できます（コードや新しいアドレスへのリンクによる確認はなく、メール送信の設定も不要）。シングルサインオンでのログインには影響しませんが、このサイトからのメールは入力したアドレスに届きます。オフのときは、ほかのアカウントと同じく確認してから変わります。",
       passwordLogin: "パスワードでのログイン",
       passwordAllowed: "シングルサインオンと併用する（初期値）",
       passwordSiteAdminsOnly: "シングルサインオンのみ",

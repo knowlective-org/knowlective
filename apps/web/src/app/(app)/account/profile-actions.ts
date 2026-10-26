@@ -7,11 +7,11 @@ import { auditTranslator } from "@/i18n/audit";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { CODE_TTL_MINUTES, sendEmailCode } from "@/lib/auth/email-code";
-import { EMAIL_CHANGE_TTL_MINUTES, startEmailChange } from "@/lib/auth/email-change";
+import { EMAIL_CHANGE_TTL_MINUTES, changeEmailWithoutConfirmation, startEmailChange } from "@/lib/auth/email-change";
 import { beginReauthentication } from "@/lib/auth/passkeys";
 import { MAX_NAME_LENGTH, profileRules } from "@/lib/auth/profile";
 import { reauthMethod, verifyReauth } from "@/lib/auth/reauth";
-import { requireUser } from "@/lib/auth/session";
+import { normalizeEmail, requireUser } from "@/lib/auth/session";
 
 // The signed-in user's name and email address (account screen).
 
@@ -86,4 +86,18 @@ export async function requestEmailChange(
   if (result === "same") return { error: t("emailSame") };
   if (result === "tooMany") return { error: t("tooMany") };
   return { sentTo: newEmail, ttlMinutes: EMAIL_CHANGE_TTL_MINUTES };
+}
+
+// Without confirmation: single sign-on accounts, when the admin console
+// allows it (profileRules() "direct").
+export async function changeEmailNow(newEmail: string): Promise<{ email: string } | { error: string }> {
+  const user = await requireUser("/account");
+  const t = await getTranslations("account.profile.errors");
+  if ((await profileRules(user.id)).email !== "direct") return { error: t("invalid") };
+  const result = await changeEmailWithoutConfirmation(user, typeof newEmail === "string" ? newEmail : "");
+  if (result === "invalid") return { error: t("emailInvalid") };
+  if (result === "same") return { error: t("emailSame") };
+  if (result === "taken") return { error: t("emailTaken") };
+  revalidatePath("/", "layout");
+  return { email: normalizeEmail(newEmail) };
 }

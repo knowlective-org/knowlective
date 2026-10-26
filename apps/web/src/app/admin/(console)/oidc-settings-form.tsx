@@ -23,6 +23,7 @@ type Values = {
   allowedDomains: string[];
   trustEmail: boolean;
   allowNameChange: boolean;
+  allowEmailChangeUnconfirmed: boolean;
   passwordLogin: "ALLOWED" | "SITE_ADMINS_ONLY";
 };
 
@@ -270,6 +271,20 @@ export function OidcSettingsForm({
             {ta("oidc.allowNameChange")}
             <span className={styles.note} style={{ display: "block" }}>
               {ta("oidc.allowNameChangeNote")}
+            </span>
+          </span>
+        </label>
+        <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <input
+            type="checkbox"
+            name="allowEmailChangeUnconfirmed"
+            defaultChecked={values.allowEmailChangeUnconfirmed}
+            data-ui="OidcSettingsForm.allowEmailChangeUnconfirmed"
+          />
+          <span>
+            {ta("oidc.allowEmailChangeUnconfirmed")}
+            <span className={styles.note} style={{ display: "block" }}>
+              {ta("oidc.allowEmailChangeUnconfirmedNote")}
             </span>
           </span>
         </label>

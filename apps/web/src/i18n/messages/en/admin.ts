@@ -484,6 +484,8 @@ export default {
         "Turn on when the identity provider doesn't send \"verified\" (email_verified), e.g. Microsoft Entra ID. On with an identity provider where users can set any email address, someone could get into another person's account.",
       allowNameChange: "Let accounts that log in with single sign-on change their name",
       allowNameChangeNote: "Off: the name stays as the identity provider gave it at the first log-in. Other accounts can always change theirs (Account screen).",
+      allowEmailChangeUnconfirmed: "Let accounts that log in with single sign-on change their email address without confirmation",
+      allowEmailChangeUnconfirmedNote: "On: on the Account screen they can change it at once to any address (no code, no link to the new address; mail sending isn't needed). Their single sign-on log-in isn't affected, but emails from this site go to whatever address they enter. Off: confirmed like other accounts.",
       passwordLogin: "Logging in with a password",
       passwordAllowed: "Alongside single sign-on (default)",
       passwordSiteAdminsOnly: "Single sign-on only",

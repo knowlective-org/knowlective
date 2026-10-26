@@ -810,6 +810,7 @@ type OidcInput = {
   allowedDomains: string[];
   trustEmail: boolean;
   allowNameChange: boolean;
+  allowEmailChangeUnconfirmed: boolean;
   passwordLogin: "ALLOWED" | "SITE_ADMINS_ONLY";
 };
 
@@ -879,6 +880,7 @@ function readOidcForm(formData: FormData): OidcInput | OidcFormError {
     allowedDomains: domains,
     trustEmail: formData.get("trustEmail") === "on",
     allowNameChange: formData.get("allowNameChange") === "on",
+    allowEmailChangeUnconfirmed: formData.get("allowEmailChangeUnconfirmed") === "on",
     passwordLogin,
   };
 }
@@ -997,6 +999,7 @@ export async function saveOidcSettings(_prev: OidcFormState, formData: FormData)
     allowedDomains: input.allowedDomains,
     trustEmail: input.trustEmail,
     allowNameChange: input.allowNameChange,
+    allowEmailChangeUnconfirmed: input.allowEmailChangeUnconfirmed,
     passwordLogin: input.passwordLogin,
     ...(sealed && { clientSecretEnc: sealed }),
   };
@@ -1031,6 +1034,9 @@ export async function saveOidcSettings(_prev: OidcFormState, formData: FormData)
   if (before.trustEmail !== input.trustEmail) changes.push(audit("audit.oidcTrustEmail", { trust: String(input.trustEmail) }));
   if (before.allowNameChange !== input.allowNameChange) {
     changes.push(audit("audit.oidcNameChange", { allowed: String(input.allowNameChange) }));
+  }
+  if (before.allowEmailChangeUnconfirmed !== input.allowEmailChangeUnconfirmed) {
+    changes.push(audit("audit.oidcEmailChange", { allowed: String(input.allowEmailChangeUnconfirmed) }));
   }
   if (before.passwordLogin !== input.passwordLogin) {
     changes.push(audit("audit.oidcPasswordLogin", { siteAdminsOnly: String(input.passwordLogin === "SITE_ADMINS_ONLY") }));

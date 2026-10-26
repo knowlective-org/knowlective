@@ -82,6 +82,66 @@ test.describe("Name and email address", () => {
     }
   });
 
+  test("a single sign-on account changes its email address at once when the admin console allows it", async ({ page }) => {
+    await withPrisma((prisma) =>
+      prisma.user.update({ where: { id: original.id }, data: { oidcIssuer: "https://idp.example.com", oidcSubject: "e2e-sub" } }),
+    );
+    const previous = await withPrisma((prisma) =>
+      prisma.oidcSettings.findUnique({ where: { id: 1 }, select: { allowEmailChangeUnconfirmed: true } }),
+    );
+    const set = (allowEmailChangeUnconfirmed: boolean) =>
+      withPrisma((prisma) =>
+        prisma.oidcSettings.upsert({
+          where: { id: 1 },
+          create: { id: 1, enabled: false, issuer: "", clientId: "", clientSecretEnc: new Uint8Array(), buttonLabel: "", allowEmailChangeUnconfirmed },
+          update: { allowEmailChangeUnconfirmed },
+        }),
+      );
+    // Mail set up, so "off" offers the confirmed change, and the old address is told.
+    const mail = await startMailCapture();
+    try {
+      // Off: the confirmed change (a code first).
+      await set(false);
+      await page.goto("account");
+      await page.getByTestId("ProfileSection.changeEmailButton").click();
+      await expect(page.getByTestId("ProfileSection.sendCodeButton")).toBeVisible();
+      await expect(page.getByTestId("ProfileSection.changeNowButton")).toHaveCount(0);
+
+      await set(true);
+      await page.reload();
+      await page.getByTestId("ProfileSection.changeEmailButton").click();
+      await expect(page.getByTestId("ProfileSection.sendCodeButton")).toHaveCount(0);
+      // Another account's address can't be taken.
+      await page.getByTestId("ProfileSection.newEmailInput").fill(ACCOUNTS.viewer.email);
+      await page.getByTestId("ProfileSection.changeNowButton").click();
+      await expect(page.getByTestId("ProfileSection.emailError")).toContainText("このメールアドレスは使えません");
+      // Any other address: changed at once; the old address is told.
+      const notice = mail.next(ACCOUNTS.editor.email);
+      await page.getByTestId("ProfileSection.newEmailInput").fill(NEW_EMAIL);
+      await page.getByTestId("ProfileSection.changeNowButton").click();
+      await expect(page.getByTestId("ProfileSection.emailChangedStatus")).toContainText(NEW_EMAIL);
+      expect((await notice).text).toContain(NEW_EMAIL);
+      await page.reload();
+      await expect(page.getByTestId("AccountPage.email")).toHaveText(NEW_EMAIL);
+      const logged = await withPrisma((prisma) =>
+        prisma.auditLog.count({ where: { action: "user.email.change", createdAt: { gte: new Date(Date.now() - 60_000) } } }),
+      );
+      expect(logged).toBeGreaterThanOrEqual(1);
+
+      // Not for accounts that aren't linked to single sign-on.
+      await withPrisma((prisma) => prisma.user.update({ where: { id: original.id }, data: { oidcIssuer: null, oidcSubject: null } }));
+      await page.reload();
+      await page.getByTestId("ProfileSection.changeEmailButton").click();
+      await expect(page.getByTestId("ProfileSection.changeNowButton")).toHaveCount(0);
+    } finally {
+      await mail.close();
+      await withPrisma(async (prisma) => {
+        if (previous) await prisma.oidcSettings.update({ where: { id: 1 }, data: previous });
+        else await prisma.oidcSettings.deleteMany({});
+      });
+    }
+  });
+
   test("the email address changes after a code to the current one and a link to the new one", async ({ page }) => {
     const mail = await startMailCapture();
     try {

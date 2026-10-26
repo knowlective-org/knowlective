@@ -55,11 +55,11 @@ model User {
   // in creation order.
   rootOrder    String[]  @default([])
 
-  pages           Page[]          @relation("PageCreatedBy")
-  updatedPages    Page[]          @relation("PageUpdatedBy")
-  deletedPages    Page[]          @relation("PageDeletedBy")
-  lockedPages     Page[]          @relation("PageLockedBy")
-  personalRoot    KnowledgeRoot?  @relation("PersonalRoot")
+  pages           Page[]               @relation("PageCreatedBy")
+  updatedPages    Page[]               @relation("PageUpdatedBy")
+  deletedPages    Page[]               @relation("PageDeletedBy")
+  lockedPages     Page[]               @relation("PageLockedBy")
+  personalRoot    KnowledgeRoot?       @relation("PersonalRoot")
   sessions        UserSession[]
   usedInvitations Invitation[]
   passwordResets  PasswordResetToken[]
@@ -116,11 +116,11 @@ model KnowledgeRoot {
 // Page hierarchy / metadata lives here. The actual block content lives in the
 // Yjs document referenced by PageDocument — Postgres never parses block content.
 model Page {
-  id        String    @id @default(cuid())
-  title     String    @default("Untitled")
-  icon      String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  title       String    @default("Untitled")
+  icon        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   // Set when the page is moved to the trash. Its descendants keep null but
   // are hidden too (the tree walk never passes a deleted page), so restoring
   // brings back the whole subtree. A descendant deleted on its own before
@@ -137,15 +137,15 @@ model Page {
   rootOf KnowledgeRoot? @relation("KnowledgeRootPage")
 
   // Null only for a root page; every other page has a parent.
-  parentId String?
-  parent   Page?   @relation("PageToPage", fields: [parentId], references: [id])
-  children Page[]  @relation("PageToPage")
+  parentId  String?
+  parent    Page?   @relation("PageToPage", fields: [parentId], references: [id])
+  children  Page[]  @relation("PageToPage")
   // Position among its siblings (ascending; ties by createdAt). Set to the
   // end on creation, renumbered for all siblings when a page is dragged in.
-  sortOrder Int @default(0)
+  sortOrder Int     @default(0)
 
   createdById String
-  createdBy   User   @relation("PageCreatedBy", fields: [createdById], references: [id])
+  createdBy   User    @relation("PageCreatedBy", fields: [createdById], references: [id])
   // Last user whose edit was stored (body or title via collab, or a property
   // value). Null for pages nobody has edited since this column was added.
   updatedById String?
@@ -318,7 +318,7 @@ model InstanceConfig {
   // Whether pages may be public: viewable without logging in, through the
   // built-in "public" group (packages/shared/src/permissions.ts). Off: grants
   // to that group count for nobody, and none can be added.
-  publicPagesAllowed Boolean @default(false)
+  publicPagesAllowed   Boolean @default(false)
   // Whether search engines may index the site (public pages are what they
   // can reach). Off: every response says X-Robots-Tag: noindex, nofollow
   // (apps/web/server/robots.ts).
@@ -326,21 +326,21 @@ model InstanceConfig {
   // The top page: where "/" goes for someone with nowhere else to go (see
   // apps/web/src/lib/landing-page.ts). No foreign key: used only while the
   // visitor can open it (checked on each visit).
-  landingPageId String?
+  landingPageId        String?
   // The language for whoever has none of their own: visitors whose browser
   // asks for neither supported language, and emails to people without an
   // account (apps/web/src/i18n). "ja" or "en".
-  defaultLocale String @default("ja")
+  defaultLocale        String  @default("ja")
 
   // How accounts are created: by invitation only, or also by anyone who
   // confirms their email address at /signup (needs mail settings).
-  signupMode SignupMode @default(INVITE_ONLY)
+  signupMode           SignupMode @default(INVITE_ONLY)
   // OPEN only: email domains allowed to sign up (e.g. example.co.jp).
   // Empty = any domain.
-  signupAllowedDomains String[] @default([])
+  signupAllowedDomains String[]   @default([])
   // Site role of accounts created by self-registration: USER or
   // CONTENT_MANAGER (never SITE_ADMIN). Applied when the account is created.
-  signupSiteRole SiteRole @default(USER)
+  signupSiteRole       SiteRole   @default(USER)
 
   // Passkeys required: an account without one (signed in with its password)
   // must register one before using the site, and an account with one can no
@@ -352,19 +352,19 @@ model InstanceConfig {
   // lib/network-policy.ts). Empty: no restriction, everyone has full access.
   // Otherwise requests from elsewhere get only what the settings below allow
   // (the admin console is governed by adminIpAllowlist instead).
-  networkFullAccess   String[] @default([])
+  networkFullAccess    String[] @default([])
   // From elsewhere: may use the site at all (off: refused before the app).
-  networkOtherAccess  Boolean  @default(true)
+  networkOtherAccess   Boolean  @default(true)
   // ...and then read pages, change them, download and attach files. Changing
   // needs reading. These cap page permissions; they never add any.
-  networkOtherRead     Boolean @default(true)
-  networkOtherWrite    Boolean @default(false)
-  networkOtherDownload Boolean @default(false)
-  networkOtherUpload   Boolean @default(false)
+  networkOtherRead     Boolean  @default(true)
+  networkOtherWrite    Boolean  @default(false)
+  networkOtherDownload Boolean  @default(false)
+  networkOtherUpload   Boolean  @default(false)
 
   // The public API (/api/v1, lib/api/): off, every request is refused and no
   // keys can be issued (existing keys are kept, and work again once it's on).
-  apiEnabled Boolean @default(false)
+  apiEnabled  Boolean    @default(false)
   // Site roles that may issue themselves API keys. A key stops working when
   // its owner's role is taken off this list.
   apiKeyRoles SiteRole[] @default([SITE_ADMIN, CONTENT_MANAGER, USER])
@@ -404,18 +404,18 @@ model AdminSession {
 
 // Every /admin login attempt, for rate limiting and the dashboard audit view.
 model AdminLoginAttempt {
-  id        String   @id @default(cuid())
-  ip        String
+  id          String   @id @default(cuid())
+  ip          String
   // Email entered for an account login (encrypted, see User); null for
   // master password logins.
   emailHash   Bytes?
   emailEnc    Bytes?
   legacyEmail String?
-  success   Boolean
+  success     Boolean
   // e.g. "bad_credentials", "locked", "ip_denied"
-  reason    String?
-  userAgent String?
-  createdAt DateTime @default(now())
+  reason      String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
 
   @@index([ip, createdAt])
   @@index([createdAt])
@@ -424,16 +424,16 @@ model AdminLoginAttempt {
 // Regular user sessions (separate from AdminSession). The cookie holds a
 // random token; only its SHA-256 hash is stored here.
 model UserSession {
-  tokenHash  String   @id
+  tokenHash  String       @id
   userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   // How this session was signed in. Null: from before this was recorded
   // (treated as single sign-on if the account is linked to an IdP).
   method     LoginMethod?
   ip         String
   userAgent  String?
-  createdAt  DateTime @default(now())
-  lastSeenAt DateTime @default(now())
+  createdAt  DateTime     @default(now())
+  lastSeenAt DateTime     @default(now())
   expiresAt  DateTime
 
   @@index([userId])
@@ -450,20 +450,20 @@ enum LoginMethod {
 // password. Registered from the account screen, or on /passkey-setup when the
 // site requires one (InstanceConfig.passkeyRequired).
 model UserPasskey {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   // The credential id (base64url), as the browser sends it back on sign-in.
-  credentialId String   @unique
+  credentialId String    @unique
   publicKey    Bytes
   // The authenticator's signature counter (0 for most passkeys, which don't
   // keep one); a lower value than stored means a cloned authenticator.
   counter      BigInt
-  transports   String[] @default([])
+  transports   String[]  @default([])
   // The name the user gave it ("work laptop"), encrypted with the DEK (AAD:
   // passkeyNameAad(id)), as it can contain a person's name.
   nameEnc      Bytes
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   lastUsedAt   DateTime?
 
   @@index([userId])
@@ -542,8 +542,8 @@ enum SignupMode {
 }
 
 model Invitation {
-  id        String  @id @default(cuid())
-  tokenHash String  @unique
+  id          String  @id @default(cuid())
+  tokenHash   String  @unique
   // If set, only this email address may use the invitation (encrypted, see
   // User).
   emailHash   Bytes?
@@ -574,14 +574,14 @@ model Invitation {
 
 // Every user login attempt, for rate limiting.
 model UserLoginAttempt {
-  id        String   @id @default(cuid())
-  ip        String
+  id          String   @id @default(cuid())
+  ip          String
   // The address entered, as its keyed hash only (see User): counted, never shown.
   emailHash   Bytes?
   legacyEmail String?
-  success   Boolean
-  userAgent String?
-  createdAt DateTime @default(now())
+  success     Boolean
+  userAgent   String?
+  createdAt   DateTime @default(now())
 
   @@index([ip, createdAt])
   @@index([emailHash, createdAt])
@@ -592,14 +592,14 @@ model UserLoginAttempt {
 // in when mail isn't configured). Only the token's SHA-256 hash is stored.
 // Rows are kept after use or expiry, for rate limiting.
 model PasswordResetToken {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String  @id @default(cuid())
+  tokenHash     String  @unique
+  userId        String
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   // Issued from /admin rather than requested at /forgot-password.
   issuedByAdmin Boolean @default(false)
   // /forgot-password only: who asked, for rate limiting.
-  requestedIp String?
+  requestedIp   String?
 
   createdAt DateTime  @default(now())
   // A newer link for the same user expires the older ones (sets this to now).
@@ -695,19 +695,19 @@ model StorageSettings {
 // DEK (AAD bound to the id). Served only through /api/files/<id> after a
 // membership check on rootId.
 model FileObject {
-  id           String        @id @default(cuid())
-  rootId       String
-  root         KnowledgeRoot @relation(fields: [rootId], references: [id])
+  id              String        @id @default(cuid())
+  rootId          String
+  root            KnowledgeRoot @relation(fields: [rootId], references: [id])
   // Page it was uploaded on (informational; access is decided by rootId).
-  pageId       String?
-  page         Page?         @relation(fields: [pageId], references: [id], onDelete: SetNull)
-  uploadedById String?
-  uploadedBy   User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
-  name         String
-  mimeType     String
+  pageId          String?
+  page            Page?         @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  uploadedById    String?
+  uploadedBy      User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  name            String
+  mimeType        String
   // Plaintext size in bytes.
-  size         Int
-  createdAt    DateTime      @default(now())
+  size            Int
+  createdAt       DateTime      @default(now())
   // The file's text for search (lib/file-search.ts), encrypted with the DEK
   // (AAD: fileTextAad(id)). Null: no text (an image, an unreadable file).
   textEnc         Bytes?
@@ -749,21 +749,21 @@ model InvitationGroup {
 // Kept even when the actor or target is deleted (no foreign keys), so it
 // stays a faithful record. Shown to site admins in /admin/security.
 model AuditLog {
-  id         String   @id @default(cuid())
+  id               String   @id @default(cuid())
   // Null for the master password login.
-  actorId    String?
+  actorId          String?
   // e.g. "user.role", "user.disable", "group.member.add", "page.grant.set"
-  action     String
+  action           String
   // The entry's text, encrypted with the DEK (AuditText in
   // src/personal-data.ts): actorLabel (name/email at the time, or
   // the master password's label), summary (human-readable, rendered as-is), detail.
-  sealed     Bytes?
+  sealed           Bytes?
   // Plaintext of an entry from before the encryption; the server seals it
   // at startup and clears these.
   legacyActorLabel String?
   legacySummary    String?
   legacyDetail     Json?
-  createdAt  DateTime @default(now())
+  createdAt        DateTime @default(now())
 
   @@index([createdAt])
 }
@@ -804,39 +804,42 @@ enum PasswordLoginMode {
 
 // Sign-in with OpenID Connect (one row, id = 1). apps/web/src/lib/auth/oidc.ts.
 model OidcSettings {
-  id              Int               @id @default(1)
-  enabled         Boolean           @default(false)
+  id                          Int               @id @default(1)
+  enabled                     Boolean           @default(false)
   // Issuer URL; its /.well-known/openid-configuration is fetched.
-  issuer          String
-  clientId        String
+  issuer                      String
+  clientId                    String
   // Client secret, encrypted with the DEK. Never sent back to the browser.
-  clientSecretEnc Bytes
+  clientSecretEnc             Bytes
   // Label of the login button ("Log in with …").
-  buttonLabel     String
+  buttonLabel                 String
   // The display name: a claim ("name"), or a template of claims and text
   // ("{family_name} {given_name}", "{name}@{department}"), from the ID token
   // and the UserInfo endpoint (lib/auth/oidc-profile.ts). Null = "name", else
   // "preferred_username".
-  nameClaim       String?
+  nameClaim                   String?
   // Set the display name again at every sign-in (not only when the account is
   // created). While on, allowNameChange has no effect.
-  syncName        Boolean           @default(true)
+  syncName                    Boolean           @default(true)
   // Claim whose value(s) — a string or an array of strings — are the groups
   // the user is in: each is the group of that name (made if missing). Synced at
   // every sign-in, for memberships it made only (GroupMember.viaOidc). Null: off.
-  groupsClaim     String?
+  groupsClaim                 String?
   // New users are created on their first sign-in with this role
   // (USER or CONTENT_MANAGER), if their email domain is allowed.
-  newUserRole     SiteRole          @default(USER)
+  newUserRole                 SiteRole          @default(USER)
   // Empty = any domain.
-  allowedDomains  String[]          @default([])
+  allowedDomains              String[]          @default([])
   // Treat the IdP's email as verified even without email_verified: true
   // (e.g. Microsoft Entra ID omits it). Only for IdPs that control emails.
-  trustEmail      Boolean           @default(false)
+  trustEmail                  Boolean           @default(false)
   // Accounts linked to the IdP may change their display name on the account
   // screen. Off: the name stays as the IdP gave it at the first sign-in.
-  allowNameChange Boolean           @default(false)
-  passwordLogin   PasswordLoginMode @default(ALLOWED)
-  updatedAt       DateTime          @updatedAt
+  allowNameChange             Boolean           @default(false)
+  // Accounts linked to the IdP may change their email address to any address
+  // at once on the account screen: no confirmation (no code, no link to the
+  // new address). Off: the same confirmed change as other accounts.
+  allowEmailChangeUnconfirmed Boolean           @default(false)
+  passwordLogin               PasswordLoginMode @default(ALLOWED)
+  updatedAt                   DateTime          @updatedAt
 }
-

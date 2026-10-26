@@ -240,6 +240,7 @@ No database changes are needed (`User.locale` and `InstanceConfig.defaultLocale`
 Under "Account" in the sidebar, people change their own name and email address (recorded in the audit log).
 
 - The name changes right away (up to 100 characters). Accounts linked to single sign-on only when "Let accounts that log in with single sign-on change their name" is on under "Users" → "Single sign-on" in the admin console and "Update the display name at every log-in" is off (by default they can't: the name follows the identity provider)
+- Accounts linked to single sign-on can change their email address at once, to any address and without confirmation (no code, no link; mail sending isn't needed), when "Let accounts that log in with single sign-on change their email address without confirmation" is on in the same settings (off by default). An address another account has can't be used. Their single sign-on log-in isn't affected (it's tied to the identity provider's account, not the address); the change is recorded in the audit log, and the old address is told when mail sending is set up
 - The email address: after confirming it's them (a passkey, or else a code mailed to the current address), a link (an hour, once) goes to the new address; the change is made when it's opened and confirmed. The old address is then told
 - Whether the new address belongs to another account isn't shown on the screen (so registered addresses can't be probed); that address gets a mail saying it can't be used
 - Without mail sending set up, the email address can't be changed

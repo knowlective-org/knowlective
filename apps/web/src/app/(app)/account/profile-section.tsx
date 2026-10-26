@@ -9,6 +9,7 @@ import styles from "@/styles/ui.module.css";
 import {
   type NameState,
   beginEmailChangePasskeyCheck,
+  changeEmailNow,
   requestEmailChange,
   saveName,
   sendEmailChangeCode,
@@ -27,7 +28,7 @@ export function ProfileSection({
 }: {
   name: string | null;
   email: string;
-  rules: { name: "allowed" | "sso"; email: "allowed" | "mail" };
+  rules: { name: "allowed" | "sso"; email: "allowed" | "direct" | "mail" };
   // How this account confirms it's them (lib/auth/reauth.ts).
   method: "passkey" | "code" | null;
   maxNameLength: number;
@@ -42,6 +43,7 @@ export function ProfileSection({
   const [code, setCode] = useState("");
   const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
   const [linkSentTo, setLinkSentTo] = useState<string | null>(null);
+  const [changedTo, setChangedTo] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const webAuthn = useWebAuthnSupport();
@@ -100,6 +102,18 @@ export function ProfileSection({
 
   const confirmWithCode = () => withPending(() => request({ code }));
 
+  const changeNow = () =>
+    withPending(async () => {
+      const result = await changeEmailNow(newEmail);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setChangedTo(result.email);
+      setChanging(false);
+      setNewEmail("");
+    });
+
   return (
     <div data-ui="ProfileSection" style={{ display: "grid", gap: 24 }}>
       {/* Name */}
@@ -154,9 +168,14 @@ export function ProfileSection({
         <div>
           <span className={styles.note}>{t("email")}</span>
           <p style={{ margin: "4px 0" }} data-ui="AccountPage.email">
-            {email}
+            {changedTo ?? email}
           </p>
         </div>
+        {changedTo && (
+          <p className={styles.success} data-ui="ProfileSection.emailChangedStatus">
+            {t("emailChanged", { email: changedTo })}
+          </p>
+        )}
         {linkSentTo && (
           <p className={styles.success} data-ui="ProfileSection.linkStatus">
             {t("linkSent", { email: linkSentTo })}
@@ -174,6 +193,7 @@ export function ProfileSection({
               onClick={() => {
                 setChanging(true);
                 setLinkSentTo(null);
+                setChangedTo(null);
                 setError(null);
               }}
               data-ui="ProfileSection.changeEmailButton"
@@ -187,7 +207,8 @@ export function ProfileSection({
             data-ui="ProfileSection.emailForm"
             onSubmit={(e) => {
               e.preventDefault();
-              if (method === "code" && codeSentTo) void confirmWithCode();
+              if (rules.email === "direct") void changeNow();
+              else if (method === "code" && codeSentTo) void confirmWithCode();
             }}
           >
             <label>
@@ -200,10 +221,26 @@ export function ProfileSection({
                 autoComplete="email"
                 data-ui="ProfileSection.newEmailInput"
               />
-              <span className={styles.note}>{t("newEmailNote")}</span>
+              <span className={styles.note}>{rules.email === "direct" ? t("newEmailNoteDirect") : t("newEmailNote")}</span>
             </label>
 
-            {method === "passkey" && (
+            {rules.email === "direct" && (
+              <StatusRow message={error} className={styles.error} dataUi="ProfileSection.emailError">
+                <button
+                  type="button"
+                  className={styles.buttonSecondary}
+                  onClick={() => setChanging(false)}
+                  data-ui="ProfileSection.cancelButton"
+                >
+                  {tc("cancel")}
+                </button>
+                <button type="submit" className={styles.button} disabled={pending} data-ui="ProfileSection.changeNowButton">
+                  {pending ? tc("saving") : t("changeNowButton")}
+                </button>
+              </StatusRow>
+            )}
+
+            {rules.email === "allowed" && method === "passkey" && (
               <>
                 <p className={styles.note}>{webAuthn === false ? t("passkeyUnsupported") : t("confirmWithPasskey")}</p>
                 <StatusRow message={error} className={styles.error} dataUi="ProfileSection.emailError">
@@ -228,7 +265,7 @@ export function ProfileSection({
               </>
             )}
 
-            {method === "code" && !codeSentTo && (
+            {rules.email === "allowed" && method === "code" && !codeSentTo && (
               <>
                 <p className={styles.note}>{t("confirmWithCode", { email })}</p>
                 <StatusRow message={error} className={styles.error} dataUi="ProfileSection.emailError">
@@ -253,7 +290,7 @@ export function ProfileSection({
               </>
             )}
 
-            {method === "code" && codeSentTo && (
+            {rules.email === "allowed" && method === "code" && codeSentTo && (
               <>
                 <p className={styles.success} data-ui="ProfileSection.codeStatus">
                   {t("codeSent", { email: codeSentTo })}
@@ -287,7 +324,7 @@ export function ProfileSection({
               </>
             )}
 
-            {method === null && (
+            {rules.email === "allowed" && method === null && (
               <p className={styles.note} data-ui="ProfileSection.cannotConfirm">
                 {t("cannotConfirm")}
               </p>

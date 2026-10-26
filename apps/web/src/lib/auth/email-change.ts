@@ -5,7 +5,7 @@ import { siteDefaultLocale, userLocale } from "@/i18n/locale";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { emailColumns, emailWhere, openOptionalEmail, withEmail } from "@/lib/emails";
-import { sendMail } from "@/lib/mail";
+import { isMailConfigured, sendMail } from "@/lib/mail";
 import { emailChangeConfirmMail, emailChangeInUseMail, emailChangedNoticeMail } from "@/lib/mail-templates";
 import { getPublicUrl } from "@/lib/site-url";
 import { normalizeEmail } from "./session";
@@ -72,6 +72,47 @@ export async function startEmailChange(
     }),
   });
   return "sent";
+}
+
+export type DirectEmailChangeResult = "changed" | "invalid" | "same" | "taken";
+
+// Changes the address at once, unconfirmed (profileRules() "direct": single
+// sign-on accounts, when the admin console allows it). The address can't be
+// one another account has; saying so here can't be avoided (there's no mail
+// to say it in instead). The old address is told when mail is set up.
+export async function changeEmailWithoutConfirmation(
+  user: { id: string; email: string; name: string | null },
+  rawEmail: string,
+): Promise<DirectEmailChangeResult> {
+  const email = normalizeEmail(rawEmail);
+  if (!isValidEmail(email)) return "invalid";
+  if (email === normalizeEmail(user.email)) return "same";
+  const columns = await emailColumns(email);
+  try {
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: columns }),
+      // A link asked for before stops working.
+      prisma.emailChangeRequest.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } }),
+    ]);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "taken";
+    throw err;
+  }
+  const audit = await auditTranslator();
+  await recordAudit(
+    { userId: user.id, label: userLabel({ name: user.name, email }) },
+    "user.email.change",
+    audit("audit.emailChangeUnconfirmed", { from: user.email, to: email }),
+    { userId: user.id, unconfirmed: true },
+  );
+  if (user.email && (await isMailConfigured())) {
+    try {
+      await sendMail({ to: user.email, ...emailChangedNoticeMail(await userLocale(user.id), { newEmail: email }) });
+    } catch (err) {
+      console.error("[account] telling the old address about the change failed", err);
+    }
+  }
+  return "changed";
 }
 
 type OpenRequest = { id: string; userId: string; newEmail: string; currentEmail: string };

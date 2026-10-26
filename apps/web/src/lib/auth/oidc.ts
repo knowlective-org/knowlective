@@ -65,6 +65,7 @@ export type OidcSettingsView = {
   allowedDomains: string[];
   trustEmail: boolean;
   allowNameChange: boolean;
+  allowEmailChangeUnconfirmed: boolean;
   passwordLogin: PasswordLoginMode;
 };
 
@@ -83,6 +84,7 @@ const DEFAULTS: OidcSettingsView = {
   allowedDomains: [],
   trustEmail: false,
   allowNameChange: false,
+  allowEmailChangeUnconfirmed: false,
   passwordLogin: "ALLOWED",
 };
 
@@ -103,6 +105,7 @@ export async function getOidcSettings(): Promise<OidcSettingsView> {
     allowedDomains: row.allowedDomains,
     trustEmail: row.trustEmail,
     allowNameChange: row.allowNameChange,
+    allowEmailChangeUnconfirmed: row.allowEmailChangeUnconfirmed,
     passwordLogin: row.passwordLogin,
   };
 }
