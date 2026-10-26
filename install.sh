@@ -114,6 +114,20 @@ valid_port() {
   [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
 }
 
+# An IPv4 address, or an IPv6 one in brackets ([::], [fd00::5]).
+valid_bind() {
+  [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || [[ "$1" =~ ^\[[0-9A-Fa-f:.]+\]$ ]]
+}
+
+# Where this server reaches the app: the bind address, or loopback for "every address".
+local_host() {
+  case "$1" in
+    0.0.0.0) echo 127.0.0.1 ;;
+    "[::]") echo "[::1]" ;;
+    *) echo "$1" ;;
+  esac
+}
+
 # Percent-encoding for a connection URL
 urlencode() {
   local LC_ALL=C s=$1 out="" c i
@@ -316,7 +330,21 @@ fi
 # ---- Serving -----------------------------------------------------------------
 
 section "Network"
-info "The app listens on a port of 127.0.0.1. Serve it to others through a reverse proxy (Caddy, nginx, etc.)."
+info "Serve the app to others through a reverse proxy (Caddy, nginx, etc.)."
+info "Keep 127.0.0.1 when the proxy runs on this server. If it's on another machine, enter this server's address"
+info "the proxy connects to (e.g. 10.0.0.5; 0.0.0.0 = every address; IPv6 in brackets, e.g. [::])."
+default_bind=$(existing KNOWLECTIVE_BIND); default_bind=${default_bind:-127.0.0.1}
+while :; do
+  ask KNOWLECTIVE_BIND "Address to listen on" "$default_bind"
+  if ! valid_bind "$KNOWLECTIVE_BIND"; then
+    info "Enter an IPv4 address (e.g. 127.0.0.1), or an IPv6 one in brackets (e.g. [::1])."
+    continue
+  fi
+  [ "$KNOWLECTIVE_BIND" = 127.0.0.1 ] && break
+  warn "Let only the reverse proxy reach this port (a firewall). Whoever reaches the app directly can fake"
+  warn "X-Forwarded-For, which the login rate limits and the IP restrictions rely on."
+  ask_yes_no "Listen on $KNOWLECTIVE_BIND" y && break
+done
 default_port=$(existing KNOWLECTIVE_PORT); default_port=${default_port:-3000}
 while :; do
   ask KNOWLECTIVE_PORT "Port to listen on" "$default_port"
@@ -376,7 +404,7 @@ if [ "$STORAGE_CHOICE" = 1 ]; then
 else
   info "File storage    : your own S3 (set in the admin console after setup)"
 fi
-info "Port            : 127.0.0.1:${KNOWLECTIVE_PORT}"
+info "Listens on      : ${KNOWLECTIVE_BIND}:${KNOWLECTIVE_PORT}"
 info "Proxy hops      : ${KNOWLECTIVE_TRUSTED_PROXY_HOPS}"
 info "Sub-path        : ${KNOWLECTIVE_BASE_PATH:-(none; served at the root)}"
 info "Time zone       : ${TZ_VALUE}"
@@ -424,6 +452,10 @@ fi
       echo "SEAWEEDFS_SECRET_KEY='$SEAWEEDFS_SECRET_KEY'"
     fi
     echo
+    if [ "$KNOWLECTIVE_BIND" != 127.0.0.1 ]; then
+      echo "# Not only this server: let only the reverse proxy reach this port"
+      echo "KNOWLECTIVE_BIND='$KNOWLECTIVE_BIND'"
+    fi
     echo "KNOWLECTIVE_PORT='$KNOWLECTIVE_PORT'"
     echo "KNOWLECTIVE_TRUSTED_PROXY_HOPS='$KNOWLECTIVE_TRUSTED_PROXY_HOPS'"
     if [ -n "$KNOWLECTIVE_BASE_PATH" ]; then
@@ -463,7 +495,7 @@ info "Waiting for it to start (including database migrations)…"
 # The app's own health check over HTTP when curl is there (the same for both
 # engines: Podman only runs container health checks where systemd timers
 # can), else the container's health status.
-health_url="http://127.0.0.1:${KNOWLECTIVE_PORT}${KNOWLECTIVE_BASE_PATH}/api/health"
+health_url="http://$(local_host "$KNOWLECTIVE_BIND"):${KNOWLECTIVE_PORT}${KNOWLECTIVE_BASE_PATH}/api/health"
 # (podman-compose's ps takes no service name: found by its labels then.)
 app_id=$("${COMPOSE[@]}" ps -q app 2>/dev/null) || app_id=""
 [ -n "$app_id" ] || app_id=$("$ENGINE" ps -aq --filter label=com.docker.compose.project=knowlective-prod \
@@ -493,9 +525,9 @@ if [ "$status" != healthy ]; then
 fi
 
 section "Done"
-info "${GREEN}knowlective is running (127.0.0.1:${KNOWLECTIVE_PORT}).${RESET}"
+info "${GREEN}knowlective is running (${KNOWLECTIVE_BIND}:${KNOWLECTIVE_PORT}).${RESET}"
 info "Next steps:"
-info "  1. Have the reverse proxy forward your public domain to 127.0.0.1:${KNOWLECTIVE_PORT}"
+info "  1. Have the reverse proxy forward your public domain to $(local_host "$KNOWLECTIVE_BIND"):${KNOWLECTIVE_PORT}"
 info "     (pass the /collab WebSocket too, and send X-Forwarded-For and X-Forwarded-Proto)"
 info "  2. Open https://<your domain>/ and do the first-time setup (set the master password)"
 if [ "$STORAGE_CHOICE" = 2 ]; then

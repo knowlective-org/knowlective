@@ -429,7 +429,8 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 
-- アプリは `127.0.0.1:3000`（`KNOWLECTIVE_PORT` で変更）で待ち受ける。外からはリバースプロキシ（下記）経由で公開し、`https://<公開 URL>` で開いて初回セットアップを行う
+- アプリは `127.0.0.1:3000` で待ち受ける（`.env.production` の `KNOWLECTIVE_BIND` と `KNOWLECTIVE_PORT`、または `install.sh` で変更）。外からはリバースプロキシ（下記）経由で公開し、`https://<公開 URL>` で開いて初回セットアップを行う
+  - プロキシが同じサーバーなら `127.0.0.1` のままにする。別のマシンなら、サーバーのプライベートアドレス（例: `10.0.0.5`。`0.0.0.0` はすべてのアドレス、IPv6 は `[::]` のように角かっこで）にし、ファイアウォールでプロキシからだけ届くようにする（アプリに直接届くと `X-Forwarded-For` を偽装でき、回数制限や IP 制限が効かなくなる）
 - 起動するたびに、未適用のデータベースのマイグレーションを適用してから起動する（`KNOWLECTIVE_SKIP_MIGRATIONS=1` で止められる）。更新は `git pull` してから同じ `up -d --build` を実行する
 - 停止時（`docker compose stop` など）は、開いているドキュメントを保存してから終了する
 - 稼働確認は `GET /api/health`（DB に接続できれば 200。サブパスで公開している場合は `<サブパス>/api/health`）。コンテナにもヘルスチェックを設定している

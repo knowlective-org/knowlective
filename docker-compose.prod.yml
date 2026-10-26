@@ -1,6 +1,6 @@
 # Production: knowlective with, optionally, the bundled PostgreSQL and the
 # bundled SeaweedFS (file attachments) — or a PostgreSQL / S3 you run yourself. Put a reverse proxy (Caddy /
-# nginx) in front: the app only listens on 127.0.0.1:3000. See the README section on running in production.
+# nginx) in front: the app listens on 127.0.0.1:3000 (KNOWLECTIVE_BIND, KNOWLECTIVE_PORT). See the README section on running in production.
 #
 #   ./install.sh      # asks for the settings and writes .env.production
 #   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
@@ -53,7 +53,9 @@ services:
       KNOWLECTIVE_SOURCE_URL: ${KNOWLECTIVE_SOURCE_URL:-}
       TZ: ${TZ:-Asia/Tokyo}
     ports:
-      - "127.0.0.1:${KNOWLECTIVE_PORT:-3000}:3000"
+      # 127.0.0.1 unless KNOWLECTIVE_BIND says otherwise (another address only
+      # when the reverse proxy is on another machine: see .env.production.example).
+      - "${KNOWLECTIVE_BIND:-127.0.0.1}:${KNOWLECTIVE_PORT:-3000}:3000"
     # Time to save open documents on `docker compose stop` / down.
     stop_grace_period: 30s
 

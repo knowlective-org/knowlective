@@ -426,7 +426,8 @@ To configure by hand, copy `.env.production.example` to `.env.production`, fill 
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 
-- The app listens on `127.0.0.1:3000` (change with `KNOWLECTIVE_PORT`). Serve it through a reverse proxy (above), and open `https://<public URL>` for the first-time setup
+- The app listens on `127.0.0.1:3000` (change with `KNOWLECTIVE_BIND` and `KNOWLECTIVE_PORT` in `.env.production`, or in `install.sh`). Serve it through a reverse proxy (above), and open `https://<public URL>` for the first-time setup
+  - Keep `127.0.0.1` when the proxy runs on the same server. For a proxy on another machine, use the server's private address (e.g. `10.0.0.5`; `0.0.0.0` = every address; IPv6 in brackets, `[::]`) and let only the proxy reach the port with a firewall: whoever reaches the app directly can fake `X-Forwarded-For`, which the rate limits and IP restrictions rely on
 - Every start applies any pending database migrations first (`KNOWLECTIVE_SKIP_MIGRATIONS=1` stops that). To update, `git pull` and run the same `up -d --build`
 - On stopping (`docker compose stop`, etc.), open documents are saved before exiting
 - The health check is `GET /api/health` (200 if the database can be reached; `<sub-path>/api/health` when served under a sub-path). The container has a health check set too
