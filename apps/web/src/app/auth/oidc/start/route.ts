@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { withBasePath } from "@/lib/base-path";
 import { isSetupComplete } from "shared";
 import { prisma } from "@/lib/db";
-import { OIDC_START_PATH, OIDC_STATE_COOKIE, OIDC_STATE_MAX_AGE, beginLogin } from "@/lib/auth/oidc";
+import { beginLogin, stateCookieHeader } from "@/lib/auth/oidc";
 import { safeNextPath } from "@/lib/auth/session";
 import { getRequestContext } from "@/lib/request";
 
@@ -29,14 +29,8 @@ export async function GET(request: NextRequest) {
   if (!started) return redirect("/login?sso_error=unavailable");
 
   const { secure } = await getRequestContext();
-  const cookie = [
-    `${OIDC_STATE_COOKIE}=${started.cookie}`,
-    // Only the callback needs it. Lax: sent on the IdP's top-level redirect back.
-    `Path=${withBasePath(OIDC_START_PATH.replace("/start", ""))}`,
-    `Max-Age=${OIDC_STATE_MAX_AGE}`,
-    "HttpOnly",
-    "SameSite=Lax",
-    ...(secure ? ["Secure"] : []),
-  ].join("; ");
-  return new Response(null, { status: 303, headers: { Location: started.url.href, "Set-Cookie": cookie } });
+  return new Response(null, {
+    status: 303,
+    headers: { Location: started.url.href, "Set-Cookie": stateCookieHeader(started.cookie, secure) },
+  });
 }

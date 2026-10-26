@@ -9,6 +9,7 @@ import {
   type SiteRole,
   ensurePersonalRoot,
 } from "shared";
+import { withBasePath } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
 import { emailColumns, emailWhere, withEmail } from "@/lib/emails";
 import { type Claims, groupNames, renderDisplayName, syncOidcGroups } from "./oidc-profile";
@@ -36,6 +37,8 @@ import { getPublicUrl } from "@/lib/site-url";
 export const OIDC_CALLBACK_PATH = "/auth/oidc/callback";
 export const OIDC_START_PATH = "/auth/oidc/start";
 export const OIDC_STATE_COOKIE = "knowlective_oidc";
+// The state cookie's Path (covers the callback).
+export const OIDC_STATE_COOKIE_PATH = "/auth/oidc";
 export const OIDC_STATE_MAX_AGE = 10 * 60;
 const STATE_AAD = "knowlective:oidc-login-state";
 const SECRET_AAD = "knowlective:oidc-client-secret";
@@ -171,11 +174,16 @@ export async function discover() {
 // ---- login state cookie -----------------------------------------------------
 // Encrypted (it holds the PKCE verifier) and short-lived.
 
+// Where the sign-in was started: the app's login page, or the admin
+// console's (which signs in to the admin console instead, still with TOTP).
+export type OidcPurpose = "app" | "admin";
+
 type LoginState = {
   state: string;
   nonce: string;
   verifier: string;
   next: string;
+  purpose?: OidcPurpose;
   exp: number;
 };
 
@@ -209,6 +217,7 @@ async function openState(
 // The IdP URL to send the browser to, and the cookie to set alongside.
 export async function beginLogin(
   next: string,
+  purpose: OidcPurpose = "app",
 ): Promise<{ url: URL; cookie: string } | null> {
   const config = await discover();
   if (!config) return null;
@@ -218,6 +227,7 @@ export async function beginLogin(
     nonce: client.randomNonce(),
     verifier,
     next,
+    purpose,
     exp: Date.now() + OIDC_STATE_MAX_AGE * 1000,
   };
   const url = client.buildAuthorizationUrl(config, {
@@ -229,6 +239,19 @@ export async function beginLogin(
     nonce: state.nonce,
   });
   return { url, cookie: await sealState(state) };
+}
+
+// The Set-Cookie header for beginLogin()'s cookie. Only the callback needs
+// it. Lax: sent on the IdP's top-level redirect back.
+export function stateCookieHeader(value: string, secure: boolean): string {
+  return [
+    `${OIDC_STATE_COOKIE}=${value}`,
+    `Path=${withBasePath(OIDC_STATE_COOKIE_PATH)}`,
+    `Max-Age=${OIDC_STATE_MAX_AGE}`,
+    "HttpOnly",
+    "SameSite=Lax",
+    ...(secure ? ["Secure"] : []),
+  ].join("; ");
 }
 
 // Why a sign-in failed. The callback redirects to /login?sso_error=<code>
@@ -243,6 +266,7 @@ export const OIDC_ERROR_CODES = [
   "no_email",
   "domain",
   "conflict",
+  "not_admin",
 ] as const;
 export type OidcErrorCode = (typeof OIDC_ERROR_CODES)[number];
 
@@ -251,6 +275,8 @@ export function isOidcErrorCode(value: unknown): value is OidcErrorCode {
 }
 
 export class OidcLoginError extends Error {
+  // Which login page to send the error back to (set by finishLogin()).
+  purpose: OidcPurpose = "app";
   constructor(
     readonly code: OidcErrorCode,
     detail?: string,
@@ -260,16 +286,26 @@ export class OidcLoginError extends Error {
 }
 
 // Completes the sign-in from the callback's query string. Returns the user
-// to sign in and where to go next.
+// to sign in, where to go next, and where the sign-in was started.
 export async function finishLogin(
   search: string,
   stateCookie: string | undefined,
-): Promise<{ userId: string; next: string }> {
+): Promise<{ userId: string; next: string; purpose: OidcPurpose }> {
+  const state = await openState(stateCookie);
+  const purpose = state?.purpose ?? "app";
+  try {
+    if (!state) throw new OidcLoginError("expired");
+    return { ...(await completeLogin(search, state)), purpose };
+  } catch (err) {
+    if (err instanceof OidcLoginError) err.purpose = purpose;
+    throw err;
+  }
+}
+
+async function completeLogin(search: string, state: LoginState): Promise<{ userId: string; next: string }> {
   const settings = await prisma.oidcSettings.findUnique({ where: { id: 1 } });
   const config = await discover();
   if (!settings?.enabled || !config) throw new OidcLoginError("unavailable");
-  const state = await openState(stateCookie);
-  if (!state) throw new OidcLoginError("expired");
 
   // The URL the IdP redirected to, rebuilt from the public URL (behind a
   // proxy the request's own URL may not be what was registered).

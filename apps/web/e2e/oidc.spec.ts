@@ -137,4 +137,33 @@ test.describe("Single sign-on profile", () => {
     expect(logged).toBeGreaterThanOrEqual(2);
     await context.close();
   });
+
+  test("the admin console's login page signs in through single sign-on too, then asks for the authenticator", async ({ browser }) => {
+    idp.idToken = { email: ACCOUNTS.outsider.email, email_verified: true, given_name: "太郎" };
+    idp.userInfo = { family_name: "山田", department: "営業部", groups: [] };
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+      // Not an admin: back to the admin login page with the reason.
+      await page.goto("admin/login");
+      await page.getByTestId("AdminLoginPage.ssoButton").click();
+      await expect(page.getByTestId("AdminLoginPage.ssoError")).toContainText("管理画面にはログインできません");
+
+      // A content manager without an authenticator yet: on to registering one,
+      // as after the password.
+      await withPrisma((prisma) => prisma.user.update({ where: { id: outsiderId }, data: { siteRole: "CONTENT_MANAGER" } }));
+      await page.getByTestId("AdminLoginPage.ssoButton").click();
+      await expect(page).toHaveURL(/\/admin\/enroll$/);
+      await expect(page.getByTestId("AdminEnrollPage")).toBeVisible();
+      // Not signed in to the app by it.
+      await page.goto("account");
+      await expect(page).toHaveURL(/\/login/);
+    } finally {
+      await context.close();
+      await withPrisma(async (prisma) => {
+        await prisma.adminSession.deleteMany({ where: { userId: outsiderId } });
+        await prisma.user.update({ where: { id: outsiderId }, data: { siteRole: "USER", totpSecret: null } });
+      });
+    }
+  });
 });

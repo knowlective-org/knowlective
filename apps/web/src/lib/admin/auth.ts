@@ -13,6 +13,7 @@ import { getAdminConsoleRole } from "@/lib/roles";
 import { userLabel } from "@/lib/audit";
 import { isIpAllowed } from "@/lib/ip";
 import { type RequestContext, getRequestContext } from "@/lib/request";
+import { generateTotpSecret } from "@/lib/admin/totp";
 
 // Admin (/admin) authentication, IP allowlist, login rate limiting, and
 // short-lived sessions separate from user sessions.
@@ -247,4 +248,37 @@ export async function requireAdmin(allowed: SiteRole[] = ["SITE_ADMIN", "CONTENT
     role,
   };
   return { ctx, config, session, actorLabel, role, actor };
+}
+
+// ---- Single sign-on -----------------------------------------------------
+
+// After a single sign-on started from the admin login page: the IdP stands in
+// for the password step, so the session goes on to the authenticator code
+// (or its enrollment), as after loginWithAccount(). Returns where to go next,
+// or "not_admin". Called from the callback Route Handler.
+export async function beginAdminSessionAfterSso(
+  ctx: RequestContext,
+  userId: string,
+): Promise<"/admin/login/verify" | "/admin/enroll" | "not_admin"> {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { id: true, emailEnc: true, name: true, totpSecret: true },
+  });
+  const { email } = await withEmail(user);
+  // Not counted as bad credentials: the IdP vouched for who this is.
+  if ((await getAdminConsoleRole(userId)) === null) {
+    await recordLoginAttempt(ctx, false, "not_admin", email);
+    return "not_admin";
+  }
+  if (user.totpSecret) {
+    // Not a success until the code (see loginWithAccount()).
+    await createAdminSession(ctx, "VERIFY_TOTP", { userId });
+    return "/admin/login/verify";
+  }
+  await recordLoginAttempt(ctx, true, undefined, email);
+  await createAdminSession(ctx, "ENROLL_TOTP", {
+    userId,
+    pendingTotp: await encryptTotpSecret(generateTotpSecret(), userId),
+  });
+  return "/admin/enroll";
 }

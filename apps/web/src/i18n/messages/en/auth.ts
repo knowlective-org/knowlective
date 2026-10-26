@@ -33,6 +33,7 @@ export default {
       no_email: "No verified email address came from the identity provider, so you can't log in. Please contact an administrator.",
       domain: "Accounts can't be created for this email domain. Please contact an administrator.",
       conflict: "The account for this email address is linked to a different identity provider account. Please contact an administrator.",
+      not_admin: "This account doesn't have the \"Site admin\" or \"Content manager\" role, so it can't log in to the admin console.",
     },
   },
   signup: {

@@ -21,13 +21,16 @@ function pathnameOf(req: IncomingMessage): string {
 
 // Paths open to every network: the admin console (it has its own IP
 // restriction, so an administrator can always reach the network settings),
-// Next.js's own assets (the admin console needs them) and the health check.
+// Next.js's own assets (the admin console needs them), the health check, and
+// the single sign-on callback (the admin console's sign-in comes back there;
+// for the app's sign-in, the callback checks the network itself).
 function exemptFromNetworkPolicy(pathname: string): boolean {
   return (
     pathname === `${BASE_PATH}/admin` ||
     pathname.startsWith(`${BASE_PATH}/admin/`) ||
     pathname.startsWith(`${BASE_PATH}/_next/`) ||
-    pathname === `${BASE_PATH}/api/health`
+    pathname === `${BASE_PATH}/api/health` ||
+    pathname === `${BASE_PATH}/auth/oidc/callback`
   );
 }
 

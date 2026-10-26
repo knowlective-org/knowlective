@@ -278,7 +278,7 @@ Under "Users" → "Single sign-on (OpenID Connect)" in the admin console (site a
 - With "Attribute for groups" set (e.g. groups, department; a string or a list of them), people are put in the group of each name at every log-in (made if missing; an existing group of the same name is used). Groups no longer listed are left, but only memberships single sign-on added: members added by hand stay. New groups have no permissions until given some. Membership changes are recorded in the audit log. If UserInfo can't be read, the groups are left as they are
 - Password login is either "Alongside single sign-on" (the default) or "Single sign-on only". Even with the latter, site admins can log in with a password, so nobody is locked out if the identity provider fails
 - Disabled users can't log in with single sign-on either
-- Logging in to the admin console (`/admin`) still takes a password plus an authenticator app. Accounts created by single sign-on have no password at first, so they can't get into the admin console (even ones created as content managers). With password login "Alongside", they can set one through a password reset
+- The admin console's (`/admin`) login page has the "Log in with …" button too. Site admins and content managers can log in through single sign-on instead of a password, then enter the authenticator app's code (registering the app the first time)
 - Logging out of knowlective doesn't log out of the identity provider
 
 ### Access by network
