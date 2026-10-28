@@ -111,7 +111,7 @@ const ja: MessageShape<typeof en> = {
       issueWithCode: "コードで確認して発行",
       cannotConfirm: "このサイトではメール送信が設定されていないため、メールで本人確認ができません。キーを発行するには、上でパスキーを登録してください。",
       issuedTitle: "新しい API キー",
-      issued: "いまコピーしてください。キーはもう表示されません。{url} へのリクエストに「Authorization: Bearer <キー>」として付けます。",
+      issued: "いまコピーしてください。キーはもう表示されません。{url} へのリクエストに「Authorization: Bearer <キー>」として付けます。キーをクリックするとコピーできます。",
       revoke: "失効",
       revokeTitle: "キーを失効させますか？",
       revokeConfirm: "API キー「{name}」を失効させますか？ このキーを使っているプログラムはすぐに使えなくなります。",

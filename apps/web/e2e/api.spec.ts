@@ -41,6 +41,11 @@ async function issueKey(page: Page, email: string, name: string, scope: "READ" |
   await page.getByTestId("ApiKeySection.codeButton").click();
   const key = await page.getByTestId("AppDialog.copyInput").inputValue();
   expect(key).toMatch(/^kn_/);
+  // A click on the key copies it.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByTestId("AppDialog.copyInput").click();
+  await expect(page.getByTestId("AppDialog.copyStatus")).toHaveText("クリップボードにコピーしました。");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(key);
   await page.getByTestId("AppDialog.closeButton").click();
   return key;
 }

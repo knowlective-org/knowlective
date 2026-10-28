@@ -54,3 +54,14 @@
   letter-spacing: 0.15em;
   user-select: all;
 }
+
+/* A text to copy, with its copy button. */
+.copyRow {
+  display: flex;
+  gap: 8px;
+}
+
+.copyRow > input {
+  flex: 1;
+  min-width: 0;
+}

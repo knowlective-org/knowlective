@@ -38,6 +38,9 @@ export default {
   dialog: {
     typeToConfirm: "To confirm, type the following:",
     ok: "OK",
+    copy: "Copy",
+    copied: "Copied to the clipboard.",
+    copyFailed: "Couldn't copy: select the text and copy it by hand.",
   },
   pagination: {
     label: "Pages of {label}",

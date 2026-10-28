@@ -37,6 +37,9 @@ const ja: MessageShape<typeof en> = {
   dialog: {
     typeToConfirm: "確認のため、次の文字を入力してください：",
     ok: "OK",
+    copy: "コピー",
+    copied: "クリップボードにコピーしました。",
+    copyFailed: "コピーできませんでした。文字を選択して手動でコピーしてください。",
   },
   pagination: {
     label: "{label}のページ",

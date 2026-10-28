@@ -87,7 +87,8 @@ export function showTypedConfirm(
   );
 }
 
-// A selected, read-only text to copy by hand (for when the clipboard API
+// A selected, read-only text to copy: a click on it (or the copy button)
+// puts it on the clipboard, and it can be copied by hand too (for when the clipboard API
 // isn't available, e.g. plain-http intranet installs).
 export function showCopyText(message: string, value: string, options: { title?: string } = {}): Promise<void> {
   return new Promise((resolve) => enqueue({ kind: "copy", message, value, title: options.title, resolve }));
@@ -157,7 +158,21 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
   const done = useRef(false);
   // For a confirmation with a code: what has been typed so far.
   const [typed, setTyped] = useState("");
+  // For a text to copy: whether the last copy worked.
+  const [copied, setCopied] = useState<boolean | null>(null);
   const t = useTranslations();
+  const copy = async (input: HTMLInputElement | null) => {
+    if (request.kind !== "copy") return;
+    input?.select();
+    try {
+      await navigator.clipboard.writeText(request.value);
+      setCopied(true);
+    } catch {
+      // No clipboard access (e.g. not a secure context): still selected for Ctrl+C.
+      setCopied(false);
+    }
+  };
+  const copyInput = useRef<HTMLInputElement>(null);
   const code = request.kind === "confirm" ? request.code : undefined;
   const codeMatches = code === undefined || normalizeConfirmCode(typed) === code;
 
@@ -207,14 +222,33 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
           {request.message}
         </p>
         {request.kind === "copy" && (
-          <input
-            className={ui.field}
-            data-ui="AppDialog.copyInput"
-            value={request.value}
-            readOnly
-            autoFocus
-            onFocus={(e) => e.currentTarget.select()}
-          />
+          <>
+            <div className={styles.copyRow}>
+              <input
+                ref={copyInput}
+                className={ui.field}
+                data-ui="AppDialog.copyInput"
+                value={request.value}
+                readOnly
+                autoFocus
+                onFocus={(e) => e.currentTarget.select()}
+                onClick={(e) => void copy(e.currentTarget)}
+              />
+              <button
+                type="button"
+                className={ui.buttonSecondary}
+                onClick={() => void copy(copyInput.current)}
+                data-ui="AppDialog.copyButton"
+              >
+                {t("dialog.copy")}
+              </button>
+            </div>
+            {copied !== null && (
+              <p className={copied ? ui.success : ui.error} role="status" data-ui="AppDialog.copyStatus">
+                {copied ? t("dialog.copied") : t("dialog.copyFailed")}
+              </p>
+            )}
+          </>
         )}
         {code !== undefined && (
           <label className={styles.codeLabel}>

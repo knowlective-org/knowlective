@@ -111,7 +111,7 @@ export default {
       issueWithCode: "Confirm with the code and issue",
       cannotConfirm: "Email sending isn't set up on this site, so you can't confirm it's you by email. Register a passkey above to issue keys.",
       issuedTitle: "Your new API key",
-      issued: "Copy the key now: it isn't shown again. Send it as \"Authorization: Bearer <key>\" to {url}.",
+      issued: "Copy the key now: it isn't shown again. Send it as \"Authorization: Bearer <key>\" to {url}. Click the key to copy it.",
       revoke: "Revoke",
       revokeTitle: "Revoke this key?",
       revokeConfirm: "Revoke the API key \"{name}\"? Programs using it stop working at once.",
