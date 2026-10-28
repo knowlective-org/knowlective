@@ -54,13 +54,26 @@ test.describe("Public pages", () => {
       await page.getByTestId("AppDialog.confirmButton").click();
       await expect(page.getByTestId("UnpublishForm.submitButton")).toBeVisible();
 
-      // Someone not logged in reads it, read-only. Search engines are told
-      // to keep it out (the default).
+      // Someone not logged in reads it, read-only, without collaborative
+      // editing: no connection, so no cursors or names either way. Search
+      // engines are told to keep it out (the default).
+      const sockets: string[] = [];
+      guest.on("websocket", (ws) => sockets.push(ws.url()));
       const response = await guest.goto(`pages/${id}`);
       expect(response?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
-      await expect(editorBody(guest)).toContainText("誰でも読める文章");
+      const document = guest.getByTestId("PageView.publicDocument");
+      await expect(document).toContainText("誰でも読める文章");
+      await expect(document).toContainText(title);
       await expect(guest.getByTestId("PageView.readOnlyBadge")).toHaveText("公開ページ（閲覧のみ）");
-      await expect(guest.getByTestId("TitleField")).toHaveValue(title);
+      await expect(guest.getByTestId("TitleField")).toHaveCount(0);
+      expect(sockets.filter((url) => url.includes("/collab"))).toEqual([]);
+      // Edits show at the next load (the open document, before it's stored).
+      await page.goto(`pages/${id}`);
+      await typeInBody(page, "あとから追記");
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      await guest.reload();
+      await expect(document).toContainText("あとから追記");
+      expect(sockets.filter((url) => url.includes("/collab"))).toEqual([]);
       await expect(guest.getByTestId("PageMenu.button")).toHaveCount(0);
       await expect(guest.getByTestId("Sidebar.loginLink")).toBeVisible();
       await expect(guest.getByTestId("Sidebar.searchInput")).toHaveCount(0);

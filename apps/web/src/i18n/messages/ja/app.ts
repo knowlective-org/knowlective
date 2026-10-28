@@ -90,7 +90,6 @@ const ja: MessageShape<typeof en> = {
     showHidden: "途中の{count}ページを表示",
   },
   pageView: {
-    guest: "ゲスト",
     saving: "保存中…",
     locked: "🔒 ロック中",
     readOnly: "閲覧のみ",

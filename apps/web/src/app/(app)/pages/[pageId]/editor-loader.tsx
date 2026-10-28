@@ -11,3 +11,10 @@ export const EditorLoader = dynamic(
   // Also shown during SSR and while the editor's code downloads.
   { ssr: false, loading: () => <EditorPlaceholder /> },
 );
+
+// For someone not logged in on a public page: the page as it was when opened,
+// read-only and not connected to collaborative editing (lib/public-page-state.ts).
+export const StaticDocumentLoader = dynamic(
+  () => import("@/components/static-document").then((m) => m.StaticDocument),
+  { ssr: false, loading: () => <EditorPlaceholder /> },
+);

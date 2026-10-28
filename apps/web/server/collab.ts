@@ -185,18 +185,23 @@ export async function createCollab() {
       if (!caps.read) {
         throw new Error("Not allowed from this network");
       }
-      // User "": someone not logged in, on a public page (always VIEW).
-      const userId = payload.u || null;
+      // Only people logged in: someone not logged in sees a public page
+      // without collaborative editing (lib/public-page-state.ts), so neither
+      // side sees the other's cursor or name.
+      if (!payload.u) {
+        throw new Error("Not logged in");
+      }
+      const userId = payload.u;
       const result = await getPageAccess(prisma, userId, documentName);
       if (!result) {
         throw new Error("No access to this page");
       }
       // VIEW, or a locked page: the server drops any update this connection
       // sends.
-      if (!canEditPage(result) || userId === null || !caps.write) {
+      if (!canEditPage(result) || !caps.write) {
         connectionConfig.readOnly = true;
       }
-      return { userId: userId ?? undefined };
+      return { userId };
     },
     async onChange({ documentName, context }) {
       const userId = (context as { userId?: string } | undefined)?.userId;

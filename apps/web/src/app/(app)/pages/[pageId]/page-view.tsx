@@ -10,7 +10,7 @@ import { AppShell } from "@/components/app-shell";
 import { InitialTitleContext } from "@/components/editor-placeholder";
 import { Sidebar, type SidebarTree } from "@/components/sidebar";
 import { Breadcrumb } from "./breadcrumb";
-import { EditorLoader } from "./editor-loader";
+import { EditorLoader, StaticDocumentLoader } from "./editor-loader";
 import { PageMenu, ShareButton } from "./page-menu";
 import styles from "./page-view.module.css";
 
@@ -50,6 +50,7 @@ export function PageView({
   personal,
   shareUrl,
   user,
+  guestState,
   sidebar,
 }: {
   pageId: string;
@@ -68,6 +69,9 @@ export function PageView({
   shareUrl: string;
   // null: someone not logged in, on a public page.
   user: { id: string; name: string } | null;
+  // For someone not logged in: the page's content (lib/public-page-state.ts),
+  // shown without collaborative editing.
+  guestState: string | null;
   sidebar: SidebarInfo;
 }) {
   const [liveTitle, setLiveTitle] = useState<string | undefined>(undefined);
@@ -77,8 +81,6 @@ export function PageView({
   const t = useTranslations("pageView");
   const format = useFormatter();
   const displayTitle = useDisplayTitle();
-  // How someone not logged in appears to the others on the page.
-  const guest = { id: "guest", name: t("guest") };
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={pageId} currentTitle={liveTitle} />}>
@@ -142,7 +144,11 @@ export function PageView({
           </p>
         )}
         <InitialTitleContext.Provider value={initialTitle}>
-          <EditorLoader pageId={pageId} readOnly={readOnly} user={user ?? guest} onTitleChange={setLiveTitle} />
+          {user ? (
+            <EditorLoader pageId={pageId} readOnly={readOnly} user={user} onTitleChange={setLiveTitle} />
+          ) : (
+            <StaticDocumentLoader pageId={pageId} state={guestState ?? ""} dataUi="PageView.publicDocument" />
+          )}
         </InitialTitleContext.Provider>
       </div>
     </AppShell>

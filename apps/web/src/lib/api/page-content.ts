@@ -17,7 +17,7 @@ export { markdownToBody } from "@/lib/markdown-bridge";
 
 // The page's document as it is now: open in the collab server (with edits not
 // stored yet), or else as stored.
-async function currentState(pageId: string): Promise<Uint8Array | null> {
+export async function currentPageState(pageId: string): Promise<Uint8Array | null> {
   const live = liveDocumentState(pageId);
   if (live) return live;
   const stored = await prisma.pageDocument.findUnique({ where: { pageId }, select: { state: true } });
@@ -53,7 +53,7 @@ export async function pageContent(
   fallbackTitle: string,
   untitled: string,
 ): Promise<{ title: string; markdown: string }> {
-  const state = await currentState(pageId);
+  const state = await currentPageState(pageId);
   if (!state) return { title: fallbackTitle, markdown: "" };
   const doc = new Y.Doc();
   Y.applyUpdate(doc, state);

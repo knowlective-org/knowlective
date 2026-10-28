@@ -19,12 +19,14 @@ export async function logout(): Promise<void> {
 // short-lived token is always fresh and membership is re-checked. Someone not
 // logged in gets one for a public page, as user "" (the collab server checks
 // public access again and makes the connection read-only).
+// Only for people logged in: someone not logged in sees a public page's
+// content without collaborative editing (lib/public-page-state.ts).
 export async function getCollabToken(pageId: string): Promise<string> {
   const user = await getCurrentUser();
-  if (typeof pageId !== "string" || !(await findAccessiblePage(user?.id ?? null, pageId))) {
+  if (!user || typeof pageId !== "string" || !(await findAccessiblePage(user.id, pageId))) {
     throw new Error("Page not found");
   }
-  return createCollabToken(user?.id ?? "", pageId);
+  return createCollabToken(user.id, pageId);
 }
 
 // Extensions of the files that may be added to a page (empty = any), so the

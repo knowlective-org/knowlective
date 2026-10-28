@@ -91,7 +91,6 @@ export default {
     showHidden: "Show the {count, plural, one {# page} other {# pages}} in between",
   },
   pageView: {
-    guest: "Guest",
     saving: "Saving…",
     locked: "🔒 Locked",
     readOnly: "View only",

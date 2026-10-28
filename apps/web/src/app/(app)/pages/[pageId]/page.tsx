@@ -9,6 +9,7 @@ import { atLeast } from "shared";
 import { loadPublicSidebar, loadSidebar } from "@/lib/sidebar-data";
 import { getPublicUrl } from "@/lib/site-url";
 import { getDisplayTitle } from "@/i18n/display-title";
+import { publicPageState } from "@/lib/public-page-state";
 import { type PageLockView, PageView } from "./page-view";
 
 // Shared by generateMetadata and the page within one request. Someone not
@@ -31,9 +32,11 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
   const { user, page } = await loadPage((await params).pageId);
   if (!page) notFound();
 
-  const [sidebar, publicUrl] = await Promise.all([
+  const [sidebar, publicUrl, guestState] = await Promise.all([
     user ? loadSidebar(user) : loadPublicSidebar(),
     getPublicUrl(),
+    // Not logged in: the content now, instead of a collaborative-editing connection.
+    user ? null : publicPageState(page.id, page.title),
     // "/" reopens the page opened last.
     user &&
       prisma.user.updateMany({
@@ -76,6 +79,7 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
       personal={page.personal}
       shareUrl={`${publicUrl}/pages/${page.id}`}
       user={user ? { id: user.id, name: user.name ?? user.email } : null}
+      guestState={guestState}
       sidebar={sidebar}
     />
   );
