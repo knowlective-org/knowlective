@@ -1,0 +1,118 @@
+/* The member picker: picked people as badges and the search input, in one
+   field-like box, with the suggestions below it. */
+.picker {
+  position: relative;
+  margin-top: 4px;
+}
+
+.box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  cursor: text;
+}
+
+.box:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  border-color: var(--color-primary);
+}
+
+.input {
+  flex: 1 1 160px;
+  min-width: 120px;
+  padding: 2px;
+  font: inherit;
+  font-size: 16px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 2px 2px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  background: var(--color-primary-light);
+  border-radius: 999px;
+}
+
+.chipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chipRemove:hover {
+  background: var(--color-hover);
+}
+
+.list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 320px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.option[aria-selected="true"] {
+  background: var(--color-selected);
+}
+
+.optionEmail {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.empty {
+  padding: 6px 8px;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.disabledMark {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+}

@@ -11,7 +11,8 @@ import { getVisibleTrees } from "shared";
 import { canManageGroup } from "@/lib/group-access";
 import styles from "@/styles/ui.module.css";
 import { deleteGroup, removeGroupMember } from "../actions";
-import { AddMemberForm, EditGroupForm } from "../group-forms";
+import { AddMemberForm } from "../add-member-form";
+import { EditGroupForm } from "../group-forms";
 import { RowMenu, type RowMenuItem } from "../../row-menu";
 import { disableUser, enableUser } from "../../users/actions";
 

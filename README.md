@@ -350,7 +350,7 @@ The admin console has the pages Overview, Users, Groups, Files, Security and Abo
 
 First steps: log in with the master password → under "Users", invite yourself with the role "Site admin" and register (if already registered, change your role from "⋯" in the user list) → from then on, log in with your account. The last site admin can't be demoted or disabled.
 
-Groups are for giving permissions on page trees. The "Groups" page creates, renames and deletes them and manages their members. Content managers can only handle groups whose permissions are all on pages they manage (including groups with no permissions yet). The same goes for the groups they can choose when inviting.
+Groups are for giving permissions on page trees. The "Groups" page creates, renames and deletes them and manages their members. To add members, type part of a display name or email address and pick from the suggestions; several people can be picked and added at once. Content managers can only handle groups whose permissions are all on pages they manage (including groups with no permissions yet). The same goes for the groups they can choose when inviting.
 
 Changes to roles, enabling/disabling accounts, password resets, registering and removing passkeys, issuing and revoking API keys, group members, page permissions, knowledge root creation and invitations are recorded in the audit log, which can be seen on the "Security" page (newest first, 20 per page).
 
