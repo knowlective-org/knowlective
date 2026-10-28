@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-28
+
 ### Added
 
 - The first version: a self-hostable document and knowledge sharing tool with a block editor and real-time collaborative editing.
