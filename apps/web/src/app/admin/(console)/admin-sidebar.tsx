@@ -17,6 +17,7 @@ export function AdminSidebar({
   brand,
   actor,
   sourceUrl,
+  version,
 }: {
   // The site's name or logo, as in the app's sidebar.
   brand: BrandSettings;
@@ -24,6 +25,8 @@ export function AdminSidebar({
   actor: string;
   // Source code of this instance (AGPL-3.0; lib/source.ts).
   sourceUrl: string;
+  // This KNOWLECTIVE's version and commit (lib/build-info.ts).
+  version: string;
 }) {
   const pathname = usePathname();
   const t = useTranslations("admin.shell");
@@ -69,6 +72,9 @@ export function AdminSidebar({
         >
           {t("source")}
         </a>
+        <span className={styles.user} title={version} data-ui="AdminSidebar.version">
+          KNOWLECTIVE {version}
+        </span>
       </div>
     </div>
   );

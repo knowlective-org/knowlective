@@ -8,6 +8,10 @@
 !.env.production.example
 packages/shared/generated
 .git
+# Only what's needed to tell the commit (server/write-build-info.ts).
+!.git/HEAD
+!.git/refs
+!.git/packed-refs
 .claude
 **/.DS_Store
 # End-to-end tests: not part of the image (and e2e/.auth holds signed-in sessions).

@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Written by server/write-build-info.ts while building the Docker image.
+/build-info.json
+
 # dependencies
 /node_modules
 /.pnp

@@ -32,6 +32,11 @@ RUN pnpm db:generate \
   && KNOWLECTIVE_BASE_PATH=/__KNOWLECTIVE_BASE_PATH__ pnpm --filter web build \
   && rm -rf apps/web/.next/cache \
   && node docker/apply-base-path.mjs apps/web/.next /tmp/base-path-check --check
+# The version, commit and build time shown in the admin console
+# (apps/web/build-info.json; .dockerignore lets in .git/HEAD and refs only).
+# KNOWLECTIVE_COMMIT overrides the commit (e.g. a build from a source archive).
+ARG KNOWLECTIVE_COMMIT=""
+RUN cd apps/web && KNOWLECTIVE_COMMIT="$KNOWLECTIVE_COMMIT" node --import tsx server/write-build-info.ts
 
 # ---- Runtime: production dependencies only ----------------------------------
 FROM base AS runtime
@@ -65,6 +70,7 @@ COPY apps/web/next.config.ts apps/web/tsconfig.json apps/web/
 # it to .next with the base path set. .next is owned by the app user (the
 # copy, and Next.js's cache at runtime, are written there).
 COPY --from=build /app/apps/web/.next apps/web/.next-template
+COPY --from=build /app/apps/web/build-info.json apps/web/build-info.json
 COPY docker/apply-base-path.mjs docker/apply-base-path.mjs
 RUN mkdir apps/web/.next && chown node:node apps/web/.next
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
