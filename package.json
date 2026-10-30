@@ -21,6 +21,7 @@
     "e2e": "pnpm e2e:seed && pnpm --filter web e2e",
     "release": "node scripts/release.mjs",
     "check:auth": "node scripts/check-auth.mjs",
+    "test:unit": "pnpm --filter web test:unit",
     "security:scan": "bash scripts/security-scan.sh"
   },
   "devDependencies": {

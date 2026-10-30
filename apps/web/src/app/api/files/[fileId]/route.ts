@@ -3,6 +3,7 @@ import { getPageAccess, requestNetworkCaps } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getFile, getStorageConfig } from "@/lib/storage";
+import { contentDisposition } from "@/lib/content-disposition";
 
 // GET /api/files/<id>
 // Serves an attachment to users who can view the page it was attached to
@@ -30,12 +31,6 @@ const INLINE_TYPES = new Set([
 ]);
 
 const notFound = () => new Response("Not found", { status: 404 });
-
-function contentDisposition(kind: "inline" | "attachment", name: string): string {
-  // ASCII fallback + RFC 5987 UTF-8 name.
-  const ascii = name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
-  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
-}
 
 export async function GET(_req: NextRequest, ctx: RouteContext<"/api/files/[fileId]">) {
   // Not logged in: files of public pages only (getPageAccess with null).

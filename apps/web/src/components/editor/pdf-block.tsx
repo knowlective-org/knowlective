@@ -32,10 +32,17 @@ function loadPdfJs(): Promise<PdfJs> {
 export const pdfBlock = createReactBlockSpec(
   BLOCK_CONFIGS.pdf,
   {
-    // The file is stored as "/api/files/<id>", without the base path.
-    render: ({ block }) => <PdfViewer url={resolveAppUrl(block.props.url)} name={block.props.name} />,
+    // The file is stored as "/api/files/<id>", without the base path. Only
+    // that is loaded: the URL comes from the shared document, and anything
+    // else would make every viewer's browser fetch an address of the
+    // editor's choosing.
+    render: ({ block }) => (
+      <PdfViewer url={ATTACHMENT_URL.test(block.props.url) ? resolveAppUrl(block.props.url) : ""} name={block.props.name} />
+    ),
   },
 );
+
+const ATTACHMENT_URL = /^\/api\/files\/[A-Za-z0-9_-]+$/;
 
 function PdfViewer({ url, name }: { url: string; name: string }) {
   const frame = useRef<HTMLDivElement>(null);

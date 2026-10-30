@@ -12,7 +12,7 @@ import { DEFAULT_BRAND_NAME } from "./brand-defaults";
 
 export { DEFAULT_BRAND_NAME } from "./brand-defaults";
 export const MAX_BRAND_NAME_LENGTH = 40;
-export const MAX_LOGO_BYTES = 200 * 1024;
+export { MAX_LOGO_BYTES } from "./logo-svg";
 
 // For pages: the logo by its URL (versioned, cached for good), not its text.
 export type Brand = { mode: BrandMode; name: string; logoVersion: string | null };
@@ -42,27 +42,4 @@ export async function saveBrand(input: { mode: BrandMode; name: string; logoSvg?
   await prisma.brandSettings.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data });
 }
 
-export type LogoError = "tooLarge" | "notSvg" | "unsafe";
-
-// An uploaded logo as it will be stored, or why not. Refused: anything that
-// runs (scripts, event attributes, javascript: URLs, embedded HTML) or
-// reaches out (links, external images and styles), and DOCTYPE / entities.
-// Only drawing is allowed: shapes, paths, gradients, text, inline styles.
-export function checkLogoSvg(raw: string): { svg: string } | { error: LogoError } {
-  if (Buffer.byteLength(raw, "utf8") > MAX_LOGO_BYTES) return { error: "tooLarge" };
-  const svg = raw.replace(/^﻿/, "").trim();
-  const start = svg.replace(/^<\?xml[^>]*\?>\s*/i, "").replace(/^(<!--[\s\S]*?-->\s*)*/, "");
-  if (!/^<svg[\s>]/i.test(start) || !/<\/svg>\s*$/i.test(svg)) return { error: "notSvg" };
-  const unsafe = [
-    /<!DOCTYPE/i,
-    /<!ENTITY/i,
-    /<\s*(script|foreignObject|iframe|embed|object|audio|video|image|use|a|animate\w*|set|link|meta|style\s[^>]*src)\b/i,
-    /\son\w+\s*=/i,
-    /javascript:/i,
-    /(xlink:)?href\s*=/i,
-    /url\(\s*['"]?\s*(?!#)/i,
-    /@import/i,
-  ];
-  if (unsafe.some((re) => re.test(svg))) return { error: "unsafe" };
-  return { svg };
-}
+export { type LogoError, checkLogoSvg } from "./logo-svg";

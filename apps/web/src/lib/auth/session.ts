@@ -42,11 +42,7 @@ function hashToken(token: string): string {
 export { normalizeEmail };
 
 // Only same-origin absolute paths, so ?next= can't send users off-site.
-export function safeNextPath(next: unknown, fallback = "/"): string {
-  if (typeof next !== "string" || !next.startsWith("/") || next.startsWith("//")) return fallback;
-  if (next.includes("\\")) return fallback;
-  return next;
-}
+export { safeNextPath } from "./safe-next";
 
 // ---- Rate limiting -------------------------------------------------------
 

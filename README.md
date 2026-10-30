@@ -396,6 +396,7 @@ pnpm admin:recover --clear-lockout       # Clear the lock after failed logins
 
 ```bash
 pnpm check:auth      # every Server Action and Route Handler checks access (scripts/check-auth.mjs)
+pnpm test:unit       # unit tests for the checks on untrusted input (apps/web/test)
 pnpm security:scan   # that, plus pnpm audit (production dependencies), gitleaks (secrets in git history)
 KNOWLECTIVE_SCAN_IMAGE=knowlective:latest pnpm security:scan   # also trivy on a built image
 ```

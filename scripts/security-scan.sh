@@ -2,9 +2,10 @@
 # Security checks that don't need a running site (pnpm security:scan):
 #
 #   1. check-auth      every Server Action / Route Handler checks access (scripts/check-auth.mjs)
-#   2. pnpm audit      known vulnerabilities in production dependencies
-#   3. gitleaks        secrets committed to the git history
-#   4. trivy           known vulnerabilities in the Docker image (only if
+#   2. unit tests      the checks on untrusted input (apps/web/test)
+#   3. pnpm audit      known vulnerabilities in production dependencies
+#   4. gitleaks        secrets committed to the git history
+#   5. trivy           known vulnerabilities in the Docker image (only if
 #                      KNOWLECTIVE_SCAN_IMAGE names a built image, e.g. knowlective:latest)
 #
 # gitleaks and trivy run as containers (Docker, or Podman: KNOWLECTIVE_ENGINE).
@@ -25,6 +26,9 @@ step() { printf '\n== %s\n' "$1"; }
 
 step "Access checks (check-auth)"
 node scripts/check-auth.mjs || failed+=("check-auth")
+
+step "Checks on untrusted input (unit tests)"
+pnpm test:unit || failed+=("unit tests")
 
 step "Dependencies (pnpm audit --prod, failing at ${AUDIT_LEVEL:-moderate})"
 pnpm audit --prod --audit-level "${AUDIT_LEVEL:-moderate}" || failed+=("pnpm audit")

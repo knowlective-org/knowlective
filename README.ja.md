@@ -399,6 +399,7 @@ pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解�
 
 ```bash
 pnpm check:auth      # すべての Server Action・Route Handler がアクセスを確認しているか（scripts/check-auth.mjs）
+pnpm test:unit       # 利用者の入力を判定する関数の単体テスト（apps/web/test）
 pnpm security:scan   # それに加えて pnpm audit（本番の依存）、gitleaks（git の履歴の秘密情報）
 KNOWLECTIVE_SCAN_IMAGE=knowlective:latest pnpm security:scan   # ビルドしたイメージの trivy も
 ```
