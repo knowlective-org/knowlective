@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
-import { createPage, editorBody, pasteFile, trashOpenPage, typeInBody } from "./helpers";
+import { attachFile, createPage, editorBody, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
@@ -66,15 +66,13 @@ test.describe("Search", () => {
     const stamp = Date.now();
     const textWord = `zqtxt${stamp}`;
     const pdfWord = `zqpdf${stamp}`;
-    await pasteFile(page, {
+    await attachFile(page, {
       name: "メモ.txt",
       type: "text/plain",
       base64: Buffer.from(`添付ファイルの中だけにある語 ${textWord}`).toString("base64"),
     });
-    await page.locator('[data-ui="AppDialog.choiceButton"][data-id="attach"]').click();
     await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(1);
-    await pasteFile(page, { name: "report.pdf", type: "application/pdf", base64: textPdf(`Report ${pdfWord}`) });
-    await page.locator('[data-ui="AppDialog.choiceButton"][data-id="attach"]').click();
+    await attachFile(page, { name: "report.pdf", type: "application/pdf", base64: textPdf(`Report ${pdfWord}`) });
     await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(2);
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
 
