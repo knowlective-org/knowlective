@@ -22,6 +22,7 @@ const CONTENT_TYPES: Record<string, string> = {
   ".wasm": "application/wasm",
 };
 
+// auth: public — pdf.js's own files from the installed package; no user data.
 export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const file = (await params).path.slice(1).join("/");
   if (!ALLOWED.test(file)) return new Response(null, { status: 404 });

@@ -45,7 +45,27 @@ test.use({ storageState: authFile("editor") });
 
 test.describe("Access by network", () => {
   test.afterEach(async ({ browser }) => {
-    await setNetwork(browser, "", OPEN);
+    try {
+      await setNetwork(browser, "", OPEN);
+    } finally {
+      // Also straight in the database: if the screen can't be used (e.g. the
+      // test ran out of time), the restriction mustn't outlive the test and
+      // lock every later test (and the development site) out. The app's cache
+      // of the setting lasts only seconds.
+      await withPrisma((prisma) =>
+        prisma.instanceConfig.update({
+          where: { id: 1 },
+          data: {
+            networkFullAccess: [],
+            networkOtherAccess: true,
+            networkOtherRead: true,
+            networkOtherWrite: true,
+            networkOtherDownload: true,
+            networkOtherUpload: true,
+          },
+        }),
+      );
+    }
   });
 
   test("from another network, only what's allowed works", async ({ page, browser }) => {

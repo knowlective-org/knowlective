@@ -14,8 +14,10 @@ test("the About page shows the version, the commit and the packages", async ({ p
   // "0.1.0+abc1234": the version with the commit (development: from .git).
   await expect(page.getByTestId("AdminAboutPage.version")).toHaveText(new RegExp(`^${version.replaceAll(".", "\\.")}[+][0-9a-f]{7}$`));
   await expect(page.getByTestId("AdminAboutPage.commit")).toHaveText(/^[0-9a-f]{40}$/);
-  await expect(page.getByTestId("AdminAboutPage.built")).toHaveText("ビルドなし（開発環境）");
-  await expect(page.getByTestId("AdminAboutPage.node")).toHaveText(process.version);
+  // Development: not built. A Docker image (E2E_BASE_URL): when it was built.
+  await expect(page.getByTestId("AdminAboutPage.built")).toHaveText(/^(ビルドなし（開発環境）|\d{4}\/\d{1,2}\/\d{1,2} \d{1,2}:\d{2})$/);
+  // The server's Node.js (a Docker image's may differ from the one running the tests).
+  await expect(page.getByTestId("AdminAboutPage.node")).toHaveText(/^v\d+\.\d+\.\d+$/);
   await expect(page.getByTestId("AdminAboutPage.postgres")).toHaveText(/^\d+/);
   await expect(page.getByTestId("AdminAboutPage.migrations")).toContainText(/^\d{14}_/);
   // Installed versions and licenses, from both parts.

@@ -391,6 +391,16 @@ pnpm admin:recover --clear-ip-allowlist  # Locked out by the IP restriction
 pnpm admin:recover --clear-lockout       # Clear the lock after failed logins
 ```
 
+### Security checks
+
+```bash
+pnpm check:auth      # every Server Action and Route Handler checks access (scripts/check-auth.mjs)
+pnpm security:scan   # that, plus pnpm audit (production dependencies), gitleaks (secrets in git history)
+KNOWLECTIVE_SCAN_IMAGE=knowlective:latest pnpm security:scan   # also trivy on a built image
+```
+
+Every response carries baseline security headers (framing by the site only, `nosniff`, a restricted `base-uri` / `object-src`, Referer limited to the origin for other sites, camera / microphone / location / payment off); the admin console sets stricter ones. Set HSTS in the reverse proxy.
+
 ### Production prerequisite (reverse proxy)
 
 The client IP is taken from `X-Forwarded-For`, so **never expose Next.js directly to the internet: always put it behind a reverse proxy (Caddy, nginx, etc.).** Exposed directly, the IP can be spoofed and the rate limits and IP restriction stop working.

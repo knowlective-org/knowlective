@@ -394,6 +394,16 @@ pnpm admin:recover --clear-ip-allowlist  # IP 制限で締め出された
 pnpm admin:recover --clear-lockout       # ログイン失敗のロックを解除
 ```
 
+### セキュリティのチェック
+
+```bash
+pnpm check:auth      # すべての Server Action・Route Handler がアクセスを確認しているか（scripts/check-auth.mjs）
+pnpm security:scan   # それに加えて pnpm audit（本番の依存）、gitleaks（git の履歴の秘密情報）
+KNOWLECTIVE_SCAN_IMAGE=knowlective:latest pnpm security:scan   # ビルドしたイメージの trivy も
+```
+
+すべての応答に基本のセキュリティヘッダーを付ける（同じサイトからの埋め込みだけ・`nosniff`・`base-uri` / `object-src` の制限・ほかのサイトへの Referer はオリジンだけ・カメラ／マイク／位置情報／支払いは無効）。管理画面はより厳しいものを付ける。HSTS はリバースプロキシで設定する。
+
 ### 本番運用の前提（リバースプロキシ）
 
 接続元 IP は `X-Forwarded-For` から判定するため、**Next.js を直接インターネットに公開せず、必ずリバースプロキシ（Caddy / nginx など）の後ろに置くこと。** 直接公開すると IP を偽装でき、回数制限と IP 制限が効かなくなる。

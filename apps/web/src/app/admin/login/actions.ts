@@ -51,6 +51,7 @@ async function failure(ctx: RequestContext, message: string, email?: string): Pr
 // Normal sign-in: a SITE_ADMIN or CONTENT_MANAGER account, plus TOTP. First
 // step: the password. Then either the code (verifyAccountCode) or, for an
 // account without an authenticator yet, enrollment.
+// auth: public — the admin login itself (IP allowlist and lockout checked inside).
 export async function loginWithAccount(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const ctx = await getRequestContext();
   const rawEmail = formData.get("email");
@@ -138,12 +139,14 @@ export async function verifyAccountCode(_prev: LoginState, formData: FormData): 
 }
 
 // Leave the code step (e.g. to sign in with another account).
+// auth: public — only ends the caller's own pending admin session.
 export async function cancelAccountLogin(): Promise<void> {
   await endAdminSession();
   redirect("/admin/login");
 }
 
 // Bootstrap / recovery: the master password plus the instance's TOTP.
+// auth: public — the master password login itself (IP allowlist and lockout checked inside).
 export async function loginWithMasterPassword(
   _prev: LoginState,
   formData: FormData,

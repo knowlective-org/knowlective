@@ -14,6 +14,7 @@ import { auditTranslator } from "@/i18n/audit";
 
 export type ResetPasswordState = { error?: string };
 
+// auth: public — the emailed token is the credential.
 export async function resetPassword(_prev: ResetPasswordState, formData: FormData): Promise<ResetPasswordState> {
   const t = await getTranslations();
   const token = formData.get("token");

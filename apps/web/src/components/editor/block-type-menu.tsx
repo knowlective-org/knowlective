@@ -19,7 +19,7 @@ import {
   type SideMenuProps,
 } from "@blocknote/react";
 import type { Dictionary } from "@blocknote/core";
-import { HEADING_LEVELS } from "./schema";
+import { HEADING_LEVELS, editorSchema } from "./schema";
 
 // The block types a text block can be turned into: BlockNote's list, without
 // the heading levels the schema doesn't allow (the page title is the only H1;
@@ -65,7 +65,7 @@ function BlockMenu() {
 // an image or a custom block has no text to carry over.
 function BlockTypeItem() {
   const Components = useComponentsContext()!;
-  const editor = useBlockNoteEditor<any, any, any>();
+  const editor = useBlockNoteEditor(editorSchema);
   const dict = useDictionary();
   const t = useTranslations("editor.blockType");
   const block = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
@@ -101,7 +101,8 @@ function BlockTypeItem() {
                 editor.transact(() => {
                   for (const target of targets) {
                     if (!items.some((i) => i.type === target.type)) continue;
-                    editor.updateBlock(target, { type: item.type, props: item.props });
+                    // The items are this schema's types (textBlockTypes()).
+                    editor.updateBlock(target, { type: item.type as typeof target.type, props: item.props });
                   }
                 });
                 editor.focus();

@@ -7,6 +7,7 @@ export type ConfirmEmailChangeState = { error?: string; done?: string };
 
 // The link's confirm button: a POST, so opening the link (as mail scanners
 // do) changes nothing.
+// auth: public — the emailed token is the credential.
 export async function confirmEmailChange(
   _prev: ConfirmEmailChangeState,
   formData: FormData,

@@ -22,6 +22,7 @@ export type ForgotPasswordState = { error?: string; sentTo?: string };
 // sign in with a password. The answer is the same in every case (and the
 // mail is sent in the background so timing doesn't differ either), so the
 // form can't be used to find out who has an account.
+// auth: public — asking for a reset link (same answer whatever the address).
 export async function requestPasswordReset(
   _prev: ForgotPasswordState,
   formData: FormData,

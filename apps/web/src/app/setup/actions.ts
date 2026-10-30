@@ -14,6 +14,7 @@ import { prisma } from "@/lib/db";
 
 export type SetupState = { error?: string };
 
+// auth: public — first-time setup; refused once set up (setupInstance).
 export async function completeSetup(_prev: SetupState, formData: FormData): Promise<SetupState> {
   const t = await getTranslations();
   const password = formData.get("password");

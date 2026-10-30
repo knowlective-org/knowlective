@@ -6,6 +6,7 @@ import { BASE_PATH } from "../src/lib/base-path";
 import { COLLAB_PATH, createCollab } from "./collab";
 import { startMarkdownBridge } from "./page-markdown";
 import { createRobots } from "./robots";
+import { applySecurityHeaders } from "./security-headers";
 
 // One process, one port: the Next.js app (pages, Server Actions) and the
 // collaboration WebSocket at /collab (both under KNOWLECTIVE_BASE_PATH, if set). Runs via tsx because packages/shared is
@@ -47,6 +48,8 @@ async function main() {
 
   httpServer.on("request", (req, res) => {
     void (async () => {
+      // For anything that answers, the refusal below included.
+      applySecurityHeaders(res);
       const pathname = pathnameOf(req);
       // A network that may not use the site at all (lib/network-policy.ts):
       // refused before the app.

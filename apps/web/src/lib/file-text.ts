@@ -10,6 +10,11 @@ export const MAX_FILE_TEXT_CHARS = 200_000;
 // Larger files aren't read for text (they're held in memory to be read).
 export const MAX_EXTRACT_BYTES = 50 * 1024 * 1024;
 
+// Office files are ZIP archives: what they unpack to is limited too, as a
+// small file can inflate to gigabytes (a "zip bomb").
+export const MAX_UNZIPPED_BYTES = 64 * 1024 * 1024;
+const MAX_ZIP_ENTRIES = 10_000;
+
 const TEXT_EXTENSIONS = /\.(txt|md|markdown|csv|tsv|json|xml|ya?ml|log|ini|toml|html?|css|js|ts|py|rb|go|java|sql|sh)$/i;
 
 const decodeText = (bytes: Uint8Array) => new TextDecoder("utf-8").decode(bytes);
@@ -49,13 +54,45 @@ async function pdfText(bytes: Uint8Array): Promise<string> {
   }
 }
 
+// The archive, once everything in it has been inflated within the limits
+// (counting the bytes as they come, so a forged size in the header doesn't
+// help); null if it unpacks to more. Readers then only touch checked entries.
+async function openOfficeZip(bytes: Uint8Array): Promise<JSZip | null> {
+  const zip = await JSZip.loadAsync(bytes);
+  const files = Object.values(zip.files).filter((f) => !f.dir);
+  if (files.length > MAX_ZIP_ENTRIES) return null;
+  let total = 0;
+  for (const file of files) {
+    const withinLimit = await new Promise<boolean>((resolve, reject) => {
+      const stream = file.nodeStream("nodebuffer");
+      stream.on("data", (chunk: Buffer) => {
+        total += chunk.length;
+        if (total > MAX_UNZIPPED_BYTES) {
+          stream.pause();
+          resolve(false);
+        }
+      });
+      stream.on("end", () => resolve(true));
+      stream.on("error", reject);
+    });
+    if (!withinLimit) {
+      console.warn("[search] an attachment unpacks to more than the limit; its text isn't read");
+      return null;
+    }
+  }
+  return zip;
+}
+
 async function docxText(bytes: Uint8Array): Promise<string> {
+  // mammoth unpacks the file itself: only once it's known to be within the limits.
+  if (!(await openOfficeZip(bytes))) return "";
   const mammoth = await import("mammoth");
   return (await mammoth.extractRawText({ buffer: Buffer.from(bytes) })).value;
 }
 
 async function xlsxText(bytes: Uint8Array): Promise<string> {
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await openOfficeZip(bytes);
+  if (!zip) return "";
   const parts: string[] = [];
   const shared = await zip.file("xl/sharedStrings.xml")?.async("string");
   if (shared) parts.push(xmlText(shared, /<t[^>]*>([^<]*)<\/t>/g));
@@ -67,7 +104,8 @@ async function xlsxText(bytes: Uint8Array): Promise<string> {
 }
 
 async function pptxText(bytes: Uint8Array): Promise<string> {
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await openOfficeZip(bytes);
+  if (!zip) return "";
   const slide = (n: string) => Number(/(\d+)\.xml$/.exec(n)?.[1] ?? 0);
   const names = Object.keys(zip.files)
     .filter((n) => /^ppt\/(slides\/slide|notesSlides\/notesSlide)\d+\.xml$/.test(n))

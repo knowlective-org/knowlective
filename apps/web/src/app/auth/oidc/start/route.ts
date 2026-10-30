@@ -15,6 +15,7 @@ import { getRequestContext } from "@/lib/request";
 const redirect = (location: string) =>
   new Response(null, { status: 303, headers: { Location: withBasePath(location) } });
 
+// auth: public — starts single sign-on.
 export async function GET(request: NextRequest) {
   if (!(await isSetupComplete(prisma))) return redirect("/setup");
   const next = safeNextPath(request.nextUrl.searchParams.get("next"));

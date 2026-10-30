@@ -10,6 +10,7 @@ import { type CreatePageError, insertChildPage } from "@/lib/page-create";
 import { endUserSession, getCurrentUser, requireUser } from "@/lib/auth/session";
 import { getAllowedUploadExtensions } from "@/lib/storage";
 
+// auth: public — ends whatever session the caller has (none: nothing to end).
 export async function logout(): Promise<void> {
   await endUserSession();
   redirect("/login");

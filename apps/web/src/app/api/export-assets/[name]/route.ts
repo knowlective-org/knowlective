@@ -25,6 +25,7 @@ const FILES: Record<string, { file: string; type: string }> = {
   },
 };
 
+// auth: public — files from installed packages (Typst compiler, fonts); no user data.
 export async function GET(_request: Request, { params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
   const entry = Object.hasOwn(FILES, name) ? FILES[name] : undefined;

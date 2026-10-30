@@ -13,6 +13,7 @@ import { getRequestContext } from "@/lib/request";
 const redirect = (location: string) =>
   new Response(null, { status: 303, headers: { Location: withBasePath(location) } });
 
+// auth: public — starts the admin console's single sign-on (admin IP allowlist checked).
 export async function GET() {
   if (!(await isSetupComplete(prisma))) return redirect("/setup");
   const ctx = await getRequestContext();

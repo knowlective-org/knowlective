@@ -18,6 +18,7 @@ export type InviteState = { error?: string };
 
 
 
+// auth: public — the invitation token is the credential.
 export async function register(_prev: InviteState, formData: FormData): Promise<InviteState> {
   const t = await getTranslations();
   const token = formData.get("token");

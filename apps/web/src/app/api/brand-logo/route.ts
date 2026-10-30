@@ -4,6 +4,7 @@ import { getBrandLogo } from "@/lib/brand";
 // not. The URL carries a version (?v=), so it's cached for good. Served so
 // that nothing in it can run even if opened directly: a CSP allowing no
 // scripts (sandbox), and no type sniffing.
+// auth: public — the site's logo, shown on the login screen too.
 export async function GET() {
   const svg = await getBrandLogo();
   if (!svg) return new Response("Not found", { status: 404 });

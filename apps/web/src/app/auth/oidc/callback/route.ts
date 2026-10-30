@@ -28,6 +28,7 @@ const sameSiteRedirect = (location: string) => {
   );
 };
 
+// auth: public — the identity provider's answer (checked against the encrypted state cookie).
 export async function GET(request: NextRequest) {
   const jar = await cookies();
   const stateCookie = jar.get(OIDC_STATE_COOKIE)?.value;

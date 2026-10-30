@@ -21,6 +21,7 @@ import { beginAuthentication, finishAuthentication, passwordLoginBlockedByPasske
 
 export type LoginState = { error?: string; email?: string };
 
+// auth: public — the login itself.
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const ctx = await getRequestContext();
   const t = await getTranslations();
@@ -75,6 +76,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 // Two steps around the browser's passkey prompt: the options (with the
 // challenge, kept in a cookie), then the signed answer.
 
+// auth: public — the passkey login itself.
 export async function beginPasskeyLogin(): Promise<
   { options: PublicKeyCredentialRequestOptionsJSON } | { error: string }
 > {
@@ -86,6 +88,7 @@ export async function beginPasskeyLogin(): Promise<
   return { options: await beginAuthentication() };
 }
 
+// auth: public — the passkey login itself.
 export async function finishPasskeyLogin(response: AuthenticationResponseJSON, next: string): Promise<{ error: string }> {
   const ctx = await getRequestContext();
   const t = await getTranslations();

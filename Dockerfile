@@ -9,7 +9,10 @@ FROM docker.io/library/node:24-bookworm-slim AS base
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
-RUN npm install -g pnpm@12.9.1
+# npm is only needed to install pnpm: removed afterwards, so the image doesn't
+# carry its bundled dependencies (and their vulnerabilities).
+RUN npm install -g pnpm@12.16.1 \
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # Dependencies are installed at build time only. Without this, `pnpm <script>`
 # (e.g. admin:recover in the container) first tries to reinstall them.
 ENV pnpm_config_verify_deps_before_run=false

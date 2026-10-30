@@ -22,6 +22,7 @@ export type SignupState = { error?: string; sentTo?: string };
 // Mails a registration link (or, for a registered address, a note to log
 // in). The answer is the same either way, so the form can't be used to find
 // out who has an account.
+// auth: public — self-registration (checked against the site's settings inside).
 export async function requestSignup(_prev: SignupState, formData: FormData): Promise<SignupState> {
   const settings = await getSignupSettings();
   const t = await getTranslations();

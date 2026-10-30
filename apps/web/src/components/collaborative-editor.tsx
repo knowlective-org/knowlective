@@ -496,7 +496,11 @@ function EditorBody({
 }: Props & { provider: HocuspocusProvider }) {
   const locale = useLocale();
   const t = useTranslations();
-  text = t;
+  // For the helpers outside React; set after rendering (not during it). They
+  // only run on user actions, which come after this.
+  useEffect(() => {
+    text = t;
+  }, [t]);
   const displayTitle = useDisplayTitle();
   const editor = useCreateBlockNote(
     withCollaboration({
