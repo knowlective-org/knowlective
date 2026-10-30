@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: path.resolve(__dirname, "../../../.env") });
@@ -10,8 +11,10 @@ import {
   encryptLegacyPersonalData,
   ensurePersonalRoot,
   hashPassword,
+  isSetupComplete,
   loadDataKey,
   sealEmail,
+  setupInstance,
 } from "../src/index";
 
 // Test accounts and a knowledge root for the end-to-end tests
@@ -21,6 +24,9 @@ import {
 //
 // The credentials are fixed and public (they are in this file), so this must
 // never run against a real instance.
+//
+// KNOWLECTIVE_E2E_SETUP=1: if the database isn't set up yet (a fresh one, as
+// in CI), set it up first (otherwise the seed needs a set-up instance).
 
 // Keep in sync with apps/web/e2e/accounts.ts.
 const PASSWORD = "e2e-Password-2026";
@@ -48,6 +54,13 @@ async function main() {
     throw new Error("e2e:seed creates accounts with public passwords; refusing to run in production.");
   }
   const prisma = createPrismaClient();
+  // A fresh database (CI) is set up first: an unknown master password (the
+  // tests never use it) and the address the tests reach the server at.
+  if (process.env.KNOWLECTIVE_E2E_SETUP === "1" && !(await isSetupComplete(prisma))) {
+    const origin = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+    await setupInstance(prisma, randomBytes(24).toString("base64url"), origin, "ja");
+    console.log(`e2e:seed: set up the instance (${origin})`);
+  }
   const dataKey = await loadDataKey(prisma);
   const passwordHash = await hashPassword(PASSWORD);
   // Accounts from before email encryption would otherwise be made again

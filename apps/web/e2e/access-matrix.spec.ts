@@ -1,7 +1,7 @@
 import { type APIRequestContext, type Browser, expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
 import { withPrisma } from "./db";
-import { createPage, editorBody, openPage, pasteFile, trashOpenPage } from "./helpers";
+import { attachFile, createPage, editorBody, openPage, trashOpenPage } from "./helpers";
 
 // Who gets what: every screen and route of a page, as each kind of account —
 // not logged in, outsider (no group), viewer, editor, and the admin (who
@@ -29,8 +29,7 @@ test.describe("Access matrix", () => {
     const context = await contextFor(browser, "admin");
     const page = await context.newPage();
     ({ id: pageId } = await createPage(page, "E2E 権限の一覧"));
-    await pasteFile(page, { name: "一覧.txt", type: "text/plain", base64: Buffer.from("matrix").toString("base64") });
-    await page.locator('[data-ui="AppDialog.choiceButton"][data-id="attach"]').click();
+    await attachFile(page, { name: "一覧.txt", type: "text/plain", base64: Buffer.from("matrix").toString("base64") });
     await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(1);
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
     await context.close();
@@ -41,7 +40,7 @@ test.describe("Access matrix", () => {
   });
 
   test.afterAll(async ({ browser }) => {
-    await withPrisma((prisma) => prisma.group.delete({ where: { id: groupId } }));
+    if (groupId) await withPrisma((prisma) => prisma.group.delete({ where: { id: groupId } }));
     const context = await contextFor(browser, "admin");
     const page = await context.newPage();
     await openPage(page, pageId);

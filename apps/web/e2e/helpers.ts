@@ -54,6 +54,19 @@ export async function pasteFile(page: Page, file: { name: string; type: string; 
   }, file);
 }
 
+// Pastes a file, chooses "attach" and waits until the upload is stored. The
+// file block shows before that, and closing or leaving the page cancels the
+// upload (on a fresh server the upload route is compiled first).
+export async function attachFile(page: Page, file: { name: string; type: string; base64: string }) {
+  const uploaded = page.waitForResponse(
+    (res) => res.request().method() === "POST" && new URL(res.url()).pathname.endsWith("/api/files"),
+    { timeout: 120_000 },
+  );
+  await pasteFile(page, file);
+  await page.locator('[data-ui="AppDialog.choiceButton"][data-id="attach"]').click();
+  expect((await uploaded).ok()).toBe(true);
+}
+
 // Pastes plain text into the body, on a new empty line at the end.
 export async function pasteText(page: Page, text: string) {
   await editorBody(page).click();

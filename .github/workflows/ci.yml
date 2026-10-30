@@ -1,0 +1,165 @@
+# Continuous integration on GitHub's machines (nothing runs on yours).
+#
+#   push to staging       every check, including the end-to-end tests
+#   pull request → master the same (a pull request from a fork runs with
+#                         read-only access and no secrets; CI uses none)
+#   weekly (Monday)       the same, on master: new vulnerabilities in the
+#                         dependencies and the image show up without a change
+#   by hand               Actions tab → CI → Run workflow
+#
+# Nothing is deployed or published. The keys the tests use are made inside the
+# job and thrown away with it.
+name: CI
+
+on:
+  push:
+    branches: [staging]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "0 18 * * 0" # Monday 03:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the run still going.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 12.16.1
+  NODE_VERSION: 24
+
+jobs:
+  checks:
+    name: Types, lint, access checks, unit tests, audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # prisma.config.ts needs one even to generate the client.
+      DATABASE_URL: postgresql://unused:unused@localhost:5432/unused
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      # PageProps / LayoutProps are generated (next dev and next build make
+      # them too, which is why they are there on a working copy).
+      - name: Types
+        run: |
+          pnpm --filter web exec next typegen
+          pnpm --filter web exec tsc --noEmit
+          pnpm --filter shared exec tsc --noEmit
+      - name: Lint
+        run: pnpm --filter web lint
+      - name: Access checks
+        run: pnpm check:auth
+      - name: Unit tests
+        run: pnpm test:unit
+      - name: Known vulnerabilities in production dependencies
+        run: pnpm audit --prod --audit-level moderate
+
+  secrets:
+    name: Secrets in the git history (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The same image as scripts/security-scan.sh.
+      - run: docker run --rm -v "$PWD:/repo:ro" docker.io/zricethezav/gitleaks:v8.24.2 git /repo --no-banner --redact
+
+  image:
+    name: Docker image (build, trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -t knowlective:ci .
+      # The same image and settings as scripts/security-scan.sh.
+      - name: Known vulnerabilities in the image (HIGH, CRITICAL with a fix)
+        run: >
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock docker.io/aquasec/trivy:0.63.0 image
+          --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 knowlective:ci
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      # Throwaway keys, for this run only.
+      - name: Write .env
+        run: |
+          cat > .env <<EOF
+          DATABASE_URL="postgresql://knowlective:knowlective@localhost:5432/knowlective"
+          REDIS_URL="redis://localhost:6379"
+          VECTOR_DATABASE_URL="postgresql://knowlective:knowlective@localhost:5433/knowlective_vectors"
+          KNOWLECTIVE_SERVER_KEY="$(openssl rand -base64 32)"
+          SEAWEEDFS_ACCESS_KEY="$(openssl rand -hex 32)"
+          SEAWEEDFS_SECRET_KEY="$(openssl rand -hex 32)"
+          EOF
+
+      - name: Start the services (docker-compose.yml)
+        run: docker compose up -d
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      # The embedding model of semantic search (downloaded on first use).
+      - uses: actions/cache@v4
+        with:
+          path: apps/web/.models
+          key: models-${{ hashFiles('apps/web/server/semantic-model.ts') }}
+      - name: Install the browser
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      # Over TCP: while the image initialises the database (pg_tde), its
+      # temporary server only listens on the socket.
+      - name: Wait for the databases
+        run: |
+          for service in postgres vectordb; do
+            for i in $(seq 1 60); do
+              docker compose exec -T "$service" pg_isready -h 127.0.0.1 -U knowlective >/dev/null 2>&1 && break
+              [ "$i" = 60 ] && { docker compose logs "$service"; exit 1; }
+              sleep 2
+            done
+          done
+      - name: Migrate the database
+        run: pnpm --filter shared exec prisma migrate deploy
+      - name: Set up the instance and the test accounts
+        run: pnpm e2e:seed
+        env:
+          KNOWLECTIVE_E2E_SETUP: "1"
+
+      - name: Run the tests
+        run: pnpm --filter web e2e
+
+      - name: Keep the traces and screenshots of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: apps/web/e2e/.results
+          # The folder's name starts with a dot.
+          include-hidden-files: true
+          retention-days: 7
+      - name: Service logs
+        if: failure()
+        run: docker compose logs --tail 200

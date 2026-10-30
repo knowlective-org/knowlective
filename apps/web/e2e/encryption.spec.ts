@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { ACCOUNTS, authFile } from "./accounts";
 import { withPrisma } from "./db";
-import { createPage, editorBody, openPage, pasteFile, trashOpenPage, typeInBody } from "./helpers";
+import { attachFile, createPage, editorBody, openPage, trashOpenPage, typeInBody } from "./helpers";
 
 // What the app encrypts never reaches the database in plain text: a page's
 // body (the document, its history versions, its search index), an attached
@@ -35,8 +35,7 @@ test("page bodies, attachment text and email addresses aren't stored in plain te
   const marker = `kn-plaintext-check-${Date.now()}`;
   const { id, title } = await createPage(page, "E2E 暗号化の確認");
   await typeInBody(page, `本文の印 ${marker}`);
-  await pasteFile(page, { name: "check.txt", type: "text/plain", base64: Buffer.from(`添付の印 ${marker}-file`).toString("base64") });
-  await page.locator('[data-ui="AppDialog.choiceButton"][data-id="attach"]').click();
+  await attachFile(page, { name: "check.txt", type: "text/plain", base64: Buffer.from(`添付の印 ${marker}-file`).toString("base64") });
   await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(1);
   await expect(page.getByTestId("PageView.status")).toHaveCount(0);
 

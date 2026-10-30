@@ -82,8 +82,16 @@ pnpm e2e           # テスト用のアカウントを作り直してから、�
 - テスト用のアカウントは `pnpm e2e:seed`（`packages/shared/scripts/e2e-seed.ts`）が作る：`e2e-admin@example.com`（サイト管理者・管理）、`e2e-editor@…`（編集）、`e2e-viewer@…`（閲覧）、`e2e-outsider@…`（どのグループにも入らない）。ナレッジルート「E2E」と、その下の固定 id のページ `e2e-home`。**パスワードと管理者の TOTP 秘密鍵はリポジトリに書いてある公開の値なので、本番の DB に対して実行しないこと**（`NODE_ENV=production` では拒否する）。値は `e2e/accounts.ts` とシードの2か所にあり、変えるときは両方を直す。
 - ログイン状態は `auth.setup.ts` が最初に1回作って `e2e/.auth/` に保存し、各テストは `test.use({ storageState: authFile("editor") })` で使う。テストが作るページは `createPage()` で `e2e-home` の下に作り、最後に `trashOpenPage()` でごみ箱へ移す（完全削除がまだないので、ごみ箱には残る）。
 - 1つずつ実行する（`workers: 1`）。DB を共有していることと、認証コードが1回しか使えないことが理由。
-- ファイルを入れる操作は `pasteFile()`（貼り付けのイベントを作る。BlockNote は貼り付けとドロップを同じ処理に通す）。
+- ファイルを入れる操作は `pasteFile()`（貼り付けのイベントを作る。BlockNote は貼り付けとドロップを同じ処理に通す）。添付するなら `attachFile()`（「添付」を選び、アップロードが保存されるまで待つ）：ファイルのブロックはアップロードの完了前に出るので、ブロックを待っただけで画面を閉じたり移動したりすると、アップロードが取り消される（まっさらなサーバーの CI では、最初のアップロードでルートのコンパイルを待つので起きやすい）。
 - 画面の機能を足したら、対応するテストを足すこと。
+
+### ブランチと CI（GitHub Actions）
+
+- **作業は `staging` ブランチで行う**（コミットも `staging`）。`master` は本番（app.knowlective.org）に出すもので、`staging` で CI が通ったものを取り込む。
+- CI は `.github/workflows/ci.yml`。GitHub のマシンで動き、手元や本番には触れない。何も配備・公開しない。動くのは `staging` へのプッシュ、`master` へのプルリクエスト、毎週月曜（`master` で。コードを変えていなくても、新しく公開された脆弱性で失敗する）、Actions タブからの手動実行。
+- ジョブは4つ：型（web・shared の `tsc --noEmit`）・lint・`check:auth`・単体テスト・`pnpm audit --prod`／gitleaks（履歴全体）／Docker イメージのビルドと trivy／E2E。gitleaks と trivy のイメージと設定は `scripts/security-scan.sh` と同じにしておくこと。
+- E2E は、ジョブの中で `.env`（鍵は使い捨て）を作り、`docker compose up -d` で開発用と同じサービスを立て、`prisma migrate deploy` のあと `KNOWLECTIVE_E2E_SETUP=1 pnpm e2e:seed` で**まっさらな DB を初期セットアップ**（マスターパスワードは誰も知らない乱数。テストは使わない）してから、開発サーバー（`pnpm dev`）に対して全テストを実行する。手元の DB の状態に頼るテストは CI で失敗するので、テストに必要なものはシードかテストの中で作ること。失敗したテストのトレースとスクリーンショットは、実行結果の「e2e-results」から7日間ダウンロードできる（リポジトリは公開なので、誰でも見られる。テスト用のデータだけ）。
+- リポジトリは公開なので、ワークフローに秘密情報（`secrets.*`）を使わないこと。外部からのプルリクエストは読み取り専用の権限で動く（`permissions: contents: read`、`pull_request_target` は使わない）。
 
 デモ: `/admin` で「Demo 管理」グループに入る招待リンクを発行して自分を登録し、`/pages/demo` を2つのタブで開く。片方で入力するともう片方に反映される（ページは権限のあるグループのメンバーしか開けない）。
 
