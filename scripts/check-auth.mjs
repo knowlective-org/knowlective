@@ -107,10 +107,17 @@ for (const file of walk(SRC)) {
 
   const isRoute = /(^|\/)route\.ts$/.test(where);
   if (isUseServer(source) || isRoute) {
-    // This file's own helpers that check access count as guards.
+    // This file's own helpers that check access count as guards (and helpers
+    // calling those, to any depth).
     const guards = [...GUARDS];
-    for (const s of source.statements) {
-      if (ts.isFunctionDeclaration(s) && s.name && s.body && callsGuard(s.body, GUARDS)) guards.push(s.name.text);
+    for (let added = true; added; ) {
+      added = false;
+      for (const s of source.statements) {
+        if (ts.isFunctionDeclaration(s) && s.name && s.body && !guards.includes(s.name.text) && callsGuard(s.body, guards)) {
+          guards.push(s.name.text);
+          added = true;
+        }
+      }
     }
     for (const fn of exportedFunctions(source)) {
       if (isRoute && !HTTP_METHODS.has(fn.name)) continue;

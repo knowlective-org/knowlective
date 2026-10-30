@@ -24,6 +24,7 @@ const ja: MessageShape<typeof en> = {
     VIEW: "閲覧",
     EDIT: "編集",
     MANAGE: "管理",
+    NONE: "閲覧不可",
   },
   common: {
     email: "メールアドレス",

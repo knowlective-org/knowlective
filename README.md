@@ -75,6 +75,7 @@ Permissions to view and edit pages are always given to groups (never to individu
 
 - Giving a page "group × view / edit / manage" carries down to its child pages
 - For the same group, the first permission found walking up from the page to its parents applies ("edit" on the root and "view" on a page in between makes everything below that page view-only)
+- On a child page's "Permissions", under "Permissions from the pages above", inherited access can be narrowed: "Edit" to "View" or "No access", "View" to "No access" (for that page and the pages below). It can't be made stronger, and groups that manage the pages above can't be changed. "Inherit again" undoes it. Groups with inherited access aren't offered under "Give a group permission". Changes are recorded in the audit log, and open editors reconnect with the new access
 - Someone in several groups gets the strongest permission
 - "Manage" allows changing the permissions of that tree
 - When someone can see a child page but not its parent, the page appears under "Shared with you" on the home screen (the hidden parent's title and the knowledge root's name aren't shown)

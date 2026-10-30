@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { PUBLIC_GROUP, atLeast, type PageAccess } from "shared";
+import { ACCESS_RANK, PUBLIC_GROUP, atLeast, getInheritedGroupAccess, type PageAccess } from "shared";
 import { getPageAccess } from "@/lib/page-access";
 import { reconnectDocuments } from "@/lib/collab-events";
 import { publicGroup, publicPagesAllowed, subtreeIds } from "@/lib/public-pages";
@@ -23,8 +23,14 @@ async function auditFor(title: string) {
 // them, and a root page must always keep at least one MANAGE grant — otherwise
 // nobody could ever manage the tree again (not even a site admin, who can't
 // see pages without a grant).
+//
+// A group that already has access from the pages above (an inherited grant)
+// can only be narrowed here: EDIT to VIEW or NONE ("no access"), VIEW to
+// NONE. Never raised, and a group managing the pages above can't be changed
+// here at all. Choosing the inherited level again removes this page's grant
+// (back to inheriting).
 
-const ACCESS_VALUES: PageAccess[] = ["VIEW", "EDIT", "MANAGE"];
+const ACCESS_VALUES: PageAccess[] = ["VIEW", "EDIT", "MANAGE", "NONE"];
 
 function back(pageId: string, error?: string): never {
   redirect(`/pages/${pageId}/share${error ? `?error=${error}` : ""}`);
@@ -50,6 +56,18 @@ async function keepsRootManager(pageId: string, change: { groupId: string; acces
   return after.some((g) => g.access === "MANAGE");
 }
 
+// After a change: open editors of the page and the pages below reconnect, so
+// access that was narrowed or taken away applies at once (collab decides
+// read-only at connection). Then back to the share screen — or away from it,
+// if the manager no longer manages the page.
+async function afterGrantChange(pageId: string, userId: string): Promise<never> {
+  reconnectDocuments(await subtreeIds(pageId));
+  revalidatePath(`/pages/${pageId}`, "layout");
+  const still = await getPageAccess(prisma, userId, pageId);
+  if (!still || !atLeast(still.access, "MANAGE")) redirect(still ? `/pages/${pageId}` : "/");
+  back(pageId);
+}
+
 export async function setGrant(formData: FormData): Promise<void> {
   const pageId = String(formData.get("pageId") ?? "");
   const groupId = formData.get("groupId");
@@ -59,6 +77,16 @@ export async function setGrant(formData: FormData): Promise<void> {
   const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true, builtIn: true } });
   // Made public with publishPage, never with another access level.
   if (!group || group.builtIn === PUBLIC_GROUP) back(pageId, "invalid");
+  const inherited = (await getInheritedGroupAccess(prisma, pageId)).get(groupId);
+  if (inherited) {
+    if (inherited.access === "MANAGE") back(pageId, "inherited-manage");
+    if (ACCESS_RANK[access as PageAccess] > ACCESS_RANK[inherited.access]) back(pageId, "raise");
+    // The inherited level itself: inherit again.
+    if (access === inherited.access) return revertGrant(pageId, groupId);
+  } else if (access === "NONE") {
+    // Nothing inherited to take away.
+    back(pageId, "invalid");
+  }
   if (isRootPage && !(await keepsRootManager(pageId, { groupId, access: access as PageAccess }))) {
     back(pageId, "last-manager");
   }
@@ -85,15 +113,20 @@ export async function setGrant(formData: FormData): Promise<void> {
     }),
     { pageId, groupId, from: before?.access ?? null, to: access as PageAccess },
   );
-  revalidatePath(`/pages/${pageId}`, "layout");
-  back(pageId);
+  return afterGrantChange(pageId, user.id);
 }
 
+// Removes this page's grant for the group: no access from here, or — for a
+// group with an inherited grant — back to what it inherits.
 export async function removeGrant(formData: FormData): Promise<void> {
   const pageId = String(formData.get("pageId") ?? "");
   const groupId = formData.get("groupId");
-  const { user, page, isRootPage } = await requireManager(pageId);
   if (typeof groupId !== "string") back(pageId, "invalid");
+  return revertGrant(pageId, groupId);
+}
+
+async function revertGrant(pageId: string, groupId: string): Promise<never> {
+  const { user, page, isRootPage } = await requireManager(pageId);
   if (isRootPage && !(await keepsRootManager(pageId, { groupId, access: null }))) back(pageId, "last-manager");
 
   const grant = await prisma.pageGrant.findUnique({
@@ -110,11 +143,8 @@ export async function removeGrant(formData: FormData): Promise<void> {
     audit("audit.grantRemove", { title, group: groupName(audit, grant.group), access: audit(`access.${grant.access}`) }),
     { pageId, groupId, from: grant.access },
   );
-  revalidatePath(`/pages/${pageId}`, "layout");
   // The actor may have just removed their own access to this page.
-  const still = await getPageAccess(prisma, user.id, pageId);
-  if (!still || !atLeast(still.access, "MANAGE")) redirect(still ? `/pages/${pageId}` : "/");
-  back(pageId);
+  return afterGrantChange(pageId, user.id);
 }
 
 // Makes the page, and every page under it, viewable without logging in (a

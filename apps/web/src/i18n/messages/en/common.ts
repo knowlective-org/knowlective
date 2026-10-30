@@ -24,6 +24,7 @@ export default {
     VIEW: "View",
     EDIT: "Edit",
     MANAGE: "Manage",
+    NONE: "No access",
   },
   common: {
     email: "Email address",

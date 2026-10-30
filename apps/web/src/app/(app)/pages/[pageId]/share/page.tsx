@@ -5,7 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { useTranslations } from "next-intl";
 import { getDisplayTitle } from "@/i18n/display-title";
 import { groupName } from "@/i18n/group-name";
-import { MAX_PAGE_DEPTH, PUBLIC_GROUP, atLeast } from "shared";
+import { ACCESS_RANK, MAX_PAGE_DEPTH, PUBLIC_GROUP, atLeast, getInheritedGroupAccess, type PageAccess } from "shared";
 import { getVisibleTree } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
@@ -28,15 +28,25 @@ const ERRORS = {
   "last-manager": "lastManager",
   invalid: "invalid",
   "public-not-allowed": "publicNotAllowed",
+  raise: "raise",
+  "inherited-manage": "inheritedManage",
 } as const;
 
-function AccessSelect({ defaultValue }: { defaultValue?: string }) {
+const GRANTABLE: PageAccess[] = ["VIEW", "EDIT", "MANAGE"];
+// What an inherited level can be narrowed to (strongest first): itself, and
+// everything weaker down to "no access".
+const narrowerOrEqual = (inherited: PageAccess): PageAccess[] =>
+  (["EDIT", "VIEW", "NONE"] as PageAccess[]).filter((a) => ACCESS_RANK[a] <= ACCESS_RANK[inherited]);
+
+function AccessSelect({ defaultValue, options = GRANTABLE }: { defaultValue?: string; options?: PageAccess[] }) {
   const t = useTranslations("access");
   return (
-    <select name="access" defaultValue={defaultValue ?? "VIEW"} className={styles.field} style={{ width: "auto", marginTop: 0 }} data-ui="AccessSelect">
-      <option value="VIEW">{t("VIEW")}</option>
-      <option value="EDIT">{t("EDIT")}</option>
-      <option value="MANAGE">{t("MANAGE")}</option>
+    <select name="access" defaultValue={defaultValue ?? options[0]} className={styles.field} style={{ width: "auto", marginTop: 0 }} data-ui="AccessSelect">
+      {options.map((a) => (
+        <option key={a} value={a}>
+          {t(a)}
+        </option>
+      ))}
     </select>
   );
 }
@@ -60,7 +70,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
     ancestors.push({ id: p.id, title: p.title });
     cursor = p.parentId;
   }
-  const [allOwn, allInherited, groups, tree, sidebar, publicAllowed] = await Promise.all([
+  const [allOwn, allInherited, groups, tree, sidebar, publicAllowed, inheritedAccess] = await Promise.all([
     prisma.pageGrant.findMany({
       where: { pageId },
       orderBy: { createdAt: "asc" },
@@ -74,11 +84,12 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
     getVisibleTree(prisma, user.id, page.root.id),
     loadSidebar(user),
     publicPagesAllowed(),
+    // Each group's grant nearest the parent: what this page inherits.
+    getInheritedGroupAccess(prisma, pageId),
   ]);
   // The public group has a section of its own (publishing to the internet).
   const isPublic = (g: { builtIn: string | null }) => g.builtIn === PUBLIC_GROUP;
-  const own = allOwn.filter((g) => !isPublic(g.group));
-  const inherited = allInherited.filter((g) => !isPublic(g.group));
+  const ownGrants = allOwn.filter((g) => !isPublic(g.group));
   const ownPublic = allOwn.some((g) => isPublic(g.group));
   // The nearest page above made public, if any.
   const publicAbove = ancestors.find((a) => allInherited.some((g) => g.pageId === a.id && isPublic(g.group))) ?? null;
@@ -88,15 +99,23 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
     const a = ancestors.find((x) => x.id === id);
     return a && visible.has(a.id) ? t("share.quoted", { title: displayTitle(a.title) }) : t("share.hiddenAncestor");
   };
+  const groupById = new Map(groups.map((g) => [g.id, g]));
+  // A grant on this page that narrows what the group inherits (or keeps it):
+  // shown, and changed, with the inherited ones. Other grants on this page
+  // (groups that inherit nothing, or older grants above the inherited level)
+  // are listed as this page's own.
+  const narrows = (g: { groupId: string; access: PageAccess }) => {
+    const inherited = inheritedAccess.get(g.groupId);
+    return !!inherited && inherited.access !== "MANAGE" && ACCESS_RANK[g.access] <= ACCESS_RANK[inherited.access];
+  };
+  const own = ownGrants.filter((g) => !narrows(g));
+  const overrideOf = new Map(ownGrants.filter(narrows).map((g) => [g.groupId, g.access]));
   const ownGroupIds = new Set(own.map((g) => g.groupId));
-  // Nearest ancestor grant per group, ignoring groups overridden on this page.
-  const inheritedByGroup = new Map<string, (typeof inherited)[number]>();
-  for (const a of ancestors) {
-    for (const g of inherited.filter((x) => x.pageId === a.id)) {
-      if (!ownGroupIds.has(g.groupId) && !inheritedByGroup.has(g.groupId)) inheritedByGroup.set(g.groupId, g);
-    }
-  }
-  const addable = groups.filter((g) => !ownGroupIds.has(g.id) && !isPublic(g));
+  const inheritedRows = [...inheritedAccess]
+    .map(([groupId, grant]) => ({ groupId, ...grant, group: groupById.get(groupId) }))
+    .filter((r) => r.group && !isPublic(r.group) && !ownGroupIds.has(r.groupId));
+  // New grants: groups this page neither has nor inherits (those can only be narrowed).
+  const addable = groups.filter((g) => !ownGroupIds.has(g.id) && !overrideOf.has(g.id) && !inheritedAccess.has(g.id) && !isPublic(g));
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={pageId} />}>
@@ -164,16 +183,69 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
           )}
         </section>
 
-        {inheritedByGroup.size > 0 && (
+        {inheritedRows.length > 0 && (
           <section className={styles.section}>
             <h2 className={styles.sectionTitle}>{t("share.inherited")}</h2>
-            <ul className={styles.note} style={{ paddingLeft: 20, lineHeight: 1.9 }}>
-              {[...inheritedByGroup.values()].map((g) => (
-                <li key={g.id} data-ui="SharePage.inheritedGrantRow" data-id={g.groupId}>
-                  {t("share.inheritedRow", { group: groupName(t, g.group), access: ta(g.access), page: ancestorTitle(g.pageId) })}
-                </li>
-              ))}
-            </ul>
+            <p className={styles.note} style={{ marginBottom: 12 }}>
+              {t("share.inheritedLead")}
+            </p>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>{t("share.group")}</th>
+                    <th>{t("share.inheritedFrom")}</th>
+                    <th>{t("share.access")}</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {inheritedRows.map((r) => {
+                    const override = overrideOf.get(r.groupId);
+                    return (
+                      <tr key={r.groupId} data-ui="SharePage.inheritedGrantRow" data-id={r.groupId}>
+                        <td>{groupName(t, r.group!)}</td>
+                        <td>
+                          {ancestorTitle(r.pageId)}: {ta(r.access)}
+                        </td>
+                        <td>
+                          {r.access === "MANAGE" || r.access === "NONE" ? (
+                            <span className={styles.note} data-ui="SharePage.inheritedFixed">
+                              {ta(r.access)} ({r.access === "MANAGE" ? t("share.inheritedFixed") : t("share.inheritedNoneAbove")})
+                            </span>
+                          ) : (
+                            <form action={setGrant} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-ui="SharePage.overrideForm">
+                              <input type="hidden" name="pageId" value={pageId} />
+                              <input type="hidden" name="groupId" value={r.groupId} />
+                              <AccessSelect defaultValue={override ?? r.access} options={narrowerOrEqual(r.access)} />
+                              <button type="submit" className={styles.button} data-ui="SharePage.overrideButton">
+                                {t("share.change")}
+                              </button>
+                              {override && (
+                                <span className={styles.badge} data-ui="SharePage.overriddenStatus">
+                                  {t("share.overridden")}
+                                </span>
+                              )}
+                            </form>
+                          )}
+                        </td>
+                        <td>
+                          {override && (
+                            <form action={removeGrant} data-ui="SharePage.revertForm">
+                              <input type="hidden" name="pageId" value={pageId} />
+                              <input type="hidden" name="groupId" value={r.groupId} />
+                              <button type="submit" className={styles.buttonSecondary} data-ui="SharePage.revertButton">
+                                {t("share.revert")}
+                              </button>
+                            </form>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
 

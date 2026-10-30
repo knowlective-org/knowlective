@@ -6,7 +6,8 @@ import { openEmail } from "./personal-data";
 //
 // - A grant applies to its page and every descendant.
 // - For one group, the grant nearest the page (walking up) wins, so a lower
-//   grant can narrow access (EDIT on the root, VIEW on a subtree).
+//   grant can narrow access (EDIT on the root, VIEW on a subtree). A NONE
+//   grant takes the group's inherited access away (the page and below).
 // - Across the user's groups, the strongest access wins.
 // - No grant on the page or any ancestor (for any of the user's groups) means
 //   no access at all. Site roles never grant page access.
@@ -15,10 +16,10 @@ import { openEmail } from "./personal-data";
 // Trees are evaluated per knowledge root in memory: every page carries
 // rootId, so one query loads a root's whole tree.
 
-export const ACCESS_RANK: Record<PageAccess, number> = { VIEW: 1, EDIT: 2, MANAGE: 3 };
+export const ACCESS_RANK: Record<PageAccess, number> = { NONE: 0, VIEW: 1, EDIT: 2, MANAGE: 3 };
 
 export function atLeast(access: PageAccess | null, required: PageAccess): boolean {
-  return access !== null && ACCESS_RANK[access] >= ACCESS_RANK[required];
+  return access !== null && access !== "NONE" && ACCESS_RANK[access] >= ACCESS_RANK[required];
 }
 
 type TreePage = { id: string; parentId: string | null };
@@ -52,7 +53,8 @@ export function computeTreeAccess(
     }
     let best: PageAccess | null = null;
     for (const access of perGroup.values()) {
-      if (best === null || ACCESS_RANK[access] > ACCESS_RANK[best]) best = access;
+      // A group taken away here (NONE) gives nothing.
+      if (access !== "NONE" && (best === null || ACCESS_RANK[access] > ACCESS_RANK[best])) best = access;
     }
     if (best) result.set(page.id, best);
     for (const child of childrenOf.get(page.id) ?? []) visit(child, perGroup, depth + 1);
@@ -224,25 +226,27 @@ export async function getPageAccess(
   return access ? { access, rootId: page.rootId, lock: computeLocks(tree).get(pageId) ?? null } : null;
 }
 
-// Each group's effective access to `pageId`: its grant nearest the page,
-// walking up to the root. Empty for a missing or deleted page (or one under
-// a deleted page).
-export async function getGroupAccessForPage(
+// Each group's grant nearest `pageId` (walking up to the root), NONE
+// included, with the page holding it. `fromAbove`: start at the parent (what
+// the page inherits). Empty for a missing or deleted page (or one under a
+// deleted page), and in a personal root (no group access at all).
+async function nearestGrants(
   prisma: PrismaClient,
   pageId: string,
-): Promise<Map<string, PageAccess>> {
-  const result = new Map<string, PageAccess>();
+  fromAbove: boolean,
+): Promise<Map<string, { access: PageAccess; pageId: string }>> {
+  const result = new Map<string, { access: PageAccess; pageId: string }>();
   const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, deletedAt: true } });
   if (!page || page.deletedAt) return result;
-  // A personal root has no group access at all.
   if (await isPersonalRoot(prisma, page.rootId)) return result;
   const tree = await loadTree(prisma, page.rootId);
   const parentOf = new Map(tree.map((p) => [p.id, p.parentId]));
   if (!parentOf.has(pageId)) return result; // under a deleted page
   const chain: string[] = [];
-  for (let id: string | null = pageId; id && chain.length <= MAX_PAGE_DEPTH; id = parentOf.get(id) ?? null) {
+  for (let id: string | null = fromAbove ? (parentOf.get(pageId) ?? null) : pageId; id && chain.length <= MAX_PAGE_DEPTH; id = parentOf.get(id) ?? null) {
     chain.push(id);
   }
+  if (chain.length === 0) return result;
   const grants = await prisma.pageGrant.findMany({
     where: { pageId: { in: chain } },
     select: { pageId: true, groupId: true, access: true },
@@ -253,10 +257,34 @@ export async function getGroupAccessForPage(
     const d = depthOf.get(g.pageId)!;
     if (!nearest.has(g.groupId) || d < nearest.get(g.groupId)!) {
       nearest.set(g.groupId, d);
-      result.set(g.groupId, g.access);
+      result.set(g.groupId, { access: g.access, pageId: g.pageId });
     }
   }
   return result;
+}
+
+// Each group's effective access to `pageId`: its grant nearest the page,
+// walking up to the root. Groups whose nearest grant is NONE have none, and
+// aren't in the result.
+export async function getGroupAccessForPage(
+  prisma: PrismaClient,
+  pageId: string,
+): Promise<Map<string, PageAccess>> {
+  const result = new Map<string, PageAccess>();
+  for (const [groupId, grant] of await nearestGrants(prisma, pageId, false)) {
+    if (grant.access !== "NONE") result.set(groupId, grant.access);
+  }
+  return result;
+}
+
+// What `pageId` inherits from the pages above it: each group's grant nearest
+// its parent (NONE included: taken away further up), and where it's from.
+// A grant on the page itself may only narrow these (share/actions.ts).
+export async function getInheritedGroupAccess(
+  prisma: PrismaClient,
+  pageId: string,
+): Promise<Map<string, { access: PageAccess; pageId: string }>> {
+  return nearestGrants(prisma, pageId, true);
 }
 
 // Enabled users who can open `pageId`: the members of every group with

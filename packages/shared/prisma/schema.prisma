@@ -21,10 +21,13 @@ enum SiteRole {
 
 // What a group may do with a page and (by inheritance) its descendants.
 // MANAGE also allows changing the tree's group grants.
+// NONE: only as a grant on a page below one that grants the group access —
+// it takes that inherited access away there and below (permissions.ts).
 enum PageAccess {
   VIEW
   EDIT
   MANAGE
+  NONE
 }
 
 model User {

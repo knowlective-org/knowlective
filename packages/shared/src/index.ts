@@ -57,6 +57,7 @@ export {
   computeLocks,
   computeTreeAccess,
   getGroupAccessForPage,
+  getInheritedGroupAccess,
   getPageAccess,
   getTrash,
   getTreeWithAccess,
