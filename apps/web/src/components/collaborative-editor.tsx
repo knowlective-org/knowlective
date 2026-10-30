@@ -45,26 +45,19 @@ import { customSlashMenuItems, editorSchema } from "./editor/schema";
 import { showAlert, showChoice, showConfirm } from "./dialog";
 import { EditorPlaceholder } from "./editor-placeholder";
 import styles from "./collaborative-editor.module.css";
+import { cursorColorFor } from "@/lib/cursor-color";
 
 // The viewer's text for the helpers below, which BlockNote calls outside
 // React (uploads, imports). Set by EditorBody; a browser shows one language.
 type Text = ReturnType<typeof useTranslations<never>>;
 let text: Text;
 
-const CURSOR_COLORS = ["#5b8def", "#e5484d", "#30a46c", "#f76b15", "#8e4ec6", "#12a594", "#d6409f"];
 
 // The collaboration WebSocket is served by the same process and origin as the
 // app (server/collab.ts, COLLAB_PATH), so no separate URL needs configuring.
 function collabUrl(): string {
   const { protocol, host } = window.location;
   return `${protocol === "https:" ? "wss" : "ws"}://${host}${withBasePath("/collab")}`;
-}
-
-// Stable per-user cursor color.
-function colorFor(id: string): string {
-  let hash = 0;
-  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
-  return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
 }
 
 // Same markup as BlockNote's default collaboration cursor, but with the label
@@ -548,7 +541,9 @@ function EditorBody({
             addFile(provider, pageId, file, blockId),
       collaboration: {
         fragment: provider.document.getXmlFragment("blocknote"),
-        user: { name: user.name, color: colorFor(user.id) },
+        // The server sets every cursor's name and color from who is logged in
+        // (server/collab.ts); these match it.
+        user: { name: user.name, color: cursorColorFor(user.id) },
         provider: { awareness: provider.awareness ?? undefined },
         // Keep collaborators' name labels visible. The default ("activity")
         // hides a label shortly after that person stops moving or typing.

@@ -6,6 +6,7 @@ import { translatorFor } from "@/i18n/translator";
 import { siteDefaultLocale } from "@/i18n/locale";
 import { type ApiCaller, authenticateApiKey } from "./keys";
 import { MAX_MARKDOWN_BYTES, pageContent } from "./page-content";
+import { createRateLimiter } from "@/lib/rate-limit";
 
 // The public API's request handling (/api/v1/*, Route Handlers): the key,
 // the scope, errors as JSON, a rate limit per key.
@@ -70,23 +71,7 @@ export function apiJson(body: unknown, status = 200): Response {
 // ---- Rate limit --------------------------------------------------------------
 // Per key, in this process (one per instance): a fixed window.
 
-const WINDOW_MS = 60_000;
-const MAX_REQUESTS_PER_WINDOW = 120;
-const windows = new Map<string, { start: number; count: number }>();
-
-function rateLimited(keyId: string): number | null {
-  const now = Date.now();
-  const w = windows.get(keyId);
-  if (!w || now - w.start >= WINDOW_MS) {
-    windows.set(keyId, { start: now, count: 1 });
-    if (windows.size > 10_000) {
-      for (const [id, v] of windows) if (now - v.start >= WINDOW_MS) windows.delete(id);
-    }
-    return null;
-  }
-  w.count += 1;
-  return w.count > MAX_REQUESTS_PER_WINDOW ? Math.ceil((w.start + WINDOW_MS - now) / 1000) : null;
-}
+const rateLimited = createRateLimiter(60_000, 120);
 
 // Runs `handler` for an accepted key with at least `scope`, or answers why not.
 export async function withApiKey(

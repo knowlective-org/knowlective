@@ -16,8 +16,10 @@ import {
   encrypt,
   isSetupComplete,
   loadDataKey,
+  openEmail,
   verifyCollabToken,
 } from "shared";
+import { cursorColorFor } from "../src/lib/cursor-color";
 import { BASE_PATH } from "../src/lib/base-path";
 import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
 import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
@@ -37,6 +39,9 @@ import { type NetworkCaps, capsFor, getNetworkSettings } from "../src/lib/networ
 export const COLLAB_PATH = `${BASE_PATH}/collab`;
 
 type ClientConnection = ReturnType<Hocuspocus["handleConnection"]>;
+
+// What onAuthenticate gives each connection.
+type CollabContext = { userId: string; cursor: { name: string; color: string } };
 
 export async function createCollab() {
   // Separate from the app's PrismaClient (src/lib/db.ts): this module is
@@ -142,6 +147,9 @@ export async function createCollab() {
     extensions.push(new Redis({ host: url.hostname, port: Number(url.port || 6379) }));
   }
 
+  // The Yjs client each connection speaks for, in awareness (cursors).
+  const awarenessClientOf = new WeakMap<object, number>();
+
   const hocuspocus = new Hocuspocus({
     extensions,
     quiet: true,
@@ -201,7 +209,40 @@ export async function createCollab() {
       if (!canEditPage(result) || !caps.write) {
         connectionConfig.readOnly = true;
       }
-      return { userId };
+      // What others see on this person's cursor: set here, not by the browser
+      // (beforeHandleAwareness), so nobody can show up as someone else.
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailEnc: true } });
+      const name = user.name || (user.emailEnc ? openEmail(await loadDataKey(prisma), user.emailEnc) : "");
+      return { userId, cursor: { name, color: cursorColorFor(userId) } } satisfies CollabContext;
+    },
+    // Cursors and selections (awareness) from a connection: only for the one
+    // Yjs client that connection is (the first it sends anything for; one
+    // editor, one client), and always with its authenticated user's name and
+    // color — whatever the browser put there. `states` also holds an empty
+    // entry of Hocuspocus's own (the scratch awareness it decodes into), so
+    // empty states are let through — unless they would blank another
+    // client's cursor.
+    async beforeHandleAwareness({ context, connection, states, awareness }) {
+      const ctx = context as CollabContext | undefined;
+      if (!connection || !ctx?.cursor) return;
+      let own = awarenessClientOf.get(connection);
+      for (const [clientId, state] of states) {
+        const empty = !state || typeof state !== "object" || Object.keys(state).length === 0;
+        if (empty) {
+          const current = awareness.getStates().get(clientId);
+          if (clientId !== own && current && Object.keys(current).length > 0) states.delete(clientId);
+          continue;
+        }
+        if (own === undefined) {
+          own = clientId;
+          awarenessClientOf.set(connection, own);
+        }
+        if (clientId !== own) {
+          states.delete(clientId);
+          continue;
+        }
+        if ("user" in state) (state as { user: unknown }).user = { ...ctx.cursor };
+      }
     },
     async onChange({ documentName, context }) {
       const userId = (context as { userId?: string } | undefined)?.userId;

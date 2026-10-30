@@ -9,6 +9,7 @@ import { withEmail, withEmails } from "@/lib/emails";
 import { requireAdmin } from "@/lib/admin/auth";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { canManageGroup } from "@/lib/group-access";
+import { createRateLimiter } from "@/lib/rate-limit";
 
 // Content managers may only touch groups within trees they manage
 // (lib/group-access.ts); every action re-checks that server-side.
@@ -95,6 +96,10 @@ const MAX_QUERY_LENGTH = 100;
 // People added in one go.
 const MAX_MEMBERS_PER_ADD = 100;
 
+// Each search opens every user's (encrypted) address: per admin, at most
+// this many a minute (typing waits between keys, so it never gets near).
+const searchLimit = createRateLimiter(60_000, 120);
+
 // Matching ignores case and full-/half-width differences.
 const fold = (text: string) => text.normalize("NFKC").toLowerCase();
 
@@ -107,6 +112,7 @@ export async function searchMemberCandidates(groupId: string, query: string): Pr
   const words = fold(query).trim().split(/\s+/).filter(Boolean);
   if (words.length === 0 || query.length > MAX_QUERY_LENGTH) return [];
   if (!(await canManageGroup(actor, groupId))) return [];
+  if (searchLimit(actor.userId ?? "master-password") !== null) return [];
   const [users, members] = await Promise.all([
     prisma.user.findMany({ select: { id: true, name: true, emailEnc: true, disabledAt: true }, orderBy: { createdAt: "asc" } }),
     prisma.groupMember.findMany({ where: { groupId }, select: { userId: true } }),
