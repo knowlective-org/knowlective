@@ -51,8 +51,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
+      # PageProps / LayoutProps are generated (next dev and next build make
+      # them too, which is why they are there on a working copy).
       - name: Types
         run: |
+          pnpm --filter web exec next typegen
           pnpm --filter web exec tsc --noEmit
           pnpm --filter shared exec tsc --noEmit
       - name: Lint
@@ -154,6 +157,8 @@ jobs:
         with:
           name: e2e-results
           path: apps/web/e2e/.results
+          # The folder's name starts with a dot.
+          include-hidden-files: true
           retention-days: 7
       - name: Service logs
         if: failure()

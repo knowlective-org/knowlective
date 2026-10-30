@@ -34,6 +34,13 @@ test.describe("Access matrix", () => {
     await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(1);
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
     await context.close();
+    // The file block shows before the upload is done (on a fresh server, the
+    // upload route is compiled first).
+    await expect
+      .poll(() => withPrisma((prisma) => prisma.fileObject.findFirst({ where: { pageId }, select: { id: true } })), {
+        timeout: 60_000,
+      })
+      .not.toBeNull();
     ({ fileId, groupId } = await withPrisma(async (prisma) => ({
       fileId: (await prisma.fileObject.findFirstOrThrow({ where: { pageId }, select: { id: true } })).id,
       groupId: (await prisma.group.create({ data: { name: `E2E 権限の一覧 ${Date.now()}` } })).id,
@@ -41,7 +48,7 @@ test.describe("Access matrix", () => {
   });
 
   test.afterAll(async ({ browser }) => {
-    await withPrisma((prisma) => prisma.group.delete({ where: { id: groupId } }));
+    if (groupId) await withPrisma((prisma) => prisma.group.delete({ where: { id: groupId } }));
     const context = await contextFor(browser, "admin");
     const page = await context.newPage();
     await openPage(page, pageId);
