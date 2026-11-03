@@ -19,6 +19,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Fixed
 
+- On iPad (and phone browsers), the bottom of the left pane (account, trash, log out) was hidden behind the browser's toolbar; dialogs and the history list could run under it too
 - After saving a setting, a drop-down list or a checkbox showed the old value until the page was reloaded (the admin console, the account's language, a page's permissions)
 
 ### Development
