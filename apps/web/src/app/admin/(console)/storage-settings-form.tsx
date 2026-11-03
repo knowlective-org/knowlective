@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import type { StorageSettingsView } from "@/lib/storage";
 import styles from "@/styles/ui.module.css";
 import {
@@ -37,7 +38,7 @@ export function StorageSettingsForm({
         {ta("storage.fileCount", { count: fileCount })}
       </p>
 
-      <form data-ui="StorageSettingsForm.settingsForm" action={formAction} className={styles.form}>
+      <form data-ui="StorageSettingsForm.settingsForm" action={formAction} onSubmit={submitKeepingValues(formAction)} className={styles.form}>
         <label>
           {ta("storage.endpoint")}
           <input

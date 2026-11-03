@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
-import { createPage, editorBody, openPage, pasteFile, trashOpenPage, typeInBody } from "./helpers";
+import { withPrisma } from "./db";
+import { attachFile, createPage, editorBody, openPage, pasteFile, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
@@ -139,6 +140,46 @@ test.describe("Files", () => {
     await expect(dialog).toContainText(".exe");
     await page.getByTestId("AppDialog.closeButton").click();
     await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("a file dropped outside the blocks goes at the end, with the same choices as in the page", async ({ page }) => {
+    await createPage(page, "E2E 枠外へのドロップ");
+    await typeInBody(page, "最初の段落");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    // Onto the title: not a block.
+    await page.getByTestId("TitleField").evaluate((el, content) => {
+      const data = new DataTransfer();
+      data.items.add(new File([content], "落とした.md", { type: "text/markdown" }));
+      const r = el.getBoundingClientRect();
+      const at = { clientX: r.left + 5, clientY: r.top + 5, dataTransfer: data, bubbles: true, cancelable: true };
+      el.dispatchEvent(new DragEvent("dragover", at));
+      el.dispatchEvent(new DragEvent("drop", at));
+    }, "落とした本文\n");
+    await page.locator('[data-ui="AppDialog.choiceButton"][data-id="expand"]').click();
+    await expect(editorBody(page)).toContainText("落とした本文");
+    // After what was there.
+    await expect(editorBody(page).locator(".bn-block-content").last()).toContainText("落とした本文");
+    await expect(editorBody(page)).toContainText("最初の段落");
+    await trashOpenPage(page);
+  });
+
+  // What the cleanup of attachments goes by (lib/file-cleanup.ts): a file
+  // whose block is removed is no longer among the page's references, and is
+  // marked when the cleanup next runs.
+  test("removing an attachment's block drops it from the page's references", async ({ page }) => {
+    const { id } = await createPage(page, "E2E 添付の削除");
+    await attachFile(page, { name: "消すファイル.txt", type: "text/plain", base64: base64("消す") });
+    const fileId = await withPrisma(async (prisma) => (await prisma.fileObject.findFirstOrThrow({ where: { pageId: id } })).id);
+    const refs = () =>
+      withPrisma(async (prisma) => (await prisma.pageFileRefs.findUnique({ where: { pageId: id } }))?.fileIds ?? []);
+    await expect.poll(refs, { timeout: 15_000 }).toContain(fileId);
+
+    await editorBody(page).click();
+    await page.keyboard.press("Control+a");
+    await page.keyboard.press("Backspace");
+    await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(0);
+    await expect.poll(refs, { timeout: 15_000 }).not.toContain(fileId);
     await trashOpenPage(page);
   });
 });

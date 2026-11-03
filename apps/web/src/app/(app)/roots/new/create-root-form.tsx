@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import styles from "@/styles/ui.module.css";
 import { type CreateRootState, createRoot } from "./actions";
 
@@ -16,7 +17,7 @@ export function CreateRootForm({ groups }: { groups: { id: string; name: string;
   const t = useTranslations("newRoot");
 
   return (
-    <form action={formAction} className={styles.form} data-ui="CreateRootForm">
+    <form action={formAction} onSubmit={submitKeepingValues(formAction)} className={styles.form} data-ui="CreateRootForm">
       <label>
         {t("name")}
         <input

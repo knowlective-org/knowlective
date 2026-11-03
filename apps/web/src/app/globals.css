@@ -171,3 +171,8 @@ a {
     break-inside: avoid;
   }
 }
+/* File paths in a page's text: a click copies them (components/editor/file-paths.ts). */
+::highlight(knowlective-file-path) {
+  background-color: var(--color-primary-light);
+  text-decoration: underline dotted;
+}

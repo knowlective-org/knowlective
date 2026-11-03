@@ -279,6 +279,12 @@
   border-radius: 4px;
 }
 
+.cellTextarea {
+  display: block;
+  min-width: 160px;
+  resize: vertical;
+}
+
 .cellInput:hover,
 .cellInput:focus,
 .cellSelect:hover {

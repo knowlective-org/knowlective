@@ -8,6 +8,7 @@ import type { PropertyColumn, SelectOption } from "@/lib/page-property-types";
 export const MAX_COLUMNS = 30;
 export const MAX_COLUMN_NAME_LENGTH = 50;
 export const MAX_TEXT_LENGTH = 2000;
+export const MAX_LONG_TEXT_LENGTH = 10000;
 export const MAX_SELECT_OPTIONS = 50;
 
 const nameAad = (defId: string) => `knowlective:prop-name:${defId}`;
@@ -80,6 +81,8 @@ export function validateValue(
   switch (column.type) {
     case "TEXT":
       return value.length <= MAX_TEXT_LENGTH;
+    case "LONG_TEXT":
+      return value.length <= MAX_LONG_TEXT_LENGTH;
     case "DATE":
       return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
     case "USER":

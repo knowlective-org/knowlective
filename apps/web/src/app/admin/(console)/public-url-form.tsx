@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import styles from "@/styles/ui.module.css";
 import { type PublicUrlState, savePublicUrl } from "./actions";
 
@@ -12,7 +13,7 @@ export function PublicUrlForm({ current, suggested }: { current: string | null; 
   const ta = useTranslations("admin");
 
   return (
-    <form data-ui="PublicUrlForm" action={formAction} className={styles.form}>
+    <form data-ui="PublicUrlForm" action={formAction} onSubmit={submitKeepingValues(formAction)} className={styles.form}>
       <label>
         {ta("publicUrl.label")}
         <input

@@ -43,8 +43,13 @@ test.describe("Child page board", () => {
 
     // Moved by dragging.
     // With real mouse moves in several steps: a browser only starts a drag
-    // once the pointer has travelled a little.
-    const from = (await card.getByTestId("ChildBoardBlock.cardLink").boundingBox())!;
+    // once the pointer has travelled a little. First let the select's move be
+    // saved: the board draws its cards again after that, and a card being
+    // drawn again has no box.
+    await expect(page.getByTestId("ChildBoardBlock.board")).toHaveAttribute("aria-busy", "false");
+    const cardLink = lane(page, "進行中").getByTestId("ChildBoardBlock.cardLink");
+    await expect(cardLink).toBeVisible();
+    const from = (await cardLink.boundingBox())!;
     const to = (await lane(page, "完了").boundingBox())!;
     await page.mouse.move(from.x + 4, from.y + from.height / 2);
     await page.mouse.down();

@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import styles from "@/styles/ui.module.css";
 import { type UploadLimitState, saveUploadLimit } from "./actions";
 
@@ -9,7 +10,7 @@ export function UploadLimitForm({ current, maxLimitMb }: { current: number; maxL
   const [state, formAction, pending] = useActionState(saveUploadLimit, {} as UploadLimitState);
   const ta = useTranslations("admin");
   return (
-    <form data-ui="UploadLimitForm" action={formAction} className={styles.form}>
+    <form data-ui="UploadLimitForm" action={formAction} onSubmit={submitKeepingValues(formAction)} className={styles.form}>
       <label>
         {ta("uploadLimit.label", { max: maxLimitMb })}
         <input

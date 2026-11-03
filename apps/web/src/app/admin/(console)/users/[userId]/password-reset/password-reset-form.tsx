@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import styles from "@/styles/ui.module.css";
 import { issuePasswordReset, type PasswordResetIssueState } from "../../actions";
 
@@ -23,7 +24,15 @@ export function PasswordResetIssueForm({
 
   return (
     <div data-ui="PasswordResetIssueForm" className={styles.form}>
-      <form data-ui="PasswordResetIssueForm.form" action={formAction} className={styles.form} onSubmit={() => setCopied(false)}>
+      <form
+        data-ui="PasswordResetIssueForm.form"
+        action={formAction}
+        className={styles.form}
+        onSubmit={(e) => {
+          setCopied(false);
+          submitKeepingValues(formAction)(e);
+        }}
+      >
         <input type="hidden" name="userId" value={userId} />
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <input

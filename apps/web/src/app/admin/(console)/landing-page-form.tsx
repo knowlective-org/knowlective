@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import type { LandingPageOption } from "@/lib/landing-page";
 import styles from "@/styles/ui.module.css";
 import { type LandingPageSettingState, saveLandingPage } from "./actions";
@@ -22,7 +23,7 @@ export function LandingPageForm({
   const known = landingPageId === null || options.some((o) => o.id === landingPageId);
 
   return (
-    <form data-ui="LandingPageForm" action={formAction} className={styles.form}>
+    <form data-ui="LandingPageForm" action={formAction} onSubmit={submitKeepingValues(formAction)} className={styles.form}>
       <label>
         {ta("landing.label")}
         <select

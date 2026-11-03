@@ -172,6 +172,7 @@ model Page {
   propertyValues PagePropertyValue[]
   versions       PageVersion[]
   searchIndex    PageSearchIndex?
+  fileRefs       PageFileRefs?
 
   @@index([rootId])
   @@index([parentId, sortOrder])
@@ -181,6 +182,8 @@ model Page {
 // `state` is encrypted with the instance data encryption key (see InstanceConfig).
 enum PropertyType {
   TEXT
+  // Several lines (Enter starts a new line in the cell).
+  LONG_TEXT
   DATE
   USER
   SELECT
@@ -266,6 +269,18 @@ model PageSearchIndex {
   indexedAt DateTime @default(now())
 
   @@index([tokens], type: Gin)
+}
+
+// The attachments a page's current body shows (referencedFileIds(), from any
+// knowledge root), kept up to date by reindexPage(). An attachment no page
+// shows any more (trashed pages count, versions don't) is deleted after a
+// while (apps/web/src/lib/file-cleanup.ts). No row: not worked out yet, and
+// the cleanup waits until every page has one.
+model PageFileRefs {
+  pageId    String   @id
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  fileIds   String[]
+  updatedAt DateTime @updatedAt
 }
 
 model PageDocument {
@@ -716,6 +731,10 @@ model FileObject {
   textEnc         Bytes?
   // When the text was read (null: not yet; filled in in the background).
   textExtractedAt DateTime?
+  // Since when no page's body has shown the file (PageFileRefs); null while
+  // one does. Deleted with its stored object some time after
+  // (apps/web/src/lib/file-cleanup.ts).
+  unreferencedAt  DateTime?
 
   @@index([rootId])
 }

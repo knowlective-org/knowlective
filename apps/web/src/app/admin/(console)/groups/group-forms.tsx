@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import styles from "@/styles/ui.module.css";
 import { type GroupFormState, createGroup, updateGroup } from "./actions";
 
@@ -57,7 +58,7 @@ export function EditGroupForm({
   const [state, formAction, pending] = useActionState(updateGroup, {} as GroupFormState);
   const ta = useTranslations("admin");
   return (
-    <form data-ui="EditGroupForm" action={formAction} className={styles.form}>
+    <form data-ui="EditGroupForm" action={formAction} onSubmit={submitKeepingValues(formAction)} className={styles.form}>
       <input type="hidden" name="id" value={id} />
       <GroupFields name={name} description={description} />
       <p data-ui="EditGroupForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
