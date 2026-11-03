@@ -271,7 +271,7 @@ export async function setCellValue(childId: string, defId: string, value: string
   }
   const key = await loadDataKey(prisma);
   const column = openColumn(key, def);
-  const trimmed = column.type === "TEXT" ? value.trim() : value;
+  const trimmed = column.type === "TEXT" || column.type === "LONG_TEXT" ? value.trim() : value;
   const assignees = column.type === "USER" && trimmed ? await getUsersWithPageAccess(prisma, def.pageId) : [];
   if (!validateValue(column, trimmed, (id) => assignees.some((u) => u.id === id))) {
     return { error: (await getTranslations("childPages"))("value") };

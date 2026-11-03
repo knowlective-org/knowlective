@@ -42,6 +42,7 @@ import {
 } from "./editor/markdown-import";
 import { PageEditorContext, type PageEditorContextValue } from "./editor/page-context";
 import { customSlashMenuItems, editorSchema } from "./editor/schema";
+import { useFilePaths } from "./editor/file-paths";
 import { showAlert, showChoice, showConfirm } from "./dialog";
 import { EditorPlaceholder } from "./editor-placeholder";
 import styles from "./collaborative-editor.module.css";
@@ -579,6 +580,56 @@ function EditorBody({
       const added = getChanges().filter((c) => c.type !== "delete" && c.source.type !== "yjs-remote");
       demoteH1(added.map((c) => c.block as AnyBlock));
     });
+  }, [editor, readOnly]);
+
+  // A click on a file path in the text copies it (a browser won't open it).
+  useFilePaths(editor);
+
+  // Files dropped outside the blocks (the title, the margins, below the last
+  // block) go at the end of the page, the way a paste does: BlockNote only
+  // takes a drop onto a block, and otherwise the browser would open the file
+  // in place of the page. A Markdown or text file still offers to be expanded.
+  useEffect(() => {
+    if (readOnly) return;
+    const view = () => editor.prosemirrorView;
+    const outsideBlocks = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes("Files")) return false;
+      const target = e.target as Element | null;
+      if (!target?.closest("main")) return false;
+      const dom = editor.domElement;
+      if (!dom?.contains(target)) return true;
+      return !view()?.posAtCoords({ left: e.clientX, top: e.clientY });
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (!outsideBlocks(e)) return;
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = "copy";
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!outsideBlocks(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const files = new DataTransfer();
+      for (const file of Array.from(e.dataTransfer!.files)) files.items.add(file);
+      if (files.items.length === 0) return;
+      // An empty last paragraph takes the file; otherwise a new one after the last block.
+      const blocks = editor.document;
+      const last = blocks[blocks.length - 1];
+      const emptyParagraph =
+        last.type === "paragraph" && Array.isArray(last.content) && last.content.length === 0 && last.children.length === 0;
+      const target = emptyParagraph ? last : editor.insertBlocks([{ type: "paragraph" }], last, "after")[0];
+      editor.setTextCursorPosition(target, "end");
+      editor.domElement?.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: files, bubbles: true, cancelable: true }),
+      );
+    };
+    // Capture: ahead of BlockNote's own drop handling on the editor.
+    window.addEventListener("dragover", onDragOver, true);
+    window.addEventListener("drop", onDrop, true);
+    return () => {
+      window.removeEventListener("dragover", onDragOver, true);
+      window.removeEventListener("drop", onDrop, true);
+    };
   }, [editor, readOnly]);
 
   // Undo/redo (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z) uses y-prosemirror's

@@ -10,7 +10,16 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Attachments are deleted, stored file included, 30 days after no page shows them any more (their block was removed). Undoing, pasting the block back or restoring the page from the trash within that time keeps them; old versions don't, so restoring one after that shows the file as missing
+- Files dropped outside the blocks (onto the title, the margins or below the last block) go at the end of the page, with the same choices as a paste: expand or attach a Markdown or text file, attach anything else
+- Child page tables: a "Text (several lines)" column type
+- File paths in a page's text (`C:\…`, `\\server\share\…`, `file://…`) are marked, and a click copies them: a browser can't open files or folders on your computer
+- Code blocks: no spellcheck, and Ctrl/Cmd+A selects the block's code (press again for the whole page)
 - Inherited access can be narrowed on a child page's "Permissions": Edit to View or No access, View to No access, for that page and the pages below. Never made stronger; groups managing the pages above can't be changed. "Inherit again" undoes it. Open editors reconnect when access changes
+
+### Fixed
+
+- After saving a setting, a drop-down list or a checkbox showed the old value until the page was reloaded (the admin console, the account's language, a page's permissions)
 
 ### Development
 
@@ -19,7 +28,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Upgrade notes
 
-- The database gets a new access level (`NONE`); the migration runs at startup
+- The database gets a new access level (`NONE`), a table of the attachments each page shows, and a column type for child page tables; the migrations run at startup. Existing pages' attachments are worked out at startup; until every page has been, nothing is deleted
 
 ### Security
 

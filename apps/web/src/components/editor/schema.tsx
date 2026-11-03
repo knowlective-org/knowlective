@@ -15,6 +15,7 @@ import { linkPreviewBlock } from "./link-preview-block";
 import { mermaidBlock } from "./mermaid-block";
 import { pdfBlock } from "./pdf-block";
 import { videoEmbedBlock } from "./video-embed-block";
+import { codeBlock } from "./code-block";
 import { HEADING_LEVELS } from "./block-configs";
 
 // The editor's block types: BlockNote's defaults plus knowlective's own. Block
@@ -30,6 +31,7 @@ export { HEADING_LEVELS };
 export const editorSchema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
+    codeBlock,
     heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
     childPages: childPagesBlock(),
     childTable: childTableBlock(),

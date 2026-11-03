@@ -132,12 +132,14 @@ export function referencedFileIds(doc: Y.Doc): string[] {
 }
 
 // `files`: the names of the attachments the page shows; `fileTexts`: the
-// text of those that have some (lib/file-text.ts).
+// text of those that have some (lib/file-text.ts); `fileIds`: every
+// attachment the body shows, other knowledge roots' included (PageFileRefs).
 export type PageSearchText = {
   title: string;
   body: string;
   files: string[];
   fileTexts: { name: string; text: string }[];
+  fileIds: string[];
 };
 
 // Title, body and attachments of a page. `state` is the document's Yjs
@@ -179,6 +181,7 @@ export async function pageSearchText(prisma: PrismaClient, pageId: string, state
     fileTexts: files.flatMap((f) =>
       f.textEnc ? [{ name: f.name, text: decrypt(dataKey, f.textEnc, fileTextAad(f.id)).toString("utf8") }] : [],
     ),
+    fileIds,
   };
 }
 
@@ -195,9 +198,16 @@ export async function reindexPage(prisma: PrismaClient, pageId: string, state?: 
       create: { pageId, tokens, indexedAt: new Date() },
       update: { tokens, indexedAt: new Date() },
     });
+    await saveFileRefs(prisma, pageId, text.fileIds);
   } catch (err) {
     console.error("[search] indexing failed for a page", err);
   }
+}
+
+// The attachments the page's body shows, for the cleanup of the ones no page
+// shows (lib/file-cleanup.ts).
+async function saveFileRefs(prisma: PrismaClient, pageId: string, fileIds: string[]): Promise<void> {
+  await prisma.pageFileRefs.upsert({ where: { pageId }, create: { pageId, fileIds }, update: { fileIds } });
 }
 
 // Pages whose index is missing or older than their content (e.g. after this
@@ -210,6 +220,7 @@ export async function reindexStalePages(prisma: PrismaClient): Promise<number> {
       updatedAt: true,
       document: { select: { updatedAt: true } },
       searchIndex: { select: { indexedAt: true } },
+      fileRefs: { select: { pageId: true } },
       files: { select: { createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
@@ -220,7 +231,15 @@ export async function reindexStalePages(prisma: PrismaClient): Promise<number> {
       p.document?.updatedAt.getTime() ?? 0,
       p.files[0]?.createdAt.getTime() ?? 0,
     );
-    if (p.searchIndex && p.searchIndex.indexedAt.getTime() >= changed) continue;
+    if (p.searchIndex && p.searchIndex.indexedAt.getTime() >= changed) {
+      // Up to date, but from before PageFileRefs: only those (reindexing would
+      // also redo the page's semantic-search vectors).
+      if (!p.fileRefs) {
+        const text = await pageSearchText(prisma, p.id).catch(() => null);
+        if (text) await saveFileRefs(prisma, p.id, text.fileIds).catch(() => {});
+      }
+      continue;
+    }
     await reindexPage(prisma, p.id);
     count++;
   }

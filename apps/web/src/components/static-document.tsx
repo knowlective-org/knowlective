@@ -10,6 +10,7 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { PageEditorContext, type PageEditorContextValue } from "@/components/editor/page-context";
 import { editorSchema } from "@/components/editor/schema";
+import { useFilePaths } from "@/components/editor/file-paths";
 import { useLocale } from "next-intl";
 import { blockNoteDictionary } from "@/i18n/blocknote";
 import { useDisplayTitle } from "@/i18n/use-display-title";
@@ -39,6 +40,7 @@ export function StaticDocument({ pageId, state, dataUi }: { pageId: string; stat
     }),
     [doc, locale],
   );
+  useFilePaths(editor);
   const context = useMemo<PageEditorContextValue>(() => ({ pageId, onChildrenChanged: () => () => {} }), [pageId]);
 
   return (

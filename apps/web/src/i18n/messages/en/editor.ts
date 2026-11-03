@@ -3,6 +3,11 @@
 export default {
   editor: {
     titleLabel: "Page title",
+    filePath: {
+      copied: "Path copied. Browsers can't open files or folders on your computer: paste it into File Explorer's address bar (or Finder's Go to Folder).",
+      copyTitle: "File path",
+      copyManually: "Browsers can't open files or folders on your computer. Copy the path and paste it into File Explorer's address bar (or Finder's Go to Folder).",
+    },
     openFailed: "This page couldn't be opened. Please reload.",
     movedToTrash: "This page was moved to the trash.",
     uploadFailedTitle: "Can't upload",
@@ -108,6 +113,7 @@ export default {
       newPagePlaceholder: "Type the page title and press Enter (empty for untitled)",
       types: {
         TEXT: "Text",
+        LONG_TEXT: "Text (several lines)",
         DATE: "Date",
         USER: "User",
         SELECT: "Select",

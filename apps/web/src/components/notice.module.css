@@ -1,0 +1,20 @@
+.notice {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 1000;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  transform: translateX(-50%);
+}
+
+@media print {
+  .notice {
+    display: none;
+  }
+}

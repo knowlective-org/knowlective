@@ -31,6 +31,8 @@ test.describe("Display language", () => {
         await choose("en");
         await expect(page.locator("html")).toHaveAttribute("lang", "en");
         await expect(page.getByTestId("LocaleForm.status")).toHaveText("Saved.");
+        // Still showing the saved choice, not the one the form was first drawn with.
+        await expect(page.getByTestId("LocaleForm.localeSelect")).toHaveValue("en");
         await page.goto(`pages/${HOME_PAGE_ID}`);
         await expect(page.getByTestId("PageView.readOnlyBadge")).toHaveText("View only");
         await expect(page.getByTestId("Sidebar.trashLink")).toHaveAttribute("aria-label", "Trash");

@@ -47,10 +47,13 @@ test("inherited access can be narrowed or taken away on a child page, not raised
   await row(page, edit).getByTestId("AccessSelect").selectOption("VIEW");
   await row(page, edit).getByTestId("SharePage.overrideButton").click();
   await expect(row(page, edit).getByTestId("SharePage.overriddenStatus")).toBeVisible();
+  // The select keeps showing what was saved (React resets the form after the action).
+  await expect(row(page, edit).getByTestId("AccessSelect")).toHaveValue("VIEW");
   // Viewers: taken away here.
   await row(page, view).getByTestId("AccessSelect").selectOption("NONE");
   await row(page, view).getByTestId("SharePage.overrideButton").click();
   await expect(row(page, view).getByTestId("SharePage.overriddenStatus")).toBeVisible();
+  await expect(row(page, view).getByTestId("AccessSelect")).toHaveValue("NONE");
 
   let editor = await openAs(browser, "editor", id);
   await expect(editor.page.getByTestId("PageView.readOnlyBadge")).toBeVisible();

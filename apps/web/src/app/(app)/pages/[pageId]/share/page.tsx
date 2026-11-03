@@ -160,7 +160,9 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
                         <form action={setGrant} style={{ display: "flex", gap: 8, alignItems: "center" }} data-ui="SharePage.changeGrantForm">
                           <input type="hidden" name="pageId" value={pageId} />
                           <input type="hidden" name="groupId" value={g.groupId} />
-                          <AccessSelect defaultValue={g.access} />
+                          {/* Keyed by the saved value: React resets the form after the action, and a
+                              select resets to the option it was first rendered with. */}
+                          <AccessSelect key={g.access} defaultValue={g.access} />
                           <button type="submit" className={styles.button} data-ui="SharePage.changeGrantButton">
                             {t("share.change")}
                           </button>
@@ -217,7 +219,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
                             <form action={setGrant} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-ui="SharePage.overrideForm">
                               <input type="hidden" name="pageId" value={pageId} />
                               <input type="hidden" name="groupId" value={r.groupId} />
-                              <AccessSelect defaultValue={override ?? r.access} options={narrowerOrEqual(r.access)} />
+                              <AccessSelect key={override ?? r.access} defaultValue={override ?? r.access} options={narrowerOrEqual(r.access)} />
                               <button type="submit" className={styles.button} data-ui="SharePage.overrideButton">
                                 {t("share.change")}
                               </button>

@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import { type AppLocale, LOCALES, LOCALE_NAMES } from "@/i18n/locales";
 import { StatusRow } from "@/components/status-row";
 import styles from "@/styles/ui.module.css";
@@ -13,7 +14,7 @@ export function LocaleForm({ current }: { current: AppLocale | null }) {
   const t = useTranslations();
 
   return (
-    <form data-ui="LocaleForm" action={formAction} className={styles.form}>
+    <form data-ui="LocaleForm" action={formAction} onSubmit={submitKeepingValues(formAction)} className={styles.form}>
       <label>
         {t("account.language.label")}
         <select name="locale" defaultValue={current ?? ""} className={styles.field} data-ui="LocaleForm.localeSelect">

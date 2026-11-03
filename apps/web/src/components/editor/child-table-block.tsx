@@ -573,6 +573,7 @@ function AddColumnForm({ onSubmit }: { onSubmit: (name: string, type: PropertyTy
   return (
     <form
       className={styles.form}
+      data-ui="AddColumnForm"
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit(name, type);
@@ -583,18 +584,24 @@ function AddColumnForm({ onSubmit }: { onSubmit: (name: string, type: PropertyTy
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder={t("columnNamePlaceholder")}
+        data-ui="AddColumnForm.nameInput"
         maxLength={50}
         autoFocus
         required
       />
-      <select className={styles.input} value={type} onChange={(e) => setType(e.target.value as PropertyType)}>
+      <select
+        className={styles.input}
+        value={type}
+        onChange={(e) => setType(e.target.value as PropertyType)}
+        data-ui="AddColumnForm.typeSelect"
+      >
         {PROPERTY_TYPES.map((p) => (
           <option key={p} value={p}>
             {t(`types.${p}`)}
           </option>
         ))}
       </select>
-      <button type="submit" className={styles.primaryButton}>
+      <button type="submit" className={styles.primaryButton} data-ui="AddColumnForm.submitButton">
         {t("add")}
       </button>
     </form>
@@ -773,7 +780,44 @@ function Cell({
   }
 
   if (!editable) return <span className={styles.text}>{value}</span>;
+  if (column.type === "LONG_TEXT") return <LongTextCell value={value} onSave={onSave} />;
   return <TextCell value={value} onSave={onSave} />;
+}
+
+// Like TextCell, over several lines: Enter starts a new line, Ctrl/Cmd+Enter
+// or leaving the cell saves, Esc restores. Grows with its text.
+function LongTextCell({ value, onSave }: { value: string; onSave: (value: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const [editing, setEditing] = useState(false);
+  const cancelled = useRef(false);
+  const shown = editing ? draft : value;
+  return (
+    <textarea
+      className={`${styles.cellInput} ${styles.cellTextarea}`}
+      data-ui="LongTextCell"
+      value={shown}
+      rows={Math.min(shown.split("\n").length, 12)}
+      maxLength={10000}
+      onFocus={() => {
+        setDraft(value);
+        setEditing(true);
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        setEditing(false);
+        if (!cancelled.current && draft.trim() !== value) onSave(draft);
+        cancelled.current = false;
+      }}
+      onKeyDown={(e) => {
+        if (e.nativeEvent.isComposing) return;
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.currentTarget.blur();
+        if (e.key === "Escape") {
+          cancelled.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
 }
 
 // Saves on blur / Enter; Esc restores. A remote change replaces the text

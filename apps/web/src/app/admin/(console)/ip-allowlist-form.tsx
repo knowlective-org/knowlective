@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import styles from "@/styles/ui.module.css";
 import { saveIpAllowlist, type AllowlistState } from "./actions";
 
@@ -12,7 +13,7 @@ export function IpAllowlistForm({ current, clientIp }: { current: string[]; clie
   const ta = useTranslations("admin");
 
   return (
-    <form data-ui="IpAllowlistForm" action={formAction} className={styles.form}>
+    <form data-ui="IpAllowlistForm" action={formAction} onSubmit={submitKeepingValues(formAction)} className={styles.form}>
       <label>
         {ta("ipAllowlist.label")}
         <textarea

@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
+import { submitKeepingValues } from "@/lib/form-submit";
 import type { SmtpSecurity } from "shared";
 import type { MailSettingsView } from "@/lib/mail";
 import styles from "@/styles/ui.module.css";
@@ -22,7 +23,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
   const [authEnabled, setAuthEnabled] = useState(current?.authEnabled ?? true);
 
   return (
-    <form data-ui="MailSettingsForm" action={formAction} className={styles.form}>
+    <form data-ui="MailSettingsForm" action={formAction} onSubmit={submitKeepingValues(formAction)} className={styles.form}>
       <label>
         {ta("mail.from")}
         <input

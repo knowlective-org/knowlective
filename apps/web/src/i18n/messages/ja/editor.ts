@@ -4,6 +4,11 @@ import type { MessageShape } from "../en";
 const ja: MessageShape<typeof en> = {
   editor: {
     titleLabel: "ページタイトル",
+    filePath: {
+      copied: "パスをコピーしました。ブラウザーからはファイルやフォルダーを開けないので、エクスプローラーのアドレス欄などに貼り付けてください。",
+      copyTitle: "ファイルのパス",
+      copyManually: "ブラウザーからはファイルやフォルダーを開けません。パスをコピーして、エクスプローラーのアドレス欄などに貼り付けてください。",
+    },
     openFailed: "このページを開けませんでした。再読み込みしてください。",
     movedToTrash: "このページはごみ箱に移動されました。",
     uploadFailedTitle: "アップロードできません",
@@ -107,6 +112,7 @@ const ja: MessageShape<typeof en> = {
       newPagePlaceholder: "ページのタイトルを入力して Enter（空なら無題）",
       types: {
         TEXT: "テキスト",
+        LONG_TEXT: "複数行テキスト",
         DATE: "日付",
         USER: "ユーザー",
         SELECT: "選択肢",
