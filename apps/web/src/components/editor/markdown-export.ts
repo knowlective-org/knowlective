@@ -63,6 +63,8 @@ function childPageList(
 // - Columns → their blocks one after another (first column first)
 // - Masked text → a placeholder: the text is only ever opened on screen
 // - Chat → left out (its messages aren't in the document)
+// - TODO → a check list item, with its due date after the text (not the
+//   assignee: the document has only their id)
 // and with links to attachments made absolute, so they work outside the site.
 export function prepareBlocksForExport(
   blocks: ExportBlock[],
@@ -109,6 +111,16 @@ export function prepareBlocksForExport(
         return children;
       case "maskedText":
         return [block("paragraph", [text("🔒 ••••••••")]), ...children];
+      case "todo": {
+        const content = Array.isArray(b.content) ? b.content : [];
+        const due = String(b.props?.due ?? "");
+        return [
+          block("checkListItem", due ? [...content, text(` 📅 ${due}`)] : content, {
+            props: { checked: b.props?.checked === true },
+            children,
+          }),
+        ];
+      }
       case "childPages":
       case "childTable":
       case "childBoard": {

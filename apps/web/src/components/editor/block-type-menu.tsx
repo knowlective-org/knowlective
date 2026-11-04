@@ -24,12 +24,16 @@ import { HEADING_LEVELS, editorSchema } from "./schema";
 // The block types a text block can be turned into: BlockNote's list, without
 // the heading levels the schema doesn't allow (the page title is the only H1;
 // the default list still offers H1, which demoteH1 would only turn into H2).
-export function textBlockTypes(dict: Dictionary): BlockTypeSelectItem[] {
-  return blockTypeSelectItems(dict).filter(
-    (item) =>
-      item.type !== "heading" || (HEADING_LEVELS as readonly unknown[]).includes(item.props?.level),
-  );
+// The check list is offered as a TODO (todo-block.tsx), under `todoName`.
+export function textBlockTypes(dict: Dictionary, todoName: string): BlockTypeSelectItem[] {
+  return blockTypeSelectItems(dict)
+    .filter((item) => item.type !== "heading" || (HEADING_LEVELS as readonly unknown[]).includes(item.props?.level))
+    .map((item) => (item.type === "checkListItem" ? { ...item, name: todoName, type: "todo", props: {} } : item));
 }
+
+// Check lists already in pages can be turned into something else (a TODO).
+const convertible = (items: BlockTypeSelectItem[], type: string) =>
+  type === "checkListItem" || items.some((item) => item.type === type);
 
 // The toolbar shown over selected text, with the filtered type list.
 export function EditorFormattingToolbar() {
@@ -38,7 +42,8 @@ export function EditorFormattingToolbar() {
 
 function Toolbar() {
   const dict = useDictionary();
-  return <FormattingToolbar blockTypeSelectItems={textBlockTypes(dict)} />;
+  const t = useTranslations("editor.slash");
+  return <FormattingToolbar blockTypeSelectItems={textBlockTypes(dict, t("todo"))} />;
 }
 
 // The ⋮⋮ handle's menu: BlockNote's items, plus changing the block's type.
@@ -68,11 +73,12 @@ function BlockTypeItem() {
   const editor = useBlockNoteEditor(editorSchema);
   const dict = useDictionary();
   const t = useTranslations("editor.blockType");
+  const slash = useTranslations("editor.slash");
   const block = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
   if (block === undefined) return null;
 
-  const items = textBlockTypes(dict);
-  if (!items.some((item) => item.type === block.type)) return null;
+  const items = textBlockTypes(dict, slash("todo"));
+  if (!convertible(items, block.type)) return null;
   const isCurrent = (item: BlockTypeSelectItem) =>
     item.type === block.type &&
     Object.entries(item.props ?? {}).every(([name, value]) => block.props[name] === value);
@@ -100,7 +106,7 @@ function BlockTypeItem() {
                 const targets = selected?.some((b) => b.id === block.id) ? selected : [block];
                 editor.transact(() => {
                   for (const target of targets) {
-                    if (!items.some((i) => i.type === target.type)) continue;
+                    if (!convertible(items, target.type)) continue;
                     // The items are this schema's types (textBlockTypes()).
                     editor.updateBlock(target, { type: item.type as typeof target.type, props: item.props });
                   }

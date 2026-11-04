@@ -3,16 +3,19 @@
 // them from a web page, so the editor copies them on a click instead
 // (components/editor/file-paths.ts). Dependency-free, for the unit tests.
 //
-// A bare path ends at the first space; one with spaces in it (C:\Program
-// Files\…) is taken whole when it's in quotes or 「」『』.
+// Folder and file names often have spaces in them (C:\Program Files\…,
+// \\server\共有 フォルダ\…), so a path runs to the end of its block (line),
+// spaces included. One in quotes or 「」『』 ends at the closing quote, so
+// text can follow it.
 
 export type PathMatch = { start: number; end: number; path: string };
 
 const START = String.raw`(?:(?<![A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\\\s"“”「」『』]+\\|file:\/\/)`;
 const QUOTED = new RegExp(String.raw`["“「『](${START}[^"“”「」『』\r\n]*?)["”」』]`, "g");
-const BARE = new RegExp(String.raw`${START}[^\s"“”「」『』<>|]*`, "g");
-// Punctuation that ends the sentence rather than the path.
-const TRAILING = /[。、，,.;；:：!！?？)）\]】]+$/;
+// To the end of the line; <>|" can't be in a Windows path.
+const BARE = new RegExp(String.raw`${START}[^\r\n"<>|]*`, "g");
+// Spaces and punctuation that end the sentence rather than the path.
+const TRAILING = /[\s。、，,.;；:：!！?？)）\]】]+$/;
 
 export function findFilePaths(text: string): PathMatch[] {
   const found: PathMatch[] = [];

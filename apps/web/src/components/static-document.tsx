@@ -41,7 +41,7 @@ export function StaticDocument({ pageId, state, dataUi }: { pageId: string; stat
     [doc, locale],
   );
   useFilePaths(editor);
-  const context = useMemo<PageEditorContextValue>(() => ({ pageId, onChildrenChanged: () => () => {} }), [pageId]);
+  const context = useMemo<PageEditorContextValue>(() => ({ pageId, userId: null, onChildrenChanged: () => () => {} }), [pageId]);
 
   return (
     <div data-ui={dataUi}>

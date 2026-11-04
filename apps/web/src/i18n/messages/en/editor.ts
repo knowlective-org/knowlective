@@ -68,6 +68,9 @@ export default {
       chatAliases: "",
       maskedText: "Masked text (passphrase)",
       maskedTextSub: "Text only people who know a passphrase can see, encrypted in the browser",
+      todo: "TODO",
+      todoSub: "A to-do with an assignee and a due date; who completed it and when is kept",
+      todoAliases: "",
       maskedTextAliases: "",
     },
     chat: {
@@ -82,6 +85,21 @@ export default {
       notAllowed: "You can't post in this chat.",
       invalid: "The message is empty or too long.",
       tooMany: "Too many messages at once. Wait a moment and try again.",
+    },
+    properties: {
+      label: "This page's properties",
+    },
+    todo: {
+      done: "Done",
+      assignee: "Assignee",
+      noAssignee: "No assignee",
+      assignedTo: "Assigned to {name}",
+      due: "Due date",
+      dueOn: "Due {date}",
+      overdue: "Overdue",
+      doneBy: "✓ Completed by {name}, {date}",
+      doneAt: "✓ Completed {date}",
+      unknownUser: "(unknown user)",
     },
     masked: {
       label: "Masked text",
