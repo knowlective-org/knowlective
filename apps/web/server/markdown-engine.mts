@@ -3,11 +3,12 @@
 // CommonJS package, and under require() Node gets BlockNote's CommonJS build,
 // which fails to load ("….default.extend is not a function").
 import { BlockNoteSchema, createBlockSpec, createCodeBlockSpec, createHeadingBlockSpec, defaultBlockSpecs } from "@blocknote/core";
-import { codeBlockOptions } from "@blocknote/code-block";
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import { withMultiColumn } from "@blocknote/xl-multi-column";
 import * as Y from "yjs";
 import { BLOCK_CONFIGS, HEADING_LEVELS } from "../src/components/editor/block-configs";
+import { codeBlockOptions } from "@blocknote/code-block";
+import { withOurLanguages } from "../src/components/editor/code-languages";
 
 // The editor's schema (components/editor/schema.tsx) without React: the same
 // block types and props. knowlective's own blocks render as an empty element,
@@ -26,8 +27,8 @@ const serverSchema = withMultiColumn(BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
-    // The editor's languages (CODE_BLOCK_OPTIONS in components/editor/code-block.ts).
-    codeBlock: createCodeBlockSpec({ ...codeBlockOptions, defaultLanguage: "text" }),
+    // The editor's languages.
+    codeBlock: createCodeBlockSpec(withOurLanguages(codeBlockOptions)),
     childPages: createBlockSpec(BLOCK_CONFIGS.childPages, plain)(),
     childTable: createBlockSpec(BLOCK_CONFIGS.childTable, plain)(),
     childBoard: createBlockSpec(BLOCK_CONFIGS.childBoard, plain)(),

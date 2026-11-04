@@ -14,6 +14,10 @@ export type ChatMessageView = {
   author: string | null;
   color: string | null;
   createdAt: string;
+  // When its author last changed it; null if never.
+  editedAt: string | null;
+  // Taken back by its author: `text` is empty, and only that is shown.
+  deleted: boolean;
 };
 
 export type ChatData = { messages: ChatMessageView[]; canPost: boolean };

@@ -1,12 +1,18 @@
-import { createCodeBlockSpec, createExtension } from "@blocknote/core";
-import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
+import { SyntaxHighlightingExtension, createCodeBlockSpec, createExtension } from "@blocknote/core";
+import { codeBlockOptions } from "@blocknote/code-block";
+import { withOurLanguages } from "./code-languages";
 
-// The languages a code block can be set to (the picker at its top left), and
-// syntax highlighting for them: @blocknote/code-block's (Shiki, loaded the
-// first time a code block is shown). New blocks start as plain text, as
-// before. The server's schema (server/markdown-engine.mts) uses the same
-// options, so a Markdown ```python block gets its language there too.
-export const CODE_BLOCK_OPTIONS = { ...codeBlockOptions, defaultLanguage: "text" };
+const CODE_BLOCK_OPTIONS = withOurLanguages(codeBlockOptions);
+
+// The languages a code block can be set to (the picker at its top left;
+// code-languages.ts), and syntax highlighting for them (Shiki,
+// code-highlighter.ts, loaded the first time a code block is shown).
+type CreateHighlighter = Parameters<typeof SyntaxHighlightingExtension>[0]["createHighlighter"];
+const syntaxHighlighter = SyntaxHighlightingExtension({
+  // The same highlighter type; BlockNote's is typed by its own copy of
+  // @shikijs/types (an older patch version).
+  createHighlighter: (() => import("./code-highlighter").then((m) => m.createCodeHighlighter())) as CreateHighlighter,
+});
 
 // BlockNote's code block with these changes for writing code:
 // - syntax highlighting by language (above);

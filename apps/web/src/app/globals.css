@@ -211,6 +211,56 @@ a {
   .bn-root tr {
     break-inside: avoid;
   }
+
+  .bn-root [data-content-type="codeBlock"] > div > select {
+    display: none;
+  }
+}
+
+/* An empty toggle's placeholder ("Toggle"): BlockNote draws it after the
+   block's content, and an open toggle's content is as wide as its "Empty
+   toggle…" line, so it stood out in the middle. Put it where the title's text
+   starts (after the 26px button), as tall as the line (headings are taller). */
+.bn-root .bn-block-content:has(> div > .bn-toggle-wrapper) {
+  position: relative;
+}
+
+.bn-root .bn-block-content:has(> div > .bn-toggle-wrapper):has(.ProseMirror-trailingBreak:only-child)::after {
+  position: absolute;
+  left: 26px;
+  right: 0;
+  display: flex;
+  align-items: center;
+  height: max(30px, 1lh);
+  margin-inline: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* A code block's language picker: BlockNote's is bare text that shows only
+   on hover; ours is always there, on a grey chip with room around the name. */
+.bn-root .bn-block-content[data-content-type="codeBlock"] > div > select {
+  top: 6px;
+  left: 14px;
+  padding: 2px 22px 2px 8px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: rgb(210 210 210);
+  background: rgb(255 255 255 / 0.12)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23d2d2d2' stroke-width='1.5'/%3E%3C/svg%3E")
+    no-repeat right 8px center;
+  border-radius: 4px;
+  opacity: 1;
+  transition: background-color 0.15s;
+}
+
+.bn-root .bn-block-content[data-content-type="codeBlock"] > div > select:hover,
+.bn-root .bn-block-content[data-content-type="codeBlock"] > div > select:focus-visible {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.bn-root .bn-block-content[data-content-type="codeBlock"] > pre {
+  padding-top: 36px;
 }
 /* File paths in a page's text: a click copies them (components/editor/file-paths.ts). */
 ::highlight(knowlective-file-path) {
