@@ -6,12 +6,13 @@ import auth from "./auth";
 import common from "./common";
 import editor from "./editor";
 import mail from "./mail";
+import notifications from "./notifications";
 
 // English text, by area: the source of truth for the message keys (every
 // other language must have the same ones; see MessageShape). ICU message
 // syntax: {name}, {count, plural, ...}, {x, select, ...}, <link>…</link>.
 
-const en = { ...common, ...auth, ...account, ...app, ...editor, ...admin, ...mail, ...audit };
+const en = { ...common, ...auth, ...account, ...app, ...editor, ...admin, ...mail, ...audit, ...notifications };
 
 export default en;
 export type Messages = typeof en;

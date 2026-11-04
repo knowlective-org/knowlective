@@ -21,6 +21,7 @@ import { publicPageIds } from "@/lib/public-pages";
 import { PublicPagesForm } from "./public-pages-form";
 import { landingPageFor, landingPageOptions } from "@/lib/landing-page";
 import { LandingPageForm } from "./landing-page-form";
+import { PushNotificationsForm } from "./push-notifications-form";
 
 export default async function AdminOverviewPage() {
   const { actor } = await requireAdmin(["SITE_ADMIN"]);
@@ -29,7 +30,7 @@ export default async function AdminOverviewPage() {
       getMailSettings(),
       prisma.instanceConfig.findUniqueOrThrow({
         where: { id: 1 },
-        select: { publicUrl: true, publicPagesAllowed: true, searchEnginesAllowed: true, landingPageId: true },
+        select: { publicUrl: true, publicPagesAllowed: true, searchEnginesAllowed: true, landingPageId: true, pushNotificationsEnabled: true },
       }),
       getRequestOrigin(),
       prisma.user.count({ where: { siteRole: "SITE_ADMIN", disabledAt: null } }),
@@ -115,6 +116,14 @@ export default async function AdminOverviewPage() {
           {t("linkPreviewLead")}
         </p>
         <LinkPreviewSettingsForm current={linkPreview} />
+      </section>
+
+      <section className={styles.section} data-ui="AdminOverviewPage.pushNotificationsSection">
+        <h2 className={styles.sectionTitle}>{t("pushNotifications")}</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          {t("pushNotificationsLead")}
+        </p>
+        <PushNotificationsForm enabled={site.pushNotificationsEnabled} />
       </section>
 
       <section className={styles.section} data-ui="AdminOverviewPage.publicPagesSection">

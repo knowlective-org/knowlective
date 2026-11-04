@@ -1,3 +1,4 @@
+import { unreadNotificationPages } from "@/lib/notifications";
 import { MAX_PAGE_DEPTH, atLeast } from "shared";
 import { getVisibleTrees } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
@@ -16,11 +17,15 @@ function orderRoots<T extends { rootId: string }>(trees: T[], order: string[]): 
 
 // Everything the sidebar needs for a signed-in user.
 export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
-  const [visible, prefs, brand] = await Promise.all([
+  const [visible, prefs, brand, unread] = await Promise.all([
     getVisibleTrees(prisma, user.id),
     prisma.user.findUnique({ where: { id: user.id }, select: { rootOrder: true } }),
     getBrand(),
+    unreadNotificationPages(user.id),
   ]);
+  // Counted like the list shows them: on pages the user can open now.
+  const visibleIds = new Set(visible.flatMap((t) => t.pages.map((p) => p.id)));
+  const unreadNotifications = unread.filter((pageId) => visibleIds.has(pageId)).length;
   const trees = orderRoots(visible, prefs?.rootOrder ?? []);
   const isManager = user.siteRole === "SITE_ADMIN" || user.siteRole === "CONTENT_MANAGER";
   return {
@@ -31,6 +36,7 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
     canOpenAdmin: isManager,
     guest: false,
     brand,
+    unreadNotifications,
   };
 }
 
@@ -45,6 +51,7 @@ export async function loadPublicSidebar(): Promise<SidebarInfo> {
     canOpenAdmin: false,
     guest: true,
     brand,
+    unreadNotifications: 0,
   };
 }
 

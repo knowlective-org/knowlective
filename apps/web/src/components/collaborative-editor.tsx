@@ -43,7 +43,8 @@ import {
 } from "./editor/markdown-import";
 import { PageEditorContext, type PageEditorContextValue } from "./editor/page-context";
 import { PageProperties } from "./editor/page-properties";
-import { customSlashMenuItems, editorSchema, withTodoForChecklist } from "./editor/schema";
+import { customSlashMenuItems, editorSchema, mentionMenuItems, withTodoForChecklist } from "./editor/schema";
+import { pagePeople } from "./editor/page-people";
 import { useFilePaths } from "./editor/file-paths";
 import { showAlert, showChoice, showConfirm } from "./dialog";
 import { EditorPlaceholder } from "./editor-placeholder";
@@ -754,6 +755,7 @@ function EditorBody({
           childPages,
           untitled: t("common.untitled"),
           mermaid: format === "pdf" ? "keep" : "code",
+          people: Object.fromEntries(((await pagePeople(pageId)) ?? []).map((p) => [p.id, p.name])),
         });
         if (format === "md") {
           const body = editor.blocksToMarkdownLossy(prepared as never[]);
@@ -818,6 +820,11 @@ function EditorBody({
                 query,
               )
             }
+          />
+          {/* "@": mention someone who can open the page. */}
+          <SuggestionMenuController
+            triggerCharacter="@"
+            getItems={async (query) => mentionMenuItems(editor, (await pagePeople(pageId)) ?? [], query)}
           />
         </BlockNoteView>
       </PageEditorContext.Provider>

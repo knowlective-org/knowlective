@@ -12,6 +12,7 @@ import { Sidebar, type SidebarTree } from "@/components/sidebar";
 import { Breadcrumb } from "./breadcrumb";
 import { EditorLoader, StaticDocumentLoader } from "./editor-loader";
 import { PageMenu, ShareButton } from "./page-menu";
+import { FollowButton } from "./follow-button";
 import styles from "./page-view.module.css";
 
 export type SidebarInfo = {
@@ -24,6 +25,8 @@ export type SidebarInfo = {
   guest: boolean;
   // The top left: the site's name or logo.
   brand: Brand;
+  // Unread notifications (the bell), 0 for someone not logged in.
+  unreadNotifications: number;
 };
 
 // The page screen: sidebar with every visible knowledge root on the left,
@@ -51,6 +54,7 @@ export function PageView({
   shareUrl,
   user,
   guestState,
+  following,
   sidebar,
 }: {
   pageId: string;
@@ -72,6 +76,8 @@ export function PageView({
   // For someone not logged in: the page's content (lib/public-page-state.ts),
   // shown without collaborative editing.
   guestState: string | null;
+  // The viewer follows the page (its changes are notified).
+  following: boolean;
   sidebar: SidebarInfo;
 }) {
   const [liveTitle, setLiveTitle] = useState<string | undefined>(undefined);
@@ -103,6 +109,7 @@ export function PageView({
               </span>
             )
           )}
+          {user && <FollowButton pageId={pageId} initial={following} />}
           <ShareButton url={shareUrl} />
           {user && (
           <PageMenu

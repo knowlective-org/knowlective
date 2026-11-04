@@ -2,11 +2,19 @@
 // (page-markdown.ts loads this). An ES module (.mts) on purpose: apps/web is a
 // CommonJS package, and under require() Node gets BlockNote's CommonJS build,
 // which fails to load ("….default.extend is not a function").
-import { BlockNoteSchema, createBlockSpec, createCodeBlockSpec, createHeadingBlockSpec, defaultBlockSpecs } from "@blocknote/core";
+import {
+  BlockNoteSchema,
+  createBlockSpec,
+  createCodeBlockSpec,
+  createHeadingBlockSpec,
+  createInlineContentSpec,
+  defaultBlockSpecs,
+  defaultInlineContentSpecs,
+} from "@blocknote/core";
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import { withMultiColumn } from "@blocknote/xl-multi-column";
 import * as Y from "yjs";
-import { BLOCK_CONFIGS, HEADING_LEVELS } from "../src/components/editor/block-configs";
+import { BLOCK_CONFIGS, HEADING_LEVELS, INLINE_CONFIGS } from "../src/components/editor/block-configs";
 import { codeBlockOptions } from "@blocknote/code-block";
 import { withOurLanguages } from "../src/components/editor/code-languages";
 
@@ -39,6 +47,11 @@ const serverSchema = withMultiColumn(BlockNoteSchema.create({
     maskedText: createBlockSpec(BLOCK_CONFIGS.maskedText, plain)(),
     chat: createBlockSpec(BLOCK_CONFIGS.chat, plain)(),
     todo: createBlockSpec(BLOCK_CONFIGS.todo, withText)(),
+  },
+  inlineContentSpecs: {
+    ...defaultInlineContentSpecs,
+    // Turned into "@name" text before Markdown is written (prepareBlocksForExport).
+    mention: createInlineContentSpec(INLINE_CONFIGS.mention, { render: () => ({ dom: document.createElement("span") }) }),
   },
 }));
 

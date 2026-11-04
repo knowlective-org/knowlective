@@ -22,6 +22,7 @@ const ja: MessageShape<typeof en> = {
     invitationNoAddress: "宛先指定なし",
     invitationGroups: "（グループ: {groups}）",
     publicPagesAllowed: "ページの公開（ログインなしでの閲覧）を{allowed, select, true {許可} other {禁止}}",
+    pushNotifications: "{enabled, select, true {デスクトップ通知をオン} other {デスクトップ通知をオフ}}",
     searchEngines: "{allowed, select, true {検索エンジンに載ることを許可} other {検索エンジンに載せないように変更}}",
     landingPage: "{set, select, true {トップページを「{label}」に設定} other {トップページの設定をなしに変更}}",
     defaultLocale: "既定の言語を{from}から{to}に変更",

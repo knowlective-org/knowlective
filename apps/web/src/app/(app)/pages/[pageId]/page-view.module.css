@@ -54,6 +54,17 @@
   background: var(--color-hover);
 }
 
+/* Follow, while following. */
+.following {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.share:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .readOnly {
   font-size: 13px;
   color: var(--color-muted);

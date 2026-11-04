@@ -1,0 +1,15 @@
+/* A mention (@name) in the text. */
+.mention {
+  padding: 0 3px;
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
+  background: var(--color-primary-light);
+  border-radius: 4px;
+}
+
+@media print {
+  .mention {
+    background: none;
+  }
+}

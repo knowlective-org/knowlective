@@ -8,7 +8,7 @@ import { useState } from "react";
 import { logout, saveRootOrder } from "@/app/(app)/actions";
 import { showAlert } from "./dialog";
 import { DocTree, type DocTreeNode } from "./doc-tree";
-import { AccountIcon, AdminIcon, LoginIcon, LogoutIcon, TrashIcon } from "./sidebar-icons";
+import { AccountIcon, AdminIcon, BellIcon, LoginIcon, LogoutIcon, TrashIcon } from "./sidebar-icons";
 import type { Brand as BrandSettings } from "@/lib/brand";
 import { Brand } from "./brand";
 import styles from "./sidebar.module.css";
@@ -45,6 +45,7 @@ export function Sidebar({
   guest = false,
   searchQuery = "",
   brand,
+  unreadNotifications = 0,
 }: {
   trees: SidebarTree[];
   currentPageId: string | null;
@@ -57,11 +58,14 @@ export function Sidebar({
   guest?: boolean;
   // Prefills the search box (on the search screen).
   searchQuery?: string;
+  // The bell's count.
+  unreadNotifications?: number;
   brand: BrandSettings;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const tr = useTranslations("sidebar");
+  const tn = useTranslations("notifications");
   const listed = trees.filter((t) => t.rootPageId && t.entryIds.includes(t.rootPageId));
   // Knowledge root order: this user's own (User.rootOrder), changed by
   // dragging a root's row. Shown at once, then saved; the next data from the
@@ -216,6 +220,20 @@ export function Sidebar({
         <span className={styles.user} title={userName}>
           {userName}
         </span>
+        <Link
+          href="/notifications"
+          className={styles.footerIcon}
+          aria-label={unreadNotifications > 0 ? tn("sidebarUnread", { count: unreadNotifications }) : tn("sidebar")}
+          title={unreadNotifications > 0 ? tn("sidebarUnread", { count: unreadNotifications }) : tn("sidebar")}
+          data-ui="Sidebar.notificationsLink"
+        >
+          <BellIcon />
+          {unreadNotifications > 0 && (
+            <span className={styles.unreadBadge} data-ui="Sidebar.unreadStatus">
+              {unreadNotifications > 99 ? "99+" : unreadNotifications}
+            </span>
+          )}
+        </Link>
         <Link href="/account" className={styles.footerIcon} aria-label={tr("account")} title={tr("account")} data-ui="Sidebar.accountLink">
           <AccountIcon />
         </Link>

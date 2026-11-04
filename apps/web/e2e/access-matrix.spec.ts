@@ -61,6 +61,7 @@ test.describe("Access matrix", () => {
       { path: "account", expect: { guest: "login", outsider: "ok", viewer: "ok", editor: "ok", admin: "ok" } },
       { path: "search?q=matrix", expect: { guest: "login", outsider: "ok", viewer: "ok", editor: "ok", admin: "ok" } },
       { path: "trash", expect: { guest: "login", outsider: "ok", viewer: "ok", editor: "ok", admin: "ok" } },
+      { path: "notifications", expect: { guest: "login", outsider: "ok", viewer: "ok", editor: "ok", admin: "ok" } },
     ];
     for (const account of ACCOUNTS) {
       const context = await contextFor(browser, account);

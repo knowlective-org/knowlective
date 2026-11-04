@@ -1,5 +1,5 @@
 import * as Y from "yjs";
-import { decrypt, loadDataKey } from "shared";
+import { decrypt, getUsersWithPageAccess, loadDataKey } from "shared";
 import { getPageAccess, getVisibleTree } from "@/lib/page-access";
 import { liveDocumentState } from "@/lib/collab-events";
 import { prisma } from "@/lib/db";
@@ -63,6 +63,8 @@ export async function pageContent(
     pageId,
     childPages: await visibleChildPages(userId, pageId),
     untitled,
+    // Mentions as "@name": the names of those who can open the page.
+    people: Object.fromEntries((await getUsersWithPageAccess(prisma, pageId)).map((u) => [u.id, u.name || u.email])),
   });
   return { title, markdown };
 }
