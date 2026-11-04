@@ -301,6 +301,11 @@ model ChatMessage {
   author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
   bodyEnc   Bytes
   createdAt DateTime @default(now())
+  // Set when its author last changed the text (only the author can).
+  editedAt  DateTime?
+  // Set when its author took it back ("unsent"): the text is then emptied,
+  // and the message shows only that it was taken back.
+  deletedAt DateTime?
 
   @@index([pageId, blockId, createdAt])
 }

@@ -41,6 +41,11 @@ test.describe("Code blocks", () => {
     // Shiki's colours on the code's tokens (loaded on first use).
     await expect(block.locator('code span[style*="--shiki"]').first()).toBeVisible({ timeout: 15_000 });
 
+    // Perl isn't in BlockNote's list; it's ours (code-languages.ts).
+    await block.locator("select").selectOption("perl");
+    await expect(block).toHaveAttribute("data-language", "perl");
+    await expect(block.locator('code span[style*="--shiki"]').first()).toBeVisible({ timeout: 15_000 });
+
     await block.locator("select").selectOption("javascript");
     await expect(block).toHaveAttribute("data-language", "javascript");
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);

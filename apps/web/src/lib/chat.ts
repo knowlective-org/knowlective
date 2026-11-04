@@ -2,7 +2,9 @@ import { decrypt, encrypt } from "shared";
 
 // Messages of chat blocks (components/editor/chat-block.tsx; Server Actions in
 // (app)/pages/[pageId]/chat-actions.ts). Stored as ChatMessage rows, not in
-// the page document, so nobody but the server can change one; the text is
+// the page document, so nobody but the server can change one (the server lets
+// a message's author change its text, marking it edited, or take it back,
+// emptying it and leaving only that it was taken back); the text is
 // encrypted with the data key, bound to its row by the AAD.
 
 export { CHAT_HISTORY, MAX_CHAT_MESSAGE_LENGTH, type ChatData, type ChatMessageView } from "./chat-types";

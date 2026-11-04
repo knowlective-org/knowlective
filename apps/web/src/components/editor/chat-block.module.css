@@ -72,15 +72,62 @@
   border-radius: 10px;
 }
 
+/* The small corner points down towards the speaker's side. */
 .theirs .bubble {
   background: var(--color-hover);
-  border-top-left-radius: 2px;
+  border-bottom-left-radius: 2px;
 }
 
 .mine .bubble {
   color: var(--color-on-primary);
   background: var(--color-primary);
-  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+}
+
+/* A message its author took back: only that it was, in both lines' colours. */
+.mine .bubble.unsent,
+.theirs .bubble.unsent {
+  font-style: italic;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px dashed var(--color-border-strong);
+}
+
+.linkButton {
+  padding: 0;
+  font: inherit;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
+.linkButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Changing a message: in place of its bubble, as wide as the log allows. */
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  width: min(480px, 100%);
+}
+
+.editForm .input {
+  width: 100%;
+}
+
+.editButtons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .composer {
@@ -132,7 +179,8 @@
     overflow: visible;
   }
 
-  .composer {
+  .composer,
+  .linkButton {
     display: none;
   }
 

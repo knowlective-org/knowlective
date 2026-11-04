@@ -21,7 +21,9 @@ import {
 
 // Chat blocks: reading needs to be able to open the page (public pages too,
 // without names), posting needs to be able to edit it (EDIT, not locked).
-// A message can't be changed or deleted, by its author or anyone else.
+// A message's author can change its text (with the same access as posting),
+// which marks it edited, or take it back: its text is emptied and it shows
+// as taken back ("unsent"), its row kept. Nobody else can do either.
 
 const postLimit = createRateLimiter(60_000, 30);
 
@@ -35,7 +37,7 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
     where: { pageId, blockId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: CHAT_HISTORY,
-    select: { id: true, bodyEnc: true, authorId: true, createdAt: true },
+    select: { id: true, bodyEnc: true, authorId: true, createdAt: true, editedAt: true, deletedAt: true },
   });
   rows.reverse();
   const key = await loadDataKey(prisma);
@@ -53,11 +55,13 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
   return {
     messages: rows.map((r) => ({
       id: r.id,
-      text: openChatMessage(key, r),
+      text: r.deletedAt ? "" : openChatMessage(key, r),
       mine: !!user && r.authorId === user.id,
       author: user ? (r.authorId ? (names.get(r.authorId) ?? unknown) : unknown) : null,
       color: user && r.authorId ? cursorColorFor(r.authorId) : null,
       createdAt: r.createdAt.toISOString(),
+      editedAt: r.editedAt?.toISOString() ?? null,
+      deleted: r.deletedAt !== null,
     })),
     canPost: !!user && canEditPage(access),
   };
@@ -79,4 +83,53 @@ export async function postChatMessage(pageId: string, blockId: string, raw: stri
   // the child page blocks.
   notifyChildrenChanged(pageId);
   return {};
+}
+
+// The author changes a message's text. Same access as posting (EDIT, the
+// page not locked): someone who could post then but can't now can't edit.
+export async function editChatMessage(messageId: string, raw: string): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const t = await getTranslations("editor.chat");
+  const message = await ownMessage(user.id, messageId);
+  if (!message) return { error: t("notAllowed") };
+  const text = normalizeChatMessage(raw);
+  if (!text) return { error: t("invalid") };
+  if (postLimit(user.id) !== null) return { error: t("tooMany") };
+  const key = await loadDataKey(prisma);
+  await prisma.chatMessage.update({
+    where: { id: messageId },
+    data: { bodyEnc: sealChatMessage(key, messageId, text), editedAt: new Date() },
+  });
+  notifyChildrenChanged(message.pageId);
+  return {};
+}
+
+// The author takes a message back: its text is replaced by an empty one (so
+// it's gone from the database, not just hidden) and it shows as taken back.
+export async function deleteChatMessage(messageId: string): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const t = await getTranslations("editor.chat");
+  const message = await ownMessage(user.id, messageId);
+  if (!message) return { error: t("notAllowed") };
+  const key = await loadDataKey(prisma);
+  await prisma.chatMessage.update({
+    where: { id: messageId },
+    data: { bodyEnc: sealChatMessage(key, messageId, ""), deletedAt: new Date() },
+  });
+  notifyChildrenChanged(message.pageId);
+  return {};
+}
+
+// A message `userId` wrote and may still change: not taken back, and the
+// page still editable by them (EDIT, not locked), as for posting. Someone
+// else's message and a missing one are both null.
+async function ownMessage(userId: string, messageId: unknown) {
+  if (typeof messageId !== "string") return null;
+  const message = await prisma.chatMessage.findUnique({
+    where: { id: messageId },
+    select: { pageId: true, authorId: true, deletedAt: true },
+  });
+  if (!message || message.authorId !== userId || message.deletedAt) return null;
+  const access = await getPageAccess(prisma, userId, message.pageId);
+  return access && canEditPage(access) ? message : null;
 }
