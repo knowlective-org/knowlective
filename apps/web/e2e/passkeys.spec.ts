@@ -117,8 +117,13 @@ test.describe("Passkeys", () => {
     // again, and a new passkey is asked for.
     await admin.reload();
     const outsiderRow = admin.getByTestId("AdminUsersPage.userRow").filter({ hasText: ACCOUNTS.outsider.email });
-    await outsiderRow.getByTestId("RowMenu.toggle").click();
-    await admin.getByTestId("RowMenu.item").filter({ hasText: "パスキーを削除" }).click();
+    const resetItem = admin.getByTestId("RowMenu.item").filter({ hasText: "パスキーを削除" });
+    // A click before the reloaded page has hydrated opens nothing; try again.
+    await expect(async () => {
+      await outsiderRow.getByTestId("RowMenu.toggle").click();
+      await expect(resetItem).toBeVisible({ timeout: 2000 });
+    }).toPass();
+    await resetItem.click();
     await admin.getByTestId("AppDialog.confirmButton").click();
     // Done once the passkeys are gone (the menu's action runs in the background).
     await expect
