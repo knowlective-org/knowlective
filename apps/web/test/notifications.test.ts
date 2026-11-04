@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import * as Y from "yjs";
@@ -44,7 +45,8 @@ describe("push endpoints", () => {
   });
 
   test("a subscription needs both keys, in base64url", () => {
-    const keys = { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth: "tBHItJI5svbpez7KI4CCXg" };
+    // Made up here (a key in the source looks like a secret to the scanners).
+    const keys = { p256dh: randomBytes(65).toString("base64url"), auth: randomBytes(16).toString("base64url") };
     assert.ok(parsePushSubscription({ endpoint: "https://fcm.googleapis.com/fcm/send/x", keys }));
     assert.equal(parsePushSubscription({ endpoint: "https://example.com/x", keys }), null);
     assert.equal(parsePushSubscription({ endpoint: "https://fcm.googleapis.com/fcm/send/x", keys: { p256dh: keys.p256dh } }), null);

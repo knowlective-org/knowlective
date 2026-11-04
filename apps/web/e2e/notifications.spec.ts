@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { type Browser, type Page, expect, test } from "@playwright/test";
 import { ACCOUNTS, authFile } from "./accounts";
 import { withPrisma } from "./db";
@@ -176,7 +177,8 @@ test("a desktop notification address that isn't a push service's is refused", as
   const source = (await Promise.all(scripts)).join("\n");
   const actionId = source.match(/"([0-9a-f]{40,})"[^"]*(?:"[^"]*"[^"]*){0,4}?"savePushSubscription"/)?.[1];
   expect(actionId, "savePushSubscription's action id").toBeTruthy();
-  const keys = { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth: "tBHItJI5svbpez7KI4CCXg" };
+  // Made up here (a key in the source looks like a secret to the scanners).
+  const keys = { p256dh: randomBytes(65).toString("base64url"), auth: randomBytes(16).toString("base64url") };
   const count = () => withPrisma((prisma) => prisma.pushSubscription.count());
   const before = await count();
   for (const endpoint of ["http://127.0.0.1:3000/api/health", "https://169.254.169.254/latest/meta-data", "https://example.com/push"]) {
