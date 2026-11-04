@@ -88,6 +88,7 @@ pnpm e2e           # テスト用のアカウントを作り直してから、�
 ### ブランチと CI（GitHub Actions）
 
 - **作業は `staging` ブランチで行う**（コミットも `staging`）。`master` は本番（app.knowlective.org）に出すもので、`staging` で CI が通ったものを取り込む。
+- `staging` から `master` へのプルリクエストをマージしたら、`pnpm sync:staging`（`scripts/sync-staging.sh`）で `staging` を `master`（マージのコミット）まで進めてプッシュする。早送りだけで、`staging` に `master` にないコミットがあるとき・作業ツリーに変更があるときは止まる。しなくても、次のプルリクエストまで1コミット遅れるだけ。
 - CI は `.github/workflows/ci.yml`。GitHub のマシンで動き、手元や本番には触れない。何も配備・公開しない。動くのは `staging` へのプッシュ、`master` へのプルリクエスト、毎週月曜（`master` で。コードを変えていなくても、新しく公開された脆弱性で失敗する）、Actions タブからの手動実行。
 - ジョブは4つ：型（web・shared の `tsc --noEmit`）・lint・`check:auth`・単体テスト・`pnpm audit --prod`／gitleaks（履歴全体）／Docker イメージのビルドと trivy／E2E。gitleaks と trivy のイメージと設定は `scripts/security-scan.sh` と同じにしておくこと。
 - E2E は、ジョブの中で `.env`（鍵は使い捨て）を作り、`docker compose up -d` で開発用と同じサービスを立て、`prisma migrate deploy` のあと `KNOWLECTIVE_E2E_SETUP=1 pnpm e2e:seed` で**まっさらな DB を初期セットアップ**（マスターパスワードは誰も知らない乱数。テストは使わない）してから、開発サーバー（`pnpm dev`）に対して全テストを実行する。手元の DB の状態に頼るテストは CI で失敗するので、テストに必要なものはシードかテストの中で作ること。失敗したテストのトレースとスクリーンショットは、実行結果の「e2e-results」から7日間ダウンロードできる（リポジトリは公開なので、誰でも見られる。テスト用のデータだけ）。
