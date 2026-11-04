@@ -10,10 +10,10 @@ test("a column layout holds blocks side by side, and stays after a reload", asyn
   await page.keyboard.press("Control+End");
   // Two and three columns are both offered.
   await page.keyboard.type("/列");
-  await expect(page.getByRole("option", { name: /三列/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: /3列レイアウト/ })).toBeVisible();
   await page.keyboard.press("Backspace");
-  await page.keyboard.type("二列");
-  await page.getByRole("option", { name: /二列/ }).click();
+  await page.keyboard.type("カラム");
+  await page.getByRole("option", { name: /2列レイアウト/ }).click();
 
   const list = editorBody(page).locator(".bn-block-column-list");
   await expect(list).toHaveCount(1);

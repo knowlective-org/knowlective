@@ -64,10 +64,10 @@ const ja: MessageShape<typeof en> = {
       otherGroup: "その他",
       chat: "チャット",
       chatSub: "誰が書いたかわかる、メッセージのやり取り",
-      chatAliases: "チャット,メッセージ,会話,やりとり,chatto",
-      maskedText: "鍵でマスク（合言葉）",
+      chatAliases: "チャット,メッセージ,会話,やりとり,コメント,スレッド,雑談,掲示板,chatto",
+      maskedText: "マスク化",
       maskedTextSub: "合言葉を知っている人だけが見られる内容。ブラウザーの中で暗号化します",
-      maskedTextAliases: "マスク,秘密,鍵,合言葉,パスワード,暗号,himitsu,kagi",
+      maskedTextAliases: "マスク,マスク化,秘密,鍵,合言葉,パスワード,暗号,暗号化,himitsu,kagi",
     },
     chat: {
       label: "チャット",
