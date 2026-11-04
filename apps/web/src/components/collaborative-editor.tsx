@@ -6,7 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { yUndoPluginKey } from "y-prosemirror";
-import { filterSuggestionItems } from "@blocknote/core";
+import { combineByGroup, filterSuggestionItems } from "@blocknote/core";
+import { getMultiColumnSlashMenuItems, multiColumnDropCursor } from "@blocknote/xl-multi-column";
 import { withCollaboration } from "@blocknote/core/yjs";
 import { BlockNoteView } from "@blocknote/mantine";
 import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote } from "@blocknote/react";
@@ -500,6 +501,8 @@ function EditorBody({
     withCollaboration({
       schema: editorSchema,
       dictionary: blockNoteDictionary(locale),
+      // Dropping a block at another's left or right edge puts them in columns.
+      dropCursor: multiColumnDropCursor,
       // Headings pasted from outside knowlective (HTML or Markdown) move down one
       // level — H1→H2 … H5→H6, H6 stays — keeping their relative structure
       // under the page title. Copy and paste within knowlective (blocknote/html)
@@ -787,7 +790,13 @@ function EditorBody({
           <SuggestionMenuController
             triggerCharacter="/"
             getItems={async (query) =>
-              filterSuggestionItems([...getDefaultReactSlashMenuItems(editor), ...customSlashMenuItems(editor, t)], query)
+              filterSuggestionItems(
+                [
+                  ...combineByGroup(getDefaultReactSlashMenuItems(editor), getMultiColumnSlashMenuItems(editor)),
+                  ...customSlashMenuItems(editor, t),
+                ],
+                query,
+              )
             }
           />
         </BlockNoteView>

@@ -29,6 +29,54 @@
   color: var(--color-muted);
 }
 
+/* The viewer's own view (filters, sort), above the table. */
+.viewBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--color-muted);
+  background: var(--color-primary-light);
+  border-radius: 4px;
+}
+
+.filterPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 260px;
+  max-width: min(420px, 90vw);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.filterRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filterLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.filterChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+/* "Saved", after saving a column's options. */
+.savedStatus {
+  composes: muted;
+  color: var(--color-success);
+}
+
 .pageList {
   margin: 0;
   padding-left: 0;
@@ -279,10 +327,22 @@
   border-radius: 4px;
 }
 
+/* Wide enough that its first 200 characters (LONG_TEXT_SHOWN) fit in a
+   dozen lines or so; its height is set to show them (fitLongText()). */
 .cellTextarea {
   display: block;
-  min-width: 160px;
+  min-width: 260px;
+  overflow-y: auto;
   resize: vertical;
+}
+
+/* A long text, read-only: the same width, every line shown. */
+.longText {
+  display: block;
+  min-width: 260px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .cellInput:hover,

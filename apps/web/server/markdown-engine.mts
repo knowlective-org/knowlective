@@ -4,6 +4,7 @@
 // which fails to load ("….default.extend is not a function").
 import { BlockNoteSchema, createBlockSpec, createHeadingBlockSpec, defaultBlockSpecs } from "@blocknote/core";
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
+import { withMultiColumn } from "@blocknote/xl-multi-column";
 import * as Y from "yjs";
 import { BLOCK_CONFIGS, HEADING_LEVELS } from "../src/components/editor/block-configs";
 
@@ -13,7 +14,7 @@ import { BLOCK_CONFIGS, HEADING_LEVELS } from "../src/components/editor/block-co
 // before Markdown is written (prepareBlocksForExport).
 const plain = { render: () => ({ dom: document.createElement("div") }) };
 
-const serverSchema = BlockNoteSchema.create({
+const serverSchema = withMultiColumn(BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
@@ -24,8 +25,10 @@ const serverSchema = BlockNoteSchema.create({
     pdf: createBlockSpec(BLOCK_CONFIGS.pdf, plain)(),
     linkPreview: createBlockSpec(BLOCK_CONFIGS.linkPreview, plain)(),
     videoEmbed: createBlockSpec(BLOCK_CONFIGS.videoEmbed, plain)(),
+    maskedText: createBlockSpec(BLOCK_CONFIGS.maskedText, plain)(),
+    chat: createBlockSpec(BLOCK_CONFIGS.chat, plain)(),
   },
-});
+}));
 
 const newEditor = () => ServerBlockNoteEditor.create({ schema: serverSchema });
 

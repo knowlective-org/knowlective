@@ -7,6 +7,7 @@ import {
   insertOrUpdateBlockForSlashMenu,
 } from "@blocknote/core";
 import type { DefaultReactSuggestionItem } from "@blocknote/react";
+import { withMultiColumn } from "@blocknote/xl-multi-column";
 import type { Messages } from "@/i18n/messages/en";
 import { childPagesBlock } from "./child-pages-block";
 import { childBoardBlock } from "./child-board-block";
@@ -16,6 +17,8 @@ import { mermaidBlock } from "./mermaid-block";
 import { pdfBlock } from "./pdf-block";
 import { videoEmbedBlock } from "./video-embed-block";
 import { codeBlock } from "./code-block";
+import { maskedBlock } from "./masked-block";
+import { chatBlock } from "./chat-block";
 import { HEADING_LEVELS } from "./block-configs";
 
 // The editor's block types: BlockNote's defaults plus knowlective's own. Block
@@ -26,9 +29,12 @@ import { HEADING_LEVELS } from "./block-configs";
 // in the schema it isn't offered (slash menu, toolbar, "# ", Ctrl+Alt+1);
 // H1s that still arrive (pasted HTML, older pages) are turned into H2 by the
 // editor (demoteH1 in collaborative-editor.tsx).
+//
+// Columns (2 or 3 side by side, each holding blocks) are BlockNote's
+// xl-multi-column: the "column" and "columnList" types.
 export { HEADING_LEVELS };
 
-export const editorSchema = BlockNoteSchema.create({
+export const editorSchema = withMultiColumn(BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     codeBlock,
@@ -40,8 +46,10 @@ export const editorSchema = BlockNoteSchema.create({
     pdf: pdfBlock(),
     linkPreview: linkPreviewBlock(),
     videoEmbed: videoEmbedBlock(),
+    maskedText: maskedBlock(),
+    chat: chatBlock(),
   },
-});
+}));
 
 export type KnowlectiveEditor = typeof editorSchema.BlockNoteEditor;
 
@@ -90,6 +98,22 @@ export function customSlashMenuItems(
       group: t("editor.slash.diagramGroup"),
       icon: <span aria-hidden>🧜</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "mermaid" }),
+    },
+    {
+      title: t("editor.slash.chat"),
+      subtext: t("editor.slash.chatSub"),
+      aliases: aliases("chatAliases", ["chat", "message", "talk", "conversation", "thread"]),
+      group: t("editor.slash.otherGroup"),
+      icon: <span aria-hidden>💬</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "chat" }),
+    },
+    {
+      title: t("editor.slash.maskedText"),
+      subtext: t("editor.slash.maskedTextSub"),
+      aliases: aliases("maskedTextAliases", ["mask", "secret", "password", "passphrase", "lock", "encrypt"]),
+      group: t("editor.slash.otherGroup"),
+      icon: <span aria-hidden>🔒</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "maskedText" }),
     },
   ];
 }
