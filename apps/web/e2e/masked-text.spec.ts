@@ -10,8 +10,8 @@ test("masked text is locked with a passphrase; only the sealed form is in the pa
   const { id } = await createPage(page, "E2E 鍵でマスク");
   await editorBody(page).click();
   await page.keyboard.press("Control+End");
-  await page.keyboard.type("/マスク");
-  await page.getByRole("option", { name: /鍵でマスク/ }).click();
+  await page.keyboard.type("/暗号化");
+  await page.getByRole("option", { name: /マスク化/ }).click();
 
   const block = page.getByTestId("MaskedBlock");
   await block.getByTestId("MaskedBlock.textInput").fill(SECRET);

@@ -110,7 +110,7 @@ export function customSlashMenuItems(
     {
       title: t("editor.slash.maskedText"),
       subtext: t("editor.slash.maskedTextSub"),
-      aliases: aliases("maskedTextAliases", ["mask", "secret", "password", "passphrase", "lock", "encrypt"]),
+      aliases: aliases("maskedTextAliases", ["mask", "crypt", "encrypt", "secret", "password", "passphrase", "lock"]),
       group: t("editor.slash.otherGroup"),
       icon: <span aria-hidden>🔒</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "maskedText" }),
