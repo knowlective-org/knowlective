@@ -5,6 +5,7 @@ import {
   createExtension,
   createHeadingBlockSpec,
   defaultBlockSpecs,
+  defaultInlineContentSpecs,
   insertOrUpdateBlockForSlashMenu,
 } from "@blocknote/core";
 import type { DefaultReactSuggestionItem } from "@blocknote/react";
@@ -21,6 +22,7 @@ import { codeBlock } from "./code-block";
 import { maskedBlock } from "./masked-block";
 import { chatBlock } from "./chat-block";
 import { continueList, todoBlock } from "./todo-block";
+import { mentionInline } from "./mention-inline";
 import { HEADING_LEVELS } from "./block-configs";
 
 // The editor's block types: BlockNote's defaults plus knowlective's own. Block
@@ -31,6 +33,8 @@ import { HEADING_LEVELS } from "./block-configs";
 // in the schema it isn't offered (slash menu, toolbar, "# ", Ctrl+Alt+1);
 // H1s that still arrive (pasted HTML, older pages) are turned into H2 by the
 // editor (demoteH1 in collaborative-editor.tsx).
+//
+// Mentions (@name) are inline content of our own (mention-inline.tsx).
 //
 // Columns (2 or 3 side by side, each holding blocks) are BlockNote's
 // xl-multi-column: the "column" and "columnList" types.
@@ -64,6 +68,10 @@ export const editorSchema = withMultiColumn(BlockNoteSchema.create({
     maskedText: maskedBlock(),
     chat: chatBlock(),
     todo: todoBlock(),
+  },
+  inlineContentSpecs: {
+    ...defaultInlineContentSpecs,
+    mention: mentionInline,
   },
 }));
 
@@ -159,4 +167,21 @@ export function customSlashMenuItems(
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "maskedText" }),
     },
   ];
+}
+
+// The "@" menu: the people who can open the page; choosing one puts a
+// mention of them in the text (notifying them, server/notifications.ts).
+export function mentionMenuItems(
+  editor: KnowlectiveEditor,
+  people: { id: string; name: string }[],
+  query: string,
+): DefaultReactSuggestionItem[] {
+  const q = query.normalize("NFKC").toLowerCase();
+  return people
+    .filter((p) => p.name.normalize("NFKC").toLowerCase().includes(q))
+    .slice(0, 20)
+    .map((p) => ({
+      title: p.name,
+      onItemClick: () => editor.insertInlineContent([{ type: "mention", props: { userId: p.id } }, " "]),
+    }));
 }

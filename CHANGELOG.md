@@ -23,6 +23,11 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - A page in a child page table shows its values in the table's columns under its title, and they can be changed there (by those who can edit the page)
 - Inherited access can be narrowed on a child page's "Permissions": Edit to View or No access, View to No access, for that page and the pages below. Never made stronger; groups managing the pages above can't be changed. "Inherit again" undoes it. Open editors reconnect when access changes
 
+- Notifications: new messages in chats you're in (you posted in it, follow its page or are mentioned there), TODOs given to you or past their date, changes to pages you follow (once until you open the page again), and mentions. A bell in the sidebar with the unread count, a list under it, and settings on the account screen to choose which ones, or turn them all off
+- Desktop notifications, also when the site isn't open: turn them on per browser on the account screen. Each person chooses whether they show who, which page and an excerpt, or only the kind of event. On iPhone and iPad they need the site added to the home screen
+- Following a page (the "Follow" button at the top of a page)
+- Mentions: type "@" in a page to mention someone who can open it
+
 ### Changed
 
 - The log out icon is now a box with an arrow pointing out of it, to the right
@@ -40,7 +45,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Upgrade notes
 
-- The database gets a new access level (`NONE`), a table of the attachments each page shows, a column type for child page tables, a table for chat messages (with when each was edited or taken back), and one for each person's filters and sort of child page tables; the migrations run at startup. Existing pages' attachments are worked out at startup; until every page has been, nothing is deleted
+- Desktop notifications are sent from the server to the browsers' push services (fcm.googleapis.com, updates.push.services.mozilla.com, *.push.apple.com, *.notify.windows.com) over HTTPS. If the server can't reach them, turn desktop notifications off in the admin console's overview; the notifications in the app work either way
+- The database gets a new access level (`NONE`), a table of the attachments each page shows, a column type for child page tables, a table for chat messages (with when each was edited or taken back), and one for each person's filters and sort of child page tables; the migrations run at startup. Notifications add tables of their own, a per-person setting and a site setting. Existing pages' attachments are worked out at startup; until every page has been, nothing is deleted
 
 ### Security
 

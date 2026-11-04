@@ -26,6 +26,7 @@ import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, regi
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 import { startSemanticSearch } from "./semantic-search";
+import { createNotifier } from "./notifications";
 import { FALLBACK_LOCALE, isLocale, negotiateLocale } from "../src/i18n/locales";
 import { translatorFor } from "../src/i18n/translator";
 import { getClientIp } from "../src/lib/ip";
@@ -47,6 +48,9 @@ export async function createCollab() {
   // Separate from the app's PrismaClient (src/lib/db.ts): this module is
   // loaded by the custom server, not bundled by Next.js.
   const prisma = createPrismaClient();
+  // Notifications (TODOs, mentions, followed pages) from what's stored.
+  const notifier = createNotifier(prisma);
+  notifier.start();
 
   // The title personal roots start with, in the site's default language.
   const personalRootTitle = async () => {
@@ -129,6 +133,10 @@ export async function createCollab() {
         const page = await prisma.page.findUnique({ where: { id: documentName }, select: { title: true, parentId: true } });
         // Search index (title, body, attachment names) from the state just stored.
         await reindexPage(prisma, documentName, Uint8Array.from(state));
+        // Never fails the store: the content is saved either way.
+        await notifier
+          .pageStored(documentName, document, editorId ?? null)
+          .catch((err) => console.error("[notifications] checking a stored page failed", err));
         if (!page || (page.title === title && !editorId)) return;
         await prisma.page.update({
           where: { id: documentName },

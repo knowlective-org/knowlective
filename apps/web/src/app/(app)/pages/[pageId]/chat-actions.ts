@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
 import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { notifyChildrenChanged } from "@/lib/collab-events";
+import { notifyChatPosted } from "@/lib/notification-bridge";
 import { cursorColorFor } from "@/lib/cursor-color";
 import { createRateLimiter } from "@/lib/rate-limit";
 import {
@@ -82,6 +83,8 @@ export async function postChatMessage(pageId: string, blockId: string, raw: stri
   // Everyone with the page open refetches (with their own access), as for
   // the child page blocks.
   notifyChildrenChanged(pageId);
+  // Those in the chat are notified (not waited for).
+  void notifyChatPosted({ pageId, blockId, actorId: user.id, text });
   return {};
 }
 

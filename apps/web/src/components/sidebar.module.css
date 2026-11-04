@@ -144,6 +144,27 @@
   cursor: pointer;
 }
 
+/* The bell's unread count, on its top right. */
+.footerIcon:has(.unreadBadge) {
+  position: relative;
+}
+
+.unreadBadge {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  color: var(--color-on-primary);
+  text-align: center;
+  background: var(--color-danger);
+  border-radius: 8px;
+}
+
 .footerIcon:hover {
   color: var(--color-primary);
   background: var(--color-hover);

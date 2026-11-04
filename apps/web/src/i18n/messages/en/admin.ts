@@ -125,6 +125,10 @@ export default {
       linkPreview: "Link previews",
       linkPreviewLead:
         "Pasting a URL into an empty line of a page makes a card with the site's title, description and image. This server fetches them from the site when the URL is pasted.",
+      pushNotifications: "Desktop notifications",
+      pushNotificationsLead:
+        "Notifications (chat messages, TODOs, followed pages, mentions) can also show on people's desktops and phones, even when the site isn't open, on the devices where they turn them on. This server sends them through the browsers' push services (Google, Mozilla, Apple, Microsoft), encrypted for each device. Turn off if this server can't reach them; the notifications in the app stay.",
+      pushNotificationsEnabled: "Send desktop notifications",
       publicPages: "Public pages",
       publicPagesLead: "Whether pages can be shown to people who aren't logged in. A wider audience than \"All users\" (everyone registered).",
       landing: "Top page",

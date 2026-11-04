@@ -1054,3 +1054,26 @@ export async function saveOidcSettings(_prev: OidcFormState, formData: FormData)
   revalidatePath("/admin", "layout");
   return { saved: true };
 }
+
+export type PushNotificationsState = { error?: string; saved?: boolean };
+
+// Desktop notifications for the whole site (server/notifications.ts): off for
+// a network that can't reach the browsers' push services. The notifications
+// in the app stay either way.
+export async function savePushNotificationsSetting(
+  _prev: PushNotificationsState,
+  formData: FormData,
+): Promise<PushNotificationsState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const enabled = formData.get("enabled") === "on";
+  const before = await prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { pushNotificationsEnabled: true } });
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { pushNotificationsEnabled: enabled } });
+  if (before.pushNotificationsEnabled !== enabled) {
+    const audit = await auditTranslator();
+    await recordAudit(actor, "push-notifications.settings", audit("audit.pushNotifications", { enabled: String(enabled) }), {
+      enabled,
+    });
+  }
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}

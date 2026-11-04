@@ -99,7 +99,7 @@ export const BLOCK_CONFIGS = {
     propSchema: {
       checked: { default: false },
       // A user id, "" for nobody. Names come from the server, for those who
-      // can open the page (todo-actions.ts).
+      // can open the page (people-actions.ts).
       assignee: { default: "" },
       // YYYY-MM-DD, "" for none.
       due: { default: "" },
@@ -115,3 +115,17 @@ export const BLOCK_CONFIGS = {
 
 // Body headings start at H2: the page title is the page's one H1.
 export const HEADING_LEVELS = [2, 3, 4, 5, 6] as const;
+
+// knowlective's own inline content (inside a block's text), shared the same way.
+export const INLINE_CONFIGS = {
+  // A mention (@name): the person's user id; their name is shown from the
+  // page's people (page-people.ts). Mentioning notifies them
+  // (server/notifications.ts).
+  mention: {
+    type: "mention",
+    propSchema: {
+      userId: { default: "" },
+    },
+    content: "none",
+  },
+} as const;

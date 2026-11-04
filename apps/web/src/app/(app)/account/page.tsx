@@ -20,6 +20,8 @@ import { PasskeySection } from "./passkey-section";
 import { ProfileSection } from "./profile-section";
 import { MAX_NAME_LENGTH, profileRules } from "@/lib/auth/profile";
 import { OwnPasswordResetForm } from "./password-reset-form";
+import { NotificationSection } from "./notification-section";
+import { parseNotificationPrefs } from "@/lib/notification-prefs";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
@@ -31,11 +33,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AccountPage() {
   await connection();
   const user = await requireUser("/account");
-  const [sidebar, reset, t, { locale }, passkeys, passkeyRequired, session] = await Promise.all([
+  const [sidebar, reset, t, { locale, notificationPrefs }, passkeys, passkeyRequired, session] = await Promise.all([
     loadSidebar(user),
     ownPasswordResetAvailability(user.id),
     getTranslations(),
-    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { locale: true } }),
+    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { locale: true, notificationPrefs: true } }),
     listPasskeys(user.id),
     passkeyRequiredSetting(),
     getSessionUser(),
@@ -73,6 +75,11 @@ export default async function AccountPage() {
         <section className={styles.section} data-ui="AccountPage.languageSection">
           <h2 className={styles.sectionTitle}>{t("account.language.heading")}</h2>
           <LocaleForm current={isLocale(locale) ? locale : null} />
+        </section>
+
+        <section className={styles.section} data-ui="AccountPage.notificationSection">
+          <h2 className={styles.sectionTitle}>{t("notifications.settings.heading")}</h2>
+          <NotificationSection prefs={parseNotificationPrefs(notificationPrefs)} />
         </section>
 
         <section className={styles.section} data-ui="AccountPage.passkeySection">

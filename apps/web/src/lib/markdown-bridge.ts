@@ -14,6 +14,8 @@ export type MarkdownExportOptions = {
   childPages: ChildPageItem[];
   // Shown for a child page without a title.
   untitled: string;
+  // Names for mentions (@name), by user id.
+  people: Record<string, string>;
 };
 
 type MarkdownBridge = {

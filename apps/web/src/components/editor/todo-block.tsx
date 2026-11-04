@@ -1,11 +1,10 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
 import { createExtension, getBlockInfoFromSelection, updateBlockTr, type BlockNoteEditor } from "@blocknote/core";
 import { createReactBlockSpec } from "@blocknote/react";
-import { loadTodoPeople, type TodoPeople } from "@/app/(app)/pages/[pageId]/todo-actions";
 import { usePageEditor } from "./page-context";
+import { usePagePeople } from "./page-people";
 import styles from "./todo-block.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
 
@@ -72,30 +71,6 @@ export const todoBlock = createReactBlockSpec(
 
 type TodoProps = { checked: boolean; assignee: string; due: string; doneBy: string; doneAt: string };
 
-// The page's people, loaded once for all the TODOs on it (and again after a
-// minute, for those given access since).
-const peopleCache = new Map<string, Promise<TodoPeople | null>>();
-
-function useTodoPeople(pageId: string): TodoPeople | null {
-  const [people, setPeople] = useState<TodoPeople | null>(null);
-  useEffect(() => {
-    let alive = true;
-    let load = peopleCache.get(pageId);
-    if (!load) {
-      load = loadTodoPeople(pageId).catch(() => null);
-      peopleCache.set(pageId, load);
-      setTimeout(() => peopleCache.delete(pageId), 60_000);
-    }
-    void load.then((result) => {
-      if (alive) setPeople(result);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [pageId]);
-  return people;
-}
-
 // Today in the viewer's time zone, as YYYY-MM-DD.
 function today(): string {
   const d = new Date();
@@ -117,7 +92,7 @@ function Todo({
   const format = useFormatter();
   const { pageId, userId } = usePageEditor();
   // null for someone not logged in: no names.
-  const people = useTodoPeople(pageId);
+  const people = usePagePeople(pageId);
   const { checked, assignee, due, doneBy, doneAt } = props;
   const nameOf = (id: string) => (people ? (people.find((p) => p.id === id)?.name ?? t("unknownUser")) : null);
   const overdue = !checked && due !== "" && due < today();

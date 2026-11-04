@@ -65,6 +65,7 @@ function childPageList(
 // - Chat → left out (its messages aren't in the document)
 // - TODO → a check list item, with its due date after the text (not the
 //   assignee: the document has only their id)
+// - Mention → "@name" (with `people`; "@" alone without)
 // and with links to attachments made absolute, so they work outside the site.
 export function prepareBlocksForExport(
   blocks: ExportBlock[],
@@ -75,12 +76,15 @@ export function prepareBlocksForExport(
     // Shown for a child page without a title, in the viewer's language.
     untitled: string;
     mermaid?: "code" | "keep";
+    // Names for mentions, by user id.
+    people?: Record<string, string>;
   },
 ): ExportBlock[] {
   const { origin, pageId, childPages, untitled } = options;
   const absolute = (url: unknown) => (typeof url === "string" && url.startsWith("/") ? origin + url : url);
 
-  return blocks.flatMap((b): ExportBlock[] => {
+  return blocks.flatMap((original): ExportBlock[] => {
+    const b = original.content === undefined ? original : { ...original, content: withMentionsAsText(original.content, options.people ?? {}) };
     const children = prepareBlocksForExport(b.children ?? [], options);
     switch (b.type) {
       case "mermaid":
@@ -142,6 +146,19 @@ export function prepareBlocksForExport(
         ];
     }
   });
+}
+
+// Mentions in a block's content (inline content, also inside table cells) as
+// "@name" text: the exporters don't know our inline content.
+function withMentionsAsText(value: unknown, people: Record<string, string>): unknown {
+  if (Array.isArray(value)) return value.map((item) => withMentionsAsText(item, people));
+  if (!value || typeof value !== "object") return value;
+  const item = value as { type?: unknown; props?: { userId?: unknown } };
+  if (item.type === "mention") {
+    const name = typeof item.props?.userId === "string" ? people[item.props.userId] : undefined;
+    return text(name ? `@${name}` : "@");
+  }
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, typeof v === "object" ? withMentionsAsText(v, people) : v]));
 }
 
 export function downloadBlob(fileName: string, blob: Blob): void {

@@ -85,8 +85,8 @@ test("the people for a page's TODOs are only given to those who can open it", as
   await expect(page.getByTestId("TodoBlock.assigneeSelect")).toContainText(ACCOUNTS.editor.name);
 
   const source = (await Promise.all(scripts)).join("\n");
-  const actionId = source.match(/"([0-9a-f]{40,})"[^"]*(?:"[^"]*"[^"]*){0,4}?"loadTodoPeople"/)?.[1];
-  expect(actionId, "loadTodoPeople's action id").toBeTruthy();
+  const actionId = source.match(/"([0-9a-f]{40,})"[^"]*(?:"[^"]*"[^"]*){0,4}?"loadPagePeople"/)?.[1];
+  expect(actionId, "loadPagePeople's action id").toBeTruthy();
   const origin = new URL(baseURL!).origin;
   for (const role of ["guest", "outsider", "viewer"] as const) {
     const context = await browser.newContext({ storageState: role === "guest" ? { cookies: [], origins: [] } : authFile(role) });

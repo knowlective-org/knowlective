@@ -4,6 +4,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
 import { findAccessiblePage } from "@/lib/auth/pages";
+import { pageOpened } from "@/lib/notifications";
 import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { atLeast } from "shared";
 import { loadPublicSidebar, loadSidebar } from "@/lib/sidebar-data";
@@ -32,11 +33,13 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
   const { user, page } = await loadPage((await params).pageId);
   if (!page) notFound();
 
-  const [sidebar, publicUrl, guestState] = await Promise.all([
-    user ? loadSidebar(user) : loadPublicSidebar(),
+  const [sidebar, publicUrl, guestState, following] = await Promise.all([
+    // Its notifications are read now (before the sidebar counts them).
+    user ? pageOpened(user.id, page.id).then(() => loadSidebar(user)) : loadPublicSidebar(),
     getPublicUrl(),
     // Not logged in: the content now, instead of a collaborative-editing connection.
     user ? null : publicPageState(page.id, page.title),
+    user ? prisma.pageFollow.count({ where: { userId: user.id, pageId: page.id } }).then((n) => n > 0) : false,
     // "/" reopens the page opened last.
     user &&
       prisma.user.updateMany({
@@ -80,6 +83,7 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
       shareUrl={`${publicUrl}/pages/${page.id}`}
       user={user ? { id: user.id, name: user.name ?? user.email } : null}
       guestState={guestState}
+      following={following}
       sidebar={sidebar}
     />
   );
