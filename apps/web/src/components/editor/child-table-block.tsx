@@ -1064,7 +1064,9 @@ function OptionsEditor({ options, onSave }: { options: SelectOption[]; onSave: (
   );
 }
 
-function Cell({
+// One custom column's value; also the page's properties under its title
+// (page-properties.tsx).
+export function Cell({
   column,
   value,
   editable,
@@ -1074,7 +1076,7 @@ function Cell({
   column: PropertyColumn;
   value: string;
   editable: boolean;
-  data: ChildTableData;
+  data: Pick<ChildTableData, "assignees" | "userNames">;
   onSave: (value: string) => void;
 }) {
   const t = useTranslations("editor.childTable");

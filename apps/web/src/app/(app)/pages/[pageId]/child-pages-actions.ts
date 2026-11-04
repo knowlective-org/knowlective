@@ -26,6 +26,7 @@ import type {
   ChildPageItem,
   ChildTableData,
   ChildTableRow,
+  PageProperties,
   PropertyType,
   SelectOption,
 } from "@/lib/page-property-types";
@@ -78,6 +79,14 @@ export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | 
 }
 
 const nameOf = (u: { name: string | null; email: string }) => u.name || u.email;
+
+// A column of `parentId`'s table changed: its page and every child page
+// (each shows its values under its title) refetch.
+async function notifyTable(parentId: string) {
+  notifyChildrenChanged(parentId);
+  const children = await prisma.page.findMany({ where: { parentId }, select: { id: true } });
+  for (const c of children) notifyChildrenChanged(c.id);
+}
 
 export async function loadChildTable(pageId: string): Promise<ChildTableData | null> {
   // Shown on public pages too, without anyone's name (see below).
@@ -149,6 +158,20 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
   };
 }
 
+// The page's values in its parent's child page table, for the properties
+// shown under its title: null when the parent has no columns, or the caller
+// can't open the parent (the columns are the parent's).
+export async function loadPageProperties(pageId: string): Promise<PageProperties | null> {
+  if (typeof pageId !== "string") return null;
+  const page = await prisma.page.findUnique({ where: { id: pageId }, select: { parentId: true } });
+  if (!page?.parentId) return null;
+  // Checks access to the parent (and returns only visible children).
+  const data = await loadChildTable(page.parentId);
+  const row = data?.rows.find((r) => r.id === pageId);
+  if (!data || !row || data.columns.length === 0) return null;
+  return { columns: data.columns, row, assignees: data.assignees, userNames: data.userNames };
+}
+
 // A column definition the caller may change (EDIT on the page it belongs to).
 async function editableColumn(userId: string, defId: unknown) {
   if (typeof defId !== "string") return null;
@@ -181,7 +204,7 @@ export async function addColumn(pageId: string, rawName: string, type: PropertyT
       position: (existing._max.position ?? -1) + 1,
     },
   });
-  notifyChildrenChanged(pageId);
+  await notifyTable(pageId);
   return {};
 }
 
@@ -218,7 +241,7 @@ export async function addStatusColumn(pageId: string): Promise<{ id: string } | 
       position: (existing._max.position ?? -1) + 1,
     },
   });
-  notifyChildrenChanged(pageId);
+  await notifyTable(pageId);
   return { id };
 }
 
@@ -230,7 +253,7 @@ export async function renameColumn(defId: string, rawName: string): Promise<Resu
   if (!name) return { error: (await getTranslations("childPages"))("columnName") };
   const key = await loadDataKey(prisma);
   await prisma.pagePropertyDef.update({ where: { id: def.id }, data: { name: sealColumnName(key, def.id, name) } });
-  notifyChildrenChanged(def.pageId);
+  await notifyTable(def.pageId);
   return {};
 }
 
@@ -242,7 +265,7 @@ export async function setColumnOptions(defId: string, rawOptions: SelectOption[]
   if (!options) return { error: (await getTranslations("childPages"))("options") };
   const key = await loadDataKey(prisma);
   await prisma.pagePropertyDef.update({ where: { id: def.id }, data: { options: sealOptions(key, def.id, options) } });
-  notifyChildrenChanged(def.pageId);
+  await notifyTable(def.pageId);
   return {};
 }
 
@@ -252,7 +275,7 @@ export async function deleteColumn(defId: string): Promise<Result> {
   const def = await editableColumn(user.id, defId);
   if (!def) return { error: await notAllowed() };
   await prisma.pagePropertyDef.delete({ where: { id: def.id } });
-  notifyChildrenChanged(def.pageId);
+  await notifyTable(def.pageId);
   return {};
 }
 
@@ -290,6 +313,8 @@ export async function setCellValue(childId: string, defId: string, value: string
     prisma.page.update({ where: { id: childId }, data: { updatedAt: new Date(), updatedById: user.id } }),
   ]);
   notifyChildrenChanged(def.pageId);
+  // The child page shows its values under its title (loadPageProperties()).
+  notifyChildrenChanged(childId);
   return {};
 }
 

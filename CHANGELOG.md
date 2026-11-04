@@ -17,9 +17,15 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - Two- and three-column layouts, each column holding its own blocks (also by dropping a block at another's side). On a phone-width screen the columns are shown one under another
 - Child page tables: a "Text (several lines)" column type, showing at least its first 200 characters whole
 - Child page tables: filters (words in text, ticked options or people, a date range; every condition must match). Filters and sorting by a column are each person's own, saved to their account so they follow them to other devices; an editor can make their sort the table's sort for everyone, and "Back to the table's view" drops their own
-- File paths in a page's text (`C:\…`, `\\server\share\…`, `file://…`) are marked, and a click copies them: a browser can't open files or folders on your computer
-- Code blocks: no spellcheck, and Ctrl/Cmd+A selects the block's code (press again for the whole page)
+- File paths in a page's text (`C:\…`, `\\server\share\…`, `file://…`) are marked, and a click copies them: a browser can't open files or folders on your computer. A path runs to the end of its line, spaces included (`\\server\共有 フォルダ\…`); one in quotes or 「」 ends at the closing quote
+- Code blocks: syntax highlighting by language, picked at the block's top left or with ```` ```python ````; no spellcheck; Ctrl/Cmd+A selects the block's code (press again for the whole page)
+- TODO blocks in place of the check list (in the slash menu, the block type menus, `[ ] ` and pasted Markdown check lists): an assignee from the people who can open the page, a due date (marked once it's past), and who ticked it and when. Check lists already in pages stay, and can be turned into TODOs from the ⋮⋮ menu
+- A page in a child page table shows its values in the table's columns under its title, and they can be changed there (by those who can edit the page)
 - Inherited access can be narrowed on a child page's "Permissions": Edit to View or No access, View to No access, for that page and the pages below. Never made stronger; groups managing the pages above can't be changed. "Inherit again" undoes it. Open editors reconnect when access changes
+
+### Changed
+
+- The log out icon is now a box with an arrow pointing out of it, to the right
 
 ### Fixed
 

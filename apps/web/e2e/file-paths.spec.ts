@@ -7,7 +7,8 @@ test.use({ storageState: authFile("editor") });
 test("a click on a file path in the text copies it", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await createPage(page, "E2E ファイルのパス");
-  await typeInBody(page, String.raw`保存先は \\fileserver\share\資料 です`);
+  // Spaces in it: the path runs to the end of the block.
+  await typeInBody(page, String.raw`保存先は \\fileserver\share\共有 フォルダ\資料`);
   await expect(page.getByTestId("PageView.status")).toHaveCount(0);
 
   // Click in the middle of the path (the text around it doesn't copy).
@@ -23,6 +24,6 @@ test("a click on a file path in the text copies it", async ({ page, context }) =
   });
   await page.mouse.click(box.x, box.y);
   await expect(page.getByTestId("Notice")).toContainText("パスをコピーしました");
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(String.raw`\\fileserver\share\資料`);
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(String.raw`\\fileserver\share\共有 フォルダ\資料`);
   await trashOpenPage(page);
 });

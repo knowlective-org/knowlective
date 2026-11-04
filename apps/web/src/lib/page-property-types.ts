@@ -45,6 +45,9 @@ export type ChildTableRow = {
   values: Record<string, string>;
 };
 
+// One child page's row, for the properties under its title.
+export type PageProperties = Pick<ChildTableData, "columns" | "assignees" | "userNames"> & { row: ChildTableRow };
+
 export type ChildTableData = {
   canEditColumns: boolean;
   columns: PropertyColumn[];

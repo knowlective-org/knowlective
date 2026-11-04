@@ -93,6 +93,24 @@ export const BLOCK_CONFIGS = {
     },
     content: "none",
   },
+  // A to-do item (the slash menu's TODO, in place of BlockNote's check list).
+  todo: {
+    type: "todo",
+    propSchema: {
+      checked: { default: false },
+      // A user id, "" for nobody. Names come from the server, for those who
+      // can open the page (todo-actions.ts).
+      assignee: { default: "" },
+      // YYYY-MM-DD, "" for none.
+      due: { default: "" },
+      // Who ticked it (a user id) and when (ISO), "" while it isn't done.
+      // Written by the ticking person's browser: like the rest of the
+      // document, anyone who can edit the page could change them.
+      doneBy: { default: "" },
+      doneAt: { default: "" },
+    },
+    content: "inline",
+  },
 } as const;
 
 // Body headings start at H2: the page title is the page's one H1.

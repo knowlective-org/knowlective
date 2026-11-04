@@ -45,6 +45,33 @@ test.describe("Child page table", () => {
     await trashOpenPage(page);
   });
 
+  test("a child page shows its values under its title, and they're changed there too", async ({ page }) => {
+    await tableWithColumn(page, "E2E プロパティ", "担当部署", "TEXT");
+    const cell = page.getByTestId("ChildTableBlock.row").locator("input").first();
+    await expect(cell).toBeVisible();
+    await cell.fill("営業部");
+    await cell.press("Enter");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    const parentUrl = page.url();
+
+    await page.getByTestId("ChildTableBlock.pageLink").click();
+    await expect(page.getByTestId("TitleField")).toHaveValue("子ページ");
+    const property = page.getByTestId("PageProperties.row");
+    await expect(property).toHaveCount(1);
+    await expect(property).toContainText("担当部署");
+    const input = property.locator("input");
+    await expect(input).toHaveValue("営業部");
+    await input.fill("開発部");
+    await input.press("Enter");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+    await page.goto(parentUrl);
+    await expect(page.getByTestId("ChildTableBlock.row").locator("input").first()).toHaveValue("開発部");
+    // A page outside any table has no properties.
+    await expect(page.getByTestId("PageProperties")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
   test("a long text shows its first 200 characters whole", async ({ page }) => {
     await tableWithColumn(page, "E2E 長いテキスト", "メモ", "LONG_TEXT");
     const cell = page.getByTestId("LongTextCell");

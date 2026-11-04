@@ -2,7 +2,8 @@
 // (page-markdown.ts loads this). An ES module (.mts) on purpose: apps/web is a
 // CommonJS package, and under require() Node gets BlockNote's CommonJS build,
 // which fails to load ("….default.extend is not a function").
-import { BlockNoteSchema, createBlockSpec, createHeadingBlockSpec, defaultBlockSpecs } from "@blocknote/core";
+import { BlockNoteSchema, createBlockSpec, createCodeBlockSpec, createHeadingBlockSpec, defaultBlockSpecs } from "@blocknote/core";
+import { codeBlockOptions } from "@blocknote/code-block";
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
 import { withMultiColumn } from "@blocknote/xl-multi-column";
 import * as Y from "yjs";
@@ -13,11 +14,20 @@ import { BLOCK_CONFIGS, HEADING_LEVELS } from "../src/components/editor/block-co
 // which only matters for HTML output — they're turned into standard blocks
 // before Markdown is written (prepareBlocksForExport).
 const plain = { render: () => ({ dom: document.createElement("div") }) };
+// The same for blocks holding text.
+const withText = {
+  render: () => {
+    const dom = document.createElement("div");
+    return { dom, contentDOM: dom };
+  },
+};
 
 const serverSchema = withMultiColumn(BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
+    // The editor's languages (CODE_BLOCK_OPTIONS in components/editor/code-block.ts).
+    codeBlock: createCodeBlockSpec({ ...codeBlockOptions, defaultLanguage: "text" }),
     childPages: createBlockSpec(BLOCK_CONFIGS.childPages, plain)(),
     childTable: createBlockSpec(BLOCK_CONFIGS.childTable, plain)(),
     childBoard: createBlockSpec(BLOCK_CONFIGS.childBoard, plain)(),
@@ -27,6 +37,7 @@ const serverSchema = withMultiColumn(BlockNoteSchema.create({
     videoEmbed: createBlockSpec(BLOCK_CONFIGS.videoEmbed, plain)(),
     maskedText: createBlockSpec(BLOCK_CONFIGS.maskedText, plain)(),
     chat: createBlockSpec(BLOCK_CONFIGS.chat, plain)(),
+    todo: createBlockSpec(BLOCK_CONFIGS.todo, withText)(),
   },
 }));
 

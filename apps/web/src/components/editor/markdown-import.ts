@@ -108,8 +108,15 @@ export function mermaidFromCodeBlock(block: ImportedBlock): ImportedBlock | null
 // Blocks parsed from a Markdown file, adjusted for a page: headings move down
 // one level (the page title is the only H1; H6 stays), and ```mermaid code
 // blocks become diagrams.
+// A check list item ("- [ ] …") as a TODO, which replaces the check list
+// (todo-block.tsx); anything else as it is.
+export function todoFromChecklist<T extends ImportedBlock>(block: T): T {
+  return block.type === "checkListItem" ? { ...block, type: "todo", props: { checked: block.props?.checked === true } } : block;
+}
+
 export function prepareImportedBlocks(blocks: ImportedBlock[]): ImportedBlock[] {
-  return blocks.map((block) => {
+  return blocks.map((original) => {
+    const block = todoFromChecklist(original);
     const diagram = mermaidFromCodeBlock(block);
     if (diagram) return diagram;
     const children = block.children ? prepareImportedBlocks(block.children) : block.children;

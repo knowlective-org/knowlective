@@ -42,7 +42,8 @@ import {
   textToBlocks,
 } from "./editor/markdown-import";
 import { PageEditorContext, type PageEditorContextValue } from "./editor/page-context";
-import { customSlashMenuItems, editorSchema } from "./editor/schema";
+import { PageProperties } from "./editor/page-properties";
+import { customSlashMenuItems, editorSchema, withTodoForChecklist } from "./editor/schema";
 import { useFilePaths } from "./editor/file-paths";
 import { showAlert, showChoice, showConfirm } from "./dialog";
 import { EditorPlaceholder } from "./editor-placeholder";
@@ -258,6 +259,20 @@ function convertPastedMermaid(editor: BlockEditor, before: Map<string, string>) 
       const diagram = before.get(block.id) === "codeBlock:" ? null : mermaidFromCodeBlock(block);
       if (diagram) editor.replaceBlocks([block.id], [diagram as never]);
       else walk(block.children);
+    }
+  };
+  walk(editor.document as AnyBlock[]);
+}
+
+// Check list items a paste brought in ("- [ ] …" in Markdown, checkboxes in
+// HTML) become TODOs, which replace the check list.
+function convertPastedChecklists(editor: BlockEditor, before: Map<string, string>) {
+  const walk = (blocks: AnyBlock[]) => {
+    for (const block of blocks) {
+      if (block.type === "checkListItem" && before.get(block.id) !== "checkListItem:") {
+        editor.updateBlock(block.id, { type: "todo", props: { checked: block.props.checked === true } } as never);
+      }
+      walk(block.children);
     }
   };
   walk(editor.document as AnyBlock[]);
@@ -533,6 +548,7 @@ function EditorBody({
           pasting.delete(editor);
           shiftPastedHeadings(editor, before);
           convertPastedMermaid(blockEditor, before);
+          convertPastedChecklists(blockEditor, before);
         }
       },
       // Guests can't add files; without uploadFile BlockNote ignores drops.
@@ -657,12 +673,13 @@ function EditorBody({
   const pageContext = useMemo<PageEditorContextValue>(
     () => ({
       pageId,
+      userId: user.id,
       onChildrenChanged(listener) {
         events.addEventListener(CHILDREN_CHANGED, listener);
         return () => events.removeEventListener(CHILDREN_CHANGED, listener);
       },
     }),
-    [pageId, events],
+    [pageId, user.id, events],
   );
   useEffect(() => {
     const emit = () => events.dispatchEvent(new Event(CHILDREN_CHANGED));
@@ -776,6 +793,7 @@ function EditorBody({
         onEnter={() => editor.focus()}
       />
       <PageEditorContext.Provider value={pageContext}>
+        <PageProperties />
         <BlockNoteView
           editor={editor}
           editable={!readOnly}
@@ -791,10 +809,12 @@ function EditorBody({
             triggerCharacter="/"
             getItems={async (query) =>
               filterSuggestionItems(
-                [
-                  ...combineByGroup(getDefaultReactSlashMenuItems(editor), getMultiColumnSlashMenuItems(editor)),
-                  ...customSlashMenuItems(editor, t),
-                ],
+                combineByGroup(
+                  withTodoForChecklist(getDefaultReactSlashMenuItems(editor), editor, t),
+                  getMultiColumnSlashMenuItems(editor),
+                  // Ours join BlockNote's group of the same name ("Others").
+                  customSlashMenuItems(editor, t),
+                ),
                 query,
               )
             }

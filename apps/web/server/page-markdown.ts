@@ -1,5 +1,5 @@
 import { type ExportBlock, prepareBlocksForExport } from "../src/components/editor/markdown-export";
-import { type ImportedBlock, mermaidFromCodeBlock } from "../src/components/editor/markdown-import";
+import { type ImportedBlock, mermaidFromCodeBlock, todoFromChecklist } from "../src/components/editor/markdown-import";
 import { registerMarkdownBridge } from "../src/lib/markdown-bridge";
 
 // Markdown ↔ page documents for the public API (src/lib/api/), through the
@@ -14,7 +14,9 @@ let engine: Promise<typeof import("./markdown-engine.mjs")> | null = null;
 const load = () => (engine ??= import("./markdown-engine.mjs"));
 
 function adjustImported(blocks: ImportedBlock[]): ImportedBlock[] {
-  return blocks.map((block) => {
+  return blocks.map((original) => {
+    // "- [ ] …" makes a TODO, as in the editor.
+    const block = todoFromChecklist(original);
     const diagram = mermaidFromCodeBlock(block);
     if (diagram) return diagram;
     const children = block.children ? adjustImported(block.children) : block.children;

@@ -1,0 +1,40 @@
+/* The page's properties under its title: name on the left, value on the right. */
+
+.properties {
+  display: grid;
+  grid-template-columns: minmax(6em, 12em) 1fr;
+  gap: 2px 12px;
+  margin: 0 0 16px;
+  padding: 0 54px 12px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row {
+  display: contents;
+}
+
+.name {
+  padding: 4px 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.value {
+  min-width: 0;
+  padding: 2px 0;
+}
+
+/* Same as the title (collaborative-editor.module.css). */
+@media (max-width: 640px) {
+  .properties {
+    grid-template-columns: 1fr;
+    padding: 0 16px 12px;
+  }
+
+  .name {
+    padding-bottom: 0;
+  }
+}

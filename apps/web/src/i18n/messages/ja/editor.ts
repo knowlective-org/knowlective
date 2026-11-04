@@ -67,6 +67,9 @@ const ja: MessageShape<typeof en> = {
       chatAliases: "チャット,メッセージ,会話,やりとり,コメント,スレッド,雑談,掲示板,chatto",
       maskedText: "マスク化",
       maskedTextSub: "合言葉を知っている人だけが見られる内容。ブラウザーの中で暗号化します",
+      todo: "TODO",
+      todoSub: "担当者・期限つきのやること。完了した人と日時を残します",
+      todoAliases: "やること,タスク,チェックリスト,チェック,担当,期限,yarukoto",
       maskedTextAliases: "マスク,マスク化,秘密,鍵,合言葉,パスワード,暗号,暗号化,himitsu,kagi",
     },
     chat: {
@@ -81,6 +84,21 @@ const ja: MessageShape<typeof en> = {
       notAllowed: "このチャットには投稿できません。",
       invalid: "メッセージが空か、長すぎます。",
       tooMany: "短い間に送りすぎです。少し待ってから送ってください。",
+    },
+    properties: {
+      label: "このページのプロパティ",
+    },
+    todo: {
+      done: "完了",
+      assignee: "担当者",
+      noAssignee: "担当なし",
+      assignedTo: "担当: {name}",
+      due: "期限",
+      dueOn: "期限: {date}",
+      overdue: "期限切れ",
+      doneBy: "✓ {name}が{date}に完了",
+      doneAt: "✓ {date}に完了",
+      unknownUser: "（不明なユーザー）",
     },
     masked: {
       label: "鍵でマスクした内容",

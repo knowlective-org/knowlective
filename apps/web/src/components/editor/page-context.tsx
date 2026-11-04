@@ -7,6 +7,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 // through portals, so context reaches them.
 export type PageEditorContextValue = {
   pageId: string;
+  // The viewer; null for someone not logged in.
+  userId: string | null;
   // Subscribes to "this page's children changed" (lib/collab-events.ts).
   onChildrenChanged(listener: () => void): () => void;
 };

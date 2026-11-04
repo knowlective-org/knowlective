@@ -2,6 +2,7 @@
 
 import {
   BlockNoteSchema,
+  createExtension,
   createHeadingBlockSpec,
   defaultBlockSpecs,
   insertOrUpdateBlockForSlashMenu,
@@ -19,6 +20,7 @@ import { videoEmbedBlock } from "./video-embed-block";
 import { codeBlock } from "./code-block";
 import { maskedBlock } from "./masked-block";
 import { chatBlock } from "./chat-block";
+import { continueList, todoBlock } from "./todo-block";
 import { HEADING_LEVELS } from "./block-configs";
 
 // The editor's block types: BlockNote's defaults plus knowlective's own. Block
@@ -32,12 +34,25 @@ import { HEADING_LEVELS } from "./block-configs";
 //
 // Columns (2 or 3 side by side, each holding blocks) are BlockNote's
 // xl-multi-column: the "column" and "columnList" types.
+//
+// The check list is replaced by the TODO block (todo-block.tsx) in the menus
+// and shortcuts ("[ ] "); its type stays for the check lists already in
+// pages, with Enter still continuing them.
 export { HEADING_LEVELS };
 
 export const editorSchema = withMultiColumn(BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     codeBlock,
+    checkListItem: {
+      ...defaultBlockSpecs.checkListItem,
+      extensions: [
+        createExtension({
+          key: "knowlective-check-list",
+          keyboardShortcuts: { Enter: ({ editor }) => continueList(editor, "checkListItem") },
+        }),
+      ] as typeof defaultBlockSpecs.checkListItem.extensions,
+    },
     heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
     childPages: childPagesBlock(),
     childTable: childTableBlock(),
@@ -48,12 +63,40 @@ export const editorSchema = withMultiColumn(BlockNoteSchema.create({
     videoEmbed: videoEmbedBlock(),
     maskedText: maskedBlock(),
     chat: chatBlock(),
+    todo: todoBlock(),
   },
 }));
 
 export type KnowlectiveEditor = typeof editorSchema.BlockNoteEditor;
 
 type SlashKey = keyof Messages["editor"]["slash"];
+
+// BlockNote's slash menu items with its check list replaced by the TODO
+// block, in the same place (its group, its icon).
+export function withTodoForChecklist(
+  items: DefaultReactSuggestionItem[],
+  editor: KnowlectiveEditor,
+  t: (key: `editor.slash.${SlashKey}`) => string,
+): DefaultReactSuggestionItem[] {
+  return items.map((item) =>
+    (item as { key?: string }).key === "check_list"
+      ? {
+          ...item,
+          title: t("editor.slash.todo"),
+          subtext: t("editor.slash.todoSub"),
+          aliases: [
+            "todo",
+            "task",
+            "checklist",
+            "check",
+            "checkbox",
+            ...t("editor.slash.todoAliases").split(",").filter(Boolean),
+          ],
+          onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "todo" }),
+        }
+      : item,
+  );
+}
 
 // `t`: the viewer's translator (useTranslations()).
 export function customSlashMenuItems(
