@@ -77,6 +77,22 @@ export const BLOCK_CONFIGS = {
     },
     content: "none",
   },
+  chat: {
+    type: "chat",
+    // The messages are rows on the server, keyed by the block's id
+    // (lib/chat.ts): nothing about them is in the document.
+    propSchema: {},
+    content: "none",
+  },
+  maskedText: {
+    type: "maskedText",
+    propSchema: {
+      // The text sealed with a passphrase in the browser (lib/secret-text.ts);
+      // "" until something is locked in it. Never the plain text.
+      sealed: { default: "" },
+    },
+    content: "none",
+  },
 } as const;
 
 // Body headings start at H2: the page title is the page's one H1.

@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { getTranslations } from "next-intl/server";
-import { PAGE_ORDER, atLeast, canEditPage, getUsersWithPageAccess, loadDataKey } from "shared";
+import { PAGE_ORDER, atLeast, canEditPage, decrypt, encrypt, getUsersWithPageAccess, loadDataKey } from "shared";
 import { getPageAccess, getVisibleTree } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
@@ -20,6 +20,8 @@ import {
   validateValue,
 } from "@/lib/page-properties";
 import { OPTION_COLORS, PROPERTY_TYPES } from "@/lib/page-property-types";
+import { EMPTY_VIEW, isEmptyView, normalizeView, type TableView } from "@/lib/table-view";
+import { isBlockId } from "@/lib/chat";
 import type {
   ChildPageItem,
   ChildTableData,
@@ -291,3 +293,41 @@ export async function setCellValue(childId: string, defId: string, value: string
   return {};
 }
 
+
+// A person's own filters and sort for one table block (lib/table-view.ts),
+// kept on their account. Someone not logged in keeps theirs on the screen
+// only (null here).
+const viewAad = (userId: string, pageId: string, blockId: string) => `knowlective:table-view:${userId}:${pageId}:${blockId}`;
+
+export async function loadTableView(pageId: string, blockId: string): Promise<TableView | null> {
+  // Called on public pages too; nothing is kept for someone not logged in.
+  const user = await getCurrentUser();
+  if (!user || typeof pageId !== "string" || !isBlockId(blockId)) return null;
+  if (!(await getPageAccess(prisma, user.id, pageId))) return null;
+  const row = await prisma.tableViewPref.findUnique({ where: { userId_pageId_blockId: { userId: user.id, pageId, blockId } } });
+  if (!row) return EMPTY_VIEW;
+  const key = await loadDataKey(prisma);
+  try {
+    return normalizeView(JSON.parse(decrypt(key, row.viewEnc, viewAad(user.id, pageId, blockId)).toString("utf8"))) ?? EMPTY_VIEW;
+  } catch {
+    return EMPTY_VIEW;
+  }
+}
+
+// `raw` null (or an empty view): back to the table's own view.
+export async function saveTableView(pageId: string, blockId: string, raw: unknown): Promise<Result> {
+  const user = await requireUser();
+  if (typeof pageId !== "string" || !isBlockId(blockId)) return { error: await notAllowed() };
+  if (!(await getPageAccess(prisma, user.id, pageId))) return { error: await notAllowed() };
+  const view = raw === null ? EMPTY_VIEW : normalizeView(raw);
+  if (!view) return { error: await notAllowed() };
+  const where = { userId_pageId_blockId: { userId: user.id, pageId, blockId } };
+  if (isEmptyView(view)) {
+    await prisma.tableViewPref.deleteMany({ where: { userId: user.id, pageId, blockId } });
+    return {};
+  }
+  const key = await loadDataKey(prisma);
+  const viewEnc = Uint8Array.from(encrypt(key, Buffer.from(JSON.stringify(view), "utf8"), viewAad(user.id, pageId, blockId)));
+  await prisma.tableViewPref.upsert({ where, create: { userId: user.id, pageId, blockId, viewEnc }, update: { viewEnc } });
+  return {};
+}

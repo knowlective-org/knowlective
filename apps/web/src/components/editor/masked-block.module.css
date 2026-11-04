@@ -1,0 +1,130 @@
+/* Masked block (text locked with a passphrase) inside the editor. */
+
+.block {
+  width: 100%;
+  margin: 4px 0;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.label {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.hidden {
+  margin: 0 0 6px;
+  letter-spacing: 2px;
+  color: var(--color-muted);
+}
+
+.text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.input,
+.textInput {
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+}
+
+.input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.textInput {
+  display: block;
+  width: 100%;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.input:focus-visible,
+.textInput:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  outline-offset: 0;
+  border-color: var(--color-primary);
+}
+
+.muted {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-danger);
+}
+
+.tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.toolButton,
+.primaryButton {
+  padding: 3px 10px;
+  font: inherit;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.toolButton {
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.toolButton:hover {
+  background: var(--color-hover);
+}
+
+.primaryButton {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Printed (and exported) locked: the text is only ever on screen. */
+@media print {
+  .form,
+  .tools,
+  .text {
+    display: none;
+  }
+}

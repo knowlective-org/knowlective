@@ -60,6 +60,9 @@ function childPageList(
 // - Video embed → a link to the video
 // - Child page list / table / board → a list of links to the child pages the
 //   exporting user can see (the table's columns and the board's lanes are left out)
+// - Columns → their blocks one after another (first column first)
+// - Masked text → a placeholder: the text is only ever opened on screen
+// - Chat → left out (its messages aren't in the document)
 // and with links to attachments made absolute, so they work outside the site.
 export function prepareBlocksForExport(
   blocks: ExportBlock[],
@@ -99,6 +102,13 @@ export function prepareBlocksForExport(
         if (!/^https?:\/\//i.test(url)) return children;
         return [block("paragraph", [link(url, url)]), ...children];
       }
+      case "columnList":
+      case "column":
+        return children;
+      case "chat":
+        return children;
+      case "maskedText":
+        return [block("paragraph", [text("🔒 ••••••••")]), ...children];
       case "childPages":
       case "childTable":
       case "childBoard": {

@@ -73,6 +73,8 @@ model User {
   apiKeys         ApiKey[]
   emailCodes      EmailCode[]
   emailChanges    EmailChangeRequest[]
+  chatMessages    ChatMessage[]
+  tableViews      TableViewPref[]
 
   // TOTP secret for this user's two-step verification, encrypted with the DEK
   // (AAD bound to the user id). Required for site admins signing in to /admin.
@@ -173,6 +175,8 @@ model Page {
   versions       PageVersion[]
   searchIndex    PageSearchIndex?
   fileRefs       PageFileRefs?
+  chatMessages   ChatMessage[]
+  tableViews     TableViewPref[]
 
   @@index([rootId])
   @@index([parentId, sortOrder])
@@ -281,6 +285,41 @@ model PageFileRefs {
   page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
   fileIds   String[]
   updatedAt DateTime @updatedAt
+}
+
+// A message in a chat block (apps/web/src/lib/chat.ts). Kept here, not in the
+// page document: anyone who can edit the page can change the document, and a
+// message must stay as its author wrote it. The block's id (in the document)
+// ties the messages to the block. The text is encrypted with the data key
+// (AAD: the message id).
+model ChatMessage {
+  id        String   @id
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  blockId   String
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  bodyEnc   Bytes
+  createdAt DateTime @default(now())
+
+  @@index([pageId, blockId, createdAt])
+}
+
+// A person's own filters and sort for one child page table block
+// (apps/web/src/lib/table-view.ts), so they follow them to every device. The
+// view holds what they typed into the filters, so it's encrypted with the
+// data key (AAD: user, page and block).
+model TableViewPref {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  blockId   String
+  viewEnc   Bytes
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, pageId, blockId])
+  @@index([pageId])
 }
 
 model PageDocument {

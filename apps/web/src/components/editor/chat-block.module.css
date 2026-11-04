@@ -1,0 +1,144 @@
+/* Chat block inside the editor. */
+
+.block {
+  width: 100%;
+  margin: 4px 0;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.label {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.muted {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  margin-bottom: 8px;
+  padding: 4px 2px;
+  overflow-y: auto;
+}
+
+/* The viewer's own messages on the right, everyone else's on the left. */
+.mine,
+.theirs {
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
+}
+
+.mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.theirs {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.meta {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin-bottom: 2px;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.author {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bubble {
+  padding: 6px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 10px;
+}
+
+.theirs .bubble {
+  background: var(--color-hover);
+  border-top-left-radius: 2px;
+}
+
+.mine .bubble {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-top-right-radius: 2px;
+}
+
+.composer {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: inherit;
+  background: var(--color-background);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  resize: none;
+}
+
+.input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  outline-offset: 0;
+  border-color: var(--color-primary);
+}
+
+.sendButton {
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sendButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Printing: the whole log, no form. */
+@media print {
+  .log {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .composer {
+    display: none;
+  }
+
+  .mine .bubble {
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--color-border);
+  }
+}
