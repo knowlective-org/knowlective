@@ -25,7 +25,6 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 - Code blocks list their languages A to Z (plain text first)
 - Every screen's title, and the app's name when added to the home screen, end with the site's name (the one at the top left) instead of "KNOWLECTIVE"
-
 - A screen opened before the app was updated can no longer edit pages: it's asked to reload instead (an editor that doesn't know a new kind of block would remove it from the page for everyone, and one that doesn't know block locks would ignore them)
 
 ### Fixed
