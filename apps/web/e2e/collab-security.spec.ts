@@ -1,6 +1,7 @@
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { expect, test } from "@playwright/test";
 import { createCollabToken } from "shared";
+import { COLLAB_CLIENT_VERSION } from "../src/lib/collab-version";
 import { Awareness, encodeAwarenessUpdate } from "y-protocols/awareness";
 import * as Y from "yjs";
 import { ACCOUNTS, authFile } from "./accounts";
@@ -34,6 +35,8 @@ function connect(baseURL: string, pageId: string, token: string): Connection {
   } as ConstructorParameters<typeof HocuspocusProvider>[0]);
   return { provider, doc, result };
 }
+
+const V = COLLAB_CLIENT_VERSION;
 
 const close = (...connections: Connection[]) => connections.forEach((c) => c.provider.destroy());
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -81,21 +84,24 @@ test.describe("Collaboration server", () => {
 
   test("tokens that aren't valid for this person and page are refused", async ({ baseURL }) => {
     const users = await userIds();
-    const valid = connect(baseURL!, pageId, createCollabToken(users.editor, pageId));
+    const valid = connect(baseURL!, pageId, createCollabToken(users.editor, pageId, V));
     expect(await valid.result).toBe("synced");
     close(valid);
 
-    const token = createCollabToken(users.editor, pageId);
+    const token = createCollabToken(users.editor, pageId, V);
     const refused = {
       // The signature doesn't match (one character changed).
       forged: token.slice(0, -2) + (token.at(-2) === "A" ? "B" : "A") + token.at(-1),
-      expired: createCollabToken(users.editor, pageId, Date.now() - 10 * 60_000),
+      expired: createCollabToken(users.editor, pageId, V, Date.now() - 10 * 60_000),
       // Signed for another page.
-      otherPage: createCollabToken(users.editor, "e2e-home"),
+      otherPage: createCollabToken(users.editor, "e2e-home", V),
       // Not logged in (public pages are shown without collaborative editing).
-      notLoggedIn: createCollabToken("", pageId),
+      notLoggedIn: createCollabToken("", pageId, V),
       // Logged in, but no access to the page.
-      noAccess: createCollabToken(users.outsider, pageId),
+      noAccess: createCollabToken(users.outsider, pageId, V),
+      // From an editor older than the app (it would drop blocks it doesn't
+      // know, and ignore block locks).
+      outdated: createCollabToken(users.editor, pageId, V - 1),
     };
     for (const [why, t] of Object.entries(refused)) {
       const c = connect(baseURL!, pageId, t);
@@ -106,8 +112,8 @@ test.describe("Collaboration server", () => {
 
   test("a read-only connection's edits are dropped", async ({ baseURL }) => {
     const users = await userIds();
-    const viewer = connect(baseURL!, pageId, createCollabToken(users.viewer, pageId));
-    const editor = connect(baseURL!, pageId, createCollabToken(users.editor, pageId));
+    const viewer = connect(baseURL!, pageId, createCollabToken(users.viewer, pageId, V));
+    const editor = connect(baseURL!, pageId, createCollabToken(users.editor, pageId, V));
     expect(await viewer.result).toBe("synced");
     expect(await editor.result).toBe("synced");
     const before = editor.doc.getText("title").toString();
@@ -124,8 +130,8 @@ test.describe("Collaboration server", () => {
 
   test("cursors carry the logged-in person's name, and nobody can speak for another's cursor", async ({ baseURL }) => {
     const users = await userIds();
-    const viewer = connect(baseURL!, pageId, createCollabToken(users.viewer, pageId));
-    const editor = connect(baseURL!, pageId, createCollabToken(users.editor, pageId));
+    const viewer = connect(baseURL!, pageId, createCollabToken(users.viewer, pageId, V));
+    const editor = connect(baseURL!, pageId, createCollabToken(users.editor, pageId, V));
     expect(await viewer.result).toBe("synced");
     expect(await editor.result).toBe("synced");
     viewer.provider.setAwarenessField("user", { name: "E2E 閲覧者", color: "#000000" });

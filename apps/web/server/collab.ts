@@ -22,7 +22,9 @@ import {
 import { cursorColorFor } from "../src/lib/cursor-color";
 import { BASE_PATH } from "../src/lib/base-path";
 import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
-import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
+import { COLLAB_CLIENT_VERSION } from "../src/lib/collab-version";
+import { lockedBlockIds } from "../src/lib/block-locks";
+import { BLOCKS_LOCKED, CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 import { startSemanticSearch } from "./semantic-search";
@@ -195,6 +197,11 @@ export async function createCollab() {
       if (!payload || payload.p !== documentName) {
         throw new Error("Invalid collab token");
       }
+      // An editor older than the app (or a token minted for one before an
+      // update) would drop blocks it doesn't know and ignore block locks.
+      if (payload.v !== COLLAB_CLIENT_VERSION) {
+        throw new Error("Outdated editor");
+      }
       // The network's caps (lib/network-policy.ts), as in the app: reading not
       // allowed refuses the page, changing not allowed makes it read-only.
       const caps = capsFor(getClientIp(requestHeaders), await getNetworkSettings(prisma));
@@ -322,11 +329,17 @@ export async function createCollab() {
     // Yjs update of a document holding just the BlockNote fragment. Edits not
     // yet in a version are saved as one first, so the previous content stays
     // in the history; the change itself is recorded for `userId` (onChange)
-    // and saved with the next version. Access and locks are checked by the caller.
+    // and saved with the next version. Access and the page lock are checked
+    // by the caller; a new body with locked blocks (lib/block-locks.ts) is
+    // refused here, where the live document is.
     async replaceContent(pageId, userId, content) {
       const connection = await hocuspocus.openDirectConnection(pageId, { userId });
       try {
         const document = connection.document!;
+        // A new body replaces every block: not while any is locked.
+        if (content.body && lockedBlockIds(document).size > 0) {
+          throw Object.assign(new Error("The page has locked blocks"), { code: BLOCKS_LOCKED });
+        }
         const before = pendingEditors.get(pageId);
         if (before?.size) {
           pendingEditors.delete(pageId);

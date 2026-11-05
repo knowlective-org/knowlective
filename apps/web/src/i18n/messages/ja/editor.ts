@@ -11,6 +11,8 @@ const ja: MessageShape<typeof en> = {
     },
     openFailed: "このページを開けませんでした。再読み込みしてください。",
     movedToTrash: "このページはごみ箱に移動されました。",
+    outdated: "この画面を開いた後にアプリが更新されました。編集を続けるには、ページを再読み込みしてください。",
+    reload: "再読み込み",
     uploadFailedTitle: "アップロードできません",
     uploadFailed: "ファイルのアップロードに失敗しました。",
     expandImageFailed: "画像をアップロードできなかったため、展開を中止しました。\n{message}",
@@ -36,6 +38,7 @@ const ja: MessageShape<typeof en> = {
     replaceConfirm:
       "このページのタイトルと本文を「{name}」の内容で置き換えます。タイトルはファイルの最初の見出し（# …）、なければファイル名になります。\n\n今の内容はページの履歴に残ります。",
     replaceFailedTitle: "置き換えられません",
+    replaceLocked: "このページにはロックしたブロックがあるため、置き換えられません。先に ⋮⋮ のメニューからロックを解除してください。",
     replaceErrors: {
       noPermission: "このページを編集する権限がありません。",
       locked: "このページはロックされているため、置き換えられません。先にロックを解除してください。",
@@ -191,6 +194,20 @@ const ja: MessageShape<typeof en> = {
       duplicate: "複製",
       copied: "コピーしました。",
       copyFailed: "コピーできませんでした。",
+      lock: "ロック",
+      lockNone: "ロックしない",
+      lockDelete: "削除できない",
+      lockEdit: "内容を変更できない",
+      loosenTitle: "ロックを緩めますか？",
+      loosenConfirm:
+        "{level, select, delete {ページを編集できる人なら誰でも、{count, plural, other {このブロック}}の内容を変更できるようになります（削除はできないまま）。} other {ページを編集できる人なら誰でも、{count, plural, other {このブロック}}を変更・削除できるようになります。}}",
+      loosen: "緩める",
+    },
+    blockLock: {
+      deleteLabel: "削除不可",
+      editLabel: "変更不可",
+      deleteBlocked: "ロックしたブロックは削除できません。削除するには、⋮⋮ のメニューからロックを解除してください。",
+      editBlocked: "このブロックはロックされていて、内容を変更できません。変更するには、⋮⋮ のメニューからロックを解除してください。",
     },
     blockType: {
       change: "種類を変更",

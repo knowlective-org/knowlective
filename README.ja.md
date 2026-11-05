@@ -335,7 +335,7 @@ curl -X PATCH -H "Authorization: Bearer kn_..." -H "Content-Type: application/js
 
 - タイトルは本文と別。Markdown の見出しはそのまま対応する（`## ` がページの H2。`# ` は H2 になる）ので、`GET` で受け取ったものをそのまま送り返せる。```` ```mermaid ```` は図になる。子ページ一覧・テーブルは、持ち主が見られる子ページへのリンクとして出る
 - 変更は開いているドキュメントを通すので、ページを開いている人の画面にすぐ反映され、変更前の内容はページの履歴に残る
-- エラーは `{ "error": { "code": "...", "message": "..." } }`（`invalid_key`・`insufficient_scope`・`not_found`・`forbidden`・`page_locked`・`rate_limited`・`api_disabled` など）。Windows の curl で日本語を送るときは、本文を UTF-8 のファイルにして `-d @file.json` で渡す
+- エラーは `{ "error": { "code": "...", "message": "..." } }`（`invalid_key`・`insufficient_scope`・`not_found`・`forbidden`・`page_locked`・`blocks_locked`（ロックしたブロックがあると本文を置き換えられない）・`rate_limited`・`api_disabled` など）。Windows の curl で日本語を送るときは、本文を UTF-8 のファイルにして `-d @file.json` で渡す
 
 ## 管理画面（`/admin`）
 

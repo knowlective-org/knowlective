@@ -3,7 +3,7 @@ import { getPageAccess } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { apiError, apiJson, pageDetail, readPageInput, withApiKey } from "@/lib/api/http";
 import { markdownToBody } from "@/lib/api/page-content";
-import { replacePageContent } from "@/lib/collab-events";
+import { BLOCKS_LOCKED, replacePageContent } from "@/lib/collab-events";
 
 type Context = RouteContext<"/api/v1/pages/[pageId]">;
 
@@ -20,7 +20,8 @@ export async function GET(request: Request, ctx: Context) {
 
 // PATCH { title?, markdown? }: replaces the title and/or the whole body. Live:
 // everyone with the page open sees it; the content before is kept in the
-// page's history. Needs EDIT, and the page not locked.
+// page's history. Needs EDIT, and the page not locked; a new body also needs
+// none of its blocks locked (lib/block-locks.ts).
 export async function PATCH(request: Request, ctx: Context) {
   return withApiKey(request, "WRITE", async ({ user }) => {
     const { pageId } = await ctx.params;
@@ -34,10 +35,15 @@ export async function PATCH(request: Request, ctx: Context) {
     if (input.title === undefined && input.markdown === undefined) {
       return apiError("invalid_body", "Send \"title\", \"markdown\", or both.");
     }
-    await replacePageContent(pageId, user.id, {
-      title: input.title,
-      body: input.markdown === undefined ? undefined : await markdownToBody(input.markdown),
-    });
+    try {
+      await replacePageContent(pageId, user.id, {
+        title: input.title,
+        body: input.markdown === undefined ? undefined : await markdownToBody(input.markdown),
+      });
+    } catch (error) {
+      if ((error as { code?: unknown }).code === BLOCKS_LOCKED) return apiError("blocks_locked");
+      throw error;
+    }
     return apiJson(await pageDetail(user.id, pageId, access.rootId));
   });
 }

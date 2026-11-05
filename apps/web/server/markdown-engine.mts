@@ -105,3 +105,18 @@ export function stateToBlocks(state: Uint8Array): unknown[] {
 }
 
 export const blocksToMarkdown = (blocks: unknown[]): Promise<string> => newEditor().blocksToMarkdownLossy(blocks as never);
+
+// The document's node and mark types with their attributes, one per line
+// (sorted): what an editor must know to keep a page's document intact
+// (test/collab-version.test.mts ties it to src/lib/collab-version.ts).
+export function schemaOutline(): string {
+  const schema = newEditor().editor.pmSchema;
+  const line = (kind: string, name: string, attrs: Record<string, unknown>) =>
+    `${kind} ${name}(${Object.keys(attrs).sort().join(",")})`;
+  return [
+    ...Object.values(schema.nodes).map((n) => line("node", n.name, n.spec.attrs ?? {})),
+    ...Object.values(schema.marks).map((m) => line("mark", m.name, m.spec.attrs ?? {})),
+  ]
+    .sort()
+    .join("\n");
+}

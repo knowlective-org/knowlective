@@ -84,6 +84,38 @@ a {
   text-decoration-thickness: 2px;
 }
 
+/* A locked block (block-lock.ts): a small label in the right margin, at the
+   block's first line. */
+.bn-root .kn-block-locked {
+  position: relative;
+}
+
+.bn-root .kn-block-locked::after {
+  content: attr(data-lock-label);
+  position: absolute;
+  top: 4px;
+  right: 0;
+  transform: translateX(calc(100% + 6px));
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Phone width: no margin beside the text, so over the block's top right. */
+@media (max-width: 599.98px) {
+  .bn-root .kn-block-locked::after {
+    top: -8px;
+    transform: none;
+  }
+}
+
 /* The extended table (grid-table-block.ts): rows of cells holding blocks, in
    columns as wide as their saved widths (scrolling sideways when they don't
    fit). The first row and column can be headings. */
@@ -384,7 +416,8 @@ a {
   .bn-root [data-content-type="codeBlock"] > div > select,
   .bn-root .knowlective-code-tools,
   .bn-root .kn-grid-bar,
-  .bn-root .kn-grid-cell-controls {
+  .bn-root .kn-grid-cell-controls,
+  .bn-root .kn-block-locked::after {
     display: none;
   }
 

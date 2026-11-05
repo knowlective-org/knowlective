@@ -10,6 +10,8 @@ export default {
     },
     openFailed: "This page couldn't be opened. Please reload.",
     movedToTrash: "This page was moved to the trash.",
+    outdated: "The app was updated since this screen was opened. Reload the page to keep editing.",
+    reload: "Reload",
     uploadFailedTitle: "Can't upload",
     uploadFailed: "Uploading the file failed.",
     expandImageFailed: "An image couldn't be uploaded, so the file wasn't expanded.\n{message}",
@@ -36,6 +38,7 @@ export default {
     replaceConfirm:
       "The page's title and body will be replaced with the content of \"{name}\". The title is the file's first heading (# …), or the file name if it doesn't start with one.\n\nThe current content is kept in the page's history.",
     replaceFailedTitle: "Can't replace the page",
+    replaceLocked: "Some of this page's blocks are locked, so it can't be replaced. Unlock them from their ⋮⋮ menu first.",
     replaceErrors: {
       noPermission: "You don't have permission to edit this page.",
       locked: "This page is locked, so it can't be replaced. Unlock it first.",
@@ -194,6 +197,20 @@ export default {
       duplicate: "Duplicate",
       copied: "Copied.",
       copyFailed: "Couldn't copy.",
+      lock: "Lock",
+      lockNone: "Not locked",
+      lockDelete: "Can't be deleted",
+      lockEdit: "Content can't be changed",
+      loosenTitle: "Loosen the lock?",
+      loosenConfirm:
+        "Anyone who can edit the page will be able to {level, select, delete {change {count, plural, one {this block} other {these # blocks}} again (deleting stays locked)} other {change and delete {count, plural, one {this block} other {these # blocks}} again}}.",
+      loosen: "Loosen",
+    },
+    blockLock: {
+      deleteLabel: "Can't be deleted",
+      editLabel: "Can't be changed",
+      deleteBlocked: "A locked block can't be deleted. To delete it, unlock it from its ⋮⋮ menu.",
+      editBlocked: "This block is locked: its content can't be changed. To change it, unlock it from its ⋮⋮ menu.",
     },
     blockType: {
       change: "Change type",

@@ -153,6 +153,20 @@ test.describe("Public API", () => {
     await expect(editorBody(page)).toContainText("書き換えた本文");
     await expect(editorBody(page)).not.toContainText("本文です");
 
+    // With a locked block, the body can't be replaced (the title can).
+    await editorBody(page).locator(".bn-block-content", { hasText: "書き換えた本文" }).hover();
+    await page.locator(".bn-side-menu [draggable=true]").click();
+    await page.getByTestId("BlockMenu.lockItem").hover();
+    await page.getByTestId("BlockMenu.lockDeleteItem").click();
+    await expect(editorBody(page).locator(".kn-block-locked")).toHaveCount(1);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    const locked = await request.patch(`api/v1/pages/${body.id}`, { headers: auth(key), data: { markdown: "消す" } });
+    expect(locked.status()).toBe(423);
+    expect((await locked.json()).error.code).toBe("blocks_locked");
+    const retitled = await request.patch(`api/v1/pages/${body.id}`, { headers: auth(key), data: { title: "API で更新" } });
+    expect(retitled.status()).toBe(200);
+    await expect(editorBody(page)).toContainText("書き換えた本文");
+
     const read = await request.get(`api/v1/pages/${body.id}`, { headers: auth(key) });
     expect((await read.json()).markdown.trim()).toBe("書き換えた本文");
     const list = await request.get("api/v1/pages", { headers: auth(key) });

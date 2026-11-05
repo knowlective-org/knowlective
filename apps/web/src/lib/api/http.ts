@@ -28,6 +28,7 @@ export type ApiErrorCode =
   | "not_found"
   | "forbidden"
   | "page_locked"
+  | "blocks_locked"
   | "too_deep";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -41,6 +42,7 @@ const STATUS: Record<ApiErrorCode, number> = {
   not_found: 404,
   forbidden: 403,
   page_locked: 423,
+  blocks_locked: 423,
   too_deep: 400,
 };
 
@@ -55,6 +57,7 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   not_found: "The page doesn't exist, or the key's owner can't see it.",
   forbidden: "The key's owner can't edit this page.",
   page_locked: "The page is locked.",
+  blocks_locked: "Some of the page's blocks are locked, so its body can't be replaced (the title can).",
   too_deep: "The page would be nested too deep.",
 };
 

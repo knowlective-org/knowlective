@@ -18,12 +18,15 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - The ⋮⋮ menu: "Copy" (to the clipboard: pasted into a page, the blocks come back as they were) and "Duplicate"
 - Code blocks: a preview of HTML (with its CSS and JavaScript), Markdown, Mermaid and LaTeX code, below the code or in its place (chosen by an editor, shown to everyone). HTML and Markdown are shown in a sandboxed frame that can't reach the page, the site or the network
 - Extended tables: a table whose cells hold any blocks (paragraphs, lists, images, code…), with a header row and row titles. Rows and columns are added and deleted from the bar above the table or a cell's menu, and columns are made wider by dragging their edge. Exported as a table of the cells' text
+- Block locks, from the ⋮⋮ menu: "Can't be deleted" (the block can still be edited and moved) or "Content can't be changed" (nor deleted; the blocks nested in it included). Anyone who can edit the page can lock and unlock (loosening asks first); a label beside the block shows the lock. Like page locks, they prevent mistakes and aren't access control. Through the API, a page with locked blocks can't have its body replaced (`blocks_locked`, 423)
 - Search engines (once allowed in the admin console): /robots.txt points to /sitemap.xml, which lists the public pages; a public page has a description (the start of its text), its canonical URL, Open Graph and Twitter card tags, and structured data (an article)
 
 ### Changed
 
 - Code blocks list their languages A to Z (plain text first)
 - Every screen's title, and the app's name when added to the home screen, end with the site's name (the one at the top left) instead of "KNOWLECTIVE"
+
+- A screen opened before the app was updated can no longer edit pages: it's asked to reload instead (an editor that doesn't know a new kind of block would remove it from the page for everyone, and one that doesn't know block locks would ignore them)
 
 ### Fixed
 
@@ -33,7 +36,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 ### Upgrade notes
 
 - Two database migrations (chat replies and locks, the masked column type), applied on start as usual
-- The extended table is a new kind of block. A browser still running the previous version (a tab left open over the update) removes blocks it doesn't know from the pages it has open, for everyone: ask people to reload open pages after updating
+- Screens left open over the update can't connect to the pages any more and ask to be reloaded (their edits not yet saved are lost on reload). This also applies to screens of the previous version, which only say the page couldn't be opened
 
 ## [0.1.1] - 2026-11-05
 

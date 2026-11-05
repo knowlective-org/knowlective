@@ -20,6 +20,9 @@ import {
 } from "@blocknote/react";
 import { getNodeById, type Dictionary } from "@blocknote/core";
 import { showNotice } from "../notice";
+import { showConfirm } from "../dialog";
+import { blockLockOf, setBlockLocks } from "./block-lock";
+import type { BlockLock } from "@/lib/block-locks";
 import { HEADING_LEVELS, editorSchema, type KnowlectiveEditor } from "./schema";
 
 // The block types a text block can be turned into: BlockNote's list, without
@@ -48,7 +51,7 @@ function Toolbar() {
 }
 
 // The ⋮⋮ handle's menu: BlockNote's items, plus changing the block's type,
-// copying the blocks to the clipboard and duplicating them.
+// copying the blocks to the clipboard, duplicating and locking them.
 export function EditorSideMenu() {
   return <SideMenuController sideMenu={BlockSideMenu} />;
 }
@@ -64,6 +67,7 @@ function BlockMenu() {
       <BlockTypeItem />
       <CopyBlockItem />
       <DuplicateBlockItem />
+      <LockItem />
       <RemoveBlockItem>{dict.drag_handle.delete_menuitem}</RemoveBlockItem>
       <BlockColorsItem>{dict.drag_handle.colors_menuitem}</BlockColorsItem>
     </DragHandleMenu>
@@ -160,6 +164,66 @@ function DuplicateBlockItem() {
     >
       {t("duplicate")}
     </Components.Generic.Menu.Item>
+  );
+}
+
+// none < "delete" < "edit" (block-lock.ts).
+const LOCK_RANK = { none: 0, delete: 1, edit: 2 } as const;
+type LockChoice = keyof typeof LOCK_RANK;
+
+// Locks the blocks (block-lock.ts) for editors: against deleting, or also
+// against changing their content. Loosening a lock asks first.
+function LockItem() {
+  const Components = useComponentsContext()!;
+  const { editor, block } = useMenuBlock();
+  const t = useTranslations("editor.blockMenu");
+  if (block === undefined || !editor.isEditable) return null;
+  const targets = targetBlocks(editor, block);
+  const current: LockChoice[] = targets.map((b) => blockLockOf(editor, b.id) ?? "none");
+  const choices: { value: LockChoice; label: string; ui: string }[] = [
+    { value: "none", label: t("lockNone"), ui: "BlockMenu.lockNoneItem" },
+    { value: "delete", label: t("lockDelete"), ui: "BlockMenu.lockDeleteItem" },
+    { value: "edit", label: t("lockEdit"), ui: "BlockMenu.lockEditItem" },
+  ];
+  const choose = async (value: LockChoice) => {
+    const loosened = targets.filter((_, i) => LOCK_RANK[current[i]] > LOCK_RANK[value]);
+    if (
+      loosened.length > 0 &&
+      !(await showConfirm(t("loosenConfirm", { count: loosened.length, level: value }), {
+        title: t("loosenTitle"),
+        confirmLabel: t("loosen"),
+        danger: true,
+      }))
+    ) {
+      return;
+    }
+    setBlockLocks(
+      editor,
+      targets.map((b) => b.id),
+      value === "none" ? null : (value as BlockLock),
+    );
+  };
+  return (
+    <Components.Generic.Menu.Root position="right" sub>
+      <Components.Generic.Menu.Trigger sub>
+        <Components.Generic.Menu.Item className="bn-menu-item" subTrigger data-ui="BlockMenu.lockItem">
+          {t("lock")}
+        </Components.Generic.Menu.Item>
+      </Components.Generic.Menu.Trigger>
+      <Components.Generic.Menu.Dropdown sub className="bn-menu-dropdown">
+        {choices.map((choice) => (
+          <Components.Generic.Menu.Item
+            key={choice.value}
+            className="bn-menu-item"
+            data-ui={choice.ui}
+            checked={current.every((c) => c === choice.value)}
+            onClick={() => void choose(choice.value)}
+          >
+            {choice.label}
+          </Components.Generic.Menu.Item>
+        ))}
+      </Components.Generic.Menu.Dropdown>
+    </Components.Generic.Menu.Root>
   );
 }
 

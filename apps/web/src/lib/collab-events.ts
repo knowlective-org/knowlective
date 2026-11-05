@@ -13,6 +13,10 @@ export const CHILDREN_CHANGED = "children-changed";
 // that document's channel on the shared socket, and the provider doesn't
 // reconnect it, so the editor would silently stop saving.)
 export const PAGE_DELETED = "page-deleted";
+
+// The `code` of the error replacePageContent throws when a new body would
+// replace locked blocks (lib/block-locks.ts).
+export const BLOCKS_LOCKED = "blocks-locked";
 // Sent to a page's editors right before the server closes them because the
 // page moved under another parent: its access may have changed, so the
 // editor reconnects (access is checked again) and the screen refreshes.

@@ -46,8 +46,16 @@ test.describe("Extended table", () => {
     await cellText(page, 4).click();
     await page.keyboard.press("Backspace");
     await page.keyboard.press("Backspace");
-    await cellText(page, 0).click();
-    await page.keyboard.press("End");
+    // At the end of the text (End right after the click can be lost).
+    await expect(async () => {
+      await cellText(page, 0).click();
+      await page.keyboard.press("End");
+      const atEnd = await page.evaluate(() => {
+        const s = window.getSelection();
+        return !!s?.isCollapsed && s.focusNode?.textContent === "項目" && s.focusOffset === 2;
+      });
+      expect(atEnd).toBe(true);
+    }).toPass();
     await page.keyboard.press("Delete");
     await page.keyboard.press("Delete");
     await expect(cells(page)).toHaveCount(9);
