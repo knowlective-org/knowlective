@@ -116,6 +116,14 @@ export const BLOCK_CONFIGS = {
   },
 } as const;
 
+// Props added to BlockNote's code block (its type and `language` stay
+// BlockNote's). `preview`: "" none, "below" the result under the code, "only"
+// the result in place of the code (code-preview.ts; for the languages it can
+// show).
+export const CODE_BLOCK_EXTRA_PROPS = {
+  preview: { default: "" },
+} as const;
+
 // Body headings start at H2: the page title is the page's one H1.
 export const HEADING_LEVELS = [2, 3, 4, 5, 6] as const;
 

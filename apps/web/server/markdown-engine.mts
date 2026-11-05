@@ -5,18 +5,25 @@
 import {
   BlockNoteSchema,
   createBlockSpec,
-  createCodeBlockSpec,
+  createBlockSpecFromTiptapNode,
+  createCodeBlock,
+  createCodeBlockConfig,
+  createPreCode,
+  parsePreCode,
+  parsePreCodeContent,
   createHeadingBlockSpec,
   createInlineContentSpec,
   defaultBlockSpecs,
   defaultInlineContentSpecs,
 } from "@blocknote/core";
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
+import { Node } from "@tiptap/core";
 import { withMultiColumn } from "@blocknote/xl-multi-column";
 import * as Y from "yjs";
-import { BLOCK_CONFIGS, HEADING_LEVELS, INLINE_CONFIGS } from "../src/components/editor/block-configs";
+import { BLOCK_CONFIGS, CODE_BLOCK_EXTRA_PROPS, HEADING_LEVELS, INLINE_CONFIGS } from "../src/components/editor/block-configs";
 import { codeBlockOptions } from "@blocknote/code-block";
 import { withOurLanguages } from "../src/components/editor/code-languages";
+import { GRID_TABLE_NODES, GRID_TABLE_PROPS } from "../src/components/editor/grid-table-config";
 
 // The editor's schema (components/editor/schema.tsx) without React: the same
 // block types and props. knowlective's own blocks render as an empty element,
@@ -31,12 +38,32 @@ const withText = {
   },
 };
 
+// The editor's code block (components/editor/code-block.ts): BlockNote's,
+// with the editor's languages and our props (the preview).
+const codeOptions = withOurLanguages(codeBlockOptions);
+const codeConfig = createCodeBlockConfig(codeOptions);
+const codeBlock = createBlockSpec(
+  { ...codeConfig, propSchema: { ...codeConfig.propSchema, ...CODE_BLOCK_EXTRA_PROPS } },
+  {
+    // As createCodeBlockSpec's.
+    meta: { code: true, defining: true, isolating: false, highlight: (block) => block.props.language },
+    parse: (el) => parsePreCode(el),
+    parseContent: (opts) => parsePreCodeContent(opts, "codeBlock"),
+    render: (block, editor) => createCodeBlock(block, editor),
+    toExternalHTML: (block) => createPreCode(block),
+  },
+)();
+
+// The extended table's nodes, without the editor's controls.
+type NodeConfig = Parameters<typeof Node.create>[0];
+const gridSpec = (type: keyof typeof GRID_TABLE_NODES, props = {}) =>
+  createBlockSpecFromTiptapNode({ node: Node.create(GRID_TABLE_NODES[type] as NodeConfig), type, content: "none" }, props);
+
 const serverSchema = withMultiColumn(BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
-    // The editor's languages.
-    codeBlock: createCodeBlockSpec(withOurLanguages(codeBlockOptions)),
+    codeBlock,
     childPages: createBlockSpec(BLOCK_CONFIGS.childPages, plain)(),
     childTable: createBlockSpec(BLOCK_CONFIGS.childTable, plain)(),
     childBoard: createBlockSpec(BLOCK_CONFIGS.childBoard, plain)(),
@@ -47,6 +74,9 @@ const serverSchema = withMultiColumn(BlockNoteSchema.create({
     maskedText: createBlockSpec(BLOCK_CONFIGS.maskedText, plain)(),
     chat: createBlockSpec(BLOCK_CONFIGS.chat, plain)(),
     todo: createBlockSpec(BLOCK_CONFIGS.todo, withText)(),
+    gridTable: gridSpec("gridTable", GRID_TABLE_PROPS),
+    gridRow: gridSpec("gridRow"),
+    gridCell: gridSpec("gridCell"),
   },
   inlineContentSpecs: {
     ...defaultInlineContentSpecs,

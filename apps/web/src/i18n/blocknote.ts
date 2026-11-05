@@ -7,11 +7,12 @@ import jaEditor from "./messages/ja/editor";
 // BlockNote's own text (menus, placeholders, toolbars) in the viewer's
 // language, the columns' (xl-multi-column) included. Our blocks' text is in
 // i18n/messages like everything else; the code block's tools, drawn outside
-// React, read theirs from here (knowlective_code).
+// React, read theirs from here (knowlective_code), as do the extended table's
+// (knowlective_grid).
 export function blockNoteDictionary(locale: AppLocale) {
   return locale === "en"
-    ? { ...en, multi_column: multiColumn.en, knowlective_code: enEditor.editor.codeTools }
-    : { ...ja, multi_column: columnsJa, knowlective_code: jaEditor.editor.codeTools };
+    ? { ...en, multi_column: multiColumn.en, knowlective_code: enEditor.editor.codeTools, knowlective_grid: enEditor.editor.gridTable }
+    : { ...ja, multi_column: columnsJa, knowlective_code: jaEditor.editor.codeTools, knowlective_grid: jaEditor.editor.gridTable };
 }
 
 // xl-multi-column's own Japanese reads stiffly ("二列並んで") and isn't found

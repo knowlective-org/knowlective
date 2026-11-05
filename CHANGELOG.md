@@ -16,6 +16,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - Child page tables: a "Masked text" column type. Its values are encrypted in the browser with the column's passphrase (chosen with the first value), so the server only ever has the encrypted form; "Show" in the column's header asks for the passphrase
 - Child page boards: sub-groups, a board per value of a second column (a select or a user column), one under another; a card moves to another sub-group with its own picker
 - The ⋮⋮ menu: "Copy" (to the clipboard: pasted into a page, the blocks come back as they were) and "Duplicate"
+- Code blocks: a preview of HTML (with its CSS and JavaScript), Markdown, Mermaid and LaTeX code, below the code or in its place (chosen by an editor, shown to everyone). HTML and Markdown are shown in a sandboxed frame that can't reach the page, the site or the network
+- Extended tables: a table whose cells hold any blocks (paragraphs, lists, images, code…), with a header row and row titles. Rows and columns are added and deleted from the bar above the table or a cell's menu, and columns are made wider by dragging their edge. Exported as a table of the cells' text
 - Search engines (once allowed in the admin console): /robots.txt points to /sitemap.xml, which lists the public pages; a public page has a description (the start of its text), its canonical URL, Open Graph and Twitter card tags, and structured data (an article)
 
 ### Changed
@@ -31,6 +33,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 ### Upgrade notes
 
 - Two database migrations (chat replies and locks, the masked column type), applied on start as usual
+- The extended table is a new kind of block. A browser still running the previous version (a tab left open over the update) removes blocks it doesn't know from the pages it has open, for everyone: ask people to reload open pages after updating
 
 ## [0.1.1] - 2026-11-05
 

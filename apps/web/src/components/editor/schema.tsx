@@ -24,6 +24,7 @@ import { chatBlock } from "./chat-block";
 import { continueList, todoBlock } from "./todo-block";
 import { mentionInline } from "./mention-inline";
 import { toggleEnter } from "./toggle-enter";
+import { gridCellBlock, gridRowBlock, gridTableBlock, newGridTable } from "./grid-table-block";
 import { HEADING_LEVELS } from "./block-configs";
 
 // The editor's block types: BlockNote's defaults plus knowlective's own. Block
@@ -39,6 +40,9 @@ import { HEADING_LEVELS } from "./block-configs";
 //
 // Columns (2 or 3 side by side, each holding blocks) are BlockNote's
 // xl-multi-column: the "column" and "columnList" types.
+//
+// The extended table (cells holding blocks) is ours, built the same way:
+// "gridTable", "gridRow" and "gridCell" (grid-table-block.ts).
 //
 // The check list is replaced by the TODO block (todo-block.tsx) in the menus
 // and shortcuts ("[ ] "); its type stays for the check lists already in
@@ -76,6 +80,9 @@ export const editorSchema = withMultiColumn(BlockNoteSchema.create({
     maskedText: maskedBlock(),
     chat: chatBlock(),
     todo: todoBlock(),
+    gridTable: gridTableBlock,
+    gridRow: gridRowBlock,
+    gridCell: gridCellBlock,
   },
   inlineContentSpecs: {
     ...defaultInlineContentSpecs,
@@ -157,6 +164,14 @@ export function customSlashMenuItems(
       group: t("editor.slash.diagramGroup"),
       icon: <span aria-hidden>🧜</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "mermaid" }),
+    },
+    {
+      title: t("editor.slash.gridTable"),
+      subtext: t("editor.slash.gridTableSub"),
+      aliases: aliases("gridTableAliases", ["table", "grid", "extended", "header", "cells"]),
+      group: t("editor.slash.otherGroup"),
+      icon: <span aria-hidden>▦</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, newGridTable() as never),
     },
     {
       title: t("editor.slash.chat"),
