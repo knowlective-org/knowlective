@@ -23,6 +23,7 @@ import { maskedBlock } from "./masked-block";
 import { chatBlock } from "./chat-block";
 import { continueList, todoBlock } from "./todo-block";
 import { mentionInline } from "./mention-inline";
+import { toggleEnter } from "./toggle-enter";
 import { HEADING_LEVELS } from "./block-configs";
 
 // The editor's block types: BlockNote's defaults plus knowlective's own. Block
@@ -44,6 +45,12 @@ import { HEADING_LEVELS } from "./block-configs";
 // pages, with Enter still continuing them.
 export { HEADING_LEVELS };
 
+// Enter in a toggle's title keeps the blocks inside it (toggle-enter.ts);
+// ahead of the block's own Enter.
+function withToggleEnter<T extends { extensions?: readonly unknown[] }>(spec: T): T {
+  return { ...spec, extensions: [toggleEnter, ...(spec.extensions ?? [])] as unknown as T["extensions"] };
+}
+
 export const editorSchema = withMultiColumn(BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
@@ -57,7 +64,8 @@ export const editorSchema = withMultiColumn(BlockNoteSchema.create({
         }),
       ] as typeof defaultBlockSpecs.checkListItem.extensions,
     },
-    heading: createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 }),
+    heading: withToggleEnter(createHeadingBlockSpec({ levels: HEADING_LEVELS, defaultLevel: 2 })),
+    toggleListItem: withToggleEnter(defaultBlockSpecs.toggleListItem),
     childPages: childPagesBlock(),
     childTable: childTableBlock(),
     childBoard: childBoardBlock(),

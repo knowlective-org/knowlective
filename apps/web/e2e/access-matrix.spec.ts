@@ -85,6 +85,11 @@ test.describe("Access matrix", () => {
       // The API takes keys only: a logged-in browser's cookies don't count
       // (401 without a key; 403 while the API is off in the admin console).
       expect([401, 403], `${account} api`).toContain((await context.request.get("api/v1/me")).status());
+      // For search engines: open to all, and listing no page that isn't public.
+      expect((await context.request.get("robots.txt")).status(), `${account} robots.txt`).toBe(200);
+      const sitemap = await context.request.get("sitemap.xml");
+      expect(sitemap.status(), `${account} sitemap.xml`).toBe(200);
+      expect(await sitemap.text(), `${account} sitemap.xml`).not.toContain(pageId);
       await context.close();
     }
   });

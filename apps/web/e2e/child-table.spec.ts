@@ -163,4 +163,39 @@ test.describe("Child page table", () => {
     await expect(page.getByTestId("ChildTableBlock.viewStatus")).toHaveCount(0);
     await trashOpenPage(page);
   });
+
+  // Sealed with a passphrase in the browser (masked-cell.tsx): the server
+  // only has the sealed string.
+  test("a masked column's values are shown with its passphrase, and stored sealed", async ({ page }) => {
+    await tableWithColumn(page, "E2E マスク列", "暗証番号", "MASKED");
+    const toggle = page.getByTestId("MaskedColumnToggle");
+    await expect(toggle).toBeVisible();
+
+    // The first value: a new passphrase, typed twice.
+    await page.getByTestId("MaskedCell.showButton").click();
+    await page.getByTestId("AppDialog.passphraseInput").fill("合言葉 1234");
+    await page.getByTestId("AppDialog.passphraseAgainInput").fill("合言葉 1234");
+    await page.getByTestId("AppDialog.confirmButton").click();
+    const cell = page.getByTestId("MaskedCell").locator("input");
+    await cell.fill("9876-SECRET");
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+    // Hidden again: only dots, and the wrong passphrase doesn't show it.
+    await toggle.click();
+    await expect(page.getByTestId("MaskedCell.showButton")).toContainText("••••••");
+    await page.getByTestId("MaskedCell.showButton").click();
+    await page.getByTestId("AppDialog.passphraseInput").fill("違う");
+    await page.getByTestId("AppDialog.confirmButton").click();
+    await expect(page.getByTestId("AppDialog.message")).toHaveText("合言葉が違います。");
+    await page.getByTestId("AppDialog.closeButton").click();
+
+    // The right one shows it (after a reload too: nothing stays in the browser).
+    await page.reload();
+    await page.getByTestId("MaskedCell.showButton").click();
+    await page.getByTestId("AppDialog.passphraseInput").fill("合言葉 1234");
+    await page.getByTestId("AppDialog.confirmButton").click();
+    await expect(page.getByTestId("MaskedCell").locator("input")).toHaveValue("9876-SECRET");
+    await trashOpenPage(page);
+  });
 });

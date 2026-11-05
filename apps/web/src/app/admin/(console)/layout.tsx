@@ -10,7 +10,7 @@ import { AdminSidebar, type AdminNavItem } from "./admin-sidebar";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("admin.title") }), robots: { index: false, follow: false } };
+  return { title: t("admin.title"), robots: { index: false, follow: false } };
 }
 
 // Content managers only see users (invitations) and groups. Labels: admin.shell.nav.

@@ -14,7 +14,7 @@ import { PasskeyLoginButton } from "./passkey-login-button";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("login.title") }) };
+  return { title: t("login.title") };
 }
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {

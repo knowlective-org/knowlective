@@ -9,7 +9,7 @@ import { VerifyCodeForm } from "../login-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("admin.login.verifyTitle") }), robots: { index: false, follow: false } };
+  return { title: t("admin.login.verifyTitle"), robots: { index: false, follow: false } };
 }
 
 // Second step of the account sign-in: the password is verified, the

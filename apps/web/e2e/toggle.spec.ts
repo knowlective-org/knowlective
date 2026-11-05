@@ -24,3 +24,59 @@ test("an empty toggle's placeholder stays where its title goes, open or not", as
   expect(Math.abs(offset.left - offset.button)).toBeLessThan(8);
   await trashOpenPage(page);
 });
+
+// BlockNote's Enter split the toggle, and its blocks went with the new one
+// below it (toggle-enter.ts keeps them).
+test("Enter in a toggle's title keeps the blocks inside it", async ({ page }) => {
+  await createPage(page, "E2E トグルの Enter");
+  await typeInBody(page, "/折りたたみリスト");
+  await page.getByRole("option").first().click();
+  await page.keyboard.type("見出しの行");
+  await page.locator(".bn-toggle-button").click();
+  await page.locator(".bn-toggle-add-block-button").click();
+  await page.keyboard.type("中の段落");
+  const toggle = editorBody(page).locator('.bn-block-outer:has(> .bn-block > .bn-block-content[data-content-type="toggleListItem"])');
+  await expect(toggle.locator(".bn-block-group")).toContainText("中の段落");
+
+  // Open: the text after the cursor becomes the first block inside.
+  await toggle.locator('[data-content-type="toggleListItem"] .bn-inline-content').first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("新しい先頭");
+  const inside = toggle.locator(".bn-block-group .bn-block-content");
+  await expect(inside).toHaveCount(2);
+  await expect(inside.nth(0)).toHaveText("新しい先頭");
+  await expect(inside.nth(1)).toHaveText("中の段落");
+  await expect(editorBody(page).locator('[data-content-type="toggleListItem"]')).toHaveCount(1);
+
+  // Closed: a new toggle below; the blocks stay in this one.
+  await page.locator(".bn-toggle-button").first().click();
+  await toggle.locator('[data-content-type="toggleListItem"] .bn-inline-content').first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("次のトグル");
+  await expect(editorBody(page).locator('[data-content-type="toggleListItem"]')).toHaveCount(2);
+  await expect(toggle.first().locator(".bn-block-group .bn-block-content")).toHaveCount(2);
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await trashOpenPage(page);
+});
+
+test("Enter in a toggle heading's title keeps the blocks inside it too", async ({ page }) => {
+  await createPage(page, "E2E 折りたたみ見出しの Enter");
+  await typeInBody(page, "/折りたたみ見出し");
+  await page.getByRole("option", { name: /折りたたみ見出し/ }).first().click();
+  await page.keyboard.type("見出し");
+  await page.locator(".bn-toggle-button").click();
+  await page.locator(".bn-toggle-add-block-button").click();
+  await page.keyboard.type("中の段落");
+  const heading = editorBody(page).locator('.bn-block-outer:has(> .bn-block > .bn-block-content[data-content-type="heading"])');
+  await heading.locator('[data-content-type="heading"] .bn-inline-content').first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("先頭");
+  const inside = heading.locator(".bn-block-group .bn-block-content");
+  await expect(inside).toHaveCount(2);
+  await expect(inside.nth(1)).toHaveText("中の段落");
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await trashOpenPage(page);
+});

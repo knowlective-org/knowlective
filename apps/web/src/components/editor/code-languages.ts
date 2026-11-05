@@ -18,10 +18,15 @@ export const EXTRA_CODE_LANGUAGES = {
   perl: { name: "Perl", aliases: ["perl", "pl"] },
 };
 
+// In the picker's order: plain text first, then by name (A to Z).
 export function withOurLanguages<T extends CodeBlockOptions>(options: T) {
+  const all = Object.entries({ ...options.supportedLanguages, ...EXTRA_CODE_LANGUAGES });
+  const byName = (a: [string, { name: string }], b: [string, { name: string }]) =>
+    Number(b[0] === "text") - Number(a[0] === "text") ||
+    a[1].name.localeCompare(b[1].name, "en", { sensitivity: "base" });
   return {
     ...options,
     defaultLanguage: "text",
-    supportedLanguages: { ...options.supportedLanguages, ...EXTRA_CODE_LANGUAGES },
+    supportedLanguages: Object.fromEntries(all.sort(byName)),
   };
 }

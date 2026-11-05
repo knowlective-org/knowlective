@@ -4,6 +4,8 @@ import { connection } from "next/server";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 import { DialogHost } from "@/components/dialog";
+import { getBrand } from "@/lib/brand";
+import { getPublicUrl } from "@/lib/site-url";
 import { getTheme } from "@/lib/theme";
 import { themeCss } from "@/lib/theme-tokens";
 import "./globals.css";
@@ -25,9 +27,17 @@ const newsreader = Newsreader({
   subsets: ["latin"],
 });
 
+// Every screen's title ends with the site's name (left at the top of the
+// sidebars, components/brand.tsx). Relative URLs in the metadata (Open Graph)
+// are under the public URL.
 export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("meta");
-  return { title: "KNOWLECTIVE", description: t("description") };
+  const [t, brand, base] = await Promise.all([getTranslations("meta"), getBrand(), getPublicUrl()]);
+  return {
+    title: { default: brand.name, template: `%s | ${brand.name}` },
+    description: t("description"),
+    applicationName: brand.name,
+    metadataBase: new URL(`${base}/`),
+  };
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

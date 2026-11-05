@@ -16,3 +16,5 @@ allowBuilds:
   # prebuilt binaries come as optional dependencies.
   '@parcel/watcher': false
   '@swc/core': false
+patchedDependencies:
+  '@blocknote/core@0.54.2': patches/@blocknote__core@0.54.2.patch

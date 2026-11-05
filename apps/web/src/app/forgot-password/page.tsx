@@ -13,7 +13,7 @@ import { ForgotPasswordForm } from "./forgot-password-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("forgotPassword.title") }) };
+  return { title: t("forgotPassword.title") };
 }
 
 // Asks for an email address and mails a reset link (lib/auth/password-reset.ts).

@@ -11,7 +11,7 @@ import { ConfirmEmailChangeForm } from "./confirm-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("emailChange.title") }), robots: { index: false, follow: false } };
+  return { title: t("emailChange.title"), robots: { index: false, follow: false } };
 }
 
 // Opened from the link mailed to the new address (lib/auth/email-change.ts).

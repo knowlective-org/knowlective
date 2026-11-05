@@ -41,6 +41,9 @@ export const BLOCK_CONFIGS = {
       // Id of the select column the cards are grouped by. Empty (or a column
       // that no longer exists) uses the page's first select column.
       groupBy: { default: "" },
+      // Id of a select or user column splitting the cards into one board per
+      // value (sub-groups), each with the same lanes. Empty: one board.
+      subGroupBy: { default: "" },
     },
     content: "none",
   },

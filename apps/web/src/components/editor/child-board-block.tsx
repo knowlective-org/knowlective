@@ -15,7 +15,13 @@ import { createChildPageInPlace } from "@/app/(app)/actions";
 import { showAlert } from "@/components/dialog";
 import { useDisplayTitle } from "@/i18n/use-display-title";
 import { useReportSaving } from "@/lib/saving-status";
-import { OPTION_COLORS, type ChildTableRow, type PropertyColumn, type SelectOption } from "@/lib/page-property-types";
+import {
+  OPTION_COLORS,
+  type ChildTableData,
+  type ChildTableRow,
+  type PropertyColumn,
+  type SelectOption,
+} from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-board-block.module.css";
@@ -29,6 +35,11 @@ import { BLOCK_CONFIGS } from "./block-configs";
 //
 // The order of the cards in a column is the child pages' own order (the one
 // the sidebar shows).
+//
+// Sub-groups: a second column (select or user) can split the cards into one
+// board per value, one under another, each with the same lanes. A card moves
+// between lanes within its board, and to another board with its own picker
+// (which sets that column's value).
 
 // Cards whose page has no value for the grouping column.
 const NO_VALUE = "";
@@ -41,6 +52,7 @@ export const childBoardBlock = createReactBlockSpec(
       <ChildBoard
         title={block.props.title}
         groupBy={block.props.groupBy}
+        subGroupBy={block.props.subGroupBy}
         editable={editor.isEditable}
         onChange={(props) => editor.updateBlock(block, { props })}
       />
@@ -58,21 +70,27 @@ function useRun() {
   };
 }
 
+// A sub-group's board: its value of the sub-group column ("" = none) and name.
+type SubGroup = { value: string; name: string; color?: string };
+
 function ChildBoard({
   title,
   groupBy,
+  subGroupBy,
   editable,
   onChange,
 }: {
   title: string;
   groupBy: string;
+  subGroupBy: string;
   editable: boolean;
-  onChange: (props: { title?: string; groupBy?: string }) => void;
+  onChange: (props: { title?: string; groupBy?: string; subGroupBy?: string }) => void;
 }) {
   const { pageId } = usePageEditor();
   const router = useRouter();
   const { data, reload } = useChildrenData(loadChildTable);
-  // Card moves shown before the server has confirmed them: page id → option id.
+  // Card moves shown before the server has confirmed them: "<page id>:<column
+  // id>" → the new value.
   const [moved, setMoved] = useState<Record<string, string>>({});
   const [creatingColumn, setCreatingColumn] = useState(false);
   const t = useTranslations("editor");
@@ -84,6 +102,8 @@ function ChildBoard({
 
   const selects = data?.columns.filter((c) => c.type === "SELECT") ?? [];
   const column = selects.find((c) => c.id === groupBy) ?? selects[0] ?? null;
+  const subColumns = data?.columns.filter((c) => (c.type === "SELECT" || c.type === "USER") && c.id !== column?.id) ?? [];
+  const subColumn = subColumns.find((c) => c.id === subGroupBy) ?? null;
 
   const header = (
     <div className={styles.header}>
@@ -105,6 +125,22 @@ function ChildBoard({
           {selects.map((c) => (
             <option key={c.id} value={c.id}>
               {t("childBoard.groupByOption", { name: c.name })}
+            </option>
+          ))}
+        </select>
+      )}
+      {editable && column && subColumns.length > 0 && (
+        <select
+          className={styles.inlineSelect}
+          data-ui="ChildBoardBlock.subGroupBySelect"
+          value={subColumn?.id ?? ""}
+          onChange={(e) => onChange({ subGroupBy: e.target.value })}
+          aria-label={t("childBoard.subGroupBy")}
+        >
+          <option value="">{t("childBoard.noSubGroup")}</option>
+          {subColumns.map((c) => (
+            <option key={c.id} value={c.id}>
+              {t("childBoard.subGroupByOption", { name: c.name })}
             </option>
           ))}
         </select>
@@ -153,33 +189,40 @@ function ChildBoard({
     );
   }
 
-  const optionIds = new Set(column.options.map((o) => o.id));
-  // A value that is no longer one of the options counts as none.
-  const valueOf = (row: ChildTableRow) => {
-    const value = moved[row.id] ?? row.values[column.id] ?? NO_VALUE;
-    return optionIds.has(value) ? value : NO_VALUE;
+  // A value that is no longer one of a select column's options counts as none.
+  const valueIn = (row: ChildTableRow, c: PropertyColumn) => {
+    const value = moved[`${row.id}:${c.id}`] ?? row.values[c.id] ?? NO_VALUE;
+    return c.type !== "SELECT" || c.options.some((o) => o.id === value) ? value : NO_VALUE;
+  };
+  const valueOf = (row: ChildTableRow) => valueIn(row, column);
+  // Sets a card's values (column id → value): shown at once, saved after.
+  const setValues = async (cardId: string, values: Record<string, string>) => {
+    const keys = Object.keys(values).map((c) => `${cardId}:${c}`);
+    setMoved((m) => ({ ...m, ...Object.fromEntries(Object.entries(values).map(([c, v]) => [`${cardId}:${c}`, v])) }));
+    for (const [columnId, value] of Object.entries(values)) await run(setCellValue(cardId, columnId, value));
+    await reload();
+    setMoved((m) => Object.fromEntries(Object.entries(m).filter(([key]) => !keys.includes(key))));
   };
   const moveCard = async (row: ChildTableRow, optionId: string) => {
     if (!row.canEdit || valueOf(row) === optionId) return;
-    setMoved((m) => ({ ...m, [row.id]: optionId }));
-    await run(setCellValue(row.id, column.id, optionId));
-    await reload();
-    setMoved((m) => Object.fromEntries(Object.entries(m).filter(([id]) => id !== row.id)));
+    await setValues(row.id, { [column.id]: optionId });
   };
-  const addCard = async (optionId: string, cardTitle: string) => {
+  const moveToSubGroup = async (row: ChildTableRow, value: string) => {
+    if (!row.canEdit || !subColumn || valueIn(row, subColumn) === value) return;
+    await setValues(row.id, { [subColumn.id]: value });
+  };
+  const addCard = async (optionId: string, subValue: string, cardTitle: string) => {
     const result = await createChildPageInPlace(pageId, cardTitle).catch(() => ({ error: t("save.createFailed") }));
     if ("error" in result) {
       await showAlert(result.error);
       return false;
     }
-    if (optionId !== NO_VALUE) {
-      // Shown in its lane at once: the page exists before its value does, and
-      // would otherwise flash in the "unset" lane.
-      setMoved((m) => ({ ...m, [result.id]: optionId }));
-      await run(setCellValue(result.id, column.id, optionId));
-    }
-    await reload();
-    setMoved((m) => Object.fromEntries(Object.entries(m).filter(([id]) => id !== result.id)));
+    // Shown in its lane at once: the page exists before its values do, and
+    // would otherwise flash in the "unset" lane.
+    const values: Record<string, string> = {};
+    if (optionId !== NO_VALUE) values[column.id] = optionId;
+    if (subColumn && subValue !== NO_VALUE) values[subColumn.id] = subValue;
+    await setValues(result.id, values);
     // The new page also belongs in the sidebar.
     router.refresh();
     return true;
@@ -195,29 +238,78 @@ function ChildBoard({
     return ok;
   };
 
-  const lanes: { option: SelectOption | null; rows: ChildTableRow[] }[] = [
-    { option: null, rows: data.rows.filter((r) => valueOf(r) === NO_VALUE) },
-    ...column.options.map((option) => ({ option, rows: data.rows.filter((r) => valueOf(r) === option.id) })),
-  ];
-  // The lane without a value only shows while it has cards (or nothing else exists).
-  const shown = lanes.filter((lane) => lane.option !== null || lane.rows.length > 0 || column.options.length === 0);
+  const lanesOf = (rows: ChildTableRow[]) => {
+    const lanes: { option: SelectOption | null; rows: ChildTableRow[] }[] = [
+      { option: null, rows: rows.filter((r) => valueOf(r) === NO_VALUE) },
+      ...column.options.map((option) => ({ option, rows: rows.filter((r) => valueOf(r) === option.id) })),
+    ];
+    // The lane without a value only shows while it has cards (or nothing else exists).
+    return lanes.filter((lane) => lane.option !== null || lane.rows.length > 0 || column.options.length === 0);
+  };
+  const board = (rows: ChildTableRow[], sub: SubGroup | null) => (
+    <Board
+      lanes={lanesOf(rows)}
+      column={column}
+      saving={saving}
+      // New pages go under this page, so adding a card needs EDIT on it.
+      canAdd={editable}
+      canAddLane={editable && data.canEditColumns}
+      onMove={moveCard}
+      onAddCard={(optionId, cardTitle) => addCard(optionId, sub?.value ?? NO_VALUE, cardTitle)}
+      onAddLane={addOption}
+      subGroup={subColumn && sub ? { column: subColumn, value: sub.value, name: sub.name, choices: subGroupsOf(subColumn, data) } : undefined}
+      onMoveToSubGroup={moveToSubGroup}
+    />
+  );
 
+  if (!subColumn) {
+    return (
+      <div className={styles.block} contentEditable={false} data-ui="ChildBoardBlock">
+        {header}
+        {board(data.rows, null)}
+      </div>
+    );
+  }
+  const groups = subGroupsOf(subColumn, data);
+  const rowsIn = (value: string) => data.rows.filter((r) => valueIn(r, subColumn) === value);
+  const shownGroups: SubGroup[] = [
+    // "Not set" only while it has cards; the others always (to add cards to).
+    ...groups.filter((g) => g.value !== NO_VALUE || rowsIn(NO_VALUE).length > 0),
+    // People no longer among those who can be chosen, still in the cards.
+    ...[...new Set(data.rows.map((r) => valueIn(r, subColumn)))]
+      .filter((v) => v !== NO_VALUE && !groups.some((g) => g.value === v))
+      .map((v) => ({ value: v, name: data.userNames[v] ?? t("childTable.unknownUser") })),
+  ];
   return (
     <div className={styles.block} contentEditable={false} data-ui="ChildBoardBlock">
       {header}
-      <Board
-        lanes={shown}
-        column={column}
-        saving={saving}
-        // New pages go under this page, so adding a card needs EDIT on it.
-        canAdd={editable}
-        canAddLane={editable && data.canEditColumns}
-        onMove={moveCard}
-        onAddCard={addCard}
-        onAddLane={addOption}
-      />
+      {shownGroups.map((group) => {
+        const rows = rowsIn(group.value);
+        return (
+          <details key={group.value || "none"} className={styles.subGroup} open data-ui="ChildBoardBlock.subGroup" data-id={group.value || "none"}>
+            <summary className={styles.subGroupHeader}>
+              <span className={styles.laneName} style={group.color ? { background: group.color } : undefined}>
+                {group.name || t("childBoard.unset")}
+              </span>
+              <span className={styles.count} data-ui="ChildBoardBlock.subGroupCount">
+                {rows.length}
+              </span>
+            </summary>
+            {board(rows, group)}
+          </details>
+        );
+      })}
     </div>
   );
+}
+
+// The sub-groups a column makes: "not set" first, then its options (a select
+// column) or the people who can be chosen (a user column), by name.
+function subGroupsOf(c: PropertyColumn, data: ChildTableData): SubGroup[] {
+  const unset = { value: NO_VALUE, name: "" };
+  if (c.type === "SELECT") return [unset, ...c.options.map((o) => ({ value: o.id, name: o.name, color: o.color }))];
+  const people = [...data.assignees].sort((a, b) => a.name.localeCompare(b.name));
+  return [unset, ...people.map((u) => ({ value: u.id, name: u.name }))];
 }
 
 function Board({
@@ -229,6 +321,8 @@ function Board({
   onMove,
   onAddCard,
   onAddLane,
+  subGroup,
+  onMoveToSubGroup,
 }: {
   lanes: { option: SelectOption | null; rows: ChildTableRow[] }[];
   column: PropertyColumn;
@@ -238,6 +332,9 @@ function Board({
   onMove: (row: ChildTableRow, optionId: string) => Promise<void>;
   onAddCard: (optionId: string, title: string) => Promise<boolean>;
   onAddLane: (name: string) => Promise<boolean>;
+  // The sub-group this board is (when the cards are split into several).
+  subGroup?: { column: PropertyColumn; value: string; name: string; choices: SubGroup[] };
+  onMoveToSubGroup: (row: ChildTableRow, value: string) => Promise<void>;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -369,6 +466,25 @@ function Board({
                       {column.options.map((o) => (
                         <option key={o.id} value={o.id}>
                           {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {row.canEdit && subGroup && (
+                    // Moves the card to another sub-group's board.
+                    <select
+                      className={styles.cardSelect}
+                      data-ui="ChildBoardBlock.cardSubGroupSelect"
+                      value={subGroup.value}
+                      onChange={(e) => void onMoveToSubGroup(row, e.target.value)}
+                      aria-label={t("cardSubGroup", { title: displayTitle(row.title), column: subGroup.column.name })}
+                    >
+                      {!subGroup.choices.some((c) => c.value === subGroup.value) && (
+                        <option value={subGroup.value}>{subGroup.name}</option>
+                      )}
+                      {subGroup.choices.map((c) => (
+                        <option key={c.value || "none"} value={c.value}>
+                          {c.name || t("unset")}
                         </option>
                       ))}
                     </select>

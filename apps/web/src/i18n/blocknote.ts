@@ -1,12 +1,17 @@
 import { en, ja } from "@blocknote/core/locales";
 import { locales as multiColumn } from "@blocknote/xl-multi-column";
 import type { AppLocale } from "./locales";
+import enEditor from "./messages/en/editor";
+import jaEditor from "./messages/ja/editor";
 
 // BlockNote's own text (menus, placeholders, toolbars) in the viewer's
 // language, the columns' (xl-multi-column) included. Our blocks' text is in
-// i18n/messages like everything else.
+// i18n/messages like everything else; the code block's tools, drawn outside
+// React, read theirs from here (knowlective_code).
 export function blockNoteDictionary(locale: AppLocale) {
-  return locale === "en" ? { ...en, multi_column: multiColumn.en } : { ...ja, multi_column: columnsJa };
+  return locale === "en"
+    ? { ...en, multi_column: multiColumn.en, knowlective_code: enEditor.editor.codeTools }
+    : { ...ja, multi_column: columnsJa, knowlective_code: jaEditor.editor.codeTools };
 }
 
 // xl-multi-column's own Japanese reads stiffly ("二列並んで") and isn't found

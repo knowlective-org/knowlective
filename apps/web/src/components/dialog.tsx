@@ -26,7 +26,8 @@ type Request =
       resolve: (ok: boolean) => void;
     })
   | (Base & { kind: "copy"; value: string; resolve: () => void })
-  | (Base & { kind: "choice"; choices: Choice[]; resolve: (value: string | null) => void });
+  | (Base & { kind: "choice"; choices: Choice[]; resolve: (value: string | null) => void })
+  | (Base & { kind: "passphrase"; confirmLabel: string; repeat: boolean; resolve: (value: string | null) => void });
 
 type Choice = { value: string; label: string };
 
@@ -112,6 +113,25 @@ export function showChoice<T extends string>(
   );
 }
 
+// A passphrase, typed into a password field (and again, when `repeat`, for
+// choosing a new one), or null for cancel. It's only handed back: the caller
+// keeps it in memory, and never sends it anywhere.
+export function showPassphrase(
+  message: string,
+  options: { title?: string; confirmLabel?: string; repeat?: boolean } = {},
+): Promise<string | null> {
+  return new Promise((resolve) =>
+    enqueue({
+      kind: "passphrase",
+      message,
+      title: options.title,
+      confirmLabel: options.confirmLabel ?? "OK",
+      repeat: options.repeat ?? false,
+      resolve,
+    }),
+  );
+}
+
 // For <form onSubmit>: asks first, and submits only if confirmed. The form
 // must stay mounted while the dialog is open.
 export function confirmBeforeSubmit(
@@ -160,6 +180,10 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
   const [typed, setTyped] = useState("");
   // For a text to copy: whether the last copy worked.
   const [copied, setCopied] = useState<boolean | null>(null);
+  // For a passphrase: the field(s).
+  const [secret, setSecret] = useState({ value: "", again: "" });
+  const secretReady =
+    request.kind !== "passphrase" || (secret.value !== "" && (!request.repeat || secret.value === secret.again));
   const t = useTranslations();
   const copy = async (input: HTMLInputElement | null) => {
     if (request.kind !== "copy") return;
@@ -187,6 +211,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
     ref.current?.close();
     if (request.kind === "confirm") request.resolve(ok);
     else if (request.kind === "choice") request.resolve(choice);
+    else if (request.kind === "passphrase") request.resolve(ok ? secret.value : null);
     else request.resolve();
     onDone();
   };
@@ -274,24 +299,62 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
             />
           </label>
         )}
+        {request.kind === "passphrase" && (
+          <div className={styles.secretFields}>
+            <input
+              type="password"
+              className={ui.field}
+              data-ui="AppDialog.passphraseInput"
+              aria-label={t("dialog.passphrase")}
+              placeholder={t("dialog.passphrase")}
+              value={secret.value}
+              onChange={(e) => setSecret({ ...secret, value: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing && secretReady) finish(true);
+              }}
+              autoFocus
+              autoComplete={request.repeat ? "new-password" : "current-password"}
+            />
+            {request.repeat && (
+              <input
+                type="password"
+                className={ui.field}
+                data-ui="AppDialog.passphraseAgainInput"
+                aria-label={t("dialog.passphraseAgain")}
+                placeholder={t("dialog.passphraseAgain")}
+                value={secret.again}
+                onChange={(e) => setSecret({ ...secret, again: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing && secretReady) finish(true);
+                }}
+                autoComplete="new-password"
+              />
+            )}
+            {request.repeat && secret.again !== "" && secret.again !== secret.value && (
+              <p className={ui.error} role="alert" data-ui="AppDialog.passphraseError">
+                {t("dialog.passphraseMismatch")}
+              </p>
+            )}
+          </div>
+        )}
         <div className={styles.actions}>
-          {request.kind === "confirm" ? (
+          {request.kind === "confirm" || request.kind === "passphrase" ? (
             <>
               <button
                 type="button"
                 className={ui.buttonSecondary}
                 data-ui="AppDialog.cancelButton"
-                autoFocus={request.danger}
+                autoFocus={request.kind === "confirm" && request.danger}
                 onClick={() => finish(false)}
               >
                 {t("common.cancel")}
               </button>
               <button
                 type="button"
-                className={request.danger ? ui.danger : ui.button}
+                className={request.kind === "confirm" && request.danger ? ui.danger : ui.button}
                 data-ui="AppDialog.confirmButton"
-                autoFocus={!request.danger && code === undefined}
-                disabled={!codeMatches}
+                autoFocus={request.kind === "confirm" && !request.danger && code === undefined}
+                disabled={!codeMatches || !secretReady}
                 onClick={() => finish(true)}
               >
                 {request.confirmLabel}

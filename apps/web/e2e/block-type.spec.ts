@@ -44,3 +44,37 @@ test.describe("Changing a block's type", () => {
     await trashOpenPage(page);
   });
 });
+
+test.describe("The ⋮⋮ menu", () => {
+  test("duplicates a block, and copies it to the clipboard to paste as it was", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await createPage(page, "E2E 複製とコピー");
+    await typeInBody(page, "### 複製する見出し");
+    const headings = editorBody(page).locator('.bn-block-content[data-content-type="heading"]');
+    const menu = async () => {
+      await headings.first().hover();
+      await page.locator(".bn-side-menu [draggable=true]").click();
+    };
+
+    await menu();
+    await page.getByTestId("BlockMenu.duplicateItem").click();
+    await expect(headings).toHaveCount(2);
+    await expect(headings.nth(1)).toHaveText("複製する見出し");
+    await expect(headings.nth(1)).toHaveAttribute("data-level", "3");
+
+    await menu();
+    await page.getByTestId("BlockMenu.copyItem").click();
+    await expect(page.getByTestId("Notice")).toHaveText("コピーしました。");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("複製する見出し");
+    // Pasted into the page: the same heading (its level kept, not moved down
+    // as for something pasted from elsewhere).
+    await editorBody(page).click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Control+v");
+    await expect(headings).toHaveCount(3);
+    await expect(headings.nth(2)).toHaveAttribute("data-level", "3");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+});

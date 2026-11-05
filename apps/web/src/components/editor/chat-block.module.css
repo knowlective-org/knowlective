@@ -10,8 +10,19 @@
   border-radius: 8px;
 }
 
-.label {
+.header {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
   margin-bottom: 6px;
+}
+
+.header .linkButton {
+  font-size: 12px;
+}
+
+.label {
   font-size: 12px;
   font-weight: 600;
   color: var(--color-muted);
@@ -31,6 +42,66 @@
   margin-bottom: 8px;
   padding: 4px 2px;
   overflow-y: auto;
+  /* The messages' text can be selected and copied. */
+  user-select: text;
+  cursor: auto;
+}
+
+.locked {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+/* A message shown from a reply's quote, marked for a moment. */
+.flash .bubble {
+  animation: flash 1.2s ease-out;
+}
+
+@keyframes flash {
+  from {
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+  }
+  to {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
+/* The message a reply answers, above the reply's bubble. */
+.quote {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  margin-bottom: 2px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-muted);
+  text-align: start;
+  background: none;
+  border: none;
+  border-inline-start: 3px solid var(--color-border-strong);
+  cursor: pointer;
+}
+
+.quote:hover {
+  border-inline-start-color: var(--color-primary);
+}
+
+.quoteAuthor {
+  font-weight: 600;
+}
+
+.quoteText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link {
+  color: inherit;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
 }
 
 /* The viewer's own messages on the right, everyone else's on the left. */
@@ -130,10 +201,73 @@
   align-items: center;
 }
 
+.composerForm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* The message being replied to, above the box. */
+.replying {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--color-muted);
+  border-inline-start: 3px solid var(--color-primary);
+}
+
+.replying .linkButton {
+  font-size: 16px;
+  line-height: 1;
+}
+
 .composer {
   display: flex;
   gap: 6px;
   align-items: flex-end;
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.editForm .inputWrap {
+  width: 100%;
+}
+
+/* The people "@" offers, under the box. */
+.mentionMenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  min-width: 180px;
+  max-height: 240px;
+  margin-top: 2px;
+  padding: 4px 0;
+  overflow-y: auto;
+  background: var(--color-background);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+}
+
+.mentionItem {
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mentionItem[aria-selected="true"],
+.mentionItem:hover {
+  background: var(--color-hover);
 }
 
 .input {
@@ -179,7 +313,7 @@
     overflow: visible;
   }
 
-  .composer,
+  .composerForm,
   .linkButton {
     display: none;
   }

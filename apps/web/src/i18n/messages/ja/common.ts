@@ -4,7 +4,6 @@ import type { MessageShape } from "../en";
 const ja: MessageShape<typeof en> = {
   meta: {
     description: "セルフホスト可能なドキュメント・ナレッジ共有ツール",
-    titleSuffix: "{title} | KNOWLECTIVE",
   },
   duration: {
     minute: "{count}分",

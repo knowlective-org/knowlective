@@ -1,5 +1,6 @@
 import { decrypt, encrypt, type PropertyType } from "shared";
 import type { PropertyColumn, SelectOption } from "@/lib/page-property-types";
+import { parseSealed } from "@/lib/secret-text";
 
 // Columns of the child-page table and their values. Everything a user typed
 // (column names, SELECT options, values) is encrypted with the data key;
@@ -8,6 +9,8 @@ import type { PropertyColumn, SelectOption } from "@/lib/page-property-types";
 export const MAX_COLUMNS = 30;
 export const MAX_COLUMN_NAME_LENGTH = 50;
 export const MAX_TEXT_LENGTH = 2000;
+// A MASKED value: the sealed form of up to MAX_TEXT_LENGTH characters.
+export const MAX_MASKED_LENGTH = 12000;
 export const MAX_LONG_TEXT_LENGTH = 10000;
 export const MAX_SELECT_OPTIONS = 50;
 
@@ -89,5 +92,8 @@ export function validateValue(
       return isUser(value);
     case "SELECT":
       return column.options.some((o) => o.id === value);
+    case "MASKED":
+      // Only a sealed string: the browser seals the text before it's sent.
+      return value.length <= MAX_MASKED_LENGTH && parseSealed(value) !== null;
   }
 }

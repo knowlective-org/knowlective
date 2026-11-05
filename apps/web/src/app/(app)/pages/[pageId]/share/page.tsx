@@ -20,7 +20,7 @@ import { publicPagesAllowed } from "@/lib/public-pages";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("share.title") }) };
+  return { title: t("share.title") };
 }
 
 // ?error=<code> from the actions, and its message key.

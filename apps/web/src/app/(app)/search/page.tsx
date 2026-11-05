@@ -15,7 +15,7 @@ import searchStyles from "./search.module.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("search.title") }) };
+  return { title: t("search.title") };
 }
 
 // /search?q=…[&mode=keyword|semantic] — search over the pages the user can

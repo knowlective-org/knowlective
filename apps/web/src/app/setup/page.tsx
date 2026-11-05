@@ -9,7 +9,7 @@ import { SetupForm } from "./setup-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("setup.title") }) };
+  return { title: t("setup.title") };
 }
 
 export default async function SetupPage() {

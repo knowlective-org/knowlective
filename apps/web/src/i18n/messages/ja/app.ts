@@ -40,6 +40,9 @@ const ja: MessageShape<typeof en> = {
     copy: "コピー",
     copied: "クリップボードにコピーしました。",
     copyFailed: "コピーできませんでした。文字を選択して手動でコピーしてください。",
+    passphrase: "合言葉",
+    passphraseAgain: "合言葉（確認）",
+    passphraseMismatch: "合言葉が一致しません。",
   },
   pagination: {
     label: "{label}のページ",

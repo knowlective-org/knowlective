@@ -1,5 +1,5 @@
 // Text locked with a passphrase, for the masked block (components/editor/
-// masked-block.tsx). Encrypted and decrypted in the browser only: the page
+// masked-block.tsx) and masked columns of child page tables (masked-cell.tsx). Encrypted and decrypted in the browser only: the page
 // document (and so the server, its database, the history and every viewer)
 // holds just the sealed string. Dependency-free (Web Crypto), so it runs in
 // Node for the unit tests too.
@@ -70,15 +70,27 @@ async function deriveKey(passphrase: string, salt: Uint8Array<ArrayBuffer>, iter
   );
 }
 
-// A new salt and nonce every time, so sealing the same text twice differs.
-export async function sealText(text: string, passphrase: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+async function sealWithKey(text: string, key: CryptoKey, salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await deriveKey(passphrase, salt, iterations);
   const data = new Uint8Array(
     await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: AAD }, key, new TextEncoder().encode(text)),
   );
   return [VERSION, String(iterations), toBase64Url(salt), toBase64Url(iv), toBase64Url(data)].join(".");
+}
+
+// A new salt and nonce every time, so sealing the same text twice differs.
+export async function sealText(text: string, passphrase: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  return sealWithKey(text, await deriveKey(passphrase, salt, iterations), salt, iterations);
+}
+
+async function openWithKey(parsed: Parsed, key: CryptoKey): Promise<string> {
+  try {
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: parsed.iv, additionalData: AAD }, key, parsed.data);
+    return new TextDecoder().decode(plain);
+  } catch {
+    throw new WrongPassphraseError();
+  }
 }
 
 // Throws WrongPassphraseError when the passphrase doesn't open it (or the
@@ -86,11 +98,42 @@ export async function sealText(text: string, passphrase: string, iterations = PB
 export async function openText(sealed: string, passphrase: string): Promise<string> {
   const parsed = parseSealed(sealed);
   if (!parsed) throw new Error("not a sealed text");
-  const key = await deriveKey(passphrase, parsed.salt, parsed.iterations);
-  try {
-    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: parsed.iv, additionalData: AAD }, key, parsed.data);
-    return new TextDecoder().decode(plain);
-  } catch {
-    throw new WrongPassphraseError();
+  return openWithKey(parsed, await deriveKey(passphrase, parsed.salt, parsed.iterations));
+}
+
+// Many texts under one passphrase (a masked column's values): each key is
+// derived once per salt and kept, and new texts are sealed with the salt of
+// the first one opened or sealed (a fresh nonce every time), so a column
+// costs one key derivation, not one per value. The same sealed format.
+export class SecretKeyring {
+  readonly #passphrase: string;
+  readonly #keys = new Map<string, Promise<CryptoKey>>();
+  #sealing: { salt: Uint8Array<ArrayBuffer>; iterations: number } | null = null;
+
+  constructor(passphrase: string) {
+    this.#passphrase = passphrase;
+  }
+
+  #key(salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<CryptoKey> {
+    const id = `${iterations}.${toBase64Url(salt)}`;
+    let key = this.#keys.get(id);
+    if (!key) {
+      key = deriveKey(this.#passphrase, salt, iterations);
+      this.#keys.set(id, key);
+    }
+    this.#sealing ??= { salt, iterations };
+    return key;
+  }
+
+  // Like openText().
+  async open(sealed: string): Promise<string> {
+    const parsed = parseSealed(sealed);
+    if (!parsed) throw new Error("not a sealed text");
+    return openWithKey(parsed, await this.#key(parsed.salt, parsed.iterations));
+  }
+
+  async seal(text: string): Promise<string> {
+    const { salt, iterations } = this.#sealing ?? { salt: crypto.getRandomValues(new Uint8Array(16)), iterations: PBKDF2_ITERATIONS };
+    return sealWithKey(text, await this.#key(salt, iterations), salt, iterations);
   }
 }

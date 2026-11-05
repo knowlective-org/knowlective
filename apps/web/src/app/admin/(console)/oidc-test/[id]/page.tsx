@@ -7,7 +7,7 @@ import styles from "@/styles/ui.module.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("admin.oidcTest.title") }), robots: { index: false, follow: false } };
+  return { title: t("admin.oidcTest.title"), robots: { index: false, follow: false } };
 }
 
 // Where the single sign-on test login (lib/auth/oidc-test.ts) ends: what a

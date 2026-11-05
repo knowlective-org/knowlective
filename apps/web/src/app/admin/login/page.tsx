@@ -11,7 +11,7 @@ import { AccountLoginForm, MasterLoginForm } from "./login-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("admin.login.title") }), robots: { index: false, follow: false } };
+  return { title: t("admin.login.title"), robots: { index: false, follow: false } };
 }
 
 export default async function AdminLoginPage({ searchParams }: PageProps<"/admin/login">) {

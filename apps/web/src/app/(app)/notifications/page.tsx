@@ -14,7 +14,7 @@ import { markAllNotificationsRead } from "./actions";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("notifications.title") }) };
+  return { title: t("notifications.title") };
 }
 
 // The signed-in person's notifications, newest first. A notification links

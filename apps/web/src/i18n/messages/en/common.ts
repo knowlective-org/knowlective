@@ -3,7 +3,6 @@
 export default {
   meta: {
     description: "A self-hosted tool for sharing documents and knowledge",
-    titleSuffix: "{title} | KNOWLECTIVE",
   },
   duration: {
     minute: "{count, plural, one {# minute} other {# minutes}}",

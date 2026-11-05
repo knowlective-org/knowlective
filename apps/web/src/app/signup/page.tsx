@@ -12,7 +12,7 @@ import { SignupForm } from "./signup-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("signup.title") }) };
+  return { title: t("signup.title") };
 }
 
 // Self-registration: asks for an email address and mails a registration link

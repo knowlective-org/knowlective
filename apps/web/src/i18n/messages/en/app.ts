@@ -41,6 +41,9 @@ export default {
     copy: "Copy",
     copied: "Copied to the clipboard.",
     copyFailed: "Couldn't copy: select the text and copy it by hand.",
+    passphrase: "Passphrase",
+    passphraseAgain: "The passphrase again",
+    passphraseMismatch: "The passphrases don't match.",
   },
   pagination: {
     label: "Pages of {label}",

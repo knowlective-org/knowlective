@@ -12,7 +12,7 @@ import { AcceptForm, RegisterForm } from "./invite-forms";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("invite.title") }), robots: { index: false, follow: false } };
+  return { title: t("invite.title"), robots: { index: false, follow: false } };
 }
 
 export default async function InvitePage({ params }: PageProps<"/invite/[token]">) {
