@@ -81,13 +81,27 @@
   opacity: 0;
 }
 
-.row:hover .add,
 .add:focus-visible {
   opacity: 1;
 }
 
-.add:hover {
-  background: var(--color-selected);
+/* Only where there's a real hover: on a touch screen, a tap that reveals
+   something on hover is taken by iOS as the hover alone, so a link in the
+   row needed a second tap. There the button is always shown instead. */
+@media (hover: hover) {
+  .row:hover .add {
+    opacity: 1;
+  }
+
+  .add:hover {
+    background: var(--color-selected);
+  }
+}
+
+@media (hover: none) {
+  .add {
+    opacity: 1;
+  }
 }
 
 .add:disabled {
