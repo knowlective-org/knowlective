@@ -8,9 +8,17 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- The site can be installed as an app (the browser's "Install", or "Add to home screen" on a phone): an app icon, the site's name, and its background color for the window's bars. Pages aren't kept for offline use, so nothing decrypted stays on the device
+
 ### Fixed
 
 - On an iPhone or iPad, a page in the left pane opened only on the second tap (the first one showed the row's "+" button). On touch screens that button is now always shown
+
+### Security
+
+- Mermaid 12.3.0, with KaTeX 0.18 (a prototype pollution that could get past KaTeX's trust setting). `pnpm audit --prod` finds nothing
 
 ## [0.1.2] - 2026-11-05
 

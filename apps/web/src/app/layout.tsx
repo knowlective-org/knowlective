@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { connection } from "next/server";
 import { NextIntlClientProvider } from "next-intl";
@@ -37,7 +37,18 @@ export async function generateMetadata(): Promise<Metadata> {
     description: t("description"),
     applicationName: brand.name,
     metadataBase: new URL(`${base}/`),
+    // Added to an iPhone's or iPad's home screen: opens without the browser's
+    // bars, named after the site (the icon is app/apple-icon.png).
+    appleWebApp: { capable: true, title: brand.name, statusBarStyle: "default" },
   };
+}
+
+// The browser's bars (and an installed app's title bar) in the site's
+// background color.
+export async function generateViewport(): Promise<Viewport> {
+  await connection();
+  const theme = await getTheme();
+  return { themeColor: theme.background };
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
