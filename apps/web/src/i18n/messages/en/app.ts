@@ -323,6 +323,7 @@ export default {
     none: "Nothing found.",
     count: "{count, plural, one {# result} other {# results}}{top, select, true { (top 50)} other {}}",
     bySemantic: "Close in meaning",
+    chat: "Chat:",
     file: "Attachment: {name}",
     updated: "Updated {date}",
     reasons: {

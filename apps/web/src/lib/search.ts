@@ -45,9 +45,11 @@ export type SearchResult = {
   title: string;
   // Visible ancestors, root first (hidden ones are left out).
   path: string[];
-  // Where it matched: the body (with context), an attachment (its name, and
-  // the passage when it's in the file's text), or only the title.
+  // Where it matched: the body (with context), a chat message, an attachment
+  // (its name, and the passage when it's in the file's text), or only the
+  // title.
   snippet: SnippetPart[] | null;
+  matchedChat: SnippetPart[] | null;
   matchedFile: { name: string; snippet: SnippetPart[] | null } | null;
   // Found by meaning only (no matching words): the snippet is the passage.
   bySemantic: boolean;
@@ -111,16 +113,29 @@ function snippet(
   return parts.map((p) => ({ ...p, text: p.text.replace(/\s+/g, " ") }));
 }
 
-// A passage found by meaning, cut to snippet length.
-function passageSnippet(body: string, hit: SemanticHit): SnippetPart[] | null {
+// A passage found by meaning (in `source`, the text it's in), cut to snippet length.
+function passageSnippet(source: string, hit: SemanticHit): SnippetPart[] | null {
   if (hit.start < 0) return null;
   const length = SNIPPET_RADIUS * 3;
-  const text = body.slice(hit.start, Math.min(hit.end, hit.start + length)).replace(/\s+/g, " ").trim();
+  const text = source.slice(hit.start, Math.min(hit.end, hit.start + length)).replace(/\s+/g, " ").trim();
   if (!text) return null;
   const parts: SnippetPart[] = [{ text, hit: false }];
   if (hit.start > 0) parts.unshift({ text: "…", hit: false });
-  if (hit.start + length < body.length) parts.push({ text: "…", hit: false });
+  if (hit.start + length < source.length) parts.push({ text: "…", hit: false });
   return parts;
+}
+
+// Where a passage found by meaning is, as a result shows it.
+function semanticMatch(
+  text: PageSearchText,
+  hit: SemanticHit,
+): Pick<SearchResult, "snippet" | "matchedChat" | "matchedFile"> {
+  if (hit.source === "chat") return { snippet: null, matchedChat: passageSnippet(text.chat, hit), matchedFile: null };
+  if (hit.source === "file") {
+    const file = text.fileTexts.find((f) => f.id === hit.fileId);
+    if (file) return { snippet: null, matchedChat: null, matchedFile: { name: file.name, snippet: passageSnippet(file.text, hit) } };
+  }
+  return { snippet: passageSnippet(text.body, hit), matchedChat: null, matchedFile: null };
 }
 
 export async function searchPages(
@@ -178,8 +193,7 @@ export async function searchPages(
       id,
       title: text.title,
       path: pathOf(visible, id, ctx.displayTitle),
-      snippet: passageSnippet(text.body, best.get(id)!),
-      matchedFile: null,
+      ...semanticMatch(text, best.get(id)!),
       bySemantic: true,
       updatedAt: (updated.get(id) ?? new Date(0)).toISOString(),
     });
@@ -256,14 +270,19 @@ async function keywordSearch(query: string, ctx: SearchContext): Promise<SearchR
   for (const id of candidates) {
     const text = await textOf(ctx, id);
     if (!text) continue;
-    const all = [text.title, text.body, ...text.files, ...text.fileTexts.map((f) => f.text)].join("\n");
+    const all = [text.title, text.body, text.chat, ...text.files, ...text.fileTexts.map((f) => f.text)].join("\n");
     if (!findTerms(all, terms)) continue; // index false positive
     // Snippet from the body, around the terms found there (a term may
-    // instead be in the title or an attachment name).
+    // instead be in the title, a chat message or an attachment).
     const bodyTerms = terms.filter((t) => findTerms(text.body, [t]));
     const bodyRanges =
       bodyTerms.length > 0 ? findTerms(text.body, bodyTerms) : null;
-    const file = bodyRanges ? null : matchedFile(text, terms);
+    // Else from the chats if they have all the terms, else from an
+    // attachment, else from the chats around the terms they have.
+    const chatTerms = bodyRanges ? [] : terms.filter((t) => findTerms(text.chat, [t]));
+    const chatAll = chatTerms.length === terms.length ? findTerms(text.chat, terms) : null;
+    const file = bodyRanges || chatAll ? null : matchedFile(text, terms);
+    const chatRanges = chatAll ?? (file || chatTerms.length === 0 ? null : findTerms(text.chat, chatTerms));
     results.push({
       inTitle: terms.every((t) => findTerms(text.title, [t])),
       result: {
@@ -271,6 +290,7 @@ async function keywordSearch(query: string, ctx: SearchContext): Promise<SearchR
         title: text.title,
         path: pathOf(ctx.visible, id, ctx.displayTitle),
         snippet: bodyRanges ? snippet(text.body, bodyRanges) : null,
+        matchedChat: chatRanges ? snippet(text.chat, chatRanges) : null,
         matchedFile: file,
         bySemantic: false,
         updatedAt: (updated.get(id) ?? new Date(0)).toISOString(),
