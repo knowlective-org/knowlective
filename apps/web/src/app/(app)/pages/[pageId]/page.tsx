@@ -11,6 +11,8 @@ import { loadPublicSidebar, loadSidebar } from "@/lib/sidebar-data";
 import { getPublicUrl } from "@/lib/site-url";
 import { getDisplayTitle } from "@/i18n/display-title";
 import { publicPageState } from "@/lib/public-page-state";
+import { getBrand } from "@/lib/brand";
+import { jsonLd, pageDescription } from "@/lib/seo";
 import { type PageLockView, PageView } from "./page-view";
 
 // Shared by generateMetadata and the page within one request. Someone not
@@ -24,9 +26,23 @@ const loadPage = cache(async (pageId: string) => {
   return { user: null, page };
 });
 
+// Someone not logged in sees only public pages; for them (and so for search
+// engines) the page is described: the start of its text, its canonical URL,
+// and Open Graph / Twitter card tags (lib/seo.ts).
 export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">): Promise<Metadata> {
-  const { page } = await loadPage((await params).pageId);
-  return { title: page ? `${(await getDisplayTitle())(page.title)} | KNOWLECTIVE` : "KNOWLECTIVE" };
+  const { user, page } = await loadPage((await params).pageId);
+  if (!page) return {};
+  const title = (await getDisplayTitle())(page.title);
+  if (user) return { title };
+  const [description, base, brand] = await Promise.all([pageDescription(page.id), getPublicUrl(), getBrand()]);
+  const url = `${base}/pages/${page.id}`;
+  return {
+    title,
+    description: description || undefined,
+    alternates: { canonical: url },
+    openGraph: { type: "article", title, description: description || undefined, url, siteName: brand.name },
+    twitter: { card: "summary", title, description: description || undefined },
+  };
 }
 
 export default async function PageEditorRoute({ params }: PageProps<"/pages/[pageId]">) {
@@ -69,22 +85,38 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
     };
   }
 
+  // For search engines: the page as an article (someone not logged in only).
+  const article = user
+    ? null
+    : await prisma.page.findUnique({ where: { id: page.id }, select: { createdAt: true, updatedAt: true } }).then(async (dates) => ({
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: (await getDisplayTitle())(page.title),
+        url: `${publicUrl}/pages/${page.id}`,
+        datePublished: dates?.createdAt.toISOString(),
+        dateModified: dates?.updatedAt.toISOString(),
+        publisher: { "@type": "Organization", name: (await getBrand()).name },
+      }));
+
   return (
-    <PageView
-      // Remount per page so the editor's collab connection is replaced cleanly.
-      key={page.id}
-      pageId={page.id}
-      initialTitle={page.title}
-      canEdit={atLeast(page.access, "EDIT")}
-      lock={lock}
-      canManage={atLeast(page.access, "MANAGE")}
-      isRootPage={page.isRootPage}
-      personal={page.personal}
-      shareUrl={`${publicUrl}/pages/${page.id}`}
-      user={user ? { id: user.id, name: user.name ?? user.email } : null}
-      guestState={guestState}
-      following={following}
-      sidebar={sidebar}
-    />
+    <>
+      {article && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(article) }} />}
+      <PageView
+        // Remount per page so the editor's collab connection is replaced cleanly.
+        key={page.id}
+        pageId={page.id}
+        initialTitle={page.title}
+        canEdit={atLeast(page.access, "EDIT")}
+        lock={lock}
+        canManage={atLeast(page.access, "MANAGE")}
+        isRootPage={page.isRootPage}
+        personal={page.personal}
+        shareUrl={`${publicUrl}/pages/${page.id}`}
+        user={user ? { id: user.id, name: user.name ?? user.email } : null}
+        guestState={guestState}
+        following={following}
+        sidebar={sidebar}
+      />
+    </>
   );
 }

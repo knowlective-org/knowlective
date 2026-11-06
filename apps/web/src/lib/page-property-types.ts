@@ -1,7 +1,9 @@
 // Shapes shared by the child-page Server Actions and the editor blocks
 // (browser) — keep dependency-free.
 
-export type PropertyType = "TEXT" | "LONG_TEXT" | "DATE" | "USER" | "SELECT";
+// MASKED: text sealed with a passphrase in the browser (lib/secret-text.ts);
+// the server only ever has the sealed string.
+export type PropertyType = "TEXT" | "LONG_TEXT" | "DATE" | "USER" | "SELECT" | "MASKED";
 
 export type SelectOption = { id: string; name: string; color: string };
 
@@ -13,7 +15,10 @@ export type PropertyColumn = {
 };
 
 // Every type, in the order offered (named by editor.childTable.types).
-export const PROPERTY_TYPES: PropertyType[] = ["TEXT", "LONG_TEXT", "DATE", "USER", "SELECT"];
+export const PROPERTY_TYPES: PropertyType[] = ["TEXT", "LONG_TEXT", "DATE", "USER", "SELECT", "MASKED"];
+
+// The most text a MASKED value holds (before it's sealed; as a TEXT value).
+export const MAX_MASKED_TEXT_LENGTH = 2000;
 
 export const OPTION_COLORS = ["#e3e2e0", "#fadec9", "#fdecc8", "#dbeddb", "#d3e5ef", "#e8deee", "#f5e0e9", "#ffe2dd"];
 

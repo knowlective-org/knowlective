@@ -25,7 +25,7 @@ import { parseNotificationPrefs } from "@/lib/notification-prefs";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("account.title") }) };
+  return { title: t("account.title") };
 }
 
 // The signed-in user's own account: who they are, their display language,

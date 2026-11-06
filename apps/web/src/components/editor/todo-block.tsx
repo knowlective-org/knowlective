@@ -7,6 +7,7 @@ import { usePageEditor } from "./page-context";
 import { usePagePeople } from "./page-people";
 import styles from "./todo-block.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
+import { blockLockOf } from "./block-lock";
 
 // TODO block: a to-do item with an assignee, a due date (shown as overdue
 // once it's past and the item isn't done) and, once ticked, who ticked it
@@ -54,6 +55,36 @@ export const todoShortcuts = createExtension({
   ],
 });
 
+// Changes a TODO's props. Ticking it ticks the TODOs nested under it (at any
+// depth) too, in the same change; unticking leaves them as they are. Ones
+// already done keep who did them, and ones under an "edit" lock are left out
+// (the lock would refuse the whole change).
+type TodoBlock = { id: string; type: string; props: object; children: TodoBlock[] };
+type TodoEditor = {
+  getBlock: (id: string) => TodoBlock | undefined;
+  updateBlock: (block: TodoBlock, update: never) => unknown;
+  transact: (change: () => void) => void;
+};
+
+function updateTodo(editor: TodoEditor, blockId: string, props: Partial<TodoProps>) {
+  const block = editor.getBlock(blockId);
+  if (!block) return;
+  editor.transact(() => {
+    editor.updateBlock(block, { props } as never);
+    if (!props.checked) return;
+    const tick = (children: TodoBlock[]) => {
+      for (const child of children) {
+        if (blockLockOf(editor, child.id) === "edit") continue;
+        if (child.type === "todo" && !(child.props as TodoProps).checked) {
+          editor.updateBlock(child, { props: { checked: true, doneBy: props.doneBy, doneAt: props.doneAt } } as never);
+        }
+        tick(child.children);
+      }
+    };
+    tick(block.children);
+  });
+}
+
 export const todoBlock = createReactBlockSpec(
   BLOCK_CONFIGS.todo,
   {
@@ -61,7 +92,7 @@ export const todoBlock = createReactBlockSpec(
       <Todo
         props={block.props}
         editable={editor.isEditable}
-        onChange={(props) => editor.updateBlock(block, { props })}
+        onChange={(props) => updateTodo(editor, block.id, props)}
         contentRef={contentRef}
       />
     ),

@@ -13,7 +13,7 @@ import { TrashList } from "./trash-list";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("trash.title") }) };
+  return { title: t("trash.title") };
 }
 
 // Pages the user deleted or could restore (EDIT on them), across all

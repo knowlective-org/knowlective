@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { WrongPassphraseError, openText, parseSealed, sealText } from "../src/lib/secret-text";
+import { SecretKeyring, WrongPassphraseError, openText, parseSealed, sealText } from "../src/lib/secret-text";
 
 // Text locked with a passphrase, for the masked block (lib/secret-text.ts).
 // The sealed string comes from the shared document, so anyone who can edit
@@ -45,5 +45,23 @@ describe("text locked with a passphrase", () => {
     assert.equal(parseSealed(["v1", "100000", salt, iv, "a+b/"].join(".")), null);
     assert.equal(parseSealed(sealed + ".extra"), null);
     await assert.rejects(openText("<script>", "pw"), /not a sealed text/);
+  });
+});
+
+// A masked column's values (SecretKeyring): one key for the column.
+describe("many texts under one passphrase", () => {
+  test("opens texts sealed either way, and seals with the salt it already has", async () => {
+    const existing = await sealText("first", "pw", ITERATIONS);
+    const ring = new SecretKeyring("pw");
+    assert.equal(await ring.open(existing), "first");
+    const next = await ring.seal("second");
+    assert.equal(next.split(".")[2], existing.split(".")[2]);
+    assert.notEqual(next.split(".")[3], (await ring.seal("second")).split(".")[3]);
+    assert.equal(await openText(next, "pw"), "second");
+  });
+
+  test("a keyring with another passphrase doesn't open them", async () => {
+    const sealed = await new SecretKeyring("right").seal("secret");
+    await assert.rejects(new SecretKeyring("wrong").open(sealed), WrongPassphraseError);
   });
 });

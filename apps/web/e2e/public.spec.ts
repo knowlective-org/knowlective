@@ -87,8 +87,23 @@ test.describe("Public pages", () => {
       // Search engines allowed: no noindex from the next request on.
       await setPublicSettings(page, { noindex: false });
       expect((await guest.goto(`pages/${id}`))?.headers()["x-robots-tag"]).toBeUndefined();
+      // …with robots.txt pointing to a sitemap of the public pages, and the
+      // page described (lib/seo.ts): the start of its text, its canonical URL,
+      // Open Graph and structured data.
+      expect(await (await guest.request.get("robots.txt")).text()).toMatch(/Sitemap: \S*\/sitemap\.xml/);
+      const sitemap = await (await guest.request.get("sitemap.xml")).text();
+      expect(sitemap).toContain(`/pages/${id}</loc>`);
+      expect(sitemap).not.toContain(HOME_PAGE_ID);
+      await expect(guest.locator('meta[name="description"]')).toHaveAttribute("content", /誰でも読める文章/);
+      await expect(guest.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/pages/${id}$`));
+      await expect(guest.locator('meta[property="og:title"]')).toHaveAttribute("content", title);
+      const article = JSON.parse((await guest.locator('script[type="application/ld+json"]').textContent())!);
+      expect(article).toMatchObject({ "@type": "Article", headline: title });
       await setPublicSettings(page, { noindex: true });
       expect((await guest.goto(`pages/${id}`))?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
+      // Not allowed: no sitemap.
+      expect(await (await guest.request.get("robots.txt")).text()).not.toContain("Sitemap");
+      expect(await (await guest.request.get("sitemap.xml")).text()).not.toContain("<loc>");
 
       // The top page: "/" shows it to someone not logged in, as it's public.
       await setLandingPage(page, id);

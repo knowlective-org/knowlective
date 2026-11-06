@@ -74,6 +74,7 @@ model User {
   emailCodes      EmailCode[]
   emailChanges    EmailChangeRequest[]
   chatMessages    ChatMessage[]
+  chatLocks       ChatLock[]
   tableViews      TableViewPref[]
   notifications   Notification[]   @relation("NotificationRecipient")
   notificationsBy Notification[]   @relation("NotificationActor")
@@ -183,6 +184,7 @@ model Page {
   searchIndex    PageSearchIndex?
   fileRefs       PageFileRefs?
   chatMessages   ChatMessage[]
+  chatLocks      ChatLock[]
   tableViews     TableViewPref[]
   notifications  Notification[]
   followers      PageFollow[]
@@ -203,6 +205,9 @@ enum PropertyType {
   DATE
   USER
   SELECT
+  // Text sealed with a passphrase in the browser (lib/secret-text.ts): the
+  // value is only the sealed string, like the masked block's.
+  MASKED
 }
 
 // A column of the child-page table on `pageId` (applies to its children).
@@ -318,8 +323,26 @@ model ChatMessage {
   // Set when its author took it back ("unsent"): the text is then emptied,
   // and the message shows only that it was taken back.
   deletedAt DateTime?
+  // The message this one replies to (in the same chat).
+  replyToId String?
+  replyTo   ChatMessage?  @relation("ChatReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[] @relation("ChatReplies")
 
   @@index([pageId, blockId, createdAt])
+}
+
+// A locked chat block: nobody can post, change or take back its messages
+// until someone who can edit the page unlocks it (against accidents, like a
+// page's lock; not access control).
+model ChatLock {
+  pageId     String
+  page       Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  blockId    String
+  lockedById String?
+  lockedBy   User?    @relation(fields: [lockedById], references: [id], onDelete: SetNull)
+  lockedAt   DateTime @default(now())
+
+  @@id([pageId, blockId])
 }
 
 // A person's own filters and sort for one child page table block

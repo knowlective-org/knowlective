@@ -17,6 +17,8 @@ export type CollabTokenPayload = {
   p: string;
   /** expiry, unix seconds */
   exp: number;
+  /** the editor's version (apps/web lib/collab-version.ts); missing in older tokens */
+  v?: number;
 };
 
 let cachedKey: Buffer | null = null;
@@ -32,11 +34,12 @@ function sign(data: string): Buffer {
   return createHmac("sha256", signingKey()).update(data).digest();
 }
 
-export function createCollabToken(userId: string, pageId: string, now = Date.now()): string {
+export function createCollabToken(userId: string, pageId: string, version: number, now = Date.now()): string {
   const payload: CollabTokenPayload = {
     u: userId,
     p: pageId,
     exp: Math.floor(now / 1000) + COLLAB_TOKEN_TTL_SECONDS,
+    v: version,
   };
   const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return `${data}.${sign(data).toString("base64url")}`;

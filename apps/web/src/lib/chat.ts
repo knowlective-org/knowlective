@@ -7,7 +7,13 @@ import { decrypt, encrypt } from "shared";
 // emptying it and leaving only that it was taken back); the text is
 // encrypted with the data key, bound to its row by the AAD.
 
-export { CHAT_HISTORY, MAX_CHAT_MESSAGE_LENGTH, type ChatData, type ChatMessageView } from "./chat-types";
+export {
+  CHAT_HISTORY,
+  MAX_CHAT_MESSAGE_LENGTH,
+  REPLY_EXCERPT_LENGTH,
+  type ChatData,
+  type ChatMessageView,
+} from "./chat-types";
 import { MAX_CHAT_MESSAGE_LENGTH } from "./chat-types";
 
 const aad = (id: string) => `knowlective:chat-message:${id}`;

@@ -11,7 +11,7 @@ import { PasskeySetupForm } from "./passkey-setup-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("passkeySetup.title") }) };
+  return { title: t("passkeySetup.title") };
 }
 
 // The site requires passkeys and this account (signed in with its password)

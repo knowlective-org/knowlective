@@ -14,6 +14,8 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlock
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { getCollabToken, getUploadExtensions } from "@/app/(app)/actions";
+import { COLLAB_CLIENT_VERSION, OUTDATED_CLIENT } from "@/lib/collab-version";
+import { lockedBlockIds } from "@/lib/block-locks";
 import { saveVersionBeforeReplace } from "@/app/(app)/pages/[pageId]/history/actions";
 import { getLinkPreviewEnabled, loadLinkPreview } from "@/app/(app)/link-preview-actions";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
@@ -48,6 +50,8 @@ import { pagePeople } from "./editor/page-people";
 import { useFilePaths } from "./editor/file-paths";
 import { showAlert, showChoice, showConfirm } from "./dialog";
 import { EditorPlaceholder } from "./editor-placeholder";
+import { blockLockExtension } from "./editor/block-lock";
+import { showNotice } from "./notice";
 import styles from "./collaborative-editor.module.css";
 import { cursorColorFor } from "@/lib/cursor-color";
 
@@ -119,7 +123,7 @@ export function CollaborativeEditor(props: Props) {
   // its title) is empty, so the placeholder is shown instead.
   const [synced, setSynced] = useState<HocuspocusProvider | null>(null);
   // Shown instead of the editor once it can't be used any more.
-  const [failure, setFailure] = useState<"openFailed" | "movedToTrash" | null>(null);
+  const [failure, setFailure] = useState<"openFailed" | "movedToTrash" | "outdated" | null>(null);
   const t = useTranslations("editor");
 
   // One connection per mounted page, closed when leaving it — navigating to
@@ -128,17 +132,30 @@ export function CollaborativeEditor(props: Props) {
   // provider to reset on cleanup.
   useEffect(() => {
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    // The app was updated since this screen was loaded: no retries.
+    let outdated = false;
     const p = new HocuspocusProvider({
       url: collabUrl(),
       name: props.pageId,
       document: new Y.Doc(),
-      token: () => getCollabToken(props.pageId),
+      token: async () => {
+        const token = await getCollabToken(props.pageId, COLLAB_CLIENT_VERSION);
+        if (token === OUTDATED_CLIENT) {
+          outdated = true;
+          throw new Error("Outdated editor");
+        }
+        return token;
+      },
       onSynced: () => {
         failures.current = 0;
         setSynced(p);
       },
       // Also fires when getCollabToken() itself throws.
       onAuthenticationFailed: () => {
+        if (outdated) {
+          setFailure("outdated");
+          return;
+        }
         const delay = RETRY_DELAYS_MS[failures.current++];
         if (delay === undefined) {
           setFailure("openFailed");
@@ -172,7 +189,7 @@ export function CollaborativeEditor(props: Props) {
     };
   }, [props.pageId, attempt, router]);
 
-  if (failure) return <EditorPlaceholder message={t(failure)} />;
+  if (failure) return <EditorPlaceholder message={t(failure)} reload={failure === "outdated" ? t("reload") : undefined} />;
   if (!provider || synced !== provider) return <EditorPlaceholder />;
   return <EditorBody {...props} provider={provider} />;
 }
@@ -392,6 +409,11 @@ async function replacePage(
   file: File,
   blockId: string,
 ): Promise<Record<string, never>> {
+  // Every block would go, and locked ones can't (block-lock.ts).
+  if (lockedBlockIds(provider.document).size > 0) {
+    void showAlert(text("editor.replaceLocked"), { title: text("editor.replaceFailedTitle") });
+    return discardFileBlock(editor, blockId);
+  }
   const confirmed = await showConfirm(text("editor.replaceConfirm", { name: file.name }), {
     title: text("editor.replaceConfirmTitle"),
     confirmLabel: text("editor.replace"),
@@ -516,6 +538,13 @@ function EditorBody({
   const editor = useCreateBlockNote(
     withCollaboration({
       schema: editorSchema,
+      extensions: [
+        blockLockExtension(provider.document, {
+          // Labels are drawn as the editor is made, before `text` is set.
+          label: (lock) => t(lock === "edit" ? "editor.blockLock.editLabel" : "editor.blockLock.deleteLabel"),
+          blocked: (lock) => showNotice(t(lock === "edit" ? "editor.blockLock.editBlocked" : "editor.blockLock.deleteBlocked")),
+        }),
+      ],
       dictionary: blockNoteDictionary(locale),
       // Dropping a block at another's left or right edge puts them in columns.
       dropCursor: multiColumnDropCursor,

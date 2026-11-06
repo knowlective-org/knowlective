@@ -26,6 +26,7 @@ FROM base AS build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
+COPY patches patches
 RUN pnpm install --frozen-lockfile
 COPY . .
 # Built with a placeholder for the base path (KNOWLECTIVE_BASE_PATH): the real one
@@ -48,6 +49,7 @@ ENV NODE_ENV=production \
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
+COPY patches patches
 # The store and cache are only needed while installing (node_modules
 # hard-links to the store).
 RUN pnpm install --frozen-lockfile --prod \

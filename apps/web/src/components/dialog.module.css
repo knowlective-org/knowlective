@@ -28,6 +28,14 @@
   font-size: 18px;
 }
 
+/* The passphrase field(s). */
+.secretFields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

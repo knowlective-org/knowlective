@@ -4,6 +4,7 @@ import { PageLink } from "./page-link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -39,6 +40,7 @@ import {
   type SelectOption,
 } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
+import { MaskProvider, MaskedCell, MaskedColumnToggle } from "./masked-cell";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-blocks.module.css";
 import { showAlert, showConfirm } from "@/components/dialog";
@@ -167,6 +169,8 @@ function ChildTable({
     return resolveOrder(order, [...byKey.keys()]).map((k) => byKey.get(k)!);
   }, [data, order, t]);
   const visible = allColumns.filter((c) => !hiddenSet.has(c.key));
+  // A masked column's values, to check a passphrase against (masked-cell.tsx).
+  const maskValues = useCallback((columnId: string) => (data?.rows ?? []).map((r) => r.values[columnId] ?? ""), [data]);
 
   const sorted = useMemo(() => (data ? sortRows(data, sort, format) : []), [data, sort, format]);
   const filterCount = Object.keys(view.filters).length;
@@ -240,196 +244,199 @@ function ChildTable({
   });
 
   return (
-    <div className={styles.block} contentEditable={false} data-ui="ChildTableBlock">
-      <div className={styles.header}>
-        <BlockTitle
-          value={title}
-          placeholder={t("childTable.placeholder")}
-          editable={editable}
-          onSave={(next) => onChange({ title: next })}
-          uiName="ChildTableBlock"
-        />
-        <Popover
-          open={menu === "filter"}
-          onOpenChange={(o) => setMenu(o ? "filter" : null)}
-          trigger={filterCount > 0 ? t("childTable.filterCount", { count: filterCount }) : t("childTable.filter")}
-          dataUi="ChildTableBlock.filterMenu"
-        >
-          <FilterPanel
-            columns={[{ key: "title", label: t("childTable.title"), custom: null }, ...visible]}
-            data={data}
-            filters={view.filters}
-            onChange={(filters) => setView({ ...view, filters })}
+    <MaskProvider values={maskValues}>
+      <div className={styles.block} contentEditable={false} data-ui="ChildTableBlock">
+        <div className={styles.header}>
+          <BlockTitle
+            value={title}
+            placeholder={t("childTable.placeholder")}
+            editable={editable}
+            onSave={(next) => onChange({ title: next })}
+            uiName="ChildTableBlock"
           />
-        </Popover>
-        {editable && (
           <Popover
-            open={menu === "columns"}
-            onOpenChange={(o) => setMenu(o ? "columns" : null)}
-            trigger={t("childTable.columns")}
-            dataUi="ChildTableBlock.columnsMenu"
+            open={menu === "filter"}
+            onOpenChange={(o) => setMenu(o ? "filter" : null)}
+            trigger={filterCount > 0 ? t("childTable.filterCount", { count: filterCount }) : t("childTable.filter")}
+            dataUi="ChildTableBlock.filterMenu"
           >
-            {allColumns.map(({ key, label }) => (
-              <label key={key} className={styles.check}>
-                <input type="checkbox" checked={!hiddenSet.has(key)} onChange={() => toggleHidden(key)} />
-                {label}
-              </label>
-            ))}
-          </Popover>
-        )}
-        {editable && data.canEditColumns && (
-          <Popover
-            open={menu === "add"}
-            onOpenChange={(o) => setMenu(o ? "add" : null)}
-            trigger={t("childTable.addColumn")}
-            dataUi="ChildTableBlock.addColumn"
-          >
-            <AddColumnForm
-              onSubmit={async (name, type) => {
-                if (await run(addColumn(pageId, name, type))) {
-                  setMenu(null);
-                  void reload();
-                }
-              }}
+            <FilterPanel
+              columns={[{ key: "title", label: t("childTable.title"), custom: null }, ...visible.filter((c) => c.custom?.type !== "MASKED")]}
+              data={data}
+              filters={view.filters}
+              onChange={(filters) => setView({ ...view, filters })}
             />
           </Popover>
-        )}
-      </div>
-
-      {!isEmptyView(view) && (
-        <div className={styles.viewBar} role="status" data-ui="ChildTableBlock.viewStatus">
-          <span>
-            {personal ? t("childTable.personalView") : t("childTable.screenView")}
-            {filterCount > 0 && ` · ${t("childTable.shownRows", { shown: rows.length, total: data.rows.length })}`}
-          </span>
-          {editable && view.sort !== null && view.sort !== (savedSort ? `${savedSort.key}:${savedSort.dir}` : "") && (
-            <button
-              type="button"
-              className={styles.toolButton}
-              data-ui="ChildTableBlock.setDefaultSortButton"
-              onClick={() => {
-                onChange({ sort: view.sort ?? "" });
-                setView({ ...view, sort: null });
-              }}
+          {editable && (
+            <Popover
+              open={menu === "columns"}
+              onOpenChange={(o) => setMenu(o ? "columns" : null)}
+              trigger={t("childTable.columns")}
+              dataUi="ChildTableBlock.columnsMenu"
             >
-              {t("childTable.makeDefaultSort")}
-            </button>
-          )}
-          <button type="button" className={styles.toolButton} data-ui="ChildTableBlock.resetViewButton" onClick={() => setView(EMPTY_VIEW)}>
-            {t("childTable.resetView")}
-          </button>
-        </div>
-      )}
-
-      {filterCount > 0 && rows.length === 0 && data.rows.length > 0 ? (
-        <p className={styles.muted} data-ui="ChildTableBlock.noMatch">
-          {t("childTable.noMatch")}
-        </p>
-      ) : rows.length === 0 && !canCreate ? (
-        <p className={styles.muted}>{t("childPages.none")}</p>
-      ) : (
-        <div className={styles.tableScroll}>
-          <div className={drag ? styles.tableDragging : styles.table} role="table">
-            <div className={styles.tr} role="row" ref={headerRef}>
-              <HeaderCell label={t("childTable.title")} sortKey="title" sort={sort} onSort={setSort} />
-              {visible.map((c, i) => (
-                <HeaderCell
-                  key={c.key}
-                  colKey={c.key}
-                  label={c.label}
-                  sortKey={c.key}
-                  sort={sort}
-                  onSort={setSort}
-                  grip={editable ? gripHandlers(c.key) : undefined}
-                  dragging={drag?.key === c.key}
-                  dropBefore={drag !== null && drag.dropIndex === i}
-                  dropAfter={drag !== null && drag.dropIndex === visible.length && i === visible.length - 1}
-                  menuOpen={menu === `col:${c.key}`}
-                  onMenuOpenChange={editable ? (o) => setMenu(o ? `col:${c.key}` : null) : undefined}
-                >
-                  <ColumnMenu
-                    column={c.custom}
-                    label={c.label}
-                    canEditColumn={data.canEditColumns}
-                    first={i === 0}
-                    last={i === visible.length - 1}
-                    onRename={(name) => c.custom && after(renameColumn(c.custom.id, name))}
-                    onOptions={async (options) => !!c.custom && after(setColumnOptions(c.custom.id, options))}
-                    onMove={(dir) => moveTo(c.key, dir < 0 ? i - 1 : i + 2)}
-                    onHide={() => {
-                      setMenu(null);
-                      toggleHidden(c.key);
-                    }}
-                    onDelete={() => {
-                      const custom = c.custom;
-                      if (!custom) return;
-                      void showConfirm(t("childTable.deleteColumn", { name: c.label }), {
-                        title: t("childTable.deleteColumnTitle"),
-                        confirmLabel: t("childTable.remove"),
-                        danger: true,
-                      }).then((ok) => {
-                        if (!ok) return;
-                        setMenu(null);
-                        void after(deleteColumn(custom.id));
-                      });
-                    }}
-                  />
-                </HeaderCell>
+              {allColumns.map(({ key, label }) => (
+                <label key={key} className={styles.check}>
+                  <input type="checkbox" checked={!hiddenSet.has(key)} onChange={() => toggleHidden(key)} />
+                  {label}
+                </label>
               ))}
-            </div>
-            {rows.map((row) => (
-              <div key={row.id} className={styles.tr} role="row" data-ui="ChildTableBlock.row" data-id={row.id}>
-                <div className={styles.titleCell} role="cell">
-                  <PageLink href={`/pages/${row.id}`} className={styles.pageLink} data-ui="ChildTableBlock.pageLink" data-id={row.id}>
-                    <span aria-hidden>{row.icon ?? "📄"}</span>
-                    <span>{displayTitle(row.title)}</span>
-                  </PageLink>
-                </div>
-                {visible.map((c) => (
-                  <div
-                    key={c.key}
-                    role="cell"
-                    className={c.custom ? styles.cell : styles.metaCell}
-                    data-dragging={drag?.key === c.key || undefined}
-                  >
-                    {c.custom ? (
-                      <Cell
-                        column={c.custom}
-                        value={row.values[c.custom.id] ?? ""}
-                        editable={editable && row.canEdit}
-                        data={data}
-                        onSave={(value) => after(setCellValue(row.id, c.custom!.id, value))}
-                      />
-                    ) : (
-                      builtinText(row, c.key as BuiltinColumn, data, format)
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-          {canCreate && (
-            <div className={styles.newRow}>
-              <NewPageRow
-                onCreate={async (pageTitle) => {
-                  const result = await createChildPageInPlace(pageId, pageTitle).catch(() => ({
-                    error: t("childTable.createFailed"),
-                  }));
-                  if ("error" in result) {
-                    void showAlert(result.error, { title: t("childTable.cannotCreate") });
-                    return false;
+            </Popover>
+          )}
+          {editable && data.canEditColumns && (
+            <Popover
+              open={menu === "add"}
+              onOpenChange={(o) => setMenu(o ? "add" : null)}
+              trigger={t("childTable.addColumn")}
+              dataUi="ChildTableBlock.addColumn"
+            >
+              <AddColumnForm
+                onSubmit={async (name, type) => {
+                  if (await run(addColumn(pageId, name, type))) {
+                    setMenu(null);
+                    void reload();
                   }
-                  void reload();
-                  // The sidebar lists the new page too.
-                  router.refresh();
-                  return true;
                 }}
               />
-            </div>
+            </Popover>
           )}
         </div>
-      )}
-    </div>
+
+        {!isEmptyView(view) && (
+          <div className={styles.viewBar} role="status" data-ui="ChildTableBlock.viewStatus">
+            <span>
+              {personal ? t("childTable.personalView") : t("childTable.screenView")}
+              {filterCount > 0 && ` · ${t("childTable.shownRows", { shown: rows.length, total: data.rows.length })}`}
+            </span>
+            {editable && view.sort !== null && view.sort !== (savedSort ? `${savedSort.key}:${savedSort.dir}` : "") && (
+              <button
+                type="button"
+                className={styles.toolButton}
+                data-ui="ChildTableBlock.setDefaultSortButton"
+                onClick={() => {
+                  onChange({ sort: view.sort ?? "" });
+                  setView({ ...view, sort: null });
+                }}
+              >
+                {t("childTable.makeDefaultSort")}
+              </button>
+            )}
+            <button type="button" className={styles.toolButton} data-ui="ChildTableBlock.resetViewButton" onClick={() => setView(EMPTY_VIEW)}>
+              {t("childTable.resetView")}
+            </button>
+          </div>
+        )}
+
+        {filterCount > 0 && rows.length === 0 && data.rows.length > 0 ? (
+          <p className={styles.muted} data-ui="ChildTableBlock.noMatch">
+            {t("childTable.noMatch")}
+          </p>
+        ) : rows.length === 0 && !canCreate ? (
+          <p className={styles.muted}>{t("childPages.none")}</p>
+        ) : (
+          <div className={styles.tableScroll}>
+            <div className={drag ? styles.tableDragging : styles.table} role="table">
+              <div className={styles.tr} role="row" ref={headerRef}>
+                <HeaderCell label={t("childTable.title")} sortKey="title" sort={sort} onSort={setSort} />
+                {visible.map((c, i) => (
+                  <HeaderCell
+                    key={c.key}
+                    colKey={c.key}
+                    label={c.label}
+                    sortKey={c.key}
+                    sort={sort}
+                    onSort={setSort}
+                    grip={editable ? gripHandlers(c.key) : undefined}
+                    dragging={drag?.key === c.key}
+                    dropBefore={drag !== null && drag.dropIndex === i}
+                    dropAfter={drag !== null && drag.dropIndex === visible.length && i === visible.length - 1}
+                    menuOpen={menu === `col:${c.key}`}
+                    onMenuOpenChange={editable ? (o) => setMenu(o ? `col:${c.key}` : null) : undefined}
+                    addon={c.custom?.type === "MASKED" ? <MaskedColumnToggle columnId={c.custom.id} /> : undefined}
+                  >
+                    <ColumnMenu
+                      column={c.custom}
+                      label={c.label}
+                      canEditColumn={data.canEditColumns}
+                      first={i === 0}
+                      last={i === visible.length - 1}
+                      onRename={(name) => c.custom && after(renameColumn(c.custom.id, name))}
+                      onOptions={async (options) => !!c.custom && after(setColumnOptions(c.custom.id, options))}
+                      onMove={(dir) => moveTo(c.key, dir < 0 ? i - 1 : i + 2)}
+                      onHide={() => {
+                        setMenu(null);
+                        toggleHidden(c.key);
+                      }}
+                      onDelete={() => {
+                        const custom = c.custom;
+                        if (!custom) return;
+                        void showConfirm(t("childTable.deleteColumn", { name: c.label }), {
+                          title: t("childTable.deleteColumnTitle"),
+                          confirmLabel: t("childTable.remove"),
+                          danger: true,
+                        }).then((ok) => {
+                          if (!ok) return;
+                          setMenu(null);
+                          void after(deleteColumn(custom.id));
+                        });
+                      }}
+                    />
+                  </HeaderCell>
+                ))}
+              </div>
+              {rows.map((row) => (
+                <div key={row.id} className={styles.tr} role="row" data-ui="ChildTableBlock.row" data-id={row.id}>
+                  <div className={styles.titleCell} role="cell">
+                    <PageLink href={`/pages/${row.id}`} className={styles.pageLink} data-ui="ChildTableBlock.pageLink" data-id={row.id}>
+                      <span aria-hidden>{row.icon ?? "📄"}</span>
+                      <span>{displayTitle(row.title)}</span>
+                    </PageLink>
+                  </div>
+                  {visible.map((c) => (
+                    <div
+                      key={c.key}
+                      role="cell"
+                      className={c.custom ? styles.cell : styles.metaCell}
+                      data-dragging={drag?.key === c.key || undefined}
+                    >
+                      {c.custom ? (
+                        <Cell
+                          column={c.custom}
+                          value={row.values[c.custom.id] ?? ""}
+                          editable={editable && row.canEdit}
+                          data={data}
+                          onSave={(value) => after(setCellValue(row.id, c.custom!.id, value))}
+                        />
+                      ) : (
+                        builtinText(row, c.key as BuiltinColumn, data, format)
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            {canCreate && (
+              <div className={styles.newRow}>
+                <NewPageRow
+                  onCreate={async (pageTitle) => {
+                    const result = await createChildPageInPlace(pageId, pageTitle).catch(() => ({
+                      error: t("childTable.createFailed"),
+                    }));
+                    if ("error" in result) {
+                      void showAlert(result.error, { title: t("childTable.cannotCreate") });
+                      return false;
+                    }
+                    void reload();
+                    // The sidebar lists the new page too.
+                    router.refresh();
+                    return true;
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </MaskProvider>
   );
 }
 
@@ -523,6 +530,7 @@ function cellReader(row: ChildTableRow, data: ChildTableData, format: Format): C
       if (!c) return "";
       if (c.type === "SELECT") return c.options.find((o) => o.id === value)?.name ?? "";
       if (c.type === "USER") return value ? (data.userNames[value] ?? "") : "";
+      if (c.type === "MASKED") return "";
       return value;
     },
     value(key) {
@@ -700,7 +708,7 @@ function sortValue(row: ChildTableRow, key: string, data: ChildTableData, format
   if (key === "createdBy" || key === "updatedBy") return builtinText(row, key, data, format) || null;
   const column = data.columns.find((c) => c.id === key);
   const value = row.values[key];
-  if (!column || !value) return null;
+  if (!column || !value || column.type === "MASKED") return null;
   if (column.type === "USER") return data.userNames[value] ?? null;
   if (column.type === "SELECT") {
     const index = column.options.findIndex((o) => o.id === value);
@@ -734,6 +742,7 @@ function HeaderCell({
   dropAfter,
   menuOpen,
   onMenuOpenChange,
+  addon,
   children,
 }: {
   // Set on movable columns (the title column has none); used to find drop positions.
@@ -749,6 +758,8 @@ function HeaderCell({
   dropAfter?: boolean;
   menuOpen?: boolean;
   onMenuOpenChange?: (open: boolean) => void;
+  // After the label (a masked column's Show / Hide).
+  addon?: ReactNode;
   children?: ReactNode;
 }) {
   const active = sort?.key === sortKey ? sort.dir : null;
@@ -780,6 +791,7 @@ function HeaderCell({
           {label}
           {active && <span aria-hidden>{active === "asc" ? " ↑" : " ↓"}</span>}
         </button>
+        {addon}
         {onMenuOpenChange && (
           <Popover open={!!menuOpen} onOpenChange={onMenuOpenChange} trigger="⋯" label={t("columnSettings")} dataUi="ChildTableBlock.columnMenu">
             {children}
@@ -1120,6 +1132,18 @@ export function Cell({
   if (column.type === "DATE") {
     if (!editable) return <>{value}</>;
     return <input type="date" className={styles.cellInput} value={value} onChange={(e) => onSave(e.target.value)} />;
+  }
+
+  if (column.type === "MASKED") {
+    return (
+      <MaskedCell
+        columnId={column.id}
+        value={value}
+        editable={editable}
+        onSave={onSave}
+        editor={(text, save) => <TextCell value={text} onSave={save} />}
+      />
+    );
   }
 
   if (column.type === "LONG_TEXT") {

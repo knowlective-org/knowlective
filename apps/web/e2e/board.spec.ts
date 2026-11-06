@@ -108,4 +108,52 @@ test.describe("Child page board", () => {
     }
     await trashOpenPage(page);
   });
+
+  test("sub-groups: a board per value of a second column, and cards move between them", async ({ page }) => {
+    await createPage(page, "E2E ボードのサブグループ");
+    await insertBoard(page);
+    await page.getByTestId("ChildBoardBlock.createStatusButton").click();
+    await expect(lane(page, "未着手")).toBeVisible();
+
+    // A second select column, from a child page table below the board.
+    await editorBody(page).locator('.bn-block-content[data-content-type="paragraph"]').last().click();
+    await page.keyboard.type("/table");
+    await page.getByRole("option", { name: /子ページテーブル/ }).click();
+    await page.getByTestId("ChildTableBlock.addColumn").click();
+    await page.getByTestId("AddColumnForm.nameInput").fill("チーム");
+    await page.getByTestId("AddColumnForm.typeSelect").selectOption("SELECT");
+    await page.getByTestId("AddColumnForm.submitButton").click();
+    const editor = page.getByTestId("OptionsEditor");
+    await expect(async () => {
+      await page.getByRole("columnheader", { name: /チーム/ }).getByTestId("ChildTableBlock.columnMenu").click();
+      await expect(editor).toBeVisible({ timeout: 2000 });
+    }).toPass();
+    for (const name of ["開発", "営業"]) {
+      await editor.getByTestId("OptionsEditor.addButton").click();
+      await editor.getByTestId("OptionsEditor.nameInput").last().fill(name);
+    }
+    await editor.getByTestId("OptionsEditor.saveButton").click();
+    await expect(editor.getByTestId("OptionsEditor.status")).toHaveText("✓ 保存しました");
+    await page.keyboard.press("Escape");
+
+    await page.getByTestId("ChildBoardBlock.subGroupBySelect").selectOption({ label: "チームごとにボードを分ける" });
+    const group = (name: string) => page.getByTestId("ChildBoardBlock.subGroup").filter({ has: page.locator("summary", { hasText: name }) });
+    await expect(group("開発")).toBeVisible();
+    await expect(group("営業")).toBeVisible();
+
+    // A card added in a sub-group's board gets its value.
+    await group("開発").locator('[data-ui="ChildBoardBlock.lane"][aria-label="未着手"]').getByTestId("ChildBoardBlock.addCardButton").click();
+    await page.getByTestId("ChildBoardBlock.addCardInput").fill("開発のタスク");
+    await page.keyboard.press("Enter");
+    const card = group("開発").locator('[data-ui="ChildBoardBlock.card"]').filter({ hasText: "開発のタスク" });
+    await expect(card).toBeVisible();
+    await expect(group("開発").getByTestId("ChildBoardBlock.subGroupCount")).toHaveText("1");
+
+    // Moved to the other sub-group with its picker.
+    await card.getByTestId("ChildBoardBlock.cardSubGroupSelect").selectOption({ label: "営業" });
+    await expect(group("営業").locator('[data-ui="ChildBoardBlock.card"]').filter({ hasText: "開発のタスク" })).toBeVisible();
+    await expect(group("開発").locator('[data-ui="ChildBoardBlock.card"]')).toHaveCount(0);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
 });

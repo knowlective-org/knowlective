@@ -332,7 +332,7 @@ curl -X PATCH -H "Authorization: Bearer kn_..." -H "Content-Type: application/js
 
 - The title is separate from the body: headings in the Markdown map one to one (`## ` is the page's H2; a `# ` becomes an H2). What `GET` returns can be sent back unchanged. ```` ```mermaid ```` blocks are diagrams; child page lists and tables come out as links to the child pages the owner can see
 - Changes go through the live document, so people with the page open see them at once, and the content from before is kept in the page's history
-- Errors are `{ "error": { "code": "...", "message": "..." } }` (`invalid_key`, `insufficient_scope`, `not_found`, `forbidden`, `page_locked`, `rate_limited`, `api_disabled`, …)
+- Errors are `{ "error": { "code": "...", "message": "..." } }` (`invalid_key`, `insufficient_scope`, `not_found`, `forbidden`, `page_locked`, `blocks_locked` (the body can't be replaced while some of its blocks are locked), `rate_limited`, `api_disabled`, …)
 
 ## Admin console (`/admin`)
 

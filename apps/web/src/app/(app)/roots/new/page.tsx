@@ -11,7 +11,7 @@ import { CreateRootForm } from "./create-root-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("newRoot.title") }) };
+  return { title: t("newRoot.title") };
 }
 
 export default async function NewRootPage() {

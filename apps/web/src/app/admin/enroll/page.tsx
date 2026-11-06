@@ -18,7 +18,7 @@ import { QR_OPTIONS } from "./qr-options";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("admin.enroll.title") }), robots: { index: false, follow: false } };
+  return { title: t("admin.enroll.title"), robots: { index: false, follow: false } };
 }
 
 export default async function AdminEnrollPage() {

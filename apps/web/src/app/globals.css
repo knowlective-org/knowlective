@@ -84,6 +84,207 @@ a {
   text-decoration-thickness: 2px;
 }
 
+/* A locked block (block-lock.ts): a small label in the right margin, at the
+   block's first line. */
+.bn-root .kn-block-locked {
+  position: relative;
+}
+
+.bn-root .kn-block-locked::after {
+  content: attr(data-lock-label);
+  position: absolute;
+  top: 4px;
+  right: 0;
+  transform: translateX(calc(100% + 6px));
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Phone width: no margin beside the text, so over the block's top right. */
+@media (max-width: 599.98px) {
+  .bn-root .kn-block-locked::after {
+    top: -8px;
+    transform: none;
+  }
+}
+
+/* The extended table (grid-table-block.ts): rows of cells holding blocks, in
+   columns as wide as their saved widths (scrolling sideways when they don't
+   fit). The first row and column can be headings. */
+.bn-root .kn-grid-table {
+  --kn-grid-min-width: 120px;
+  position: relative;
+  margin: 4px 0;
+}
+
+.bn-root .kn-grid-scroll {
+  overflow-x: auto;
+}
+
+.bn-root .kn-grid-body {
+  display: flex;
+  flex-direction: column;
+  min-width: min-content;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+}
+
+.bn-root .kn-grid-row {
+  display: grid;
+  grid-template-columns: var(--kn-grid-columns, repeat(auto-fit, minmax(var(--kn-grid-min-width), 1fr)));
+}
+
+.bn-root .kn-grid-row:not(:last-child) {
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.bn-root .kn-grid-cell {
+  position: relative;
+  min-width: 0;
+  padding: 4px 10px;
+}
+
+.bn-root .kn-grid-cell:not(:last-child) {
+  border-right: 1px solid var(--color-border-strong);
+}
+
+.bn-root .kn-grid-cell-content {
+  min-width: 0;
+}
+
+.bn-root .kn-grid-table[data-header-row="true"] > .kn-grid-scroll > .kn-grid-body > .kn-grid-row:first-child > .kn-grid-cell,
+.bn-root .kn-grid-table[data-header-column="true"] > .kn-grid-scroll > .kn-grid-body > .kn-grid-row > .kn-grid-cell:first-child {
+  font-weight: 600;
+  background: var(--color-primary-light);
+}
+
+/* The bar above the table and each cell's menu button: for editors, shown
+   while the table (or cell) is pointed at or has the focus. */
+.bn-root .kn-grid-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--color-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.bn-root .kn-grid-table:hover > .kn-grid-bar,
+.bn-root .kn-grid-table:focus-within > .kn-grid-bar {
+  opacity: 1;
+}
+
+.bn-root .kn-grid-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.bn-root .kn-grid-bar button,
+.bn-root .kn-grid-cell-menu-button {
+  padding: 1px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.bn-root .kn-grid-bar button:hover,
+.bn-root .kn-grid-cell-menu-button:hover {
+  color: var(--color-primary);
+  background: var(--color-hover);
+}
+
+/* On the cell's top border, to cover as little of its content as possible. */
+.bn-root .kn-grid-cell-menu-button {
+  position: absolute;
+  top: -9px;
+  right: 6px;
+  z-index: 2;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1.3;
+  background: var(--color-surface);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.bn-root .kn-grid-cell:hover > .kn-grid-cell-controls > .kn-grid-cell-menu-button,
+.bn-root .kn-grid-cell:focus-within > .kn-grid-cell-controls > .kn-grid-cell-menu-button,
+.bn-root .kn-grid-cell-menu-button:focus-visible {
+  opacity: 1;
+}
+
+.bn-root .kn-grid-resize {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  z-index: 1;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.bn-root .kn-grid-cell:last-child > .kn-grid-cell-controls > .kn-grid-resize {
+  display: none;
+}
+
+.bn-root .kn-grid-resize:hover {
+  background: linear-gradient(to right, transparent 3px, var(--color-primary) 3px, var(--color-primary) 5px, transparent 5px);
+}
+
+/* A cell's menu (in the page's body). */
+.kn-grid-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+
+.kn-grid-menu > button {
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.kn-grid-menu > button:hover:not(:disabled),
+.kn-grid-menu > button:focus-visible {
+  background: var(--color-hover);
+}
+
+.kn-grid-menu > button:disabled {
+  color: var(--color-muted);
+  cursor: default;
+}
+
 /* Columns (xl-multi-column) on a phone-width screen: one under another, each
    the full width (side by side they'd be a few characters wide). */
 @media (max-width: 599.98px) {
@@ -212,8 +413,16 @@ a {
     break-inside: avoid;
   }
 
-  .bn-root [data-content-type="codeBlock"] > div > select {
+  .bn-root [data-content-type="codeBlock"] > div > select,
+  .bn-root .knowlective-code-tools,
+  .bn-root .kn-grid-bar,
+  .bn-root .kn-grid-cell-controls,
+  .bn-root .kn-block-locked::after {
     display: none;
+  }
+
+  .bn-root .kn-grid-row {
+    break-inside: avoid;
   }
 }
 
@@ -261,6 +470,118 @@ a {
 
 .bn-root .bn-block-content[data-content-type="codeBlock"] > pre {
   padding-top: 36px;
+}
+
+/* The code block's indent picker and "Format" (code-block.ts), at the top
+   right, on the same grey chips as the language picker. */
+.bn-root .knowlective-code-tools {
+  position: absolute;
+  top: 6px;
+  right: 14px;
+  display: flex;
+  gap: 6px;
+}
+
+.bn-root .knowlective-code-tools > select,
+.bn-root .knowlective-code-tools > button {
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.3;
+  color: rgb(210 210 210);
+  background: rgb(255 255 255 / 0.12);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.bn-root .knowlective-code-tools > select > option {
+  color: black;
+}
+
+.bn-root .knowlective-code-tools > select:hover,
+.bn-root .knowlective-code-tools > button:hover,
+.bn-root .knowlective-code-tools > select:focus-visible,
+.bn-root .knowlective-code-tools > button:focus-visible {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.bn-root .knowlective-code-tools > button:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* A code block's preview (code-preview.ts): on the page's own background,
+   below the code, or in its place ("only": the code is hidden, and for those
+   who can't edit, the block's dark frame and language too). */
+.bn-root [data-content-type="codeBlock"]:has(> .knowlective-code-preview) {
+  flex-wrap: wrap;
+}
+
+.bn-root .knowlective-code-preview {
+  flex: 1 0 calc(100% - 24px);
+  min-width: 0;
+  margin: 0 12px 12px;
+  padding: 8px 12px;
+  color: CanvasText;
+  background: var(--color-surface);
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: normal;
+  cursor: auto;
+  user-select: text;
+}
+
+.bn-root [data-content-type="codeBlock"][data-preview="only"] > pre {
+  display: none;
+}
+
+.bn-root .bn-editor[contenteditable="true"] [data-content-type="codeBlock"][data-preview="only"] > .knowlective-code-preview {
+  margin-top: 36px;
+}
+
+.bn-root .bn-editor[contenteditable="false"] [data-content-type="codeBlock"][data-preview="only"] {
+  padding: 0;
+  background: transparent;
+}
+
+.bn-root .bn-editor[contenteditable="false"] [data-content-type="codeBlock"][data-preview="only"] > div:first-child {
+  display: none;
+}
+
+.bn-root .bn-editor[contenteditable="false"] [data-content-type="codeBlock"][data-preview="only"] > .knowlective-code-preview {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.bn-root .knowlective-code-preview iframe {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+}
+
+.bn-root .knowlective-code-preview-diagram {
+  display: flex;
+  justify-content: center;
+}
+
+.bn-root .knowlective-code-preview-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.bn-root .knowlective-code-preview-math {
+  overflow-x: auto;
+}
+
+.bn-root .knowlective-code-preview-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 13px;
+  white-space: pre-wrap;
 }
 /* File paths in a page's text: a click copies them (components/editor/file-paths.ts). */
 ::highlight(knowlective-file-path) {

@@ -36,21 +36,44 @@ test.describe("Code blocks", () => {
     await createPage(page, "E2E コードの色分け");
     await typeInBody(page, "```python ");
     const block = editorBody(page).locator('[data-content-type="codeBlock"]');
-    await expect(block.locator("select")).toHaveValue("python");
+    await expect(block.locator("> div > select")).toHaveValue("python");
     await page.keyboard.type("def hello():");
     // Shiki's colours on the code's tokens (loaded on first use).
     await expect(block.locator('code span[style*="--shiki"]').first()).toBeVisible({ timeout: 15_000 });
 
     // Perl isn't in BlockNote's list; it's ours (code-languages.ts).
-    await block.locator("select").selectOption("perl");
+    await block.locator("> div > select").selectOption("perl");
     await expect(block).toHaveAttribute("data-language", "perl");
     await expect(block.locator('code span[style*="--shiki"]').first()).toBeVisible({ timeout: 15_000 });
 
-    await block.locator("select").selectOption("javascript");
+    await block.locator("> div > select").selectOption("javascript");
     await expect(block).toHaveAttribute("data-language", "javascript");
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
     await page.reload();
-    await expect(editorBody(page).locator('[data-content-type="codeBlock"] select')).toHaveValue("javascript");
+    await expect(editorBody(page).locator('[data-content-type="codeBlock"] > div > select')).toHaveValue("javascript");
+    await trashOpenPage(page);
+  });
+  test("lists languages A to Z, and formats the code with the chosen indent", async ({ page }) => {
+    await createPage(page, "E2E コードの整形");
+    await typeInBody(page, "```javascript ");
+    const block = editorBody(page).locator('[data-content-type="codeBlock"]');
+    // Plain text first, then by name.
+    const names = await block.locator("> div > select option").allTextContents();
+    expect(names[0]).toBe("Plain Text");
+    const rest = names.slice(1);
+    expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" })));
+
+    await page.keyboard.type("function f(){return {a:1}}");
+    await block.getByTestId("CodeBlock.indentSelect").selectOption("4");
+    await block.getByTestId("CodeBlock.formatButton").click();
+    await expect(block.locator("code")).toHaveText("function f() {\n    return { a: 1 };\n}");
+
+    // A language without a formatter: only the indentation changes.
+    await block.locator("> div > select").selectOption("python");
+    await block.getByTestId("CodeBlock.indentSelect").selectOption("2");
+    await block.getByTestId("CodeBlock.formatButton").click();
+    await expect(block.locator("code")).toHaveText("function f() {\n  return { a: 1 };\n}");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
     await trashOpenPage(page);
   });
 });

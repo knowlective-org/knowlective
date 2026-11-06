@@ -49,6 +49,18 @@
   color: var(--color-muted);
 }
 
+.reload {
+  margin: 12px 54px 0;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
 @media (max-width: 640px) {
   .loading {
     padding: 0 16px;

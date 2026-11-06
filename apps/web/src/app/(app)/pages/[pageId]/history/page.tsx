@@ -18,7 +18,7 @@ import { HistoryView } from "./history-view";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("history.title") }) };
+  return { title: t("history.title") };
 }
 
 // Saved versions of a page (newest first) with a read-only preview, and

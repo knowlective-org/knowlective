@@ -41,6 +41,9 @@ export const BLOCK_CONFIGS = {
       // Id of the select column the cards are grouped by. Empty (or a column
       // that no longer exists) uses the page's first select column.
       groupBy: { default: "" },
+      // Id of a select or user column splitting the cards into one board per
+      // value (sub-groups), each with the same lanes. Empty: one board.
+      subGroupBy: { default: "" },
     },
     content: "none",
   },
@@ -111,6 +114,14 @@ export const BLOCK_CONFIGS = {
     },
     content: "inline",
   },
+} as const;
+
+// Props added to BlockNote's code block (its type and `language` stay
+// BlockNote's). `preview`: "" none, "below" the result under the code, "only"
+// the result in place of the code (code-preview.ts; for the languages it can
+// show).
+export const CODE_BLOCK_EXTRA_PROPS = {
+  preview: { default: "" },
 } as const;
 
 // Body headings start at H2: the page title is the page's one H1.

@@ -4,12 +4,15 @@
 // so the notifier registers itself on globalThis — keep dependency-free.
 
 type NotificationBridge = {
-  chatPosted(event: { pageId: string; blockId: string; actorId: string; text: string }): Promise<void>;
+  chatPosted(event: ChatPostedEvent): Promise<void>;
   // The server's key for Web Push (VAPID), made the first time it's asked for.
   pushPublicKey(): Promise<string>;
   // A test desktop notification to a person's devices: how many it went to.
   testPush(userId: string): Promise<number>;
 };
+
+// `text`: the excerpt (mentions as "@name"); `mentionIds`: who it mentions.
+export type ChatPostedEvent = { pageId: string; blockId: string; actorId: string; text: string; mentionIds: string[] };
 
 const BRIDGE_KEY = Symbol.for("knowlective.notification-bridge");
 
@@ -23,7 +26,7 @@ function bridge(): NotificationBridge | undefined {
 
 // A new chat message: tells those in that chat. Never fails the caller (a
 // no-op outside the custom server, e.g. scripts).
-export async function notifyChatPosted(event: { pageId: string; blockId: string; actorId: string; text: string }) {
+export async function notifyChatPosted(event: ChatPostedEvent) {
   await bridge()
     ?.chatPosted(event)
     .catch((err) => console.error("[notifications] notifying a chat message failed", err));

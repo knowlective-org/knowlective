@@ -9,6 +9,7 @@ import { normalizeTitle } from "@/lib/page-title";
 import { type CreatePageError, insertChildPage } from "@/lib/page-create";
 import { endUserSession, getCurrentUser, requireUser } from "@/lib/auth/session";
 import { getAllowedUploadExtensions } from "@/lib/storage";
+import { COLLAB_CLIENT_VERSION, OUTDATED_CLIENT } from "@/lib/collab-version";
 
 // auth: public — ends whatever session the caller has (none: nothing to end).
 export async function logout(): Promise<void> {
@@ -22,12 +23,16 @@ export async function logout(): Promise<void> {
 // public access again and makes the connection read-only).
 // Only for people logged in: someone not logged in sees a public page's
 // content without collaborative editing (lib/public-page-state.ts).
-export async function getCollabToken(pageId: string): Promise<string> {
+// `version` is the editor's (lib/collab-version.ts): an editor from before
+// the app's current version (including one that sends none) gets
+// OUTDATED_CLIENT instead, and asks to reload.
+export async function getCollabToken(pageId: string, version?: number): Promise<string> {
   const user = await getCurrentUser();
   if (!user || typeof pageId !== "string" || !(await findAccessiblePage(user.id, pageId))) {
     throw new Error("Page not found");
   }
-  return createCollabToken(user.id, pageId);
+  if (version !== COLLAB_CLIENT_VERSION) return OUTDATED_CLIENT;
+  return createCollabToken(user.id, pageId, COLLAB_CLIENT_VERSION);
 }
 
 // Extensions of the files that may be added to a page (empty = any), so the

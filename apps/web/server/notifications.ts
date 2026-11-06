@@ -4,7 +4,7 @@ import * as Y from "yjs";
 import { decrypt, encrypt, getPageAccess, loadDataKey, openEmail, type PrismaClient } from "shared";
 import { docNotices } from "../src/lib/doc-notices";
 import { type NotificationKind, parseNotificationPrefs, wantsNotification } from "../src/lib/notification-prefs";
-import { registerNotificationBridge } from "../src/lib/notification-bridge";
+import { type ChatPostedEvent, registerNotificationBridge } from "../src/lib/notification-bridge";
 import { type PushSubscriptionData, isPushEndpoint, subscriptionAad } from "../src/lib/push-endpoint";
 import { FALLBACK_LOCALE, isLocale } from "../src/i18n/locales";
 import { translatorFor } from "../src/i18n/translator";
@@ -260,8 +260,9 @@ export function createNotifier(prisma: PrismaClient) {
     }
   }
 
-  // Those in a chat: who posted in it, who follows its page, who the page mentions.
-  async function chatPosted(event: { pageId: string; blockId: string; actorId: string; text: string }) {
+  // Those in a chat: who posted in it, who follows its page, who the page
+  // mentions. Those the message mentions are told of the mention instead.
+  async function chatPosted(event: ChatPostedEvent) {
     const [posters, followers, mentioned] = await Promise.all([
       prisma.chatMessage.findMany({
         where: { pageId: event.pageId, blockId: event.blockId, authorId: { not: null } },
@@ -271,11 +272,14 @@ export function createNotifier(prisma: PrismaClient) {
       prisma.pageFollow.findMany({ where: { pageId: event.pageId }, select: { userId: true } }),
       prisma.pageMention.findMany({ where: { pageId: event.pageId }, select: { userId: true } }),
     ]);
+    const mentionIds = new Set(event.mentionIds);
+    await notify({ kind: "MENTION", pageId: event.pageId, actorId: event.actorId, recipients: mentionIds, excerpt: event.text });
+    const inChat = [...posters.map((p) => p.authorId!), ...followers.map((f) => f.userId), ...mentioned.map((m) => m.userId)];
     await notify({
       kind: "CHAT_MESSAGE",
       pageId: event.pageId,
       actorId: event.actorId,
-      recipients: [...posters.map((p) => p.authorId!), ...followers.map((f) => f.userId), ...mentioned.map((m) => m.userId)],
+      recipients: inChat.filter((id) => !mentionIds.has(id)),
       excerpt: event.text,
     });
   }

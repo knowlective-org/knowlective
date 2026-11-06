@@ -61,6 +61,8 @@ function childPageList(
 // - Child page list / table / board → a list of links to the child pages the
 //   exporting user can see (the table's columns and the board's lanes are left out)
 // - Columns → their blocks one after another (first column first)
+// - Extended table → a table of the cells' text (their blocks' text one after
+//   another; what has no text, such as an image, as a link to it)
 // - Masked text → a placeholder: the text is only ever opened on screen
 // - Chat → left out (its messages aren't in the document)
 // - TODO → a check list item, with its due date after the text (not the
@@ -111,6 +113,8 @@ export function prepareBlocksForExport(
       case "columnList":
       case "column":
         return children;
+      case "gridTable":
+        return [gridTableAsTable(b, children)];
       case "chat":
         return children;
       case "maskedText":
@@ -146,6 +150,46 @@ export function prepareBlocksForExport(
         ];
     }
   });
+}
+
+// An extended table (its rows and cells already prepared) as BlockNote's
+// table, whose cells hold text only.
+function gridTableAsTable(table: ExportBlock, rows: ExportBlock[]): ExportBlock {
+  const columns = Math.max(1, ...rows.map((row) => row.children?.length ?? 0));
+  const cell = (blocks: ExportBlock[]) => ({
+    type: "tableCell",
+    props: { backgroundColor: "default", textColor: "default", textAlignment: "left", colspan: 1, rowspan: 1 },
+    content: cellText(blocks),
+  });
+  return block("table", [], {
+    content: {
+      type: "tableContent",
+      columnWidths: Array.from({ length: columns }, () => undefined),
+      ...(table.props?.headerRow !== false ? { headerRows: 1 } : {}),
+      ...(table.props?.headerColumn === true ? { headerCols: 1 } : {}),
+      rows: rows.map((row) => {
+        const cells = row.children ?? [];
+        return { cells: Array.from({ length: columns }, (_, i) => cell(cells[i]?.children ?? [])) };
+      }),
+    },
+  });
+}
+
+// The text of a cell's blocks (nested ones too), one after another.
+function cellText(blocks: ExportBlock[]): unknown[] {
+  const parts: unknown[][] = [];
+  const visit = (list: ExportBlock[]) => {
+    for (const b of list) {
+      if (Array.isArray(b.content) && b.content.length) parts.push(b.content);
+      else if (b.type === "table" || b.type === "gridTable") parts.push([text("…")]);
+      else if (typeof b.props?.url === "string" && b.props.url) {
+        parts.push([link(b.props.url, String(b.props.name || b.props.caption || b.props.url))]);
+      }
+      visit(b.children ?? []);
+    }
+  };
+  visit(blocks);
+  return parts.flatMap((part, i) => (i === 0 ? part : [text(" "), ...part]));
 }
 
 // Mentions in a block's content (inline content, also inside table cells) as

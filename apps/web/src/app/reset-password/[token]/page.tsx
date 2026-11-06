@@ -11,7 +11,7 @@ import { ResetPasswordForm } from "./reset-password-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
-  return { title: t("meta.titleSuffix", { title: t("resetPassword.title") }), robots: { index: false, follow: false } };
+  return { title: t("resetPassword.title"), robots: { index: false, follow: false } };
 }
 
 // Opened from a reset link (lib/auth/password-reset.ts). Works whether or not

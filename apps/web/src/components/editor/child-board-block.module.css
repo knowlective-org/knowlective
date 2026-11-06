@@ -42,6 +42,21 @@
   overflow-x: auto;
 }
 
+/* One board per sub-group, one under another (a sub-group column). */
+.subGroup {
+  margin-bottom: 10px;
+}
+
+.subGroupHeader {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .lane,
 .laneOver {
   display: flex;

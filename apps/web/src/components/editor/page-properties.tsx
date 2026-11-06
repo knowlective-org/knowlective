@@ -6,6 +6,7 @@ import { showAlert } from "@/components/dialog";
 import { beginSaving } from "@/lib/saving-status";
 import type { PageProperties as Data } from "@/lib/page-property-types";
 import { Cell } from "./child-table-block";
+import { MaskProvider } from "./masked-cell";
 import { useChildrenData } from "./page-context";
 import styles from "./page-properties.module.css";
 
@@ -17,6 +18,7 @@ export function PageProperties() {
   const t = useTranslations("editor");
   const { data, reload } = useChildrenData<Data>(loadPageProperties);
   if (!data) return null;
+  const maskValues = (columnId: string) => [data.row.values[columnId] ?? ""];
   const save = async (defId: string, value: string) => {
     const done = beginSaving();
     try {
@@ -28,21 +30,23 @@ export function PageProperties() {
     }
   };
   return (
-    <div className={styles.properties} role="group" aria-label={t("properties.label")} data-ui="PageProperties">
-      {data.columns.map((column) => (
-        <div key={column.id} className={styles.row} data-ui="PageProperties.row" data-id={column.id}>
-          <div className={styles.name}>{column.name}</div>
-          <div className={styles.value}>
-            <Cell
-              column={column}
-              value={data.row.values[column.id] ?? ""}
-              editable={data.row.canEdit}
-              data={data}
-              onSave={(value) => void save(column.id, value)}
-            />
+    <MaskProvider values={maskValues} inlineHide>
+      <div className={styles.properties} role="group" aria-label={t("properties.label")} data-ui="PageProperties">
+        {data.columns.map((column) => (
+          <div key={column.id} className={styles.row} data-ui="PageProperties.row" data-id={column.id}>
+            <div className={styles.name}>{column.name}</div>
+            <div className={styles.value}>
+              <Cell
+                column={column}
+                value={data.row.values[column.id] ?? ""}
+                editable={data.row.canEdit}
+                data={data}
+                onSave={(value) => void save(column.id, value)}
+              />
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </MaskProvider>
   );
 }

@@ -311,6 +311,41 @@
   white-space: nowrap;
 }
 
+/* A masked column (masked-cell.tsx): its "Show" / "Hide" in the header, and
+   a value while the column is hidden. */
+.maskToggle {
+  margin-left: 4px;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-primary);
+  white-space: nowrap;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.maskToggle:hover {
+  text-decoration: underline;
+}
+
+.maskedValue {
+  padding: 0;
+  font: inherit;
+  color: var(--color-muted);
+  letter-spacing: 1px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.maskedOpen {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
 .text {
   white-space: pre-wrap;
 }
