@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-06
+
 ### Added
 
 - The site can be installed as an app (the browser's "Install", or "Add to home screen" on a phone): an app icon, the site's name, and its background color for the window's bars. Pages aren't kept for offline use, so nothing decrypted stays on the device
