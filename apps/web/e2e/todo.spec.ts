@@ -70,6 +70,45 @@ test("a pasted Markdown check list becomes TODOs", async ({ page }) => {
   await trashOpenPage(page);
 });
 
+test("ticking a TODO ticks the TODOs nested under it; unticking leaves them", async ({ page }) => {
+  await createPage(page, "E2E TODO の入れ子");
+  await editorBody(page).click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("[ ] 親");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("子");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("孫");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.type("隣");
+  const todos = page.getByTestId("TodoBlock");
+  await expect(todos).toHaveCount(4);
+  const box = (i: number) => todos.nth(i).getByTestId("TodoBlock.checkbox");
+
+  await box(0).check();
+  await expect(box(1)).toBeChecked();
+  await expect(box(2)).toBeChecked();
+  await expect(todos.nth(2).getByTestId("TodoBlock.doneStatus")).toContainText(ACCOUNTS.editor.name);
+  // Not the one beside it.
+  await expect(box(3)).not.toBeChecked();
+
+  await box(0).uncheck();
+  await expect(box(1)).toBeChecked();
+  await expect(box(2)).toBeChecked();
+  // A nested one ticks only the ones under it.
+  await box(1).uncheck();
+  await box(2).uncheck();
+  await box(1).check();
+  await expect(box(2)).toBeChecked();
+  await expect(box(0)).not.toBeChecked();
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await trashOpenPage(page);
+});
+
 // The names for a page's TODOs, asked for directly (not from the screen):
 // only for someone who can open the page. Its id is in the editor's scripts.
 test("the people for a page's TODOs are only given to those who can open it", async ({ page, browser, baseURL }) => {
