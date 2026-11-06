@@ -309,6 +309,20 @@ export async function createCollab() {
         hocuspocus.closeConnections(id);
       }
     },
+    // Closes the connections of these users, wherever they are, with the
+    // same notice as a move: their access changed, and the editor reconnects
+    // and is checked again (getCollabToken, onAuthenticate). Closing is what
+    // counts: an editor that ignored the notice gets nothing more either way.
+    disconnectUsers(userIds) {
+      const ids = new Set(userIds);
+      for (const document of hocuspocus.documents.values()) {
+        for (const connection of document.getConnections()) {
+          if (!ids.has((connection.context as CollabContext).userId)) continue;
+          connection.sendStateless(JSON.stringify({ type: PAGE_MOVED }));
+          connection.close();
+        }
+      }
+    },
     // Saves the edits not yet in a version as one now, before the page's
     // content is replaced from the browser (a Markdown file replacing the
     // page). Without such edits the last version already has this state.

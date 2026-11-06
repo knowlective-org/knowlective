@@ -1,9 +1,10 @@
 import { createHmac, hkdfSync } from "node:crypto";
 import * as Y from "yjs";
-import { decrypt, loadDataKey, openEmail, type PrismaClient } from "shared";
+import { decrypt, loadDataKey, type PrismaClient } from "shared";
 import { normalizeTitle } from "./page-title";
 import { openChatMessage } from "./chat";
 import { chatMentionIds, chatPlainText } from "./chat-text";
+import { pagePeopleNames } from "./page-people";
 
 // Encrypted full-text search index. Used by the collab server (reindexing on
 // every store) and the app (queries, reindexing on uploads / new pages).
@@ -167,12 +168,8 @@ async function chatText(prisma: PrismaClient, dataKey: Uint8Array, pageId: strin
     select: { id: true, bodyEnc: true },
   });
   const texts = rows.reverse().map((r) => openChatMessage(dataKey, r));
-  const mentioned = [...new Set(texts.flatMap(chatMentionIds))];
-  const people =
-    mentioned.length === 0
-      ? []
-      : await prisma.user.findMany({ where: { id: { in: mentioned } }, select: { id: true, name: true, emailEnc: true } });
-  const names = new Map(people.map((p) => [p.id, p.name || (p.emailEnc ? openEmail(dataKey, p.emailEnc) : null)]));
+  // Mentions are found by name, as the chat shows them (lib/page-people.ts).
+  const names = texts.some((text) => chatMentionIds(text).length > 0) ? await pagePeopleNames(prisma, pageId) : new Map<string, string>();
   return texts
     .map((text) => chatPlainText(text, (id) => names.get(id) ?? null, "").replace(/\s+/g, " ").trim())
     .filter(Boolean)
@@ -277,12 +274,24 @@ export async function reindexStalePages(prisma: PrismaClient): Promise<number> {
       files: { select: { createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
+  // The latest message posted, changed or taken back in each page's chats.
+  const chats = await prisma.chatMessage.groupBy({
+    by: ["pageId"],
+    _max: { createdAt: true, editedAt: true, deletedAt: true },
+  });
+  const chatChanged = new Map(
+    chats.map((c) => [
+      c.pageId,
+      Math.max(c._max.createdAt?.getTime() ?? 0, c._max.editedAt?.getTime() ?? 0, c._max.deletedAt?.getTime() ?? 0),
+    ]),
+  );
   let count = 0;
   for (const p of pages) {
     const changed = Math.max(
       p.updatedAt.getTime(),
       p.document?.updatedAt.getTime() ?? 0,
       p.files[0]?.createdAt.getTime() ?? 0,
+      chatChanged.get(p.id) ?? 0,
     );
     if (p.searchIndex && p.searchIndex.indexedAt.getTime() >= changed) {
       // Up to date, but from before PageFileRefs: only those (reindexing would

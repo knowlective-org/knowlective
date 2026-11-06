@@ -20,12 +20,15 @@ export const BLOCKS_LOCKED = "blocks-locked";
 // Sent to a page's editors right before the server closes them because the
 // page moved under another parent: its access may have changed, so the
 // editor reconnects (access is checked again) and the screen refreshes.
+// Also sent to someone's editors when their own access changed
+// (disconnectUsers()).
 export const PAGE_MOVED = "page-moved";
 
 type CollabBridge = {
   notifyChildrenChanged(parentPageId: string): void;
   closeDocuments(pageIds: string[]): void;
   reconnectDocuments(pageIds: string[]): void;
+  disconnectUsers(userIds: string[]): void;
   restoreVersion(pageId: string, versionId: string, userId: string): Promise<void>;
   saveCurrentVersion(pageId: string): Promise<void>;
   replaceContent(pageId: string, userId: string, content: { title?: string; body?: Uint8Array }): Promise<void>;
@@ -60,6 +63,16 @@ export function closeDocuments(pageIds: string[]) {
 export function reconnectDocuments(pageIds: string[]) {
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   bridge?.reconnectDocuments(pageIds);
+}
+
+// Closes every open editor of these users (PAGE_MOVED first, so the editors
+// reconnect). Access is checked only when an editor connects, so whatever
+// takes access away from someone calls this: disabling them, taking them out
+// of a group, deleting a group, ending their sessions.
+export function disconnectUsers(userIds: string[]) {
+  if (userIds.length === 0) return;
+  const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
+  bridge?.disconnectUsers(userIds);
 }
 
 // Replaces a page's content with one of its saved versions (page history).

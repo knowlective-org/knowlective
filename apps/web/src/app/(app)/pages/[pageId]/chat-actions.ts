@@ -22,6 +22,7 @@ import {
   type ChatData,
 } from "@/lib/chat";
 import { chatMentionIds, chatPlainText } from "@/lib/chat-text";
+import { pagePeopleNames } from "@/lib/page-people";
 
 // Chat blocks: reading needs to be able to open the page (public pages too,
 // without names), posting needs to be able to edit it (EDIT, not locked).
@@ -75,7 +76,8 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
 
   // Someone not logged in (a public page) gets no names: people's names and
   // addresses aren't public. Names: the authors (of the quoted messages too)
-  // and those mentioned.
+  // and those mentioned — only those who can be mentioned on the page
+  // (lib/page-people.ts): a mention of anyone else names nobody.
   let names = new Map<string, string>();
   if (user) {
     const ids = new Set<string>();
@@ -83,8 +85,9 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
       if (r.authorId) ids.add(r.authorId);
       if (r.replyTo?.authorId) ids.add(r.replyTo.authorId);
     }
-    for (const text of [...texts.values(), ...quoted.values()]) for (const id of chatMentionIds(text)) ids.add(id);
-    names = await namesOf(ids);
+    const mentioned = [...texts.values(), ...quoted.values()].some((text) => chatMentionIds(text).length > 0);
+    const [authors, people] = await Promise.all([namesOf(ids), mentioned ? pagePeopleNames(prisma, pageId) : new Map<string, string>()]);
+    names = new Map([...people, ...authors]);
   }
   const unknown = (await getTranslations("editor.chat"))("unknownUser");
   const authorName = (id: string | null) => (user ? (id ? (names.get(id) ?? unknown) : unknown) : null);
@@ -158,9 +161,10 @@ export async function postChatMessage(
   // the child page blocks.
   notifyChildrenChanged(pageId);
   // Those in the chat are notified (not waited for); those it mentions, of
-  // the mention. The excerpt shows mentions by name.
-  const mentionIds = chatMentionIds(text);
-  const names = await namesOf(mentionIds);
+  // the mention: only those who can be mentioned on the page. The excerpt
+  // shows mentions by name.
+  const names = chatMentionIds(text).length > 0 ? await pagePeopleNames(prisma, pageId) : new Map<string, string>();
+  const mentionIds = chatMentionIds(text).filter((id) => names.has(id));
   const excerpt = chatPlainText(text, (mentioned) => names.get(mentioned) ?? null, t("unknownUser"));
   void notifyChatPosted({ pageId, blockId, actorId: user.id, text: excerpt, mentionIds });
   return {};

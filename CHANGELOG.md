@@ -8,6 +8,24 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Changed
+
+- The people offered as a TODO's assignee or to mention (`@`) are those who can open the page and have a name. People without a name aren't offered any more (their email address was shown instead, to everyone who could open the page)
+
+### Fixed
+
+- Chat messages sent before 0.1.4 are now found by search after the server starts, without the page being edited first
+
+### Security
+
+- Someone who loses access (their account disabled, taken out of a group, the group deleted, groups synced from single sign-on, their password reset, their passkeys removed) also loses the editors they have open. Before, an editor already open kept receiving and sending changes until it disconnected
+- A mention written by hand into a chat message (`<@id>`) names only someone who can open the page; before, it showed anyone's name (or email address)
+- Session cookies are `Secure` when the public URL is https, even if the reverse proxy doesn't send `X-Forwarded-Proto`
+
+### Upgrade notes
+
+- If the public URL (admin console, "Overview") is https, signing in over plain http no longer works (the browser drops the `Secure` cookies)
+
 ## [0.1.4] - 2026-11-06
 
 ### Added

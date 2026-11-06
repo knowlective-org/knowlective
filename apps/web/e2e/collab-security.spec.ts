@@ -7,6 +7,7 @@ import * as Y from "yjs";
 import { ACCOUNTS, authFile } from "./accounts";
 import { userWhere, withPrisma } from "./db";
 import { createPage, openPage, trashOpenPage } from "./helpers";
+import { openAdmin } from "./admin-login";
 
 // The collaboration server (/collab) talked to directly, as a client that
 // doesn't go through the app's screens would: tokens that mustn't get in,
@@ -126,6 +127,48 @@ test.describe("Collaboration server", () => {
     editor.doc.getText("title").insert(0, "編集者が書いた");
     await expect.poll(() => viewer.doc.getText("title").toString()).toContain("編集者が書いた");
     close(viewer, editor);
+  });
+
+  // Access is checked when an editor connects: one already open must be
+  // closed when its person loses access, or they'd keep reading and editing.
+  // This client ignores the server's notice, as a tampered one could.
+  test("someone taken out of a group loses an editor they have open", async ({ baseURL, page }) => {
+    const users = await userIds();
+    const groupId = await withPrisma(async (prisma) => {
+      const group = await prisma.group.create({ data: { name: `E2E 接続を切る ${Date.now()}` } });
+      await prisma.groupMember.create({ data: { groupId: group.id, userId: users.outsider } });
+      await prisma.pageGrant.create({ data: { pageId, groupId: group.id, access: "EDIT" } });
+      return group.id;
+    });
+    try {
+      const outsider = connect(baseURL!, pageId, createCollabToken(users.outsider, pageId, V));
+      const editor = connect(baseURL!, pageId, createCollabToken(users.editor, pageId, V));
+      expect(await outsider.result).toBe("synced");
+      expect(await editor.result).toBe("synced");
+      // While in the group, their edits arrive.
+      outsider.doc.getText("title").insert(0, "グループにいる間");
+      await expect.poll(() => editor.doc.getText("title").toString()).toContain("グループにいる間");
+
+      await openAdmin(page, `/groups/${groupId}`);
+      const row = page.locator(`[data-ui="AdminGroupPage.memberRow"][data-id="${users.outsider}"]`);
+      const remove = page.getByTestId("RowMenu.item").filter({ hasText: "グループから外す" });
+      await expect(async () => {
+        await row.getByTestId("RowMenu.toggle").click();
+        await expect(remove).toBeVisible({ timeout: 2000 });
+      }).toPass();
+      await remove.click();
+      await page.getByTestId("AppDialog.confirmButton").click();
+      await expect.poll(() => withPrisma((prisma) => prisma.groupMember.count({ where: { groupId } }))).toBe(0);
+
+      // Out of the group: nothing they write gets through any more.
+      await pause(1000);
+      outsider.doc.getText("title").insert(0, "外された後");
+      await pause(2000);
+      expect(editor.doc.getText("title").toString()).not.toContain("外された後");
+      close(outsider, editor);
+    } finally {
+      await withPrisma((prisma) => prisma.group.delete({ where: { id: groupId } }));
+    }
   });
 
   test("cursors carry the logged-in person's name, and nobody can speak for another's cursor", async ({ baseURL }) => {
