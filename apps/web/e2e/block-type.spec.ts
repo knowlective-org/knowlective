@@ -68,8 +68,11 @@ test.describe("The ⋮⋮ menu", () => {
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("複製する見出し");
     // Pasted into the page: the same heading (its level kept, not moved down
     // as for something pasted from elsewhere).
-    await editorBody(page).click();
-    await page.keyboard.press("Control+End");
+    // Put the caret at the end of the last heading itself: a click on the
+    // middle of the editor can land at the start of a heading, where Enter
+    // makes an empty heading above it.
+    await headings.last().click();
+    await page.keyboard.press("End");
     await page.keyboard.press("Enter");
     await page.keyboard.press("Control+v");
     await expect(headings).toHaveCount(3);
