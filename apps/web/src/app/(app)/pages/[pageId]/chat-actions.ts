@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
 import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { notifyChildrenChanged } from "@/lib/collab-events";
+import { reindexPage } from "@/lib/search-index";
 import { notifyChatPosted } from "@/lib/notification-bridge";
 import { cursorColorFor } from "@/lib/cursor-color";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -151,6 +152,8 @@ export async function postChatMessage(
   await prisma.chatMessage.create({
     data: { id, pageId, blockId, authorId: user.id, bodyEnc: sealChatMessage(key, id, text), replyToId },
   });
+  // Messages are searched with the page.
+  await reindexPage(prisma, pageId);
   // Everyone with the page open refetches (with their own access), as for
   // the child page blocks.
   notifyChildrenChanged(pageId);
@@ -199,6 +202,7 @@ export async function editChatMessage(messageId: string, raw: string): Promise<{
     where: { id: messageId },
     data: { bodyEnc: sealChatMessage(key, messageId, text), editedAt: new Date() },
   });
+  await reindexPage(prisma, message.pageId);
   notifyChildrenChanged(message.pageId);
   return {};
 }
@@ -215,6 +219,7 @@ export async function deleteChatMessage(messageId: string): Promise<{ error?: st
     where: { id: messageId },
     data: { bodyEnc: sealChatMessage(key, messageId, ""), deletedAt: new Date() },
   });
+  await reindexPage(prisma, message.pageId);
   notifyChildrenChanged(message.pageId);
   return {};
 }

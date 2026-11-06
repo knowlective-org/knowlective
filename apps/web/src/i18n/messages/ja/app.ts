@@ -320,6 +320,7 @@ const ja: MessageShape<typeof en> = {
     none: "見つかりませんでした。",
     count: "{count}件{top, select, true {（上位50件）} other {}}",
     bySemantic: "意味が近い",
+    chat: "チャット:",
     file: "添付ファイル: {name}",
     updated: "更新 {date}",
     reasons: {

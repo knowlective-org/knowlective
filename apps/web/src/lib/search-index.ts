@@ -1,12 +1,14 @@
 import { createHmac, hkdfSync } from "node:crypto";
 import * as Y from "yjs";
-import { decrypt, loadDataKey, type PrismaClient } from "shared";
+import { decrypt, loadDataKey, openEmail, type PrismaClient } from "shared";
 import { normalizeTitle } from "./page-title";
+import { openChatMessage } from "./chat";
+import { chatMentionIds, chatPlainText } from "./chat-text";
 
 // Encrypted full-text search index. Used by the collab server (reindexing on
 // every store) and the app (queries, reindexing on uploads / new pages).
 //
-// A page's text (title, body, attachment names) is normalized (NFKC, lower
+// A page's text (title, body, chat messages, attachment names and text) is normalized (NFKC, lower
 // case) and cut into every 1- and 2-character piece. Each piece becomes a
 // 64-bit HMAC under a key derived from the data key, and only those numbers
 // are stored (PageSearchIndex.tokens, GIN-indexed). A query is cut and hashed
@@ -131,15 +133,63 @@ export function referencedFileIds(doc: Y.Doc): string[] {
   return ids;
 }
 
+// Chat blocks in the body (their messages are ChatMessage rows keyed by the
+// block's id), in document order. A removed block's messages are kept (it
+// may come back), but drop out of search like a removed attachment.
+export function chatBlockIds(doc: Y.Doc): string[] {
+  const ids: string[] = [];
+  const visit = (node: Y.XmlElement | Y.XmlFragment) => {
+    for (const child of node.toArray()) {
+      if (!(child instanceof Y.XmlElement)) continue;
+      if (child.nodeName === "blockContainer") {
+        const id = child.getAttribute("id") as unknown;
+        const content = child.toArray()[0];
+        if (typeof id === "string" && content instanceof Y.XmlElement && content.nodeName === "chat") ids.push(id);
+      }
+      visit(child);
+    }
+  };
+  visit(doc.getXmlFragment("blocknote"));
+  return ids;
+}
+
+// Messages searched per page (the most recent; older ones drop out of search).
+const MAX_CHAT_MESSAGES = 2000;
+
+// The text of the chats: one message per line, oldest first, mentions as
+// "@name". Messages taken back are left out (their text is gone anyway).
+async function chatText(prisma: PrismaClient, dataKey: Uint8Array, pageId: string, blockIds: string[]): Promise<string> {
+  if (blockIds.length === 0) return "";
+  const rows = await prisma.chatMessage.findMany({
+    where: { pageId, blockId: { in: blockIds }, deletedAt: null },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: MAX_CHAT_MESSAGES,
+    select: { id: true, bodyEnc: true },
+  });
+  const texts = rows.reverse().map((r) => openChatMessage(dataKey, r));
+  const mentioned = [...new Set(texts.flatMap(chatMentionIds))];
+  const people =
+    mentioned.length === 0
+      ? []
+      : await prisma.user.findMany({ where: { id: { in: mentioned } }, select: { id: true, name: true, emailEnc: true } });
+  const names = new Map(people.map((p) => [p.id, p.name || (p.emailEnc ? openEmail(dataKey, p.emailEnc) : null)]));
+  return texts
+    .map((text) => chatPlainText(text, (id) => names.get(id) ?? null, "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
 // `files`: the names of the attachments the page shows; `fileTexts`: the
 // text of those that have some (lib/file-text.ts); `fileIds`: every
-// attachment the body shows, other knowledge roots' included (PageFileRefs).
+// attachment the body shows, other knowledge roots' included (PageFileRefs);
+// `chat`: the messages of the chat blocks in the body (chatText()).
 export type PageSearchText = {
   title: string;
   body: string;
   files: string[];
-  fileTexts: { name: string; text: string }[];
+  fileTexts: { id: string; name: string; text: string }[];
   fileIds: string[];
+  chat: string;
 };
 
 // Title, body and attachments of a page. `state` is the document's Yjs
@@ -153,6 +203,7 @@ export async function pageSearchText(prisma: PrismaClient, pageId: string, state
   let body = "";
   let title = page.title;
   let fileIds: string[] = [];
+  let chatIds: string[] = [];
   const dataKey = await loadDataKey(prisma);
   const update = state ?? (stored ? decrypt(dataKey, stored.state, pageId) : null);
   if (update) {
@@ -162,6 +213,7 @@ export async function pageSearchText(prisma: PrismaClient, pageId: string, state
     // The live title can be ahead of Page.title (mirrored on store).
     title = normalizeTitle(doc.getText("title").toString()) || title;
     fileIds = referencedFileIds(doc);
+    chatIds = chatBlockIds(doc);
   }
   // Only this knowledge root's files: a link pasted from another root's page
   // doesn't make that file searchable here.
@@ -179,9 +231,10 @@ export async function pageSearchText(prisma: PrismaClient, pageId: string, state
     body,
     files: files.map((f) => f.name),
     fileTexts: files.flatMap((f) =>
-      f.textEnc ? [{ name: f.name, text: decrypt(dataKey, f.textEnc, fileTextAad(f.id)).toString("utf8") }] : [],
+      f.textEnc ? [{ id: f.id, name: f.name, text: decrypt(dataKey, f.textEnc, fileTextAad(f.id)).toString("utf8") }] : [],
     ),
     fileIds,
+    chat: await chatText(prisma, dataKey, pageId, chatIds),
   };
 }
 
@@ -192,7 +245,7 @@ export async function reindexPage(prisma: PrismaClient, pageId: string, state?: 
     const text = await pageSearchText(prisma, pageId, state);
     if (!text) return;
     const key = searchKey(await loadDataKey(prisma));
-    const tokens = tokensFor(key, [text.title, text.body, ...text.files, ...text.fileTexts.map((f) => f.text)].join("\n"));
+    const tokens = tokensFor(key, [text.title, text.body, text.chat, ...text.files, ...text.fileTexts.map((f) => f.text)].join("\n"));
     await prisma.pageSearchIndex.upsert({
       where: { pageId },
       create: { pageId, tokens, indexedAt: new Date() },

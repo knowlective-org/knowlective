@@ -99,6 +99,12 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
                   {r.snippet.map((part, i) => (part.hit ? <mark key={i}>{part.text}</mark> : <span key={i}>{part.text}</span>))}
                 </p>
               )}
+              {r.matchedChat && (
+                <p className={searchStyles.snippet} data-ui="SearchPage.matchedChat">
+                  {t("chat")}{" "}
+                  {r.matchedChat.map((part, i) => (part.hit ? <mark key={i}>{part.text}</mark> : <span key={i}>{part.text}</span>))}
+                </p>
+              )}
               {r.matchedFile && (
                 <p className={searchStyles.snippet} data-ui="SearchPage.matchedFile">
                   {t("file", { name: r.matchedFile.name })}

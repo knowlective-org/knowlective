@@ -8,6 +8,13 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-06
+
+### Added
+
+- Search finds chat messages: by their words, and by meaning. Only the chats still in the page count, messages taken back don't, and mentions are found by the name
+- Semantic search (by meaning) covers the text of attachments, not only their names
+
 ### Changed
 
 - Ticking a TODO also ticks the TODOs nested under it (at any depth). Unticking it leaves them as they are; ones already done keep who completed them, and ones locked against editing are left out
@@ -15,6 +22,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 ### Fixed
 
 - The Docker image didn't build since 0.1.2 (`pnpm install` couldn't find the patch for `@blocknote/core`)
+
+### Upgrade notes
+
+- The semantic search index is rebuilt from scratch on the first start (every page, its chats and its attachments are embedded again, in the background). Until it has caught up, search by meaning finds fewer pages; search by words works as before
 
 ## [0.1.3] - 2026-11-06
 

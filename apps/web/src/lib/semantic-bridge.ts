@@ -4,10 +4,18 @@
 // the same process, so it reaches them through globalThis, like
 // lib/collab-events.ts. Keep dependency-free.
 
-// A passage of a page close in meaning to the query. start/end: where it is
-// in the page's body text (pageSearchText().body); -1 when it's the title
-// and attachment names only.
-export type SemanticHit = { pageId: string; start: number; end: number; score: number };
+// A passage of a page close in meaning to the query. `source`: where it is —
+// the page's body text, its chat messages (pageSearchText().body / .chat), or
+// the text of an attachment the page shows (`fileId`); start/end: where in
+// that text, -1 when it's the title and attachment names only.
+export type SemanticHit = {
+  pageId: string;
+  source: "body" | "chat" | "file";
+  fileId: string | null;
+  start: number;
+  end: number;
+  score: number;
+};
 
 // off: not configured (no VECTOR_DATABASE_URL), or failed to start.
 // loading: the model or the index isn't ready yet.

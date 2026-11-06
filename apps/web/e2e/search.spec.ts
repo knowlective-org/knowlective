@@ -111,6 +111,84 @@ test.describe("Search", () => {
     await trashOpenPage(page);
   });
 
+  test("chat messages are found by their words, until taken back", async ({ page }) => {
+    test.setTimeout(120_000);
+    const { id } = await createPage(page, "E2E チャットの検索");
+    await typeInBody(page, "/チャット");
+    await page.getByRole("option", { name: /チャット/ }).first().click();
+    const word = `zqchat${Date.now()}`;
+    await page.getByTestId("ChatBlock.messageInput").fill(`チャットの中だけにある語 ${word}`);
+    await page.keyboard.press("Enter");
+    const mine = page.getByTestId("ChatBlock.messageRow").first();
+    await expect(mine.getByTestId("ChatBlock.text")).toContainText(word);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+    const result = page.locator(`[data-ui="SearchPage.result"][data-id="${id}"]`);
+    const found = (q: string) =>
+      expect.poll(
+        async () => {
+          await page.goto(`search?q=${q}&mode=keyword`);
+          return result.count();
+        },
+        { timeout: 60_000, intervals: [2_000] },
+      );
+    await found(word).toBe(1);
+    await expect(result.getByTestId("SearchPage.matchedChat")).toContainText(word);
+
+    // Taken back: no longer found.
+    await page.goto(`pages/${id}`);
+    await mine.getByTestId("ChatBlock.deleteButton").click();
+    await page.getByTestId("AppDialog.confirmButton").click();
+    await expect(mine.getByTestId("ChatBlock.unsentStatus")).toBeVisible();
+    await found(word).toBe(0);
+
+    await page.goto(`pages/${id}`);
+    await trashOpenPage(page);
+  });
+
+  test("chat messages and attachments are found by meaning too", async ({ page }) => {
+    // Embedded in the background (the model may still be loading).
+    test.setTimeout(240_000);
+    const { id } = await createPage(page, "E2E 意味での検索（チャットと添付）");
+    await typeInBody(page, "/チャット");
+    await page.getByRole("option", { name: /チャット/ }).first().click();
+    await attachFile(page, {
+      name: "手順.txt",
+      type: "text/plain",
+      base64: Buffer.from("社用車を使うときは、総務部の予約表に名前と時間を書いて、鍵を受付で受け取ってください。").toString("base64"),
+    });
+    await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(1);
+    await page.getByTestId("ChatBlock.messageInput").fill("会議室のプロジェクターが壊れて映らないので、修理を依頼しました。");
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("ChatBlock.messageRow")).toHaveCount(1);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+    const result = page.locator(`[data-ui="SearchPage.result"][data-id="${id}"]`);
+    const search = async (question: string) => {
+      await expect
+        .poll(
+          async () => {
+            await page.goto(`search?q=${encodeURIComponent(question)}&mode=semantic`);
+            return result.count();
+          },
+          { timeout: 200_000, intervals: [3_000] },
+        )
+        .toBe(1);
+      await expect(result).toContainText("意味が近い");
+    };
+    // "Projector" said another way ("the projector" vs "the movie projector").
+    // Queries are kept well over MIN_SCORE (here about 0.87 to 0.83): one
+    // just over it here came out just under it on CI's machines.
+    await search("会議室の映写機が壊れた件はどうなりましたか");
+    await expect(result.getByTestId("SearchPage.matchedChat")).toContainText("プロジェクター");
+    // Not one word in common with the attachment (about 0.86).
+    await search("会社の自動車を借りる方法を教えて");
+    await expect(result.getByTestId("SearchPage.matchedFile")).toContainText("手順.txt");
+
+    await page.goto(`pages/${id}`);
+    await trashOpenPage(page);
+  });
+
   test("short words and model numbers are searched as typed", async ({ page }) => {
     for (const q of ["議事録", "ABC-123", "「申請方法について」"]) {
       await page.goto(`search?q=${encodeURIComponent(q)}`);

@@ -46,10 +46,12 @@ test.describe("Extended table", () => {
     await cellText(page, 4).click();
     await page.keyboard.press("Backspace");
     await page.keyboard.press("Backspace");
-    // At the end of the text (End right after the click can be lost).
+    // At the end of the text: a click past it, at the right of the line. (A
+    // click on the text and then End isn't enough: on a busy machine, the
+    // editor can apply the click's caret after End and put it back.)
     await expect(async () => {
-      await cellText(page, 0).click();
-      await page.keyboard.press("End");
+      const box = (await cellText(page, 0).boundingBox())!;
+      await cellText(page, 0).click({ position: { x: box.width - 2, y: box.height / 2 } });
       const atEnd = await page.evaluate(() => {
         const s = window.getSelection();
         return !!s?.isCollapsed && s.focusNode?.textContent === "項目" && s.focusOffset === 2;
