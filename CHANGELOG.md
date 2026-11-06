@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-06
+
 ### Added
 
 - Search finds chat messages: by their words, and by meaning. Only the chats still in the page count, messages taken back don't, and mentions are found by the name
