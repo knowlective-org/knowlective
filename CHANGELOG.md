@@ -8,6 +8,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Fixed
+
+- The Docker image didn't build since 0.1.2 (`pnpm install` couldn't find the patch for `@blocknote/core`)
+
 ## [0.1.3] - 2026-11-06
 
 ### Added

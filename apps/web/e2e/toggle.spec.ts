@@ -41,6 +41,10 @@ async function clickEnd(line: import("@playwright/test").Locator) {
     });
     expect(at).toEqual([text, text.length]);
   }).toPass();
+  // The editor reads the moved cursor a moment after the browser does: an
+  // Enter right away (on a slow machine) went to the block typed in before.
+  // Waiting for the edits to be saved gives it that moment.
+  await expect(line.page().getByTestId("PageView.status")).toHaveCount(0);
 }
 
 // BlockNote's Enter split the toggle, and its blocks went with the new one
@@ -91,7 +95,7 @@ test("Enter in a toggle heading's title keeps the blocks inside it too", async (
   await page.locator(".bn-toggle-add-block-button").click();
   await page.keyboard.type("中の段落");
   const heading = editorBody(page).locator('.bn-block-outer:has(> .bn-block > .bn-block-content[data-content-type="heading"])');
-  await heading.locator('[data-content-type="heading"] .bn-inline-content').first().click();
+  await clickEnd(heading.locator('[data-content-type="heading"] .bn-inline-content').first());
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   await page.keyboard.type("先頭");
