@@ -290,6 +290,13 @@
   cursor: pointer;
 }
 
+/* What "everyone" means, after it in the "@" menu. */
+.mentionHint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
 .mentionItem[aria-selected="true"],
 .mentionItem:hover {
   background: var(--color-hover);

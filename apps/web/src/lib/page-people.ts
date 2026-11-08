@@ -10,6 +10,12 @@ export async function pagePeople(prisma: PrismaClient, pageId: string): Promise<
   return users.flatMap((u) => (u.name ? [{ id: u.id, name: u.name }] : []));
 }
 
+// Everyone who can open the page (named or not): who a mention of everyone
+// goes to (the notifications check each one again when sending).
+export async function pageAudienceIds(prisma: PrismaClient, pageId: string): Promise<string[]> {
+  return (await getUsersWithPageAccess(prisma, pageId)).map((u) => u.id);
+}
+
 export async function pagePeopleNames(prisma: PrismaClient, pageId: string): Promise<Map<string, string>> {
   return new Map((await pagePeople(prisma, pageId)).map((p) => [p.id, p.name]));
 }

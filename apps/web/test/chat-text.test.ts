@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { chatMentionIds, chatPlainText, chatSegments } from "../src/lib/chat-text";
+import { EVERYONE, chatMentionIds, chatMentionsEveryone, chatPlainText, chatSegments } from "../src/lib/chat-text";
 
 // A chat message's links and mentions (lib/chat-text.ts). The text comes
 // from whoever posted it, so only http(s) URLs become links.
@@ -32,5 +32,14 @@ describe("chat message text", () => {
     ]);
     assert.deepEqual(chatMentionIds("<@a> <@b> <@a> <@bad id>"), ["a", "b"]);
     assert.equal(chatPlainText("<@a> and <@x>", (id) => (id === "a" ? "Ann" : null), "someone"), "@Ann and @someone");
+  });
+  test("everyone: its own token, not a person", () => {
+    const text = `<@${EVERYONE}> please read, <@u1>`;
+    assert.ok(chatMentionsEveryone(text));
+    assert.ok(!chatMentionsEveryone("<@u1> all"));
+    // Not among the people mentioned (no lookups, no notification by id).
+    assert.deepEqual(chatMentionIds(text), ["u1"]);
+    assert.deepEqual(chatSegments(text)[0], { type: "mention", userId: EVERYONE });
+    assert.equal(chatPlainText(text, () => "Ann", "someone", "everyone"), "@everyone please read, @Ann");
   });
 });

@@ -453,6 +453,14 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 - The app listens on `127.0.0.1:3000` (change with `KNOWLECTIVE_BIND` and `KNOWLECTIVE_PORT` in `.env.production`, or in `install.sh`). Serve it through a reverse proxy (above), and open `https://<public URL>` for the first-time setup
   - Keep `127.0.0.1` when the proxy runs on the same server. For a proxy on another machine, use the server's private address (e.g. `10.0.0.5`; `0.0.0.0` = every address; IPv6 in brackets, `[::]`) and let only the proxy reach the port with a firewall: whoever reaches the app directly can fake `X-Forwarded-For`, which the rate limits and IP restrictions rely on
 - Every start applies any pending database migrations first (`KNOWLECTIVE_SKIP_MIGRATIONS=1` stops that). To update, `git pull` and run the same `up -d --build`
+- **Security updates of Node.js (and the base image's packages)**: the image is built on `node:24-bookworm-slim`, which follows the latest Node.js 24. But `up -d --build` reuses the base image already downloaded and the cached build steps, so a new Node.js release isn't picked up by itself. When one is out, rebuild from fresh and restart:
+
+  ```bash
+  docker compose -f docker-compose.prod.yml --env-file .env.production build --pull --no-cache
+  docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+  ```
+
+  (For just the image: `docker build --pull --no-cache -t knowlective .`.) The version in use shows with `docker compose -f docker-compose.prod.yml --env-file .env.production exec app node --version`
 - On stopping (`docker compose stop`, etc.), open documents are saved before exiting
 - The health check is `GET /api/health` (200 if the database can be reached; `<sub-path>/api/health` when served under a sub-path). The container has a health check set too
 - Run recovery commands inside the container: `docker compose -f docker-compose.prod.yml --env-file .env.production exec app pnpm admin:recover --clear-lockout` (`rotate-server-key` likewise)
@@ -474,6 +482,8 @@ pnpm start         # Starts with NODE_ENV=production. The port is PORT (default 
 ```
 
 The reverse proxy must also pass WebSocket connections (the Upgrade header) to `/collab` (`<sub-path>/collab` when served under a sub-path).
+
+The server's own Node.js is used, so its security updates are yours to install (with your package manager, nvm, etc.), then restart the app. Use a supported release (Node.js 24 is what the image and CI use).
 
 ## Versions and releases
 

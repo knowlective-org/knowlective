@@ -25,7 +25,7 @@ import {
   type ChatPollView,
   type ChatReactionEmoji,
 } from "@/lib/chat-types";
-import { chatMention, chatSegments } from "@/lib/chat-text";
+import { EVERYONE, chatMention, chatSegments } from "@/lib/chat-text";
 import { beginSaving } from "@/lib/saving-status";
 import { showAlert, showConfirm } from "@/components/dialog";
 import { useChildrenData, usePageEditor } from "./page-context";
@@ -910,9 +910,12 @@ function ChatInput({
 
   const at = mentionQuery(value, caret);
   const q = at?.query.normalize("NFKC").toLowerCase() ?? "";
+  // Everyone who can open the page, first (also found by "all").
+  const everyone: Person = { id: EVERYONE, name: t("everyone") };
+  const matches = (name: string) => name.normalize("NFKC").toLowerCase().includes(q);
   const options =
     at && people && dismissed !== at.start
-      ? people.filter((p) => p.name.normalize("NFKC").toLowerCase().includes(q)).slice(0, 8)
+      ? [...(matches(everyone.name) || EVERYONE.startsWith(q) ? [everyone] : []), ...people.filter((p) => matches(p.name))].slice(0, 8)
       : [];
   const selected = Math.min(active, Math.max(0, options.length - 1));
 
@@ -987,6 +990,7 @@ function ChatInput({
               data-id={p.id}
             >
               {p.name}
+              {p.id === EVERYONE && <span className={styles.mentionHint}>{t("everyoneHint")}</span>}
             </div>
           ))}
         </div>
