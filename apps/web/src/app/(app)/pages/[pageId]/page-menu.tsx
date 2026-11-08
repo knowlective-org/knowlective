@@ -6,7 +6,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { useDisplayTitle } from "@/i18n/use-display-title";
 import { showAlert, showChoice, showConfirm, showCopyText, showTypedConfirm } from "@/components/dialog";
-import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT } from "@/lib/page-export";
+import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, EXPORT_WHITEBOARD_EVENT } from "@/lib/page-export";
 import { MoveDialog } from "./move-dialog";
 import { checkDeletePage, deletePage, loadPageInfo, lockPage, type PageInfo, unlockPage } from "./page-actions";
 import styles from "./page-view.module.css";
@@ -62,6 +62,7 @@ export function ShareButton({ url }: { url: string }) {
 export function PageMenu({
   pageId,
   title,
+  whiteboard,
   canEdit,
   lock,
   canManage,
@@ -71,6 +72,8 @@ export function PageMenu({
   pageId: string;
   // Current (live) title, for the delete confirmation.
   title: string;
+  // A whiteboard page: exported as an image (PNG or SVG), not as Markdown or PDF.
+  whiteboard: boolean;
   // EDIT access to the page.
   canEdit: boolean;
   // Set while the page is locked; `own` if the lock is on this very page.
@@ -234,6 +237,29 @@ export function PageMenu({
             ) : (
               <PlannedItem label={t("permissions")} note={personal ? t("personalNoShare") : t("needsManage")} />
             )}
+            {whiteboard && (
+              <>
+                {(["png", "svg"] as const).map((format) => (
+                  <button
+                    key={format}
+                    type="button"
+                    role="menuitem"
+                    className={styles.menuItem}
+                    data-ui={format === "png" ? "PageMenu.exportPng" : "PageMenu.exportSvg"}
+                    onClick={() => {
+                      setOpen(false);
+                      // The whiteboard holds the board and writes the file.
+                      window.dispatchEvent(new CustomEvent(EXPORT_WHITEBOARD_EVENT, { detail: format }));
+                    }}
+                  >
+                    <span>{format === "png" ? t("exportPng") : t("exportSvg")}</span>
+                    <span className={styles.menuNote}>.{format}</span>
+                  </button>
+                ))}
+              </>
+            )}
+            {!whiteboard && (
+            <>
             <button
               type="button"
               role="menuitem"
@@ -261,6 +287,8 @@ export function PageMenu({
               <span>{t("exportPdf")}</span>
               <span className={styles.menuNote}>.pdf</span>
             </button>
+            </>
+            )}
             {canEdit && !isRootPage && !lock ? (
               <button
                 type="button"

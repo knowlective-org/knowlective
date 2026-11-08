@@ -9,7 +9,7 @@ import { withBasePath } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
 import { emailColumns, withEmail } from "@/lib/emails";
 import type { SiteRole } from "shared";
-import { getAdminConsoleRole } from "@/lib/roles";
+import { getAdminConsoleAccess } from "@/lib/roles";
 import { userLabel } from "@/lib/audit";
 import { isIpAllowed } from "@/lib/ip";
 import { type RequestContext, getRequestContext } from "@/lib/request";
@@ -20,12 +20,15 @@ import { generateTotpSecret } from "@/lib/admin/totp";
 //
 // Two ways in, both requiring TOTP:
 // - A user account whose site role is SITE_ADMIN or CONTENT_MANAGER (normal
-//   use). The role is re-checked on every request, so a demotion or
-//   disabling takes effect immediately.
+//   use), or who is in the auditors group: they see every page of the
+//   console as a site admin would, and can change nothing. Re-checked on
+//   every request, so a demotion, removal or disabling takes effect
+//   immediately.
 // - The master password (bootstrap: adding the first site admin; recovery).
 //
-// Every admin page AND every admin Server Action must call requireAdmin()
-// (or the login-specific checks) itself. Layouts are not a security boundary:
+// Every admin Server Action must call requireAdmin(), and every admin page
+// requireAdminView() (or requireAdmin(), to keep auditors out), or the
+// login-specific checks, itself. Layouts are not a security boundary:
 // Server Actions are separate POST entry points that don't run them.
 
 const COOKIE_NAME = "knowlective_admin";
@@ -204,11 +207,26 @@ export async function endAdminSession(): Promise<void> {
   store.delete({ name: COOKIE_NAME, path: COOKIE_PATH });
 }
 
-// Gate for every admin page and admin Server Action. `allowed` limits the
-// page/action to some roles (e.g. settings are SITE_ADMIN only); a content
-// manager sent somewhere it can't go lands on the users page instead. The
-// master password session counts as SITE_ADMIN.
+// Gate for every admin Server Action (and the pages auditors can't see).
+// `allowed` limits the action to some roles (e.g. settings are SITE_ADMIN
+// only); a content manager sent somewhere it can't go lands on the users page
+// instead, an auditor on the overview. The master password session counts as
+// SITE_ADMIN. Auditors are never let through: they can't change anything.
 export async function requireAdmin(allowed: SiteRole[] = ["SITE_ADMIN", "CONTENT_MANAGER"]) {
+  const gate = await adminGate(allowed, false);
+  return { ...gate, role: gate.role as SiteRole };
+}
+
+// Gate for every admin page: as requireAdmin(), but an auditor gets through
+// too, read-only (`readOnly`: the page shows its controls disabled — its
+// actions refuse them anyway). For them, `role` and `actor.role` are what a
+// site admin would have, so they see everything a site admin sees: use them
+// to decide what to show, never to allow a change.
+export async function requireAdminView(allowed: SiteRole[] = ["SITE_ADMIN", "CONTENT_MANAGER"]) {
+  return adminGate(allowed, true);
+}
+
+async function adminGate(allowed: SiteRole[], view: boolean) {
   const ctx = await getRequestContext();
   const config = await getAdminConfig();
   assertIpAllowed(ctx.ip, config.adminIpAllowlist);
@@ -218,17 +236,23 @@ export async function requireAdmin(allowed: SiteRole[] = ["SITE_ADMIN", "CONTENT
   if (session.stage === "VERIFY_TOTP") redirect("/admin/login/verify");
   if (session.stage !== "ACTIVE") redirect("/admin/enroll");
 
-  // Demoted or disabled since signing in: end the session now.
-  let role: SiteRole = "SITE_ADMIN";
+  // Demoted, removed from the auditors or disabled since signing in: end the
+  // session now.
+  let ownRole: SiteRole | null = "SITE_ADMIN";
+  let auditor = false;
   if (session.userId) {
-    const current = await getAdminConsoleRole(session.userId);
-    if (!current) {
+    const access = await getAdminConsoleAccess(session.userId);
+    if (!access) {
       await prisma.adminSession.deleteMany({ where: { tokenHash: session.tokenHash } });
       redirect("/admin/login");
     }
-    role = current;
+    ownRole = access.role;
+    auditor = access.auditor;
   }
-  if (!allowed.includes(role)) redirect("/admin/users");
+  const canChange = ownRole !== null && allowed.includes(ownRole);
+  const readOnly = !canChange;
+  if (readOnly && !(view && auditor)) redirect(ownRole === null ? "/admin" : "/admin/users");
+  const role: SiteRole = canChange ? ownRole! : "SITE_ADMIN";
 
   if (Date.now() - session.lastSeenAt.getTime() > TOUCH_INTERVAL_MS) {
     await prisma.adminSession.update({
@@ -247,7 +271,7 @@ export async function requireAdmin(allowed: SiteRole[] = ["SITE_ADMIN", "CONTENT
     label: session.user ? userLabel(session.user) : (await auditTranslator())("admin.masterPassword"),
     role,
   };
-  return { ctx, config, session, actorLabel, role, actor };
+  return { ctx, config, session, actorLabel, role, actor, readOnly, ownRole, auditor };
 }
 
 // ---- Single sign-on -----------------------------------------------------
@@ -266,7 +290,7 @@ export async function beginAdminSessionAfterSso(
   });
   const { email } = await withEmail(user);
   // Not counted as bad credentials: the IdP vouched for who this is.
-  if ((await getAdminConsoleRole(userId)) === null) {
+  if ((await getAdminConsoleAccess(userId)) === null) {
     await recordLoginAttempt(ctx, false, "not_admin", email);
     return "not_admin";
   }

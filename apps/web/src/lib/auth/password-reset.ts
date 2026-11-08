@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { hashPassword } from "shared";
 import { prisma } from "@/lib/db";
 import { withEmail } from "@/lib/emails";
+import { disconnectUsers } from "@/lib/collab-events";
 
 // Password reset links: /reset-password/<token>. Same token scheme as
 // invitations (only the SHA-256 hash is stored, single use).
@@ -107,4 +108,6 @@ export async function completePasswordReset(resetId: string, userId: string, pas
     await tx.userSession.deleteMany({ where: { userId } });
     await tx.adminSession.deleteMany({ where: { userId } });
   });
+  // Every session is over: so are the editors open with them.
+  disconnectUsers([userId]);
 }

@@ -55,18 +55,40 @@ test("a chat block: own messages on the right, others' on the left with their na
     // Only one's own messages can be changed; a change shows as edited, for everyone.
     await expect(reply.getByTestId("ChatBlock.editButton")).toHaveCount(0);
     await expect(theirs.getByTestId("ChatBlock.editButton")).toHaveCount(0);
+    // Changed in the message box (not in the bubble), which puts aside what
+    // was being written and gives it back after.
+    await page.getByTestId("ChatBlock.messageInput").fill("書きかけ");
     await mine.getByTestId("ChatBlock.editButton").click();
-    await mine.getByTestId("ChatBlock.editInput").fill("こんにちは（直しました）");
+    await expect(mine).toHaveAttribute("data-editing", "true");
+    await expect(page.getByTestId("ChatBlock.editingStatus")).toContainText("こんにちは");
+    await expect(page.getByTestId("ChatBlock.messageInput")).toBeHidden();
+    const editInput = page.getByTestId("ChatBlock.editInput");
+    await expect(editInput).toHaveValue("こんにちは\n二行目");
+    await expect(editInput).toBeFocused();
+    await editInput.fill("こんにちは（直しました）");
     await page.keyboard.press("Enter");
     await expect(mine.getByTestId("ChatBlock.text")).toHaveText("こんにちは（直しました）");
+    await expect(page.getByTestId("ChatBlock.editingStatus")).toHaveCount(0);
+    await expect(mine).not.toHaveAttribute("data-editing");
+    await expect(page.getByTestId("ChatBlock.messageInput")).toHaveValue("書きかけ");
     await expect(mine.getByTestId("ChatBlock.editedStatus")).toContainText("編集済み");
     await expect(theirs.getByTestId("ChatBlock.text")).toHaveText("こんにちは（直しました）");
     await expect(theirs.getByTestId("ChatBlock.editedStatus")).toBeVisible();
     // Esc leaves it as it was.
     await mine.getByTestId("ChatBlock.editButton").click();
-    await mine.getByTestId("ChatBlock.editInput").fill("取り消す");
+    await editInput.fill("取り消す");
     await page.keyboard.press("Escape");
+    await expect(page.getByTestId("ChatBlock.editInput")).toHaveCount(0);
     await expect(mine.getByTestId("ChatBlock.text")).toHaveText("こんにちは（直しました）");
+    // Starting a reply ends a change (and the other way round).
+    await mine.getByTestId("ChatBlock.editButton").click();
+    await mine.getByTestId("ChatBlock.replyButton").click();
+    await expect(page.getByTestId("ChatBlock.editInput")).toHaveCount(0);
+    await expect(page.getByTestId("ChatBlock.replyingStatus")).toBeVisible();
+    await mine.getByTestId("ChatBlock.editButton").click();
+    await expect(page.getByTestId("ChatBlock.replyingStatus")).toHaveCount(0);
+    await page.getByTestId("ChatBlock.cancelEditButton").click();
+    await expect(page.getByTestId("ChatBlock.messageInput")).toHaveValue("書きかけ");
 
     // Taking it back leaves "unsent" in its place, for everyone; the text is gone.
     await expect(theirs.getByTestId("ChatBlock.deleteButton")).toHaveCount(0);
@@ -185,4 +207,44 @@ test("changing a message, called directly, only works for its author", async ({ 
   const stored = await withPrisma((prisma) => prisma.chatMessage.findUniqueOrThrow({ where: { id: messageId } }));
   expect(stored.bodyEnc.length).toBeLessThan(64);
   await trashOpenPage(page);
+});
+
+test.describe("Chat text selection", () => {
+  test.use({ permissions: ["clipboard-read", "clipboard-write"] });
+
+  test("part of a message can be selected and copied, and keys there don't reach the editor", async ({ page }) => {
+    await createPage(page, "E2E チャットのコピー");
+    await editorBody(page).click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("/チャット");
+    await page.getByRole("option", { name: /チャット/ }).first().click();
+    await page.getByTestId("ChatBlock.messageInput").click();
+    await page.keyboard.type("あいうえおかきくけこさしすせそ");
+    await page.keyboard.press("Enter");
+    const text = page.getByTestId("ChatBlock.text").first();
+    await expect(text).toHaveText("あいうえおかきくけこさしすせそ");
+
+    // From the body (the editor has the focus), drag over part of the message.
+    await editorBody(page).locator(".bn-inline-content").first().click();
+    const box = (await text.boundingBox())!;
+    await page.mouse.move(box.x + 30, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 120, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.up();
+    const selected = await page.evaluate(() => window.getSelection()?.toString() ?? "");
+    expect(selected.length).toBeGreaterThan(1);
+    expect("あいうえおかきくけこさしすせそ").toContain(selected);
+    expect(selected).not.toBe("あいうえおかきくけこさしすせそ");
+
+    await page.evaluate(() => navigator.clipboard.writeText(""));
+    await page.keyboard.press("Control+c");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(selected);
+
+    // Delete there takes nothing out of the page.
+    await page.keyboard.press("Delete");
+    await expect(page.getByTestId("ChatBlock")).toBeVisible();
+    await expect(text).toHaveText("あいうえおかきくけこさしすせそ");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
 });

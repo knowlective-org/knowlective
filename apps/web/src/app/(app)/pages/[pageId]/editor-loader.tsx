@@ -12,6 +12,17 @@ export const EditorLoader = dynamic(
   { ssr: false, loading: () => <EditorPlaceholder /> },
 );
 
+// A whiteboard page's board (lib/whiteboard.ts), likewise browser-only.
+export const WhiteboardLoader = dynamic(
+  () => import("@/components/whiteboard/whiteboard-editor").then((m) => m.WhiteboardEditor),
+  { ssr: false, loading: () => <EditorPlaceholder /> },
+);
+
+export const StaticWhiteboardLoader = dynamic(
+  () => import("@/components/whiteboard/static-whiteboard").then((m) => m.StaticWhiteboard),
+  { ssr: false, loading: () => <EditorPlaceholder /> },
+);
+
 // For someone not logged in on a public page: the page as it was when opened,
 // read-only and not connected to collaborative editing (lib/public-page-state.ts).
 export const StaticDocumentLoader = dynamic(

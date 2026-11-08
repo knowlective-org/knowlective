@@ -4,6 +4,8 @@
 
 export const EXPORT_MARKDOWN_EVENT = "knowlective:export-markdown";
 export const EXPORT_PDF_EVENT = "knowlective:export-pdf";
+// A whiteboard's (components/whiteboard/whiteboard-editor.tsx): `detail` is the format.
+export const EXPORT_WHITEBOARD_EVENT = "knowlective:export-whiteboard";
 
 // A page title as a file name: without the characters Windows, macOS or
 // Linux refuse.

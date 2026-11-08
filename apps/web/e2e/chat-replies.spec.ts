@@ -125,3 +125,126 @@ test("a locked chat takes no new messages or changes, for anyone, until unlocked
   await expect(page.getByTestId("ChatBlock.lockedStatus")).toHaveCount(0);
   await trashOpenPage(page);
 });
+
+test("reactions: others' messages only, for those who can edit the page; names on hover", async ({ page, browser, baseURL }) => {
+  const scripts: Promise<string>[] = [];
+  page.on("response", (res) => {
+    if (res.request().resourceType() === "script") scripts.push(res.text().catch(() => ""));
+  });
+  const { id } = await createPage(page, "E2E チャットのリアクション");
+  await insertChat(page);
+  await page.getByTestId("ChatBlock.messageInput").fill("リアクションしてください");
+  await page.keyboard.press("Enter");
+  const mine = page.getByTestId("ChatBlock.messageRow").first();
+  await expect(mine.getByTestId("ChatBlock.text")).toBeVisible();
+  // Not on one's own message.
+  await expect(mine.getByTestId("ChatBlock.addReactionButton")).toHaveCount(0);
+  const messageId = (await mine.getAttribute("data-id"))!;
+
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await page.waitForTimeout(1500);
+  const adminContext = await browser.newContext({ storageState: authFile("admin") });
+  try {
+    const admin = await adminContext.newPage();
+    await openPage(admin, id);
+    const theirs = admin.getByTestId("ChatBlock.messageRow").first();
+    await theirs.hover();
+    await theirs.getByTestId("ChatBlock.addReactionButton").click();
+    await admin.getByTestId("ChatBlock.reactionItem").and(admin.locator('[data-id="👍"]')).click();
+    const chip = theirs.getByTestId("ChatBlock.reactionButton");
+    await expect(chip).toHaveText("👍 1");
+    await expect(chip).toHaveAttribute("aria-pressed", "true");
+    await expect(admin.getByTestId("ChatBlock.reactionMenu")).toHaveCount(0);
+
+    // The author sees it (not as a button), with who reacted.
+    const status = mine.getByTestId("ChatBlock.reactionStatus");
+    await expect(status).toHaveText("👍 1");
+    await expect(status).toHaveAttribute("title", `👍 ${ACCOUNTS.admin.name}`);
+    await expect(mine.getByTestId("ChatBlock.reactionButton")).toHaveCount(0);
+
+    // A click on one's own reaction takes it away.
+    await chip.click();
+    await expect(theirs.getByTestId("ChatBlock.reactionButton")).toHaveCount(0);
+    await expect(mine.getByTestId("ChatBlock.reactionStatus")).toHaveCount(0);
+    await theirs.hover();
+    await theirs.getByTestId("ChatBlock.addReactionButton").click();
+    await admin.getByTestId("ChatBlock.reactionItem").and(admin.locator('[data-id="🎉"]')).click();
+    await expect(mine.getByTestId("ChatBlock.reactionStatus")).toHaveText("🎉 1");
+  } finally {
+    await adminContext.close();
+  }
+
+  // Called directly: only someone else who can edit the page (not the
+  // author, a viewer, an outsider or someone not logged in), and only the
+  // offered emoji.
+  const source = (await Promise.all(scripts)).join("\n");
+  const actionId = source.match(/"([0-9a-f]{40,})"[^"]*(?:"[^"]*"[^"]*){0,4}?"setChatReaction"/)?.[1];
+  expect(actionId, "setChatReaction's action id").toBeTruthy();
+  const origin = new URL(baseURL!).origin;
+  const reactions = () => withPrisma((prisma) => prisma.chatReaction.count({ where: { messageId, emoji: "👀" } }));
+  for (const role of ["guest", "outsider", "viewer", "editor", "admin"] as const) {
+    const context = await browser.newContext({ storageState: role === "guest" ? { cookies: [], origins: [] } : authFile(role) });
+    for (const emoji of ["💩", "👀"]) {
+      await context.request.post(`pages/${id}`, {
+        headers: { "Next-Action": actionId!, Origin: origin, "Content-Type": "text/plain;charset=UTF-8" },
+        data: JSON.stringify([messageId, emoji, true]),
+        maxRedirects: 0,
+      });
+    }
+    await context.close();
+    expect(await reactions(), role).toBe(role === "admin" ? 1 : 0);
+  }
+  expect(await withPrisma((prisma) => prisma.chatReaction.count({ where: { messageId, emoji: "💩" } }))).toBe(0);
+
+  // Taking the message back takes its reactions with it.
+  await mine.getByTestId("ChatBlock.deleteButton").click();
+  await page.getByTestId("AppDialog.confirmButton").click();
+  await expect(mine.getByTestId("ChatBlock.unsentStatus")).toBeVisible();
+  await expect(mine.getByTestId("ChatBlock.reactions")).toHaveCount(0);
+  expect(await withPrisma((prisma) => prisma.chatReaction.count({ where: { messageId } }))).toBe(0);
+  await trashOpenPage(page);
+});
+
+test("a chat has a title, and each viewer can fold it to the title alone", async ({ page, browser }) => {
+  const { id } = await createPage(page, "E2E チャットのタイトル");
+  await insertChat(page);
+  const title = page.getByTestId("ChatBlock.titleInput");
+  await expect(title).toHaveAttribute("placeholder", "チャット");
+  await title.fill("議題1について");
+  await page.keyboard.press("Enter");
+  await page.getByTestId("ChatBlock.messageInput").fill("最初の意見");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("ChatBlock.messageRow")).toHaveCount(1);
+
+  // Folded: the title alone; kept after a reload.
+  await page.getByTestId("ChatBlock.foldButton").click();
+  await expect(page.getByTestId("ChatBlock.foldButton")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByTestId("ChatBlock.log")).toHaveCount(0);
+  await expect(page.getByTestId("ChatBlock.form")).toHaveCount(0);
+  await expect(page.getByTestId("ChatBlock.lockButton")).toHaveCount(0);
+  await expect(title).toHaveValue("議題1について");
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await page.waitForTimeout(1500);
+  await page.reload();
+  await expect(page.getByTestId("ChatBlock.titleInput")).toHaveValue("議題1について");
+  await expect(page.getByTestId("ChatBlock.log")).toHaveCount(0);
+
+  // The title is everyone's; folding is each viewer's own.
+  const viewerContext = await browser.newContext({ storageState: authFile("viewer") });
+  try {
+    const viewer = await viewerContext.newPage();
+    await openPage(viewer, id);
+    await expect(viewer.getByTestId("ChatBlock.title")).toHaveText("議題1について");
+    await expect(viewer.getByTestId("ChatBlock.titleInput")).toHaveCount(0);
+    await expect(viewer.getByTestId("ChatBlock.messageRow")).toHaveCount(1);
+    await viewer.getByTestId("ChatBlock.foldButton").click();
+    await expect(viewer.getByTestId("ChatBlock.log")).toHaveCount(0);
+  } finally {
+    await viewerContext.close();
+  }
+
+  await page.getByTestId("ChatBlock.foldButton").click();
+  await expect(page.getByTestId("ChatBlock.messageRow")).toHaveCount(1);
+  await expect(page.getByTestId("ChatBlock.form")).toBeVisible();
+  await trashOpenPage(page);
+});

@@ -9,8 +9,9 @@ import {
   LOCK_WINDOW_MS,
   MAX_FAILURES,
   listActiveAdminSessions,
-  requireAdmin,
+  requireAdminView,
 } from "@/lib/admin/auth";
+import { AdminReadOnly } from "../admin-read-only";
 import styles from "@/styles/ui.module.css";
 import { revokeOtherSessions, revokeSession } from "../actions";
 import { IpAllowlistForm } from "../ip-allowlist-form";
@@ -21,7 +22,7 @@ import { isIpAllowed } from "@/lib/ip";
 const AUDIT_PAGE_SIZE = 20;
 
 export default async function AdminSecurityPage({ searchParams }: PageProps<"/admin/security">) {
-  const { ctx, config, session } = await requireAdmin(["SITE_ADMIN"]);
+  const { ctx, config, session, readOnly } = await requireAdminView(["SITE_ADMIN"]);
   const auditCount = await countAuditLogs();
   const network = await prisma.instanceConfig.findUniqueOrThrow({
     where: { id: 1 },
@@ -52,7 +53,7 @@ export default async function AdminSecurityPage({ searchParams }: PageProps<"/ad
       : t("failure");
 
   return (
-    <>
+    <AdminReadOnly readOnly={readOnly}>
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>{t("loginProtection")}</h2>
         <ul className={styles.note} style={{ paddingLeft: 20 }}>
@@ -210,6 +211,6 @@ export default async function AdminSecurityPage({ searchParams }: PageProps<"/ad
           </table>
         </div>
       </section>
-    </>
+    </AdminReadOnly>
   );
 }

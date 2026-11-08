@@ -65,6 +65,8 @@ function childPageList(
 //   another; what has no text, such as an image, as a link to it)
 // - Masked text → a placeholder: the text is only ever opened on screen
 // - Chat → left out (its messages aren't in the document)
+// - Whiteboard → a link to its page (the title isn't in the document: the
+//   link reads `whiteboard`)
 // - TODO → a check list item, with its due date after the text (not the
 //   assignee: the document has only their id)
 // - Mention → "@name" (with `people`; "@" alone without)
@@ -80,6 +82,8 @@ export function prepareBlocksForExport(
     mermaid?: "code" | "keep";
     // Names for mentions, by user id.
     people?: Record<string, string>;
+    // A whiteboard block's link text, in the viewer's language.
+    whiteboard?: string;
   },
 ): ExportBlock[] {
   const { origin, pageId, childPages, untitled } = options;
@@ -117,6 +121,11 @@ export function prepareBlocksForExport(
         return [gridTableAsTable(b, children)];
       case "chat":
         return children;
+      case "whiteboard": {
+        const id = String(b.props?.pageId ?? "");
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return children;
+        return [block("paragraph", [link(`${origin}/pages/${id}`, `▦ ${options.whiteboard ?? "Whiteboard"}`)]), ...children];
+      }
       case "maskedText":
         return [block("paragraph", [text("🔒 ••••••••")]), ...children];
       case "todo": {

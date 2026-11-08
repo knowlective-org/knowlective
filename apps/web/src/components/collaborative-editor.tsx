@@ -1,10 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useMemo, useRef, useState } from "react";
-import * as Y from "yjs";
-import { HocuspocusProvider } from "@hocuspocus/provider";
+import { useEffect, useMemo, useState } from "react";
+import type { HocuspocusProvider } from "@hocuspocus/provider";
 import { yUndoPluginKey } from "y-prosemirror";
 import { combineByGroup, filterSuggestionItems } from "@blocknote/core";
 import { getMultiColumnSlashMenuItems, multiColumnDropCursor } from "@blocknote/xl-multi-column";
@@ -13,17 +11,17 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote } from "@blocknote/react";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
-import { getCollabToken, getUploadExtensions } from "@/app/(app)/actions";
-import { COLLAB_CLIENT_VERSION, OUTDATED_CLIENT } from "@/lib/collab-version";
+import { getUploadExtensions } from "@/app/(app)/actions";
 import { lockedBlockIds } from "@/lib/block-locks";
 import { saveVersionBeforeReplace } from "@/app/(app)/pages/[pageId]/history/actions";
 import { getLinkPreviewEnabled, loadLinkPreview } from "@/app/(app)/link-preview-actions";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
-import { BASE_PATH, resolveAppUrl, withBasePath } from "@/lib/base-path";
-import { CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED } from "@/lib/collab-events";
+import { BASE_PATH, resolveAppUrl } from "@/lib/base-path";
+import { UploadError, postFile as postSharedFile } from "@/lib/upload-file";
+import { CHILDREN_CHANGED } from "@/lib/collab-events";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/page-export";
 import { beginSaving } from "@/lib/saving-status";
-import { MAX_TITLE_LENGTH, TITLE_FIELD, normalizeTitle } from "@/lib/page-title";
+import { TITLE_FIELD, normalizeTitle } from "@/lib/page-title";
 import { blockNoteDictionary } from "@/i18n/blocknote";
 import { useDisplayTitle } from "@/i18n/use-display-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
@@ -49,7 +47,8 @@ import { customSlashMenuItems, editorSchema, mentionMenuItems, withTodoForCheckl
 import { pagePeople } from "./editor/page-people";
 import { useFilePaths } from "./editor/file-paths";
 import { showAlert, showChoice, showConfirm } from "./dialog";
-import { EditorPlaceholder } from "./editor-placeholder";
+import { CollabConnection } from "./collab-connection";
+import { TitleField } from "./title-field";
 import { blockLockExtension } from "./editor/block-lock";
 import { showNotice } from "./notice";
 import styles from "./collaborative-editor.module.css";
@@ -61,12 +60,6 @@ type Text = ReturnType<typeof useTranslations<never>>;
 let text: Text;
 
 
-// The collaboration WebSocket is served by the same process and origin as the
-// app (server/collab.ts, COLLAB_PATH), so no separate URL needs configuring.
-function collabUrl(): string {
-  const { protocol, host } = window.location;
-  return `${protocol === "https:" ? "wss" : "ws"}://${host}${withBasePath("/collab")}`;
-}
 
 // Same markup as BlockNote's default collaboration cursor, but with the label
 // permanently expanded ([data-active] is what its CSS keys the label on).
@@ -101,97 +94,10 @@ type Props = {
   onTitleChange?: (title: string) => void;
 };
 
-// Connects to the Hocuspocus collaboration server and syncs the page's title
-// and BlockNote body over Yjs. The collab server authorizes each connection
-// with a short-lived token minted by the getCollabToken Server Action; the
-// provider calls it again on every reconnect.
-// Waits before reconnecting after a refused connection. Refusals are usually
-// final (no access, page deleted), but can also be transient: the token
-// request failing for a moment (network, a server restart or, in
-// development, a recompile) or the server failing to check access. So the
-// editor tries again a few times before saying the page can't be opened.
-const RETRY_DELAYS_MS = [1000, 2000, 4000];
-
+// Connects to the collaboration server (CollabConnection) and syncs the
+// page's title and BlockNote body over Yjs.
 export function CollaborativeEditor(props: Props) {
-  const router = useRouter();
-  const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
-  // Bumped to replace the provider with a fresh one (new token, new socket).
-  const [attempt, setAttempt] = useState(0);
-  // Refusals since the last successful sync.
-  const failures = useRef(0);
-  // The provider whose first sync finished. Until then the document (and
-  // its title) is empty, so the placeholder is shown instead.
-  const [synced, setSynced] = useState<HocuspocusProvider | null>(null);
-  // Shown instead of the editor once it can't be used any more.
-  const [failure, setFailure] = useState<"openFailed" | "movedToTrash" | "outdated" | null>(null);
-  const t = useTranslations("editor");
-
-  // One connection per mounted page, closed when leaving it — navigating to
-  // another page would otherwise leave the old socket open. The page screen
-  // remounts this component per page (key={pageId}), so there's no stale
-  // provider to reset on cleanup.
-  useEffect(() => {
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    // The app was updated since this screen was loaded: no retries.
-    let outdated = false;
-    const p = new HocuspocusProvider({
-      url: collabUrl(),
-      name: props.pageId,
-      document: new Y.Doc(),
-      token: async () => {
-        const token = await getCollabToken(props.pageId, COLLAB_CLIENT_VERSION);
-        if (token === OUTDATED_CLIENT) {
-          outdated = true;
-          throw new Error("Outdated editor");
-        }
-        return token;
-      },
-      onSynced: () => {
-        failures.current = 0;
-        setSynced(p);
-      },
-      // Also fires when getCollabToken() itself throws.
-      onAuthenticationFailed: () => {
-        if (outdated) {
-          setFailure("outdated");
-          return;
-        }
-        const delay = RETRY_DELAYS_MS[failures.current++];
-        if (delay === undefined) {
-          setFailure("openFailed");
-          return;
-        }
-        retryTimer = setTimeout(() => setAttempt((n) => n + 1), delay);
-      },
-      onStateless: ({ payload }) => {
-        try {
-          const type = (JSON.parse(payload) as { type?: string }).type;
-          if (type === PAGE_DELETED) {
-            setFailure("movedToTrash");
-          } else if (type === PAGE_MOVED) {
-            // The server closes this connection next. Reconnect with a fresh
-            // token (access is checked again), and refresh the screen: the
-            // sidebar and this page's access may have changed.
-            retryTimer = setTimeout(() => setAttempt((n) => n + 1), 0);
-            router.refresh();
-          }
-        } catch {
-          // Not ours.
-        }
-      },
-    });
-    // Opening the socket is a side effect tied to mount/unmount (and must
-    // survive StrictMode's double effect run), so it can't happen in render.
-    setProvider(p);
-    return () => {
-      clearTimeout(retryTimer);
-      p.destroy();
-    };
-  }, [props.pageId, attempt, router]);
-
-  if (failure) return <EditorPlaceholder message={t(failure)} reload={failure === "outdated" ? t("reload") : undefined} />;
-  if (!provider || synced !== provider) return <EditorPlaceholder />;
-  return <EditorBody {...props} provider={provider} />;
+  return <CollabConnection pageId={props.pageId}>{(provider) => <EditorBody {...props} provider={provider} />}</CollabConnection>;
 }
 
 // BlockNote calls this for dropped/pasted files and the file blocks' upload
@@ -206,17 +112,8 @@ async function uploadFile(pageId: string, file: File): Promise<string> {
   }
 }
 
-class UploadError extends Error {}
-
 // Stores a file as an attachment of the page and returns its URL.
-async function postFile(pageId: string, file: File): Promise<string> {
-  const body = new FormData();
-  body.append("file", file);
-  const res = await fetch(withBasePath(`/api/files?pageId=${encodeURIComponent(pageId)}`), { method: "POST", body });
-  const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
-  if (!res.ok || !data?.url) throw new UploadError(data?.error ?? text("editor.uploadFailed"));
-  return data.url;
-}
+const postFile = (pageId: string, file: File) => postSharedFile(pageId, file, text("editor.uploadFailed"));
 
 // Editors in the middle of a paste: the H1 rule in EditorBody leaves the
 // pasted headings to shiftPastedHeadings.
@@ -785,6 +682,7 @@ function EditorBody({
           untitled: t("common.untitled"),
           mermaid: format === "pdf" ? "keep" : "code",
           people: Object.fromEntries(((await pagePeople(pageId)) ?? []).map((p) => [p.id, p.name])),
+          whiteboard: t("editor.slash.whiteboard"),
         });
         if (format === "md") {
           const body = editor.blocksToMarkdownLossy(prepared as never[]);
@@ -862,120 +760,6 @@ function EditorBody({
           {t("editor.makingPdf")}
         </p>
       )}
-    </>
-  );
-}
-
-// A plain textarea bound to a Y.Text: local edits are applied as a minimal
-// insert/delete, and remote edits shift the caret instead of resetting it.
-function TitleField({
-  ytext,
-  readOnly,
-  onChange,
-  onEnter,
-}: {
-  ytext: Y.Text;
-  readOnly: boolean;
-  onChange?: (title: string) => void;
-  onEnter: () => void;
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const [value, setValue] = useState(() => ytext.toString());
-  const t = useTranslations();
-  const displayTitle = useDisplayTitle();
-
-  useEffect(() => {
-    const sync = (event?: Y.YTextEvent) => {
-      const el = ref.current;
-      const next = ytext.toString();
-      if (!event || event.transaction.local || !el || document.activeElement !== el) {
-        setValue(next);
-        return;
-      }
-      // Remote edit while typing: keep the caret next to the same characters.
-      const shift = (pos: number) => {
-        let index = 0;
-        let result = pos;
-        for (const op of event.delta) {
-          if (op.retain) index += op.retain;
-          else if (op.insert) {
-            const len = typeof op.insert === "string" ? op.insert.length : 1;
-            if (index <= pos) result += len;
-            index += len;
-          } else if (op.delete && index < pos) {
-            result -= Math.min(op.delete, pos - index);
-          }
-        }
-        return result;
-      };
-      const start = shift(el.selectionStart);
-      const end = shift(el.selectionEnd);
-      setValue(next);
-      requestAnimationFrame(() => el.setSelectionRange(start, end));
-    };
-    sync();
-    ytext.observe(sync);
-    return () => ytext.unobserve(sync);
-  }, [ytext]);
-
-  useEffect(() => {
-    onChange?.(value);
-    document.title = `${displayTitle(value)} | KNOWLECTIVE`;
-    // Grow with the text instead of scrolling inside the field.
-    const el = ref.current;
-    if (el) {
-      el.style.height = "auto";
-      el.style.height = `${el.scrollHeight}px`;
-    }
-  }, [value, onChange]);
-
-  return (
-    <>
-    {/* Printed instead of the field, whose height is fitted to the screen's width. */}
-    <div className={styles.printTitle} aria-hidden>
-      {displayTitle(value)}
-    </div>
-    <textarea
-      ref={ref}
-      className={styles.title}
-      data-ui="TitleField"
-      value={value}
-      placeholder={t("common.untitled")}
-      readOnly={readOnly}
-      rows={1}
-      maxLength={MAX_TITLE_LENGTH}
-      aria-label={t("editor.titleLabel")}
-      spellCheck={false}
-      onKeyDown={(e) => {
-        // Enter moves to the body, like Notion. Not while an IME is composing.
-        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-          e.preventDefault();
-          onEnter();
-        }
-      }}
-      onChange={(e) => {
-        // A title is a single line.
-        const next = e.target.value.replace(/[\r\n]+/g, " ");
-        const prev = ytext.toString();
-        let start = 0;
-        while (start < prev.length && start < next.length && prev[start] === next[start]) start++;
-        let end = 0;
-        while (
-          end < prev.length - start &&
-          end < next.length - start &&
-          prev[prev.length - 1 - end] === next[next.length - 1 - end]
-        ) {
-          end++;
-        }
-        ytext.doc!.transact(() => {
-          const removed = prev.length - start - end;
-          if (removed > 0) ytext.delete(start, removed);
-          const inserted = next.slice(start, next.length - end);
-          if (inserted) ytext.insert(start, inserted);
-        });
-        setValue(next);
-      }}
-    />
     </>
   );
 }

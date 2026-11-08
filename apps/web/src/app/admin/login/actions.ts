@@ -17,7 +17,7 @@ import {
   recordLoginAttempt,
 } from "@/lib/admin/auth";
 import { normalizeEmail } from "@/lib/auth/session";
-import { getAdminConsoleRole } from "@/lib/roles";
+import { getAdminConsoleAccess } from "@/lib/roles";
 import { getRequestContext, type RequestContext } from "@/lib/request";
 import { isIpAllowed } from "@/lib/ip";
 import { generateTotpSecret, verifyTotp } from "@/lib/admin/totp";
@@ -72,7 +72,7 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
     ? await verifyPassword(password, user.passwordHash)
     : await verifyPasswordAgainstDummy(password);
   // Not saying "not an admin" separately: it would confirm the password.
-  const allowed = passwordOk && user !== null && (await getAdminConsoleRole(user.id)) !== null;
+  const allowed = passwordOk && user !== null && (await getAdminConsoleAccess(user.id)) !== null;
 
   if (!allowed) {
     return failure(ctx, (await getTranslations("admin.login.errors"))("wrongOrNotAdmin"), email);
@@ -111,7 +111,7 @@ export async function verifyAccountCode(_prev: LoginState, formData: FormData): 
     where: { id: userId },
     select: { totpSecret: true, totpLastStep: true },
   });
-  if (!user?.totpSecret || (await getAdminConsoleRole(userId)) === null) {
+  if (!user?.totpSecret || (await getAdminConsoleAccess(userId)) === null) {
     await endAdminSession();
     redirect("/admin/login");
   }

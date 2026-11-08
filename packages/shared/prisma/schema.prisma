@@ -58,28 +58,30 @@ model User {
   // in creation order.
   rootOrder    String[]  @default([])
 
-  pages           Page[]               @relation("PageCreatedBy")
-  updatedPages    Page[]               @relation("PageUpdatedBy")
-  deletedPages    Page[]               @relation("PageDeletedBy")
-  lockedPages     Page[]               @relation("PageLockedBy")
-  personalRoot    KnowledgeRoot?       @relation("PersonalRoot")
-  sessions        UserSession[]
-  usedInvitations Invitation[]
-  passwordResets  PasswordResetToken[]
-  groups          GroupMember[]
-  uploadedFiles   FileObject[]
-  adminSessions   AdminSession[]
-  passkeys        UserPasskey[]
-  apiKeys         ApiKey[]
-  emailCodes      EmailCode[]
-  emailChanges    EmailChangeRequest[]
-  chatMessages    ChatMessage[]
-  chatLocks       ChatLock[]
-  tableViews      TableViewPref[]
-  notifications   Notification[]   @relation("NotificationRecipient")
-  notificationsBy Notification[]   @relation("NotificationActor")
-  follows         PageFollow[]
-  pushDevices     PushSubscription[]
+  pages             Page[]               @relation("PageCreatedBy")
+  updatedPages      Page[]               @relation("PageUpdatedBy")
+  deletedPages      Page[]               @relation("PageDeletedBy")
+  lockedPages       Page[]               @relation("PageLockedBy")
+  personalRoot      KnowledgeRoot?       @relation("PersonalRoot")
+  sessions          UserSession[]
+  usedInvitations   Invitation[]
+  passwordResets    PasswordResetToken[]
+  groups            GroupMember[]
+  uploadedFiles     FileObject[]
+  adminSessions     AdminSession[]
+  passkeys          UserPasskey[]
+  apiKeys           ApiKey[]
+  emailCodes        EmailCode[]
+  emailChanges      EmailChangeRequest[]
+  chatMessages      ChatMessage[]
+  chatLocks         ChatLock[]
+  chatReactions     ChatReaction[]
+  chatPollVotes     ChatPollVote[]
+  tableViews        TableViewPref[]
+  notifications     Notification[]       @relation("NotificationRecipient")
+  notificationsBy   Notification[]       @relation("NotificationActor")
+  follows           PageFollow[]
+  pushDevices       PushSubscription[]
   // Which notifications this person wants, and whether desktop notifications
   // show details (apps/web/src/lib/notification-prefs.ts); null: the defaults.
   notificationPrefs Json?
@@ -128,10 +130,18 @@ model KnowledgeRoot {
 
 // Page hierarchy / metadata lives here. The actual block content lives in the
 // Yjs document referenced by PageDocument — Postgres never parses block content.
+enum PageKind {
+  DOCUMENT
+  WHITEBOARD
+}
+
 model Page {
   id          String    @id @default(cuid())
   title       String    @default("Untitled")
   icon        String?
+  // What the page is: a document (BlockNote) or a whiteboard (a canvas in the
+  // same Yjs document, lib/whiteboard.ts). Chosen on creation, never changed.
+  kind        PageKind  @default(DOCUMENT)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   // Set when the page is moved to the trash. Its descendants keep null but
@@ -310,14 +320,14 @@ model PageFileRefs {
 // ties the messages to the block. The text is encrypted with the data key
 // (AAD: the message id).
 model ChatMessage {
-  id        String   @id
+  id        String         @id
   pageId    String
-  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  page      Page           @relation(fields: [pageId], references: [id], onDelete: Cascade)
   blockId   String
   authorId  String?
-  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  author    User?          @relation(fields: [authorId], references: [id], onDelete: SetNull)
   bodyEnc   Bytes
-  createdAt DateTime @default(now())
+  createdAt DateTime       @default(now())
   // Set when its author last changed the text (only the author can).
   editedAt  DateTime?
   // Set when its author took it back ("unsent"): the text is then emptied,
@@ -325,10 +335,54 @@ model ChatMessage {
   deletedAt DateTime?
   // The message this one replies to (in the same chat).
   replyToId String?
-  replyTo   ChatMessage?  @relation("ChatReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies   ChatMessage[] @relation("ChatReplies")
+  replyTo   ChatMessage?   @relation("ChatReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[]  @relation("ChatReplies")
+  reactions ChatReaction[]
+  // Set when the message is a poll (its text is the question).
+  poll      ChatPoll?
 
   @@index([pageId, blockId, createdAt])
+}
+
+// An emoji reaction to someone else's chat message (one of CHAT_REACTIONS in
+// apps/web/src/lib/chat-types.ts). Someone who can edit the page can add one
+// to a message they didn't write; each person once per emoji.
+model ChatReaction {
+  messageId String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime    @default(now())
+
+  @@id([messageId, userId, emoji])
+}
+
+// A poll in a chat: its message's text is the question; the choices are
+// fixed when it's posted (encrypted with the data key, AAD: the message's
+// id). Only its author can close it, and a closed poll can't be reopened.
+// Taking the message back deletes the poll with its votes.
+model ChatPoll {
+  messageId  String         @id
+  message    ChatMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  // More than one choice per person.
+  multiple   Boolean
+  optionsEnc Bytes
+  closedAt   DateTime?
+  votes      ChatPollVote[]
+}
+
+// A person's vote for one choice of a poll (its index among the choices).
+// Changed freely until the poll is closed; not while the chat is locked.
+model ChatPollVote {
+  messageId String
+  poll      ChatPoll @relation(fields: [messageId], references: [messageId], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  option    Int
+  createdAt DateTime @default(now())
+
+  @@id([messageId, userId, option])
 }
 
 // A locked chat block: nobody can post, change or take back its messages
@@ -402,37 +456,47 @@ model InstanceConfig {
   // apps/web/src/lib/upload-types.ts; keep the two the same.
   uploadAllowedExtensions String[] @default(["avif", "bmp", "csv", "doc", "docx", "gif", "heic", "heif", "jpeg", "jpg", "json", "m4a", "markdown", "md", "mov", "mp3", "mp4", "odp", "ods", "odt", "ogg", "pdf", "png", "ppt", "pptx", "rtf", "tsv", "txt", "wav", "webm", "webp", "xls", "xlsx", "zip"])
 
-  // Link previews: whether the server fetches the pages of pasted URLs,
-  // whether private (intranet) addresses are fetched too, and the forward
-  // proxy to fetch through (URL without credentials; the password is
-  // encrypted with the DEK). apps/web/src/lib/link-preview-settings.ts.
-  linkPreviewEnabled          Boolean @default(true)
-  linkPreviewAllowPrivate     Boolean @default(false)
-  linkPreviewProxyUrl         String?
-  linkPreviewProxyUsername    String?
-  linkPreviewProxyPasswordEnc Bytes?
+  // Link previews: whether the server fetches the pages of pasted URLs, and
+  // whether private (intranet) addresses are fetched too.
+  // apps/web/src/lib/link-preview-settings.ts.
+  linkPreviewEnabled      Boolean @default(true)
+  linkPreviewAllowPrivate Boolean @default(false)
+
+  // The forward proxy the server's own connections to the outside go through
+  // (link previews, desktop notifications, single sign-on, mail, file
+  // storage): URL without credentials, the password encrypted with the DEK,
+  // and the hosts reached directly. apps/web/src/lib/outbound-proxy.ts.
+  outboundProxyUrl         String?
+  outboundProxyUsername    String?
+  outboundProxyPasswordEnc Bytes?
+  outboundProxyBypass      String[] @default([])
 
   // Whether pages may be public: viewable without logging in, through the
   // built-in "public" group (packages/shared/src/permissions.ts). Off: grants
   // to that group count for nobody, and none can be added.
-  publicPagesAllowed   Boolean @default(false)
+  publicPagesAllowed       Boolean @default(false)
   // Whether search engines may index the site (public pages are what they
   // can reach). Off: every response says X-Robots-Tag: noindex, nofollow
   // (apps/web/server/robots.ts).
-  searchEnginesAllowed Boolean @default(false)
+  searchEnginesAllowed     Boolean @default(false)
   // Desktop notifications (Web Push, apps/web/server/notifications.ts): the
   // server sends them through the browsers' push services (Google, Mozilla,
   // Apple, Microsoft). Off for a network that can't reach them; the
   // notifications in the app stay.
   pushNotificationsEnabled Boolean @default(true)
+
+  // Whether the auditors group's members may also view everyone's personal
+  // knowledge root (read-only; each page they open there is recorded in the
+  // audit log). packages/shared/src/permissions.ts.
+  auditorsSeePersonalRoots Boolean @default(false)
   // The top page: where "/" goes for someone with nowhere else to go (see
   // apps/web/src/lib/landing-page.ts). No foreign key: used only while the
   // visitor can open it (checked on each visit).
-  landingPageId        String?
+  landingPageId            String?
   // The language for whoever has none of their own: visitors whose browser
   // asks for neither supported language, and emails to people without an
   // account (apps/web/src/i18n). "ja" or "en".
-  defaultLocale        String  @default("ja")
+  defaultLocale            String  @default("ja")
 
   // How accounts are created: by invitation only, or also by anyone who
   // confirms their email address at /signup (needs mail settings).

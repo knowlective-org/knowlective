@@ -9,6 +9,8 @@ import { groupName } from "@/i18n/group-name";
 import { isLocale, LOCALE_NAMES } from "@/i18n/locales";
 import { withBasePath } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
+import { disconnectUsers } from "@/lib/collab-events";
+import { AUDITORS_GROUP } from "shared";
 import { endAdminSession, requireAdmin } from "@/lib/admin/auth";
 import { formatCidr, isIpAllowed, parseCidr } from "@/lib/ip";
 import { networkSettingsChanged } from "@/lib/network-policy";
@@ -51,6 +53,8 @@ import { getLocale } from "next-intl/server";
 import { siteDefaultLocale } from "@/i18n/locale";
 import { MAX_ALLOWED_EXTENSIONS, parseExtensions } from "@/lib/upload-types";
 import { parseProxyUrl } from "@/lib/link-preview";
+import { getOutboundProxySettings, saveOutboundProxySettings as storeOutboundProxySettings } from "@/lib/outbound-proxy";
+import { MAX_BYPASS_ENTRIES, parseBypassList } from "@/lib/proxy-bypass";
 import { getLinkPreviewSettings, saveLinkPreviewSettings as storeLinkPreviewSettings } from "@/lib/link-preview-settings";
 import {
   MAX_FILE_SIZE_MB_LIMIT,
@@ -222,7 +226,9 @@ export async function issueInvitation(
   // Groups to join. Page access only ever comes from group grants.
   const requested = [...new Set(formData.getAll("groupIds").filter((v): v is string => typeof v === "string"))];
   const groups = await prisma.group.findMany({ where: { id: { in: requested } }, select: { id: true, name: true, builtIn: true } });
-  if (groups.length !== requested.length) return { error: t("admin.invitation.errors.unknownGroup") };
+  // Built-in groups are never joined by invitation (the auditors group's
+  // members are added on its page, by a site admin).
+  if (groups.length !== requested.length || groups.some((g) => g.builtIn)) return { error: t("admin.invitation.errors.unknownGroup") };
   // Content managers may only hand out groups within trees they manage.
   const allowedGroups = await manageableGroupIds(actor);
   if (allowedGroups !== "all" && groups.some((g) => !allowedGroups.has(g.id))) {
@@ -581,8 +587,8 @@ export async function saveLandingPage(_prev: LandingPageSettingState, formData: 
 
 export type LinkPreviewSettingsState = { error?: string; saved?: boolean };
 
-// Whether the server fetches the pages of pasted URLs, from where, and
-// through which proxy.
+// Whether the server fetches the pages of pasted URLs, and from where (the
+// proxy is the outbound one, saveOutboundProxy()).
 export async function saveLinkPreviewSettings(
   _prev: LinkPreviewSettingsState,
   formData: FormData,
@@ -590,46 +596,64 @@ export async function saveLinkPreviewSettings(
   const { actor } = await requireAdmin(["SITE_ADMIN"]);
   const before = await getLinkPreviewSettings();
   const enabled = formData.get("enabled") === "on";
-  // The other fields are disabled (and so not sent) while previews are off:
-  // keep what was saved.
+  // Disabled (and so not sent) while previews are off: keep what was saved.
   const allowPrivate = enabled ? formData.get("allowPrivate") === "on" : before.allowPrivate;
-
-  let proxyUrl = before.proxyUrl;
-  let proxyUsername = before.proxyUsername;
-  let proxyPassword: string | undefined;
-  if (enabled) {
-    const rawProxy = formData.get("proxyUrl");
-    const rawUser = formData.get("proxyUsername");
-    const rawPassword = formData.get("proxyPassword");
-    if (typeof rawProxy !== "string" || rawProxy.trim() === "") {
-      proxyUrl = null;
-      proxyUsername = null;
-    } else {
-      const parsed = parseProxyUrl(rawProxy);
-      const t = await getTranslations("admin.linkPreview.errors");
-      if (!parsed) return { error: t("proxy") };
-      if (parsed.username || parsed.password) {
-        return { error: t("proxyCredentials") };
-      }
-      proxyUrl = parsed.origin;
-      proxyUsername = typeof rawUser === "string" && rawUser.trim() !== "" ? rawUser.trim().slice(0, 200) : null;
-      if (typeof rawPassword === "string" && rawPassword !== "") proxyPassword = rawPassword.slice(0, 500);
-    }
-  }
-
-  await storeLinkPreviewSettings({ enabled, allowPrivate, proxyUrl, proxyUsername, proxyPassword });
+  await storeLinkPreviewSettings({ enabled, allowPrivate });
 
   const audit = await auditTranslator();
-  const describe = (s: { enabled: boolean; allowPrivate: boolean; proxyUrl: string | null }) =>
-    s.enabled
-      ? audit("audit.linkPreviewOn", { allowPrivate: String(s.allowPrivate), proxy: s.proxyUrl ?? "none" })
-      : audit("audit.linkPreviewOff");
+  const describe = (s: { enabled: boolean; allowPrivate: boolean }) =>
+    s.enabled ? audit("audit.linkPreviewOn", { allowPrivate: String(s.allowPrivate) }) : audit("audit.linkPreviewOff");
   const from = describe(before);
-  const to = describe({ enabled, allowPrivate, proxyUrl });
-  if (from !== to || proxyPassword !== undefined || proxyUsername !== before.proxyUsername) {
+  const to = describe({ enabled, allowPrivate });
+  if (from !== to) {
     await recordAudit(actor, "link-preview.settings", audit("audit.linkPreview", { from, to }), {
-      from: { enabled: before.enabled, allowPrivate: before.allowPrivate, proxyUrl: before.proxyUrl },
-      to: { enabled, allowPrivate, proxyUrl },
+      from: { enabled: before.enabled, allowPrivate: before.allowPrivate },
+      to: { enabled, allowPrivate },
+    });
+  }
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+export type OutboundProxyState = { error?: string; saved?: boolean };
+
+// The proxy the server's own connections to the outside go through, and the
+// hosts reached directly (lib/outbound-proxy.ts).
+export async function saveOutboundProxy(_prev: OutboundProxyState, formData: FormData): Promise<OutboundProxyState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const t = await getTranslations("admin.outboundProxy.errors");
+  const before = await getOutboundProxySettings(prisma);
+  const rawUrl = formData.get("url");
+  let url: string | null = null;
+  let username: string | null = null;
+  let password: string | undefined;
+  let bypass: string[] = [];
+  if (typeof rawUrl === "string" && rawUrl.trim() !== "") {
+    const parsed = parseProxyUrl(rawUrl);
+    if (!parsed) return { error: t("url") };
+    if (parsed.username || parsed.password) return { error: t("credentials") };
+    url = parsed.origin;
+    const rawUser = formData.get("username");
+    const rawPassword = formData.get("password");
+    username = typeof rawUser === "string" && rawUser.trim() !== "" ? rawUser.trim().slice(0, 200) : null;
+    if (typeof rawPassword === "string" && rawPassword !== "") password = rawPassword.slice(0, 500);
+    const rawBypass = formData.get("bypass");
+    const list = parseBypassList(typeof rawBypass === "string" ? rawBypass : "");
+    if (list.invalid.length > 0) return { error: t("bypass", { entries: list.invalid.slice(0, 3).join(", ") }) };
+    if (list.entries.length > MAX_BYPASS_ENTRIES) return { error: t("bypassTooMany", { max: MAX_BYPASS_ENTRIES }) };
+    bypass = list.entries;
+  }
+  await storeOutboundProxySettings(prisma, { url, username, password, bypass });
+
+  const audit = await auditTranslator();
+  const describe = (s: { url: string | null; bypass: string[] }) =>
+    s.url ? audit("audit.outboundProxyOn", { url: s.url, bypass: s.bypass.join(", ") || "none" }) : audit("audit.outboundProxyOff");
+  const from = describe(before);
+  const to = describe({ url, bypass });
+  if (from !== to || password !== undefined || username !== (before.url ? before.username : null)) {
+    await recordAudit(actor, "outbound-proxy.settings", audit("audit.outboundProxy", { from, to }), {
+      from: { url: before.url, username: before.username, bypass: before.bypass },
+      to: { url, username, bypass, passwordChanged: password !== undefined },
     });
   }
   revalidatePath("/admin", "layout");
@@ -1060,6 +1084,29 @@ export type PushNotificationsState = { error?: string; saved?: boolean };
 // Desktop notifications for the whole site (server/notifications.ts): off for
 // a network that can't reach the browsers' push services. The notifications
 // in the app stay either way.
+export type AuditorSettingsState = { error?: string; saved?: boolean };
+
+// Whether the auditors group may view everyone's personal knowledge root.
+// Taken back: their open editors there are closed (they're checked again).
+export async function saveAuditorSettings(_prev: AuditorSettingsState, formData: FormData): Promise<AuditorSettingsState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const personalRoots = formData.get("personalRoots") === "on";
+  const before = await prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { auditorsSeePersonalRoots: true } });
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { auditorsSeePersonalRoots: personalRoots } });
+  if (before.auditorsSeePersonalRoots !== personalRoots) {
+    if (!personalRoots) {
+      const auditors = await prisma.groupMember.findMany({ where: { group: { builtIn: AUDITORS_GROUP } }, select: { userId: true } });
+      disconnectUsers(auditors.map((a) => a.userId));
+    }
+    const audit = await auditTranslator();
+    await recordAudit(actor, "auditors.settings", audit("audit.auditorsPersonalRoots", { allowed: String(personalRoots) }), {
+      personalRoots,
+    });
+  }
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
 export async function savePushNotificationsSetting(
   _prev: PushNotificationsState,
   formData: FormData,

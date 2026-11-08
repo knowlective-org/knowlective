@@ -68,10 +68,11 @@ async function createError(result: { error: CreatePageError }): Promise<{ error:
   return { error: t("cannotCreateHere") };
 }
 
-// Creates an untitled child page under `parentId` and opens it (the sidebar's + button).
-export async function createChildPage(parentId: string): Promise<{ error: string }> {
+// Creates an untitled child page under `parentId` and opens it (the
+// sidebar's + button, and its whiteboard button for `whiteboard`).
+export async function createChildPage(parentId: string, whiteboard = false): Promise<{ error: string }> {
   const user = await requireUser();
-  const result = await insertChildPage(user.id, parentId, "");
+  const result = await insertChildPage(user.id, parentId, "", whiteboard === true ? "WHITEBOARD" : "DOCUMENT");
   if ("error" in result) return createError(result);
   redirect(`/pages/${result.id}`);
 }

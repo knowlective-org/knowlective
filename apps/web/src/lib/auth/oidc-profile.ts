@@ -1,6 +1,7 @@
 import type { PrismaClient } from "shared";
 import { auditTranslator } from "@/i18n/audit";
 import { recordAudit } from "@/lib/audit";
+import { disconnectUsers } from "@/lib/collab-events";
 
 // What single sign-on takes from the identity provider at every sign-in
 // (lib/auth/oidc.ts): the display name (a template of claims) and the groups
@@ -145,6 +146,8 @@ export async function syncOidcGroups(
       ? [prisma.groupMember.deleteMany({ where: { userId: user.id, viaOidc: true, groupId: { in: removed.map((m) => m.groupId) } } })]
       : []),
   ]);
+  // Out of a group: editors open elsewhere are checked again.
+  if (removed.length > 0) disconnectUsers([user.id]);
   const audit = await auditTranslator();
   const list = (names: string[]) => (names.length > 0 ? names.join(audit("common.listSeparator")) : "none");
   await recordAudit(

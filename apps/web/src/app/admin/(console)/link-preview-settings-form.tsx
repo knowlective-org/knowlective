@@ -13,7 +13,6 @@ export function LinkPreviewSettingsForm({ current }: { current: LinkPreviewSetti
   const ta = useTranslations("admin");
   const [enabled, setEnabled] = useState(current.enabled);
   const [allowPrivate, setAllowPrivate] = useState(current.allowPrivate);
-  const [proxyUrl, setProxyUrl] = useState(current.proxyUrl ?? "");
 
   return (
     // Submitted by hand, not via `action`: React resets action forms after
@@ -59,53 +58,6 @@ export function LinkPreviewSettingsForm({ current }: { current: LinkPreviewSetti
           </span>
         </span>
       </label>
-
-      <label>
-        {ta("linkPreview.proxy")}
-        <input
-          type="url"
-          name="proxyUrl"
-          value={proxyUrl}
-          onChange={(e) => setProxyUrl(e.target.value)}
-          disabled={!enabled}
-          placeholder="http://proxy.example.co.jp:8080"
-          spellCheck={false}
-          autoComplete="off"
-          className={styles.field}
-          data-ui="LinkPreviewSettingsForm.proxyUrlInput"
-        />
-        <span className={styles.note}>
-          {ta("linkPreview.proxyNote")}
-        </span>
-      </label>
-
-      {enabled && proxyUrl.trim() !== "" && (
-        <>
-          <label>
-            {ta("linkPreview.proxyUser")}
-            <input
-              type="text"
-              name="proxyUsername"
-              defaultValue={current.proxyUsername ?? ""}
-              autoComplete="off"
-              className={styles.field}
-              data-ui="LinkPreviewSettingsForm.proxyUsernameInput"
-            />
-          </label>
-          <label>
-            {ta("linkPreview.proxyPassword")}
-            <input
-              type="password"
-              name="proxyPassword"
-              placeholder={current.hasProxyPassword ? ta("linkPreview.proxyPasswordKeep") : ""}
-              autoComplete="new-password"
-              className={styles.field}
-              data-ui="LinkPreviewSettingsForm.proxyPasswordInput"
-            />
-            <span className={styles.note}>{ta("linkPreview.proxyPasswordNote")}</span>
-          </label>
-        </>
-      )}
 
       <p
         data-ui="LinkPreviewSettingsForm.status"

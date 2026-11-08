@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type DragEvent, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { createChildPage } from "@/app/(app)/actions";
 import { useTranslations } from "next-intl";
 import { useDisplayTitle } from "@/i18n/use-display-title";
@@ -213,11 +214,11 @@ export function DocTree({
   };
 
   const [creating, startCreating] = useTransition();
-  const addChild = (parentId: string) =>
+  const addChild = (parentId: string, whiteboard = false) =>
     startCreating(async () => {
       // On success the action redirects to the new page, which remounts the
       // tree with the path to it expanded.
-      const result = await createChildPage(parentId);
+      const result = await createChildPage(parentId, whiteboard);
       if (result?.error) await showAlert(result.error, { title: t("cannotCreate") });
     });
 
@@ -320,20 +321,7 @@ export function DocTree({
               🔒
             </span>
           )}
-          {node.canAddChild && (
-            <button
-              type="button"
-              className={styles.add}
-              data-ui="DocTree.addChildButton"
-              data-id={node.id}
-              aria-label={t("addChild")}
-              title={t("addChild")}
-              disabled={creating}
-              onClick={() => addChild(node.id)}
-            >
-              ＋
-            </button>
-          )}
+          {node.canAddChild && <AddPageMenu parentId={node.id} disabled={creating} onAdd={(whiteboard) => addChild(node.id, whiteboard)} />}
         </div>
         {isOpen && children.length > 0 && depth < maxDepth && (
           <ul className={styles.list}>
@@ -348,5 +336,113 @@ export function DocTree({
     <nav aria-label={t("label")} data-ui="DocTree" aria-busy={moving}>
       <ul className={styles.list}>{entries.map((e) => renderNode(e, 0, new Set([e.id])))}</ul>
     </nav>
+  );
+}
+
+// The row's "＋": a menu to add a child page, a document or a whiteboard.
+// Put in the body, position: fixed: inside the sidebar (sticky, so a stacking
+// context of its own) it would go under the page beside it.
+function AddPageMenu({ parentId, disabled, onAdd }: { parentId: string; disabled: boolean; onAdd: (whiteboard: boolean) => void }) {
+  const t = useTranslations("docTree");
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const open = pos !== null;
+
+  useEffect(() => {
+    if (!open) return;
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const close = () => setPos(null);
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!menuRef.current?.contains(target) && !buttonRef.current?.contains(target)) close();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        close();
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    // A fixed menu would drift away from its row.
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const choose = (whiteboard: boolean) => {
+    setPos(null);
+    onAdd(whiteboard);
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={styles.add}
+        data-ui="AddPageMenu.toggleButton"
+        data-id={parentId}
+        aria-label={t("addChild")}
+        title={t("addChild")}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => {
+          if (open) return setPos(null);
+          const r = buttonRef.current!.getBoundingClientRect();
+          // Kept inside the window: the button is at the sidebar's right edge.
+          setPos({
+            top: r.bottom + 4,
+            left: Math.max(8, Math.min(r.left, window.innerWidth - 208)),
+          });
+        }}
+      >
+        ＋
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            className={styles.addMenu}
+            style={{ top: pos.top, left: pos.left }}
+            data-ui="AddPageMenu"
+            data-id={parentId}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.addMenuItem}
+              data-ui="AddPageMenu.documentItem"
+              onClick={() => choose(false)}
+            >
+              <span className={styles.addMenuIcon} aria-hidden>
+                📄
+              </span>
+              {t("addDocument")}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.addMenuItem}
+              data-ui="AddPageMenu.whiteboardItem"
+              onClick={() => choose(true)}
+            >
+              <span className={styles.addMenuIcon} aria-hidden>
+                ▦
+              </span>
+              {t("addWhiteboard")}
+            </button>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }

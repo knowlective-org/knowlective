@@ -1,12 +1,12 @@
 import { type APIRequestContext, type Browser, expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
 import { withPrisma } from "./db";
-import { attachFile, createPage, editorBody, openPage, trashOpenPage } from "./helpers";
+import { addPageFromTree, attachFile, createPage, editorBody, openPage, trashOpenPage } from "./helpers";
 
 // Who gets what: every screen and route of a page, as each kind of account —
 // not logged in, outsider (no group), viewer, editor, and the admin (who
-// manages the E2E tree) — and the share screen's Server Actions posted
-// directly, without the screen, by people who mustn't use them.
+// manages the E2E tree) — and Server Actions posted directly, without the
+// screen, by people who mustn't use them.
 
 type Account = "guest" | "outsider" | "viewer" | "editor" | "admin";
 const ACCOUNTS: Account[] = ["guest", "outsider", "viewer", "editor", "admin"];
@@ -124,6 +124,64 @@ test.describe("Access matrix", () => {
       const context = await contextFor(browser, account);
       await post(context.request, removeGrant, { pageId, groupId });
       expect((await grant())?.access, account).toBe("VIEW");
+      await context.close();
+    }
+  });
+
+  test("the page picker's and whiteboard block's actions, called directly, show only what each account may see", async ({ page, browser, baseURL }) => {
+    test.setTimeout(150_000);
+    // A whiteboard under the page, its title a marker.
+    await openPage(page, pageId);
+    await addPageFromTree(page, pageId, "whiteboard");
+    await page.waitForURL((url) => !url.pathname.endsWith(`/${pageId}`));
+    await expect(page.getByTestId("Whiteboard.canvas")).toBeVisible();
+    const boardId = new URL(page.url()).pathname.split("/").pop()!;
+    const boardTitle = `E2E 一覧のボード ${Date.now()}`;
+    await page.getByTestId("TitleField").fill(boardTitle);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await expect.poll(() => withPrisma(async (prisma) => (await prisma.page.findUniqueOrThrow({ where: { id: boardId } })).title)).toBe(boardTitle);
+
+    // The actions' ids, from the requests the admin's screen makes when the
+    // board is shown in the page (picker, then the board).
+    const actions = new Map<string, string>();
+    page.on("request", (request) => {
+      const id = request.headers()["next-action"];
+      const body = request.postData() ?? "";
+      if (id && body.startsWith('["whiteboard"')) actions.set("pickable", id);
+      if (id && body === JSON.stringify([boardId])) actions.set("embed", id);
+    });
+    // (In a new page of its own under the page: an empty body.)
+    await openPage(page, pageId);
+    await addPageFromTree(page, pageId);
+    await page.waitForURL((url) => !url.pathname.endsWith(`/${pageId}`) && !url.pathname.endsWith(`/${boardId}`));
+    await editorBody(page).click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("/ホワイトボード");
+    await page.getByRole("option", { name: /ホワイトボード/ }).first().click();
+    await page.getByTestId("WhiteboardEmbed.chooseButton").click();
+    await page.getByTestId("PagePickerDialog.pageSelect").selectOption(boardId);
+    await page.getByTestId("PagePickerDialog.submitButton").click();
+    await expect(page.getByTestId("WhiteboardEmbed.openLink")).toHaveText(boardTitle);
+    expect([...actions.keys()].sort()).toEqual(["embed", "pickable"]);
+
+    const origin = new URL(baseURL!).origin;
+    const call = async (request: APIRequestContext, action: string, args: unknown[]) => {
+      const response = await request.post(`pages/${pageId}`, {
+        headers: { Origin: origin, "Next-Action": action, Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8" },
+        data: JSON.stringify(args),
+        maxRedirects: 0,
+      });
+      return response.text();
+    };
+    for (const account of ACCOUNTS) {
+      const context = await contextFor(browser, account);
+      const sees = !["guest", "outsider"].includes(account);
+      // The board and its title: for those who can open it.
+      const embed = await call(context.request, actions.get("embed")!, [boardId]);
+      expect(embed.includes(boardTitle), `${account} embed`).toBe(sees);
+      // The pages to choose from: only those the account can see.
+      const pickable = await call(context.request, actions.get("pickable")!, ["whiteboard", null]);
+      expect(pickable.includes(boardTitle), `${account} pickable`).toBe(sees);
       await context.close();
     }
   });

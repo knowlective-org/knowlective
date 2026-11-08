@@ -13,6 +13,7 @@ import { getDisplayTitle } from "@/i18n/display-title";
 import { publicPageState } from "@/lib/public-page-state";
 import { getBrand } from "@/lib/brand";
 import { jsonLd, pageDescription } from "@/lib/seo";
+import { auditorsSeePersonalRoots, noteAuditorView } from "@/lib/personal-root-audit";
 import { type PageLockView, PageView } from "./page-view";
 
 // Shared by generateMetadata and the page within one request. Someone not
@@ -48,6 +49,11 @@ export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">)
 export default async function PageEditorRoute({ params }: PageProps<"/pages/[pageId]">) {
   const { user, page } = await loadPage((await params).pageId);
   if (!page) notFound();
+
+  // Someone else's personal root (an auditor): recorded, and said so. The
+  // owner's root page says auditors may look, while they may.
+  const viewingAs = user && page.personal ? await noteAuditorView(user, page, "page") : null;
+  const ownerNotice = !!user && page.isRootPage && page.root.ownerId === user.id && (await auditorsSeePersonalRoots());
 
   const [sidebar, publicUrl, guestState, following] = await Promise.all([
     // Its notifications are read now (before the sidebar counts them).
@@ -106,11 +112,13 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
         key={page.id}
         pageId={page.id}
         initialTitle={page.title}
+        kind={page.kind}
         canEdit={atLeast(page.access, "EDIT")}
         lock={lock}
         canManage={atLeast(page.access, "MANAGE")}
         isRootPage={page.isRootPage}
         personal={page.personal}
+        personalNotice={viewingAs !== null ? { auditing: viewingAs } : ownerNotice ? { auditorsMayView: true } : null}
         shareUrl={`${publicUrl}/pages/${page.id}`}
         user={user ? { id: user.id, name: user.name ?? user.email } : null}
         guestState={guestState}

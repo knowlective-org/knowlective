@@ -14,6 +14,7 @@ import { VERSION_INTERVAL_MS } from "@/lib/page-versions";
 import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
+import { noteAuditorView } from "@/lib/personal-root-audit";
 import { HistoryView } from "./history-view";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,6 +30,8 @@ export default async function PageHistoryRoute({ params }: PageProps<"/pages/[pa
   const user = await requireUser(`/pages/${encodeURIComponent(pageId)}/history`);
   const page = await findAccessiblePage(user.id, pageId);
   if (!page) notFound();
+  // Someone else's personal root (an auditor): recorded.
+  if (page.personal) await noteAuditorView(user, page, "history");
 
   const [sidebar, versions, t, displayTitle] = await Promise.all([
     loadSidebar(user),
@@ -59,6 +62,7 @@ export default async function PageHistoryRoute({ params }: PageProps<"/pages/[pa
         </p>
         <HistoryView
           pageId={page.id}
+          whiteboard={page.kind === "WHITEBOARD"}
           canRestore={atLeast(page.access, "EDIT")}
           versions={versions.map((v) => ({
             id: v.id,

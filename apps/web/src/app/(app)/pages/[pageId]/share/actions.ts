@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ACCESS_RANK, PUBLIC_GROUP, atLeast, getInheritedGroupAccess, type PageAccess } from "shared";
+import { ACCESS_RANK, AUDITORS_GROUP, PUBLIC_GROUP, atLeast, getInheritedGroupAccess, type PageAccess } from "shared";
 import { getPageAccess } from "@/lib/page-access";
 import { reconnectDocuments } from "@/lib/collab-events";
 import { publicGroup, publicPagesAllowed, subtreeIds } from "@/lib/public-pages";
@@ -75,8 +75,9 @@ export async function setGrant(formData: FormData): Promise<void> {
   const { user, page, isRootPage } = await requireManager(pageId);
   if (typeof groupId !== "string" || !ACCESS_VALUES.includes(access as PageAccess)) back(pageId, "invalid");
   const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true, builtIn: true } });
-  // Made public with publishPage, never with another access level.
-  if (!group || group.builtIn === PUBLIC_GROUP) back(pageId, "invalid");
+  // Made public with publishPage, never with another access level. The
+  // auditors see every page already: never granted.
+  if (!group || group.builtIn === PUBLIC_GROUP || group.builtIn === AUDITORS_GROUP) back(pageId, "invalid");
   const inherited = (await getInheritedGroupAccess(prisma, pageId)).get(groupId);
   if (inherited) {
     if (inherited.access === "MANAGE") back(pageId, "inherited-manage");

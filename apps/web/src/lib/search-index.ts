@@ -1,9 +1,11 @@
 import { createHmac, hkdfSync } from "node:crypto";
 import * as Y from "yjs";
-import { decrypt, loadDataKey, openEmail, type PrismaClient } from "shared";
+import { decrypt, loadDataKey, type PrismaClient } from "shared";
 import { normalizeTitle } from "./page-title";
-import { openChatMessage } from "./chat";
+import { openChatMessage, openPollOptions } from "./chat";
 import { chatMentionIds, chatPlainText } from "./chat-text";
+import { pagePeopleNames } from "./page-people";
+import { whiteboardFileIds, whiteboardText } from "./whiteboard";
 
 // Encrypted full-text search index. Used by the collab server (reindexing on
 // every store) and the app (queries, reindexing on uploads / new pages).
@@ -78,7 +80,8 @@ export function queryTokens(key: Buffer, query: string): { terms: string[]; toke
 }
 
 // Plain text of a page body (BlockNote's Yjs fragment): text runs (and the
-// source of Mermaid diagrams) in document order, one line per block.
+// source of Mermaid diagrams) in document order, one line per block; then a
+// whiteboard's items.
 export function documentText(doc: Y.Doc): string {
   const lines: string[] = [];
   let line = "";
@@ -91,6 +94,11 @@ export function documentText(doc: Y.Doc): string {
     if (node instanceof Y.XmlElement && node.nodeName === "mermaid") {
       const code = node.getAttribute("code") as unknown;
       if (typeof code === "string") line += code.replace(/\s+/g, " ");
+    }
+    // A chat block is found by its title (its messages are added apart).
+    if (node instanceof Y.XmlElement && node.nodeName === "chat") {
+      const title = node.getAttribute("title") as unknown;
+      if (typeof title === "string" && title) line += `${title.replace(/\s+/g, " ")} `;
     }
     // A link preview block is found by its title, description and URL.
     if (node instanceof Y.XmlElement && node.nodeName === "linkPreview") {
@@ -107,6 +115,9 @@ export function documentText(doc: Y.Doc): string {
   };
   visit(doc.getXmlFragment("blocknote"));
   if (line) lines.push(line);
+  // A whiteboard page's items (lib/whiteboard.ts).
+  const board = whiteboardText(doc);
+  if (board) lines.push(board);
   return lines.join("\n");
 }
 
@@ -116,8 +127,9 @@ export function fileTextAad(fileId: string): string {
 }
 
 // Attachments the page's body shows (file, image, video, audio and PDF blocks
-// keep "/api/files/<id>" in their url), in document order. A file whose
-// block was removed isn't among them, so it drops out of search.
+// keep "/api/files/<id>" in their url), in document order, then a
+// whiteboard's images. A file whose block (or image) was removed isn't among
+// them, so it drops out of search and is deleted later (lib/file-cleanup.ts).
 export function referencedFileIds(doc: Y.Doc): string[] {
   const ids: string[] = [];
   const visit = (node: Y.XmlElement | Y.XmlText | Y.XmlFragment) => {
@@ -130,6 +142,7 @@ export function referencedFileIds(doc: Y.Doc): string[] {
     for (const child of node.toArray()) visit(child as Y.XmlElement | Y.XmlText);
   };
   visit(doc.getXmlFragment("blocknote"));
+  for (const id of whiteboardFileIds(doc)) if (!ids.includes(id)) ids.push(id);
   return ids;
 }
 
@@ -157,22 +170,19 @@ export function chatBlockIds(doc: Y.Doc): string[] {
 const MAX_CHAT_MESSAGES = 2000;
 
 // The text of the chats: one message per line, oldest first, mentions as
-// "@name". Messages taken back are left out (their text is gone anyway).
+// "@name", a poll's choices after its question. Messages taken back are left
+// out (their text is gone anyway).
 async function chatText(prisma: PrismaClient, dataKey: Uint8Array, pageId: string, blockIds: string[]): Promise<string> {
   if (blockIds.length === 0) return "";
   const rows = await prisma.chatMessage.findMany({
     where: { pageId, blockId: { in: blockIds }, deletedAt: null },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: MAX_CHAT_MESSAGES,
-    select: { id: true, bodyEnc: true },
+    select: { id: true, bodyEnc: true, poll: { select: { messageId: true, optionsEnc: true } } },
   });
-  const texts = rows.reverse().map((r) => openChatMessage(dataKey, r));
-  const mentioned = [...new Set(texts.flatMap(chatMentionIds))];
-  const people =
-    mentioned.length === 0
-      ? []
-      : await prisma.user.findMany({ where: { id: { in: mentioned } }, select: { id: true, name: true, emailEnc: true } });
-  const names = new Map(people.map((p) => [p.id, p.name || (p.emailEnc ? openEmail(dataKey, p.emailEnc) : null)]));
+  const texts = rows.reverse().map((r) => [openChatMessage(dataKey, r), ...(r.poll ? openPollOptions(dataKey, r.poll) : [])].join(" "));
+  // Mentions are found by name, as the chat shows them (lib/page-people.ts).
+  const names = texts.some((text) => chatMentionIds(text).length > 0) ? await pagePeopleNames(prisma, pageId) : new Map<string, string>();
   return texts
     .map((text) => chatPlainText(text, (id) => names.get(id) ?? null, "").replace(/\s+/g, " ").trim())
     .filter(Boolean)
@@ -277,12 +287,24 @@ export async function reindexStalePages(prisma: PrismaClient): Promise<number> {
       files: { select: { createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
+  // The latest message posted, changed or taken back in each page's chats.
+  const chats = await prisma.chatMessage.groupBy({
+    by: ["pageId"],
+    _max: { createdAt: true, editedAt: true, deletedAt: true },
+  });
+  const chatChanged = new Map(
+    chats.map((c) => [
+      c.pageId,
+      Math.max(c._max.createdAt?.getTime() ?? 0, c._max.editedAt?.getTime() ?? 0, c._max.deletedAt?.getTime() ?? 0),
+    ]),
+  );
   let count = 0;
   for (const p of pages) {
     const changed = Math.max(
       p.updatedAt.getTime(),
       p.document?.updatedAt.getTime() ?? 0,
       p.files[0]?.createdAt.getTime() ?? 0,
+      chatChanged.get(p.id) ?? 0,
     );
     if (p.searchIndex && p.searchIndex.indexedAt.getTime() >= changed) {
       // Up to date, but from before PageFileRefs: only those (reindexing would

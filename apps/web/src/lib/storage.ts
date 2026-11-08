@@ -11,6 +11,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { decrypt, encrypt, loadDataKey } from "shared";
 import { prisma } from "@/lib/db";
+import { proxyAgent, proxyUrlFor } from "@/lib/outbound-proxy";
 
 // File attachment storage on any S3-compatible service.
 //
@@ -175,8 +176,12 @@ export async function resetStorageSettings(): Promise<void> {
   await prisma.storageSettings.deleteMany({});
 }
 
-function clientFor(config: StorageConfig): S3Client {
+// Storage set in /admin goes through the outbound proxy (unless on its bypass
+// list); the bundled SeaweedFS is always reached directly.
+async function clientFor(config: StorageConfig): Promise<S3Client> {
+  const proxy = config.source === "bundled" ? null : await proxyUrlFor(prisma, config.endpoint ?? "");
   return new S3Client({
+    ...(proxy ? { requestHandler: { httpAgent: proxyAgent(proxy, false), httpsAgent: proxyAgent(proxy, true) } } : {}),
     endpoint: config.endpoint,
     region: config.region,
     forcePathStyle: config.forcePathStyle,
@@ -212,7 +217,7 @@ async function putObject(config: StorageConfig, client: S3Client, key: string, b
 
 export async function putFile(config: StorageConfig, fileId: string, plaintext: Uint8Array): Promise<void> {
   const body = Uint8Array.from(encrypt(await loadDataKey(prisma), plaintext, fileAad(fileId)));
-  const client = clientFor(config);
+  const client = await clientFor(config);
   try {
     await putObject(config, client, objectKey(config, fileId), body);
   } finally {
@@ -221,7 +226,7 @@ export async function putFile(config: StorageConfig, fileId: string, plaintext: 
 }
 
 export async function getFile(config: StorageConfig, fileId: string): Promise<Buffer> {
-  const client = clientFor(config);
+  const client = await clientFor(config);
   try {
     const res = await client.send(new GetObjectCommand({ Bucket: config.bucket, Key: objectKey(config, fileId) }));
     const bytes = await res.Body!.transformToByteArray();
@@ -232,7 +237,7 @@ export async function getFile(config: StorageConfig, fileId: string): Promise<Bu
 }
 
 export async function deleteFileObject(config: StorageConfig, fileId: string): Promise<void> {
-  const client = clientFor(config);
+  const client = await clientFor(config);
   try {
     await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: objectKey(config, fileId) }));
   } finally {
@@ -251,7 +256,7 @@ export const READ_BACK_MISMATCH = "read-back-mismatch";
 export async function warnIfBundledStorageDown(): Promise<void> {
   const config = await getStorageConfig().catch(() => null);
   if (!config || config.source !== "bundled") return;
-  const client = clientFor(config);
+  const client = await clientFor(config);
   try {
     await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
   } catch (err) {
@@ -273,7 +278,7 @@ export type StorageTestResult =
 // Writes, reads back and deletes a small object, then checks that a few of
 // the already-uploaded files are present (catches an incomplete migration).
 export async function testStorage(config: StorageConfig): Promise<StorageTestResult> {
-  const client = clientFor(config);
+  const client = await clientFor(config);
   const key = `${config.keyPrefix}knowlective-connection-test-${randomBytes(6).toString("hex")}`;
   const payload = randomBytes(32);
   let step: "write" | "read" | "delete" = "write";

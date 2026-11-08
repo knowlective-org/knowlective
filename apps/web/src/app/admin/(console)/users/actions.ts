@@ -16,6 +16,7 @@ import { sendMail } from "@/lib/mail";
 import { passwordResetMail } from "@/lib/mail-templates";
 import { userLocale } from "@/i18n/locale";
 import { getPublicUrl } from "@/lib/site-url";
+import { disconnectUsers } from "@/lib/collab-events";
 
 type AuditText = Awaited<ReturnType<typeof auditTranslator>>;
 
@@ -57,6 +58,8 @@ export async function disableUser(formData: FormData): Promise<void> {
     prisma.userSession.deleteMany({ where: { userId } }),
     prisma.adminSession.deleteMany({ where: { userId } }),
   ]);
+  // The collab server checks access when an editor connects: close the open ones.
+  disconnectUsers([userId]);
   await audit(actor, "user.disable", userId, (t, who) => t("audit.userDisable", { who }));
   revalidatePath("/admin", "layout");
 }
@@ -81,6 +84,8 @@ export async function resetPasskeys(formData: FormData): Promise<void> {
     prisma.userPasskey.deleteMany({ where: { userId } }),
     prisma.userSession.deleteMany({ where: { userId } }),
   ]);
+  // Its sessions are over: so are its open editors.
+  disconnectUsers([userId]);
   if (count > 0) {
     await audit(actor, "user.passkeys.reset", userId, (t, who) => t("audit.passkeysReset", { who, count }));
   }

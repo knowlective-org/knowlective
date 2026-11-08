@@ -5,7 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { useTranslations } from "next-intl";
 import { getDisplayTitle } from "@/i18n/display-title";
 import { groupName } from "@/i18n/group-name";
-import { ACCESS_RANK, MAX_PAGE_DEPTH, PUBLIC_GROUP, atLeast, getInheritedGroupAccess, type PageAccess } from "shared";
+import { ACCESS_RANK, AUDITORS_GROUP, MAX_PAGE_DEPTH, PUBLIC_GROUP, atLeast, getInheritedGroupAccess, type PageAccess } from "shared";
 import { getVisibleTree } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { findAccessiblePage } from "@/lib/auth/pages";
@@ -115,7 +115,10 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
     .map(([groupId, grant]) => ({ groupId, ...grant, group: groupById.get(groupId) }))
     .filter((r) => r.group && !isPublic(r.group) && !ownGroupIds.has(r.groupId));
   // New grants: groups this page neither has nor inherits (those can only be narrowed).
-  const addable = groups.filter((g) => !ownGroupIds.has(g.id) && !overrideOf.has(g.id) && !inheritedAccess.has(g.id) && !isPublic(g));
+  // (The auditors see every page already: not one to grant.)
+  const addable = groups.filter(
+    (g) => !ownGroupIds.has(g.id) && !overrideOf.has(g.id) && !inheritedAccess.has(g.id) && !isPublic(g) && g.builtIn !== AUDITORS_GROUP,
+  );
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={pageId} />}>
@@ -142,7 +145,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
             <p className={styles.note}>{t("share.noDirect")}</p>
           ) : (
             <div className={styles.tableWrap}>
-              <table className={styles.table}>
+              <table className={`${styles.table} ${styles.tableMiddle}`}>
                 <thead>
                   <tr>
                     <th>{t("share.group")}</th>
@@ -192,7 +195,7 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
               {t("share.inheritedLead")}
             </p>
             <div className={styles.tableWrap}>
-              <table className={styles.table}>
+              <table className={`${styles.table} ${styles.tableMiddle}`}>
                 <thead>
                   <tr>
                     <th>{t("share.group")}</th>

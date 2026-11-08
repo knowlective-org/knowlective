@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import type { SiteRole } from "shared";
 import { prisma } from "@/lib/db";
 import { withEmails } from "@/lib/emails";
-import { requireAdmin } from "@/lib/admin/auth";
+import { requireAdminView } from "@/lib/admin/auth";
+import { auditorsSeePersonalRoots } from "@/lib/personal-root-audit";
+import { AdminReadOnly } from "../admin-read-only";
 import { INVITATION_TTL_DAYS, listPendingInvitations } from "@/lib/auth/invitations";
 import { isMailConfigured } from "@/lib/mail";
 import { getSignupSettings } from "@/lib/auth/signup";
@@ -91,7 +94,16 @@ function userMenu(u: UserRow, text: UserMenuText): RowMenuItem[] {
 }
 
 export default async function AdminUsersPage({ searchParams }: PageProps<"/admin/users">) {
-  const { session, role, actor } = await requireAdmin();
+  const { session, role, actor, readOnly, auditor } = await requireAdminView();
+  // An auditor may open each person's personal root, while that's allowed.
+  const personalRoots =
+    auditor && (await auditorsSeePersonalRoots())
+      ? new Map(
+          (await prisma.knowledgeRoot.findMany({ where: { ownerId: { not: null } }, select: { ownerId: true, rootPageId: true } })).map(
+            (r) => [r.ownerId!, r.rootPageId],
+          ),
+        )
+      : null;
   const allowedGroups = await manageableGroupIds(actor);
   const isSiteAdmin = role === "SITE_ADMIN";
   const [groups, invitations, users, mailConfigured, signup, oidc, callbackUrl, t, format, passkeys, api] = await Promise.all([
@@ -162,7 +174,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
   const signupRoleLabels = { USER: roleLabel("USER"), CONTENT_MANAGER: roleLabel("CONTENT_MANAGER") };
 
   return (
-    <>
+    <AdminReadOnly readOnly={readOnly}>
       {isSiteAdmin && (
         <section className={styles.section} data-ui="AdminUsersPage.signupSection">
           <h2 className={styles.sectionTitle}>{t("admin.users.signup")}</h2>
@@ -277,6 +289,17 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
                     <td>{u.groups.map((g) => g.group.name).join(separator) || "-"}</td>
                     <td>{formatDate(u.createdAt)}</td>
                     <td>
+                      {personalRoots?.get(u.id) && u.id !== session.userId && (
+                        <Link
+                          href={`/pages/${personalRoots.get(u.id)}`}
+                          className={styles.note}
+                          style={{ textDecoration: "underline", marginRight: 12 }}
+                          data-ui="AdminUsersPage.personalRootLink"
+                          data-id={u.id}
+                        >
+                          {t("admin.users.personalRoot")}
+                        </Link>
+                      )}
                       {u.id === session.userId ? (
                         <span className={styles.note}>{t("admin.common.you")}</span>
                       ) : (
@@ -290,6 +313,6 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
           </div>
         </section>
       )}
-    </>
+    </AdminReadOnly>
   );
 }

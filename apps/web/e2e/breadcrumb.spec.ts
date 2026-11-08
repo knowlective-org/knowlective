@@ -1,13 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { HOME_PAGE_ID, authFile } from "./accounts";
-import { createPage, editorBody, openPage, trashOpenPage } from "./helpers";
+import { addPageFromTree, createPage, editorBody, openPage, trashOpenPage } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
 // Adds a page under the open one through the sidebar and returns its id.
 async function addChild(page: import("@playwright/test").Page, parentId: string, title: string) {
-  await page.locator(`[data-ui="DocTree.link"][data-id="${parentId}"]`).hover();
-  await page.locator(`[data-ui="DocTree.addChildButton"][data-id="${parentId}"]`).click();
+  await addPageFromTree(page, parentId);
   await page.waitForURL((url) => /\/pages\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith(`/${parentId}`));
   await expect(editorBody(page)).toBeVisible();
   await page.getByTestId("TitleField").fill(title);

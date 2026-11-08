@@ -15,6 +15,9 @@ export const ACCOUNTS = {
   viewer: { email: "e2e-viewer@example.com", name: "E2E 閲覧者" },
   // In no group: can't see the test pages.
   outsider: { email: "e2e-outsider@example.com", name: "E2E 部外者" },
+  // In the built-in auditors group alone: views every page (personal roots
+  // aside) and the admin console, read-only. Same authenticator as the admin.
+  auditor: { email: "e2e-auditor@example.com", name: "E2E 監査" },
 } as const;
 
 export type Role = keyof typeof ACCOUNTS;

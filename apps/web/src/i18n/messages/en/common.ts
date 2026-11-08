@@ -18,6 +18,7 @@ export default {
   builtInGroups: {
     all_users: "All users",
     public: "Public on the internet",
+    auditors: "Auditors",
   },
   access: {
     VIEW: "View",

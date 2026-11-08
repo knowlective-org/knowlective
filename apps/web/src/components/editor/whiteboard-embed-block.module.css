@@ -1,0 +1,83 @@
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin: 4px 0;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.header {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.titleLink {
+  color: inherit;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  gap: 12px;
+}
+
+.linkButton {
+  padding: 0;
+  font: inherit;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
+.empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 120px;
+  background: var(--color-hover);
+  border-radius: 6px;
+}
+
+.chooseButton {
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.muted {
+  margin: 0;
+  padding: 24px 0;
+  font-size: 13px;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+@media print {
+  .actions {
+    display: none;
+  }
+}

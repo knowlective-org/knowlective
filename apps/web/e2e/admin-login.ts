@@ -9,11 +9,12 @@ import { userWhere, withPrisma } from "./db";
 
 // An authenticator code for an unused time step (the server accepts one
 // step either side of now). Waits if both are used.
-export async function freshAdminCode(): Promise<string> {
+// (The auditor's authenticator has the same secret: `role`.)
+export async function freshAdminCode(role: "admin" | "auditor" = "admin"): Promise<string> {
   return withPrisma(async (prisma) => {
     for (;;) {
       const admin = await prisma.user.findUniqueOrThrow({
-        where: await userWhere(prisma, ACCOUNTS.admin.email),
+        where: await userWhere(prisma, ACCOUNTS[role].email),
         select: { totpLastStep: true },
       });
       const step = Math.floor(Date.now() / 30_000);
@@ -33,15 +34,16 @@ export async function setLandingPage(page: Page, pageId: string) {
   await expect(page.getByTestId("LandingPageForm.status")).toHaveText("保存しました。");
 }
 
-// Opens `path` under /admin, signing in first if needed.
-export async function openAdmin(page: Page, adminPath = "") {
+// Opens `path` under /admin, signing in first if needed (as the admin, or
+// the auditor).
+export async function openAdmin(page: Page, adminPath = "", role: "admin" | "auditor" = "admin") {
   await page.goto(`admin${adminPath}`);
   if (!new URL(page.url()).pathname.includes("/admin/login")) return;
-  await page.getByTestId("AccountLoginForm.emailInput").fill(ACCOUNTS.admin.email);
+  await page.getByTestId("AccountLoginForm.emailInput").fill(ACCOUNTS[role].email);
   await page.getByTestId("AccountLoginForm.passwordInput").fill(PASSWORD);
   await page.getByTestId("AccountLoginForm.submitButton").click();
   await expect(page).toHaveURL(/\/admin\/login\/verify/);
-  await page.getByTestId("CodeField.input").fill(await freshAdminCode());
+  await page.getByTestId("CodeField.input").fill(await freshAdminCode(role));
   await page.getByTestId("VerifyCodeForm.submitButton").click();
   await page.waitForURL((url) => !url.pathname.includes("/admin/login"));
   if (adminPath) await page.goto(`admin${adminPath}`);

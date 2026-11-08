@@ -10,9 +10,13 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { canManageGroup } from "@/lib/group-access";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { disconnectUsers } from "@/lib/collab-events";
+import { AUDITORS_GROUP } from "shared";
 
 // Content managers may only touch groups within trees they manage
-// (lib/group-access.ts); every action re-checks that server-side.
+// (lib/group-access.ts); every action re-checks that server-side. Built-in
+// groups can't be deleted; of them, only the auditors group has members to
+// add and remove (by site admins: lib/group-access.ts).
 
 export type GroupFormState = { error?: string; saved?: boolean };
 
@@ -79,7 +83,10 @@ export async function deleteGroup(formData: FormData): Promise<void> {
   const group = await prisma.group.findUnique({ where: { id }, select: { name: true, builtIn: true } });
   // Built-in groups (e.g. all users) can't be deleted.
   if (!group || group.builtIn) return;
+  const members = await prisma.groupMember.findMany({ where: { groupId: id }, select: { userId: true } });
   await prisma.group.delete({ where: { id } });
+  // Its members' open editors are checked again (the group's access is gone).
+  disconnectUsers(members.map((m) => m.userId));
   await recordAudit(actor, "group.delete", (await auditTranslator())("audit.groupDelete", { name: group.name }), { groupId: id });
   revalidatePath("/admin", "layout");
   redirect("/admin/groups");
@@ -149,7 +156,7 @@ export async function addGroupMembers(groupId: string, userIds: string[]): Promi
   if (!(await canManageGroup(actor, groupId))) return { error: t("notAllowed") };
   const group = await prisma.group.findUnique({ where: { id: groupId }, select: { id: true, name: true, builtIn: true } });
   if (!group) return { error: t("notFound") };
-  if (group.builtIn) return { error: t("builtIn") };
+  if (group.builtIn && group.builtIn !== AUDITORS_GROUP) return { error: t("builtIn") };
   const [users, existing] = await Promise.all([
     prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, emailEnc: true } }),
     prisma.groupMember.findMany({ where: { groupId, userId: { in: ids } }, select: { userId: true } }),
@@ -181,8 +188,10 @@ export async function removeGroupMember(formData: FormData): Promise<void> {
     prisma.group.findUnique({ where: { id: groupId }, select: { name: true, builtIn: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { name: true, emailEnc: true } }),
   ]);
-  if (group?.builtIn) return;
+  if (group?.builtIn && group.builtIn !== AUDITORS_GROUP) return;
   const { count } = await prisma.groupMember.deleteMany({ where: { groupId, userId } });
+  // Their open editors are checked again (without the group's access).
+  if (count > 0) disconnectUsers([userId]);
   if (count > 0 && group && user) {
     const audit = await auditTranslator();
     await recordAudit(actor, "group.member.remove", audit("audit.groupMemberRemove", { who: userLabel(await withEmail(user)), group: group.name }), {
