@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-08
+
 ### Added
 
 - Mentioning everyone in a chat: "@" offers "everyone" ("全員") first. Everyone who can open the page is notified of the mention (as for a mention by name, by their own notification settings). Anyone who can post may use it, once every 5 minutes in a chat; sooner is refused, the message kept in the box. Search finds it as "@everyone" in the site's default language
