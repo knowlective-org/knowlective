@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
-import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import {
   closeChatPoll,
@@ -26,6 +26,7 @@ import {
   type ChatReactionEmoji,
 } from "@/lib/chat-types";
 import { EVERYONE, chatMention, chatSegments } from "@/lib/chat-text";
+import { type ChatBlockNode, type ChatFormat, type ChatInline, applyChatFormat, chatBlocks, chatMarkdownPlain } from "@/lib/chat-markdown";
 import { beginSaving } from "@/lib/saving-status";
 import { showAlert, showConfirm } from "@/components/dialog";
 import { useChildrenData, usePageEditor } from "./page-context";
@@ -310,34 +311,99 @@ function Log({
   );
 }
 
-// A message's text as one line, mentions by name (for the reply being written).
+// A message's text as one line, without its formatting, mentions by name
+// (for the reply being written).
 function excerptOf(m: ChatMessageView): string {
-  return chatSegments(m.text)
+  return chatSegments(chatMarkdownPlain(m.text))
     .map((s) => (s.type === "mention" ? `@${m.names[s.userId] ?? ""}` : s.text))
     .join("")
     .replace(/\s+/g, " ")
     .slice(0, 80);
 }
 
+// A message's text with its formatting (lib/chat-markdown.ts): React
+// elements only, never HTML; links to http(s) only.
 function MessageText({ message: m }: { message: ChatMessageView }) {
   const t = useTranslations("editor.chat");
-  return (
-    <>
-      {chatSegments(m.text).map((s, i) =>
-        s.type === "link" ? (
-          <a key={i} href={s.href} target="_blank" rel="noopener noreferrer" className={styles.link} data-ui="ChatBlock.textLink">
-            {s.text}
-          </a>
-        ) : s.type === "mention" ? (
-          <span key={i} className={mentionStyles.mention} data-ui="ChatBlock.mention" data-id={s.userId}>
-            @{m.names[s.userId] ?? t("someone")}
-          </span>
-        ) : (
-          s.text
-        ),
-      )}
-    </>
-  );
+  const someone = t("someone");
+  const inline = (nodes: ChatInline[]): ReactNode[] =>
+    nodes.map((n, i) => {
+      switch (n.type) {
+        case "text":
+          return n.text;
+        case "break":
+          // The bubble keeps line breaks (pre-wrap): as a character, a copy keeps it too.
+          return "\n";
+        case "mention":
+          return (
+            <span key={i} className={mentionStyles.mention} data-ui="ChatBlock.mention" data-id={n.userId}>
+              @{m.names[n.userId] ?? someone}
+            </span>
+          );
+        case "link":
+          return (
+            <a key={i} href={n.href} target="_blank" rel="noopener noreferrer" className={styles.link} data-ui="ChatBlock.textLink">
+              {inline(n.children)}
+            </a>
+          );
+        case "code":
+          return (
+            <code key={i} className={styles.inlineCode}>
+              {mentionsAsNames(n.text, m.names, someone)}
+            </code>
+          );
+        case "bold":
+          return <strong key={i}>{inline(n.children)}</strong>;
+        case "italic":
+          return <em key={i}>{inline(n.children)}</em>;
+        case "strike":
+          return <s key={i}>{inline(n.children)}</s>;
+      }
+    });
+  const block = (b: ChatBlockNode, i: number): ReactNode => {
+    switch (b.type) {
+      case "paragraph":
+        return (
+          <div key={i} className={styles.mdParagraph}>
+            {inline(b.children)}
+          </div>
+        );
+      case "list":
+        // Not ul / li: the editor's list styles would apply (AGENTS.md).
+        return (
+          <div key={i} role="list" className={styles.mdList}>
+            {b.items.map((item, j) => (
+              <div key={j} role="listitem" className={styles.mdListItem}>
+                <span className={styles.mdMarker} aria-hidden>
+                  {b.ordered ? `${b.start + j}.` : "•"}
+                </span>
+                <span>{inline(item)}</span>
+              </div>
+            ))}
+          </div>
+        );
+      case "quote":
+        return (
+          <blockquote key={i} className={styles.mdQuote}>
+            {b.children.map(block)}
+          </blockquote>
+        );
+      case "code":
+        return (
+          <pre key={i} className={styles.mdCode}>
+            <code>{mentionsAsNames(b.text, m.names, someone)}</code>
+          </pre>
+        );
+    }
+  };
+  return <>{chatBlocks(m.text).map(block)}</>;
+}
+
+// Code shows mentions as plain "@name" text.
+function mentionsAsNames(text: string, names: Record<string, string>, someone: string): string {
+  return chatSegments(text)
+    .map((s) => (s.type === "mention" ? `@${names[s.userId] ?? someone}` : s.text))
+    .join("");
 }
 
 function Message({
@@ -881,12 +947,54 @@ function mentionQuery(value: string, caret: number): { query: string; start: num
   return m ? { query: m[2], start: caret - m[2].length - 1 } : null;
 }
 
+const FORMAT_KEYS: Record<string, ChatFormat> = { b: "bold", i: "italic", e: "code" };
+
+// The formatting buttons above the message box: each wraps the selection in
+// Markdown (or prefixes its lines). The box keeps the focus and the selection.
+const FORMATS: { kind: ChatFormat; icon: string }[] = [
+  { kind: "bold", icon: "B" },
+  { kind: "italic", icon: "I" },
+  { kind: "strike", icon: "S" },
+  { kind: "code", icon: "</>" },
+  { kind: "link", icon: "🔗" },
+  { kind: "bullet", icon: "•" },
+  { kind: "numbered", icon: "1." },
+  { kind: "quote", icon: "❝" },
+];
+
+function FormatBar({ onFormat, disabled }: { onFormat: (kind: ChatFormat) => void; disabled: boolean }) {
+  const t = useTranslations("editor.chat.format");
+  return (
+    <div className={styles.formatBar} role="toolbar" aria-label={t("label")} data-ui="ChatBlock.formatBar">
+      {FORMATS.map(({ kind, icon }) => (
+        <button
+          key={kind}
+          type="button"
+          className={styles.formatButton}
+          data-kind={kind}
+          aria-label={t(kind)}
+          title={t(kind)}
+          disabled={disabled}
+          // Keep the box's selection.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onFormat(kind)}
+          data-ui="ChatBlock.formatButton"
+          data-id={kind}
+        >
+          {icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // The message box: Enter sends, Shift+Enter starts a new line (not while an
 // IME is composing); "@" offers the people who can open the page.
 function ChatInput({
   value,
   onValueChange,
   picksRef,
+  onFormat,
   onSend,
   onEscape,
   inputRef,
@@ -895,6 +1003,8 @@ function ChatInput({
   value: string;
   onValueChange: (value: string) => void;
   picksRef: { current: Person[] };
+  // Ctrl/⌘+B, I, E: bold, italic, code.
+  onFormat: (kind: ChatFormat) => void;
   onSend: () => void;
   onEscape?: () => void;
   inputRef?: { current: HTMLTextAreaElement | null };
@@ -949,6 +1059,12 @@ function ChatInput({
         onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;
+          const shortcut = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey ? FORMAT_KEYS[e.key.toLowerCase()] : undefined;
+          if (shortcut) {
+            e.preventDefault();
+            onFormat(shortcut);
+            return;
+          }
           if (options.length > 0) {
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();
@@ -1040,6 +1156,19 @@ function Composer({
     if (isEdit) el.setSelectionRange(el.value.length, el.value.length);
   }, [sending, hidden, replyTo, isEdit]);
 
+  // A formatting button or shortcut: the selection formatted (Markdown),
+  // and selected again.
+  const format = (kind: ChatFormat) => {
+    const el = ref.current;
+    if (!el || sending) return;
+    const next = applyChatFormat(text, el.selectionStart, el.selectionEnd, kind);
+    setText(next.value);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(next.start, next.end);
+    });
+  };
+
   const send = async () => {
     if (!text.trim() || sending) return;
     const stored = toStored(text, picksRef.current);
@@ -1111,12 +1240,14 @@ function Composer({
           </button>
         </div>
       )}
+      <FormatBar onFormat={format} disabled={sending} />
       <div className={styles.composer}>
         <ChatInput
           inputRef={ref}
           value={text}
           onValueChange={setText}
           picksRef={picksRef}
+          onFormat={format}
           onSend={() => void send()}
           onEscape={editing ? onEndEdit : replyTo ? onCancelReply : undefined}
           maxLength={MAX_CHAT_MESSAGE_LENGTH}

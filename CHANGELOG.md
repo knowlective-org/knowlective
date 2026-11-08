@@ -8,6 +8,21 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- A table of contents block ("目次" in the slash menu): the page's headings (H2–H6), indented by level, each scrolling to its heading. It follows the headings as they're typed. Markdown and PDF export write it as a list of the headings
+- The order of the knowledge roots shown to people who aren't logged in can be set in the admin console ("Overview" → "公開しているナレッジルートの並び順", site admins; recorded in the audit log). Roots not placed there, such as one made public later, come first, newest first. Signed-in users keep their own order
+- Formatting in chat messages, a part of Markdown: **bold**, *italic*, ~~strikethrough~~, `code`, [links](https://…), bulleted and numbered lists, quotes and code blocks (no headings or tables). Buttons above the message box and Ctrl/⌘+B, I, E format the selection. Messages are kept as typed; search, notifications and reply quotes use the words without the marks
+
+### Changed
+
+- The sidebar lists knowledge roots newest first by default, and roots not yet placed by dragging (a new one) come above the ones placed
+
+### Upgrade notes
+
+- Pages opened before the update must be reloaded before they can be edited again (the editor's version changed for the table of contents block)
+- A database migration adds the public knowledge roots' order (`InstanceConfig.publicRootOrder`); it's applied at startup
+
 ## [0.2.1] - 2026-11-08
 
 ### Added

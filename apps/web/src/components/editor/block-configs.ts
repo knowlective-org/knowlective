@@ -100,6 +100,13 @@ export const BLOCK_CONFIGS = {
     },
     content: "none",
   },
+  // A table of contents (toc-block.tsx): the page's headings, made as they
+  // are shown. Nothing of them is in the block.
+  toc: {
+    type: "toc",
+    propSchema: {},
+    content: "none",
+  },
   maskedText: {
     type: "maskedText",
     propSchema: {

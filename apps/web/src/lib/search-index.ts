@@ -4,6 +4,7 @@ import { decrypt, loadDataKey, type PrismaClient } from "shared";
 import { normalizeTitle } from "./page-title";
 import { openChatMessage, openPollOptions } from "./chat";
 import { chatMentionIds, chatMentionsEveryone, chatPlainText } from "./chat-text";
+import { chatMarkdownPlain } from "./chat-markdown";
 import { isLocale, FALLBACK_LOCALE } from "../i18n/locales";
 import { translatorFor } from "../i18n/translator";
 import { pagePeopleNames } from "./page-people";
@@ -188,7 +189,7 @@ async function chatText(prisma: PrismaClient, dataKey: Uint8Array, pageId: strin
   // "@everyone" in the site's default language (the index isn't per viewer).
   const everyone = texts.some(chatMentionsEveryone) ? await everyoneLabel(prisma) : undefined;
   return texts
-    .map((text) => chatPlainText(text, (id) => names.get(id) ?? null, "", everyone).replace(/\s+/g, " ").trim())
+    .map((text) => chatPlainText(chatMarkdownPlain(text), (id) => names.get(id) ?? null, "", everyone).replace(/\s+/g, " ").trim())
     .filter(Boolean)
     .join("\n");
 }

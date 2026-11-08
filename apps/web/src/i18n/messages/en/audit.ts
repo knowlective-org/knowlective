@@ -27,6 +27,7 @@ export default {
     publicPagesAllowed: "{allowed, select, true {Allowed} other {Disallowed}} publishing pages (viewing without logging in)",
     pushNotifications: "{enabled, select, true {Turned desktop notifications on} other {Turned desktop notifications off}}",
     searchEngines: "{allowed, select, true {Allowed search engines to list the site} other {Kept the site out of search engines}}",
+    publicRootOrder: "Changed the order of the public knowledge roots",
     landingPage: "{set, select, true {Set the top page to \"{label}\"} other {Set no top page}}",
     defaultLocale: "Changed the default language from {from} to {to}",
     linkPreview: "Changed the link preview settings from \"{from}\" to \"{to}\"",

@@ -33,6 +33,7 @@ import {
   type ChatReactionView,
 } from "@/lib/chat";
 import { EVERYONE, chatMentionIds, chatMentionsEveryone, chatPlainText } from "@/lib/chat-text";
+import { chatMarkdownPlain } from "@/lib/chat-markdown";
 import { pageAudienceIds, pagePeopleNames } from "@/lib/page-people";
 
 // Chat blocks: reading needs to be able to open the page (public pages too,
@@ -165,7 +166,7 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
           ? {
               id: reply.id,
               author: authorName(reply.authorId),
-              excerpt: chatPlainText(quoted.get(reply.id)!, (id) => names.get(id) ?? null, unknown, everyone).slice(0, REPLY_EXCERPT_LENGTH),
+              excerpt: chatPlainText(chatMarkdownPlain(quoted.get(reply.id)!), (id) => names.get(id) ?? null, unknown, everyone).slice(0, REPLY_EXCERPT_LENGTH),
               deleted: reply.deletedAt !== null,
             }
           : null,
@@ -269,7 +270,7 @@ async function post(
   const mentionIds = [
     ...new Set([...chatMentionIds(text).filter((id) => names.has(id)), ...(toEveryone ? await pageAudienceIds(prisma, pageId) : [])]),
   ];
-  const excerpt = chatPlainText(text, (mentioned) => names.get(mentioned) ?? null, t("unknownUser"), t("everyone"));
+  const excerpt = chatPlainText(chatMarkdownPlain(text), (mentioned) => names.get(mentioned) ?? null, t("unknownUser"), t("everyone"));
   void notifyChatPosted({ pageId, blockId, actorId: userId, text: poll ? `📊 ${excerpt}` : excerpt, mentionIds });
   return {};
 }

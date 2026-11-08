@@ -145,6 +145,11 @@ export default {
       pushNotificationsEnabled: "Send desktop notifications",
       publicPages: "Public pages",
       publicPagesLead: "Whether pages can be shown to people who aren't logged in. A wider audience than \"All users\" (everyone registered).",
+      publicRootOrder: "Order of public knowledge roots",
+      publicRootOrderLead:
+        "The order of the knowledge roots in the sidebar of people who aren't logged in (only roots with public pages show there). A root made public later comes first until it's placed here. Signed-in users keep their own order.",
+      publicRootOrderFew: "There's an order to set once two or more knowledge roots have public pages.",
+      publicRootMore: "{first} and {more, number} more",
       landing: "Top page",
       landingLead:
         "The page shown when someone opens the top of the site (/) with nowhere else to go. Logged-in users see it until they've opened a page (e.g. right after signing up); after that they go to the page they opened last. People who aren't logged in see it every time (only while the page is public; otherwise the login screen). Anyone who can't see the page gets the first page they can see. The list has the pages you can see and the public pages.",
@@ -298,6 +303,11 @@ export default {
         "While on, every page and attachment of the site carries an instruction not to show it in search results (X-Robots-Tag: noindex). Published pages then can't be found by searching: only people who know the URL or follow a link open them. The main search engines follow it, but that's up to them (don't publish pages you don't want seen). Off, published pages may appear in Google and other search results.",
       count: "Pages with a publish setting: {count, number}",
       countNotAllowed: " (not published now, as it isn't allowed)",
+    },
+    publicRootOrder: {
+      up: "Move {label} up",
+      down: "Move {label} down",
+      invalid: "The order couldn't be read. Reload the page and try again.",
     },
     landing: {
       label: "Top page",

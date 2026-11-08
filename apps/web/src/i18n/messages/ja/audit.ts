@@ -24,6 +24,7 @@ const ja: MessageShape<typeof en> = {
     publicPagesAllowed: "ページの公開（ログインなしでの閲覧）を{allowed, select, true {許可} other {禁止}}",
     pushNotifications: "{enabled, select, true {デスクトップ通知をオン} other {デスクトップ通知をオフ}}",
     searchEngines: "{allowed, select, true {検索エンジンに載ることを許可} other {検索エンジンに載せないように変更}}",
+    publicRootOrder: "公開しているナレッジルートの並び順を変更",
     landingPage: "{set, select, true {トップページを「{label}」に設定} other {トップページの設定をなしに変更}}",
     defaultLocale: "既定の言語を{from}から{to}に変更",
     linkPreview: "リンクのプレビューの設定を「{from}」から「{to}」に変更",
