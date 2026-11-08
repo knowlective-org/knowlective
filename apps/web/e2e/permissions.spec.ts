@@ -11,7 +11,7 @@ test.describe("Permissions", () => {
       await expect(page.getByTestId("PageView.readOnlyBadge")).toBeVisible();
       await expect(editorBody(page)).toHaveAttribute("contenteditable", "false");
       await expect(page.getByTestId("TitleField")).toHaveAttribute("readonly", "");
-      await expect(page.locator(`[data-ui="DocTree.addChildButton"][data-id="${HOME_PAGE_ID}"]`)).toHaveCount(0);
+      await expect(page.locator(`[data-ui="AddPageMenu.toggleButton"][data-id="${HOME_PAGE_ID}"]`)).toHaveCount(0);
     });
   });
 

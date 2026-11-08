@@ -6,6 +6,7 @@ export type {
   User,
   KnowledgeRoot,
   Page,
+  PageKind,
   PageDocument,
   PageAccess,
   PageGrant,
@@ -46,7 +47,9 @@ export { createKnowledgeRoot, ensurePersonalRoot, ensurePersonalRoots } from "./
 export {
   ACCESS_RANK,
   ALL_USERS_GROUP,
+  AUDITORS_GROUP,
   PUBLIC_GROUP,
+  isAuditor,
   publicGroupId,
   MAX_PAGE_DEPTH,
   type VisiblePage,

@@ -16,6 +16,19 @@
   --color-success: #2a7a4a;
   --color-hover: rgba(0, 0, 0, 0.05);
   --color-selected: rgba(0, 0, 0, 0.07);
+  /* Whiteboards (components/whiteboard): the board and its items' colors. */
+  --color-wb-board: #fbfbf9;
+  --color-wb-dot: #dcdcd6;
+  --color-wb-ink: #1f2328;
+  --color-wb-line: #5b6470;
+  --color-wb-yellow: #fff1a8;
+  --color-wb-orange: #ffd3a3;
+  --color-wb-pink: #ffc9de;
+  --color-wb-purple: #dcd0ff;
+  --color-wb-blue: #c6e2ff;
+  --color-wb-green: #c8efc4;
+  --color-wb-gray: #e4e6ea;
+  --color-wb-white: #ffffff;
 }
 
 html {

@@ -18,6 +18,7 @@ const ja: MessageShape<typeof en> = {
   builtInGroups: {
     all_users: "全ユーザー",
     public: "インターネットに公開",
+    auditors: "監査",
   },
   access: {
     VIEW: "閲覧",

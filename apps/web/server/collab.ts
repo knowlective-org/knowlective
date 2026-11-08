@@ -27,6 +27,7 @@ import { lockedBlockIds } from "../src/lib/block-locks";
 import { BLOCKS_LOCKED, CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
+import { copyWhiteboard, hasWhiteboardContent } from "../src/lib/whiteboard";
 import { startSemanticSearch } from "./semantic-search";
 import { createNotifier } from "./notifications";
 import { FALLBACK_LOCALE, isLocale, negotiateLocale } from "../src/i18n/locales";
@@ -169,7 +170,7 @@ export async function createCollab() {
     async afterLoadDocument({ document, documentName }) {
       // Pages edited before history existed: keep the state found now as the
       // first version, so the earliest edits can still be undone.
-      const hasContent = document.getXmlFragment("blocknote").length > 0;
+      const hasContent = document.getXmlFragment("blocknote").length > 0 || hasWhiteboardContent(document);
       if (hasContent && (await prisma.pageVersion.count({ where: { pageId: documentName } })) === 0) {
         await saveVersion(documentName, document, "INITIAL", []).catch((err) =>
           console.error("[collab] saving the initial page version failed", err),
@@ -416,6 +417,8 @@ export async function createCollab() {
           const title = doc.getText(TITLE_FIELD);
           title.delete(0, title.length);
           title.insert(0, snapshot.getText(TITLE_FIELD).toString());
+          // A whiteboard page's canvas (empty on a document page).
+          copyWhiteboard(snapshot, doc);
         });
         await saveVersion(pageId, document, "RESTORED", [userId], versionId);
         // The restore itself is in the RESTORED version.

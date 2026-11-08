@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { decrypt, encrypt, loadDataKey, type MailSettings, type SmtpSecurity } from "shared";
 import { prisma } from "@/lib/db";
+import { proxyUrlFor } from "@/lib/outbound-proxy";
 
 // Outgoing mail over SMTP, configured from /admin (MailSettings).
 // The SMTP password is encrypted with the instance data key.
@@ -49,8 +50,12 @@ export async function saveMailSettings(input: MailSettingsInput): Promise<void> 
   await prisma.mailSettings.upsert({ where: { id: 1 }, create: data, update: data });
 }
 
-function transportFor(settings: MailSettings, password: string | null) {
+// Through the outbound proxy (an HTTP CONNECT tunnel), unless the mail server
+// is on its bypass list.
+async function transportFor(settings: MailSettings, password: string | null) {
+  const proxy = await proxyUrlFor(prisma, settings.host);
   return nodemailer.createTransport({
+    ...(proxy ? { proxy } : {}),
     host: settings.host,
     port: settings.port,
     // TLS: encrypted from the first byte. STARTTLS: upgrade is mandatory, so a
@@ -84,7 +89,7 @@ export async function sendMail(message: { to: string; subject: string; text: str
   const password = settings.passwordEnc
     ? decrypt(await loadDataKey(prisma), settings.passwordEnc, PASSWORD_AAD).toString("utf8")
     : null;
-  const transport = transportFor(settings, password);
+  const transport = await transportFor(settings, password);
   try {
     await transport.sendMail({
       from: settings.fromName

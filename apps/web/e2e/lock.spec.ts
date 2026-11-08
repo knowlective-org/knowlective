@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
-import { createPage, editorBody, openPage, trashOpenPage, typeInBody } from "./helpers";
+import { addPageFromTree, createPage, editorBody, openPage, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
@@ -49,7 +49,7 @@ test.describe("Page locks", () => {
     await expect(page.getByTestId("PageMenu.move")).toHaveCount(0);
     await page.keyboard.press("Escape");
     // A lock on the page alone still lets child pages be added under it.
-    await expect(page.locator(`[data-ui="DocTree.addChildButton"][data-id="${id}"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-ui="AddPageMenu.toggleButton"][data-id="${id}"]`)).toHaveCount(1);
 
     // Still locked after a reload (the lock is the server's).
     await page.reload();
@@ -66,8 +66,7 @@ test.describe("Page locks", () => {
   test("locking with child pages locks them too, and they're unlocked from the parent", async ({ page }) => {
     const parent = await createPage(page, "E2E ロック 親");
     // A child page under it.
-    await page.locator(`[data-ui="DocTree.link"][data-id="${parent.id}"]`).hover();
-    await page.locator(`[data-ui="DocTree.addChildButton"][data-id="${parent.id}"]`).click();
+    await addPageFromTree(page, parent.id);
     await page.waitForURL((url) => !url.pathname.endsWith(parent.id) && /\/pages\/[^/]+$/.test(url.pathname));
     await expect(editorBody(page)).toBeVisible();
     const childId = new URL(page.url()).pathname.split("/").pop()!;
@@ -75,7 +74,7 @@ test.describe("Page locks", () => {
     await openPage(page, parent.id);
     await lock(page, "subtree");
     // No more pages under it.
-    await expect(page.locator(`[data-ui="DocTree.addChildButton"][data-id="${parent.id}"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-ui="AddPageMenu.toggleButton"][data-id="${parent.id}"]`)).toHaveCount(0);
 
     await openPage(page, childId);
     await expect(page.getByTestId("PageView.lockBanner")).toContainText("上位のページ");

@@ -1,4 +1,4 @@
-import { type SiteRole } from "shared";
+import { AUDITORS_GROUP, type SiteRole } from "shared";
 // The admin console isn't covered by the network caps (lib/page-access.ts).
 import { getVisibleTrees } from "shared";
 import { prisma } from "@/lib/db";
@@ -9,14 +9,15 @@ import { prisma } from "@/lib/db";
 // - SITE_ADMIN (and the master password login): every group.
 // - CONTENT_MANAGER: only groups whose every grant sits on a page it can
 //   MANAGE. Otherwise a content manager could join a group to read pages it
-//   was never given. Groups with no grants yet are allowed.
+//   was never given. Groups with no grants yet are allowed; the auditors
+//   group never (its members can view every page).
 export type GroupActor = { userId: string | null; role: SiteRole };
 
 export async function manageableGroupIds(actor: GroupActor): Promise<"all" | Set<string>> {
   if (actor.role === "SITE_ADMIN" || actor.userId === null) return "all";
 
   const [groups, trees] = await Promise.all([
-    prisma.group.findMany({ select: { id: true, grants: { select: { pageId: true } } } }),
+    prisma.group.findMany({ where: { OR: [{ builtIn: null }, { builtIn: { not: AUDITORS_GROUP } }] }, select: { id: true, grants: { select: { pageId: true } } } }),
     getVisibleTrees(prisma, actor.userId),
   ]);
   const managed = new Set(trees.flatMap((t) => t.pages.filter((p) => p.access === "MANAGE").map((p) => p.id)));

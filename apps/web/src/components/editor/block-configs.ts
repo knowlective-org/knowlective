@@ -84,7 +84,20 @@ export const BLOCK_CONFIGS = {
     type: "chat",
     // The messages are rows on the server, keyed by the block's id
     // (lib/chat.ts): nothing about them is in the document.
-    propSchema: {},
+    propSchema: {
+      // Shown in the header (and alone when folded); empty shows "Chat".
+      title: { default: "" },
+    },
+    content: "none",
+  },
+  // Another page's whiteboard, shown read-only (whiteboard-embed-block.tsx).
+  // Only the page's id is in the document: each viewer gets the board (and
+  // its title) with their own access, or nothing.
+  whiteboard: {
+    type: "whiteboard",
+    propSchema: {
+      pageId: { default: "" },
+    },
     content: "none",
   },
   maskedText: {

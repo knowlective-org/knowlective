@@ -13,7 +13,7 @@
 .header {
   display: flex;
   gap: 12px;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
 }
@@ -22,10 +22,43 @@
   font-size: 12px;
 }
 
-.label {
+/* Folded: the title alone. */
+.block[data-folded] .header {
+  margin-bottom: 0;
+}
+
+.titleRow {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
   font-size: 12px;
-  font-weight: 600;
+}
+
+.titleRow input {
+  flex: 1;
+  min-width: 0;
+}
+
+.foldButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
   color: var(--color-muted);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.foldButton:hover {
+  background: var(--color-hover);
 }
 
 .muted {
@@ -45,6 +78,11 @@
   /* The messages' text can be selected and copied. */
   user-select: text;
   cursor: auto;
+}
+
+/* Focused by a click, to select text (not reachable with Tab). */
+.log:focus {
+  outline: none;
 }
 
 .locked {
@@ -182,29 +220,20 @@
   cursor: default;
 }
 
-/* Changing a message: in place of its bubble, as wide as the log allows. */
-.editForm {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-end;
-  width: min(480px, 100%);
-}
-
-.editForm .input {
-  width: 100%;
-}
-
-.editButtons {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+/* The message being changed in the message box. */
+[data-editing] > .bubble {
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-primary);
 }
 
 .composerForm {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* The new message's box, while a message is changed in its place. */
+.composerForm[hidden] {
+  display: none;
 }
 
 /* The message being replied to, above the box. */
@@ -236,10 +265,6 @@
   display: flex;
   flex: 1;
   min-width: 0;
-}
-
-.editForm .inputWrap {
-  width: 100%;
 }
 
 /* The people "@" offers, under the box. */
@@ -306,6 +331,114 @@
   cursor: default;
 }
 
+/* Reactions under a message, on its side. */
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-top: 3px;
+}
+
+.mine .reactions {
+  justify-content: flex-end;
+}
+
+.reaction {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+}
+
+button.reaction {
+  cursor: pointer;
+}
+
+button.reaction:hover {
+  border-color: var(--color-border-strong);
+}
+
+.reaction[aria-pressed="true"] {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+.reactionPick {
+  position: relative;
+}
+
+/* Shown when the message is pointed at (always on touch screens). */
+.addReaction {
+  height: 22px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-muted);
+  background: none;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 11px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.mine:hover .addReaction,
+.theirs:hover .addReaction,
+.addReaction:focus-visible,
+.addReaction[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .addReaction {
+    opacity: 1;
+  }
+}
+
+/* The emoji to choose from, above the button. */
+.reactionMenu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  gap: 2px;
+  margin-bottom: 4px;
+  padding: 4px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+}
+
+.reactionChoice {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.reactionChoice:hover {
+  background: var(--color-hover);
+}
+
+.reactionChoice[aria-checked="true"] {
+  background: var(--color-primary-light);
+}
+
 /* Printing: the whole log, no form. */
 @media print {
   .log {
@@ -314,7 +447,9 @@
   }
 
   .composerForm,
-  .linkButton {
+  .linkButton,
+  .reactionPick,
+  .pollForm {
     display: none;
   }
 
@@ -323,4 +458,176 @@
     background: transparent;
     border: 1px solid var(--color-border);
   }
+}
+
+/* "Poll" by the message box: quieter than "Send". */
+.pollButton {
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--color-primary);
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pollButton:hover {
+  background: var(--color-hover);
+}
+
+.pollButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* A poll under its question, in the page's colours on both sides. */
+.poll {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(320px, 100%);
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.pollOption {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 10px;
+  overflow: hidden;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+button.pollOption {
+  cursor: pointer;
+}
+
+button.pollOption:hover {
+  border-color: var(--color-primary);
+}
+
+button.pollOption:disabled {
+  cursor: progress;
+}
+
+.pollOption[data-mine] {
+  border-color: var(--color-primary);
+}
+
+.pollOption[data-top] {
+  font-weight: 600;
+}
+
+/* The choice's share of the voters, behind its text. */
+.pollBar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--color-primary-light);
+  transition: width 0.2s ease;
+}
+
+.pollMark,
+.pollText,
+.pollCount {
+  position: relative;
+}
+
+.pollMark {
+  color: var(--color-primary);
+}
+
+.pollText {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pollCount {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+
+.pollFooter {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+/* Writing a poll, in place of the message box. */
+.pollForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.pollFormTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pollInput {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: var(--color-background);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  resize: none;
+}
+
+.pollOptionEdit {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pollAdd {
+  align-self: flex-start;
+  font-size: 13px;
+}
+
+.pollCheck {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.pollNote {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.pollActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 13px;
 }

@@ -38,10 +38,13 @@ export type VersionItem = {
 
 export function HistoryView({
   pageId,
+  whiteboard,
   canRestore,
   versions,
 }: {
   pageId: string;
+  // A whiteboard page: versions are previewed as a board.
+  whiteboard: boolean;
   canRestore: boolean;
   versions: VersionItem[];
 }) {
@@ -207,6 +210,7 @@ export function HistoryView({
             <VersionPreview
               key={`${loaded.id}:${reloadKey}`}
               pageId={pageId}
+              whiteboard={whiteboard}
               state={loaded.state}
             />
           )}

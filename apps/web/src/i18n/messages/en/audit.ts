@@ -30,8 +30,13 @@ export default {
     landingPage: "{set, select, true {Set the top page to \"{label}\"} other {Set no top page}}",
     defaultLocale: "Changed the default language from {from} to {to}",
     linkPreview: "Changed the link preview settings from \"{from}\" to \"{to}\"",
-    linkPreviewOn:
-      "on ({allowPrivate, select, true {internal sites too} other {public sites only}}, {proxy, select, none {no proxy} other {proxy {proxy}}})",
+    linkPreviewOn: "on ({allowPrivate, select, true {internal sites too} other {public sites only}})",
+    outboundProxy: "Changed the proxy for connections to the outside from \"{from}\" to \"{to}\"",
+    outboundProxyOn: "{url} (reached directly: {bypass, select, none {nothing else} other {{bypass}}})",
+    outboundProxyOff: "no proxy",
+    auditorsPersonalRoots:
+      "{allowed, select, true {Allowed the auditors to view everyone's personal knowledge root} other {Stopped the auditors from viewing everyone's personal knowledge root}}",
+    personalPageView: "{where, select, history {Viewed the history of} other {Viewed}} a page ({pageId}) in the personal knowledge root of {owner}, as an auditor",
     linkPreviewOff: "off",
     signup: "Changed the registration settings from \"{from}\" to \"{to}\"",
     signupOpen: "anyone can register ({domains, select, none {any domain} other {domains: {domains}}}, registered as {role})",

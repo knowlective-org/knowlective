@@ -25,12 +25,7 @@ test.describe("Admin console", () => {
     await page.getByTestId("AdminSidebar.navLink").filter({ hasText: "概要" }).click();
     await expect(page.getByTestId("LinkPreviewSettingsForm.enabledCheckbox")).toBeChecked();
     await expect(page.getByTestId("LinkPreviewSettingsForm.allowPrivateCheckbox")).not.toBeChecked();
-    // The proxy's credentials are only asked for once a proxy is entered.
-    await expect(page.getByTestId("LinkPreviewSettingsForm.proxyPasswordInput")).toHaveCount(0);
-    await page.getByTestId("LinkPreviewSettingsForm.proxyUrlInput").fill("http://proxy.example.co.jp:8080");
-    await expect(page.getByTestId("LinkPreviewSettingsForm.proxyPasswordInput")).toBeVisible();
     // Saving: allow the intranet, check it's kept, and put it back.
-    await page.getByTestId("LinkPreviewSettingsForm.proxyUrlInput").fill("");
     const allowPrivate = page.getByTestId("LinkPreviewSettingsForm.allowPrivateCheckbox");
     const status = page.getByTestId("LinkPreviewSettingsForm.status");
     await allowPrivate.check();
@@ -43,10 +38,6 @@ test.describe("Admin console", () => {
     await expect(status).toHaveText("保存しました。");
     await page.reload();
     await expect(allowPrivate).not.toBeChecked();
-    // A proxy URL with credentials in it is refused.
-    await page.getByTestId("LinkPreviewSettingsForm.proxyUrlInput").fill("http://user:pw@proxy.example.co.jp:8080");
-    await page.getByTestId("LinkPreviewSettingsForm.submitButton").click();
-    await expect(status).toContainText("下の欄に入力");
 
     // Files: the allowed extensions are shown as tags, and adding one works.
     await page.getByTestId("AdminSidebar.navLink").filter({ hasText: "ファイル" }).click();

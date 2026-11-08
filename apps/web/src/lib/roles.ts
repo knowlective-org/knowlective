@@ -1,4 +1,4 @@
-import type { SiteRole } from "shared";
+import { type SiteRole, isAuditor } from "shared";
 import { prisma } from "@/lib/db";
 
 // Site-wide roles (User.siteRole). Page access never comes from a role — only
@@ -15,14 +15,20 @@ export function invitableRoles(actorRole: SiteRole): SiteRole[] {
   return actorRole === "SITE_ADMIN" ? SITE_ROLES : ["CONTENT_MANAGER", "USER"];
 }
 
-// The user's role if it may use /admin right now (enabled, admin-capable role).
-export async function getAdminConsoleRole(userId: string): Promise<SiteRole | null> {
+// How the user may use /admin right now: `role` if their site role is an
+// admin one, `auditor` if they're in the auditors group (they may look at
+// everything, and change nothing). Null: not at all (or disabled).
+export type AdminConsoleAccess = { role: SiteRole | null; auditor: boolean };
+
+export async function getAdminConsoleAccess(userId: string): Promise<AdminConsoleAccess | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { siteRole: true, disabledAt: true },
   });
-  if (!user || user.disabledAt || !ADMIN_CONSOLE_ROLES.includes(user.siteRole)) return null;
-  return user.siteRole;
+  if (!user || user.disabledAt) return null;
+  const role = ADMIN_CONSOLE_ROLES.includes(user.siteRole) ? user.siteRole : null;
+  const auditor = await isAuditor(prisma, userId);
+  return role || auditor ? { role, auditor } : null;
 }
 
 // Enabled site admins other than `exceptUserId`; used to refuse demoting or

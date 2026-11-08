@@ -379,3 +379,20 @@
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* An admin page as an auditor sees it (admin-read-only.tsx). */
+.readOnly {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.readOnlyNote {
+  margin: 0 0 20px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--color-muted);
+  background: var(--color-hover);
+  border-radius: 6px;
+}

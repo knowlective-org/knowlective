@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin/auth";
+import { requireAdminView } from "@/lib/admin/auth";
+import { AdminReadOnly } from "../admin-read-only";
 import {
   MAX_FILE_SIZE_MB_LIMIT,
   getAllowedUploadExtensions,
@@ -13,7 +14,7 @@ import { UploadLimitForm } from "../upload-limit-form";
 import { UploadTypesForm } from "../upload-types-form";
 
 export default async function AdminFilesPage() {
-  await requireAdmin(["SITE_ADMIN"]);
+  const { readOnly } = await requireAdminView(["SITE_ADMIN"]);
   const [storage, fileCount, maxUploadSizeMb, allowedExtensions, t] = await Promise.all([
     getStorageSettingsView(),
     prisma.fileObject.count(),
@@ -23,7 +24,7 @@ export default async function AdminFilesPage() {
   ]);
 
   return (
-    <>
+    <AdminReadOnly readOnly={readOnly}>
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>{t("types")}</h2>
         <p className={styles.note} style={{ marginBottom: 16 }}>
@@ -47,6 +48,6 @@ export default async function AdminFilesPage() {
         </p>
         <StorageSettingsForm current={storage} fileCount={fileCount} />
       </section>
-    </>
+    </AdminReadOnly>
   );
 }

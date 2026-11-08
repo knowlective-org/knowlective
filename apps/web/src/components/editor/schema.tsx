@@ -21,6 +21,7 @@ import { videoEmbedBlock } from "./video-embed-block";
 import { codeBlock } from "./code-block";
 import { maskedBlock } from "./masked-block";
 import { chatBlock } from "./chat-block";
+import { whiteboardBlock } from "./whiteboard-embed-block";
 import { continueList, todoBlock } from "./todo-block";
 import { mentionInline } from "./mention-inline";
 import { toggleEnter } from "./toggle-enter";
@@ -79,6 +80,7 @@ export const editorSchema = withMultiColumn(BlockNoteSchema.create({
     videoEmbed: videoEmbedBlock(),
     maskedText: maskedBlock(),
     chat: chatBlock(),
+    whiteboard: whiteboardBlock(),
     todo: todoBlock(),
     gridTable: gridTableBlock,
     gridRow: gridRowBlock,
@@ -164,6 +166,14 @@ export function customSlashMenuItems(
       group: t("editor.slash.diagramGroup"),
       icon: <span aria-hidden>🧜</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "mermaid" }),
+    },
+    {
+      title: t("editor.slash.whiteboard"),
+      subtext: t("editor.slash.whiteboardSub"),
+      aliases: aliases("whiteboardAliases", ["whiteboard", "board", "canvas", "drawing", "figure"]),
+      group: t("editor.slash.diagramGroup"),
+      icon: <span aria-hidden>▦</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "whiteboard" }),
     },
     {
       title: t("editor.slash.gridTable"),

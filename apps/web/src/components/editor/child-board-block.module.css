@@ -110,6 +110,10 @@
 .card,
 .cardDragging {
   display: grid;
+  /* The card's width, not its widest content's: a long value in a picker
+     (a person's name) would widen the column, and the title would wrap
+     wider than the card and spill into the next lane. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   padding: 8px 10px;
   background: var(--color-surface);
@@ -138,7 +142,9 @@
 
 .cardSelect {
   justify-self: start;
+  min-width: 0;
   max-width: 100%;
+  text-overflow: ellipsis;
   padding: 0 2px;
   font: inherit;
   font-size: 12px;

@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import { TITLE_FIELD } from "@/lib/page-title";
+import { copyWhiteboard } from "@/lib/whiteboard";
 
 // Masking text in saved page versions (e.g. a password typed by mistake).
 //
@@ -130,6 +131,7 @@ export function maskVersionState(update: Uint8Array, strings: string[]): { state
         .map((node) => copyNode(node as Y.XmlElement | Y.XmlText, masker)),
     );
     target.getText(TITLE_FIELD).insert(0, masker.text(source.getText(TITLE_FIELD).toString()));
+    copyWhiteboard(source, target, (s) => masker.text(s));
   });
   return masker.count === 0 ? { state: update, count: 0 } : { state: Y.encodeStateAsUpdate(target), count: masker.count };
 }

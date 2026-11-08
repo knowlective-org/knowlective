@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { AppShell } from "@/components/app-shell";
-import { requireAdmin } from "@/lib/admin/auth";
+import { requireAdminView } from "@/lib/admin/auth";
 import { getBrand } from "@/lib/brand";
 import { getBuildInfo, versionLabel } from "@/lib/build-info";
 import { getSourceUrl } from "@/lib/source";
@@ -23,10 +23,11 @@ const NAV: { href: string; key: "overview" | "users" | "groups" | "files" | "sec
   { href: "/admin/about", key: "about", siteAdminOnly: true },
 ];
 
-// Navigation chrome only. Not a security boundary: every page and Server
-// Action calls requireAdmin() itself.
+// Navigation chrome only. Not a security boundary: every page calls
+// requireAdminView() and every Server Action requireAdmin() itself. An
+// auditor sees every page (as a site admin would, read-only).
 export default async function AdminConsoleLayout({ children }: LayoutProps<"/admin">) {
-  const { actorLabel, role } = await requireAdmin();
+  const { actorLabel, role, ownRole, auditor } = await requireAdminView();
   const [t, brand] = await Promise.all([getTranslations(), getBrand()]);
   const items: AdminNavItem[] = NAV.filter((item) => role === "SITE_ADMIN" || !item.siteAdminOnly).map(({ href, key }) => ({
     href,
@@ -36,7 +37,13 @@ export default async function AdminConsoleLayout({ children }: LayoutProps<"/adm
     <AppShell sidebar={<AdminSidebar
           items={items}
           brand={brand}
-          actor={`${actorLabel} (${t(`roles.${role}`)})`}
+          actor={`${actorLabel} (${
+            ownRole === null
+              ? t("admin.shell.auditor")
+              : auditor
+                ? t("admin.shell.withAuditor", { role: t(`roles.${ownRole}`) })
+                : t(`roles.${ownRole}`)
+          })`}
           sourceUrl={getSourceUrl()}
           version={versionLabel(getBuildInfo())}
         />}>

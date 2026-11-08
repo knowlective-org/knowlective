@@ -1,5 +1,6 @@
 import { getFormatter, getTranslations } from "next-intl/server";
-import { requireAdmin } from "@/lib/admin/auth";
+import { requireAdminView } from "@/lib/admin/auth";
+import { AdminReadOnly } from "../admin-read-only";
 import { getBuildInfo, versionLabel } from "@/lib/build-info";
 import { getSourceUrl } from "@/lib/source";
 import { getSystemInfo } from "@/lib/system-info";
@@ -8,7 +9,7 @@ import styles from "@/styles/ui.module.css";
 // Which KNOWLECTIVE this is (version, commit, build time) and what it runs on
 // (packages, runtime, database). Site admins only.
 export default async function AdminAboutPage() {
-  await requireAdmin(["SITE_ADMIN"]);
+  const { readOnly } = await requireAdminView(["SITE_ADMIN"]);
   const build = getBuildInfo();
   const [system, t, format] = await Promise.all([getSystemInfo(), getTranslations("admin.about"), getFormatter()]);
   const dateTime = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
@@ -18,7 +19,7 @@ export default async function AdminAboutPage() {
     build.commit && sourceUrl.startsWith("https://github.com/") ? `${sourceUrl.replace(/\/+$/, "")}/commit/${build.commit}` : null;
 
   return (
-    <>
+    <AdminReadOnly readOnly={readOnly}>
       <section className={styles.section} data-ui="AdminAboutPage">
         <h2 className={styles.sectionTitle}>{t("knowlective")}</h2>
         <div className={styles.tableWrap}>
@@ -127,6 +128,6 @@ export default async function AdminAboutPage() {
           </table>
         </div>
       </section>
-    </>
+    </AdminReadOnly>
   );
 }

@@ -29,6 +29,7 @@ export type ApiErrorCode =
   | "forbidden"
   | "page_locked"
   | "blocks_locked"
+  | "not_document"
   | "too_deep";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -43,6 +44,7 @@ const STATUS: Record<ApiErrorCode, number> = {
   forbidden: 403,
   page_locked: 423,
   blocks_locked: 423,
+  not_document: 409,
   too_deep: 400,
 };
 
@@ -59,6 +61,7 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   page_locked: "The page is locked.",
   blocks_locked: "Some of the page's blocks are locked, so its body can't be replaced (the title can).",
   too_deep: "The page would be nested too deep.",
+  not_document: "The page is a whiteboard: its content can't be written as Markdown (the title can).",
 };
 
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -154,7 +157,7 @@ export function pageSummary(page: VisiblePage, visible: Set<string>, rootId: str
 export async function pageDetail(userId: string, pageId: string, rootId: string) {
   const [tree, page] = await Promise.all([
     getVisibleTree(prisma, userId, rootId),
-    prisma.page.findUniqueOrThrow({ where: { id: pageId }, select: { title: true, createdAt: true, updatedAt: true } }),
+    prisma.page.findUniqueOrThrow({ where: { id: pageId }, select: { title: true, kind: true, createdAt: true, updatedAt: true } }),
   ]);
   const visible = new Set(tree?.pages.map((p) => p.id) ?? []);
   const self = tree?.pages.find((p) => p.id === pageId);
@@ -164,6 +167,8 @@ export async function pageDetail(userId: string, pageId: string, rootId: string)
   return {
     ...(self ? pageSummary(self, visible, rootId) : { id: pageId, parentId: null, rootId }),
     title: content.title,
+    // "DOCUMENT", or "WHITEBOARD" (its markdown is empty).
+    kind: page.kind,
     markdown: content.markdown,
     createdAt: page.createdAt.toISOString(),
     updatedAt: page.updatedAt.toISOString(),

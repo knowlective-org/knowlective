@@ -3,6 +3,7 @@ import { lookup as lookupAsync } from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
 import { BlockList, type LookupFunction, isIP } from "node:net";
+import { type OutboundProxy, proxyAgent, proxyForHost } from "./proxy-bypass";
 
 // Title, description and image of a web page, for the link preview block.
 //
@@ -13,7 +14,8 @@ import { BlockList, type LookupFunction, isIP } from "node:net";
 // the name is resolved for the connection itself, so a name can't pass the
 // check and then resolve to something else — and so is every redirect target.
 //
-// What is allowed is set in /admin (lib/link-preview-settings.ts):
+// What is allowed is set in /admin (lib/link-preview-settings.ts), and the
+// requests go through the outbound proxy (lib/outbound-proxy.ts) if any:
 // - public addresses only (the default), or private (intranet) ones too;
 // - never the server itself (loopback), link-local addresses (where cloud
 //   providers keep instance credentials), multicast or reserved ranges.
@@ -24,8 +26,8 @@ import { BlockList, type LookupFunction, isIP } from "node:net";
 export type FetchOptions = {
   // Also fetch from private (intranet) addresses.
   allowPrivate: boolean;
-  // http://host:port of a forward proxy (credentials as user:password@).
-  proxyUrl: string | null;
+  // The outbound proxy, if any (some hosts may be reached directly).
+  proxy: OutboundProxy | null;
 };
 
 export type LinkPreview = {
@@ -153,15 +155,9 @@ async function resolvesToAllowed(url: URL, allowPrivate: boolean): Promise<boole
   }
 }
 
-function get(url: URL, options: FetchOptions): Promise<Fetched> {
+function get(url: URL, allowPrivate: boolean, proxyUrl: string | null): Promise<Fetched> {
   const secure = url.protocol === "https:";
-  // Node's own proxy support (http.Agent `proxyEnv`, Node 24.5+): plain
-  // requests go through the proxy, https ones through a CONNECT tunnel.
-  const agent = options.proxyUrl
-    ? new (secure ? https : http).Agent({
-        proxyEnv: { HTTP_PROXY: options.proxyUrl, HTTPS_PROXY: options.proxyUrl },
-      } as http.AgentOptions)
-    : undefined;
+  const agent = proxyUrl ? proxyAgent(proxyUrl, secure) : undefined;
   return new Promise((resolve, reject) => {
     const request = (secure ? https : http).request(
       url,
@@ -169,7 +165,7 @@ function get(url: URL, options: FetchOptions): Promise<Fetched> {
         method: "GET",
         agent,
         // Without a proxy the destination is checked as it's connected to.
-        lookup: agent ? undefined : checkedLookup(options.allowPrivate),
+        lookup: agent ? undefined : checkedLookup(allowPrivate),
         timeout: TIMEOUT_MS,
         headers: {
           Accept: "text/html,application/xhtml+xml",
@@ -271,13 +267,15 @@ export function parsePreview(html: string, pageUrl: URL): LinkPreview {
 // address that isn't allowed, not an HTML page, an error, a timeout.
 export async function fetchLinkPreview(
   raw: string,
-  options: FetchOptions = { allowPrivate: false, proxyUrl: null },
+  options: FetchOptions = { allowPrivate: false, proxy: null },
 ): Promise<LinkPreview | null> {
   let url = parsePreviewUrl(raw, options.allowPrivate);
   try {
     for (let hop = 0; url && hop <= MAX_REDIRECTS; hop++) {
-      if (options.proxyUrl && !(await resolvesToAllowed(url, options.allowPrivate))) return null;
-      const response = await get(url, options);
+      // Each host by itself: some are reached directly (the bypass list).
+      const proxyUrl = proxyForHost(options.proxy, url.hostname);
+      if (proxyUrl && !(await resolvesToAllowed(url, options.allowPrivate))) return null;
+      const response = await get(url, options.allowPrivate, proxyUrl);
       if (response.status >= 300 && response.status < 400 && response.location) {
         // Checked like the first URL: a redirect is the classic way around.
         url = parsePreviewUrl(new URL(response.location, url).href, options.allowPrivate);

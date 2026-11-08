@@ -14,12 +14,23 @@ import { cursorColorFor } from "@/lib/cursor-color";
 import { createRateLimiter } from "@/lib/rate-limit";
 import {
   CHAT_HISTORY,
+  CHAT_REACTIONS,
   REPLY_EXCERPT_LENGTH,
   isBlockId,
+  isChatReaction,
+  MAX_POLL_OPTION_LENGTH,
+  MAX_POLL_OPTIONS,
+  MIN_POLL_OPTIONS,
   normalizeChatMessage,
+  normalizePollOptions,
+  normalizePollVote,
   openChatMessage,
+  openPollOptions,
   sealChatMessage,
+  sealPollOptions,
   type ChatData,
+  type ChatPollView,
+  type ChatReactionView,
 } from "@/lib/chat";
 import { chatMentionIds, chatPlainText } from "@/lib/chat-text";
 import { pagePeopleNames } from "@/lib/page-people";
@@ -32,9 +43,17 @@ import { pagePeopleNames } from "@/lib/page-people";
 // A message can reply to another in the same chat, and mention people
 // (`<@id>`, lib/chat-text.ts; they're notified). Someone who can edit the
 // page can lock the chat (ChatLock): then nobody can post, change or take
-// back messages in it until it's unlocked.
+// back messages in it until it's unlocked. Someone who can post can also
+// react to others' messages with an emoji (not to their own, nor to one taken
+// back); a lock stops that too.
+// A message can be a poll (ChatPoll; its text is the question): its choices
+// are fixed when it's posted, and it can't be edited. Someone who can post
+// votes (their own poll too) and can change their vote until the poll's
+// author closes it, for good. A lock keeps the votes but stops voting and
+// closing; taking the poll back deletes it with its votes.
 
 const postLimit = createRateLimiter(60_000, 30);
+const reactLimit = createRateLimiter(60_000, 60);
 
 async function namesOf(ids: Iterable<string>): Promise<Map<string, string>> {
   const people = await prisma.user.findMany({ where: { id: { in: [...new Set(ids)] } }, select: { id: true, name: true, emailEnc: true } });
@@ -62,6 +81,16 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
         editedAt: true,
         deletedAt: true,
         replyTo: { select: { id: true, bodyEnc: true, authorId: true, deletedAt: true } },
+        reactions: { select: { userId: true, emoji: true }, orderBy: { createdAt: "asc" } },
+        poll: {
+          select: {
+            messageId: true,
+            multiple: true,
+            optionsEnc: true,
+            closedAt: true,
+            votes: { select: { userId: true, option: true }, orderBy: { createdAt: "asc" } },
+          },
+        },
       },
     }),
     prisma.chatLock.findUnique({ where: { pageId_blockId: { pageId, blockId } }, select: { lockedAt: true } }),
@@ -84,6 +113,8 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
     for (const r of rows) {
       if (r.authorId) ids.add(r.authorId);
       if (r.replyTo?.authorId) ids.add(r.replyTo.authorId);
+      for (const reaction of r.reactions) ids.add(reaction.userId);
+      for (const vote of r.poll?.votes ?? []) ids.add(vote.userId);
     }
     const mentioned = [...texts.values(), ...quoted.values()].some((text) => chatMentionIds(text).length > 0);
     const [authors, people] = await Promise.all([namesOf(ids), mentioned ? pagePeopleNames(prisma, pageId) : new Map<string, string>()]);
@@ -92,6 +123,23 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
   const unknown = (await getTranslations("editor.chat"))("unknownUser");
   const authorName = (id: string | null) => (user ? (id ? (names.get(id) ?? unknown) : unknown) : null);
   const canEdit = !!user && canEditPage(access);
+  // Each emoji's reactions, in CHAT_REACTIONS' order (any other is ignored).
+  const reactionsOf = (list: { userId: string; emoji: string }[]): ChatReactionView[] =>
+    CHAT_REACTIONS.flatMap((emoji) => {
+      const by = list.filter((x) => x.emoji === emoji).map((x) => x.userId);
+      if (by.length === 0) return [];
+      return [{ emoji, count: by.length, mine: !!user && by.includes(user.id), names: user ? by.map((id) => names.get(id) ?? unknown) : null }];
+    });
+  // Each choice with who chose it (votes for a choice that isn't there are ignored).
+  const pollOf = (poll: NonNullable<(typeof rows)[number]["poll"]>): ChatPollView => ({
+    multiple: poll.multiple,
+    closed: poll.closedAt !== null,
+    options: openPollOptions(key, poll).map((text, i) => {
+      const by = poll.votes.filter((v) => v.option === i).map((v) => v.userId);
+      return { text, count: by.length, mine: !!user && by.includes(user.id), names: user ? by.map((id) => names.get(id) ?? unknown) : null };
+    }),
+    voters: new Set(poll.votes.map((v) => v.userId)).size,
+  });
 
   return {
     messages: rows.map((r) => {
@@ -115,6 +163,8 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
             }
           : null,
         names: Object.fromEntries(chatMentionIds(text).flatMap((id) => (names.has(id) ? [[id, names.get(id)!]] : []))),
+        reactions: r.deletedAt ? [] : reactionsOf(r.reactions),
+        poll: r.poll && !r.deletedAt ? pollOf(r.poll) : null,
       };
     }),
     canPost: canEdit && !lock,
@@ -135,9 +185,38 @@ export async function postChatMessage(
   replyToId: string | null = null,
 ): Promise<{ error?: string }> {
   const user = await requireUser();
+  return post(user.id, pageId, blockId, raw, replyToId, null);
+}
+
+// A poll: `question` is its message's text, `options` its choices (fixed
+// from now on); `multiple` lets each person choose more than one.
+export async function postChatPoll(
+  pageId: string,
+  blockId: string,
+  question: string,
+  options: string[],
+  multiple: boolean,
+): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const t = await getTranslations("editor.chat");
+  const choices = normalizePollOptions(options);
+  if (!choices || typeof multiple !== "boolean") {
+    return { error: t("pollInvalid", { min: MIN_POLL_OPTIONS, max: MAX_POLL_OPTIONS, length: MAX_POLL_OPTION_LENGTH }) };
+  }
+  return post(user.id, pageId, blockId, question, null, { options: choices, multiple });
+}
+
+async function post(
+  userId: string,
+  pageId: string,
+  blockId: string,
+  raw: string,
+  replyToId: string | null,
+  poll: { options: string[]; multiple: boolean } | null,
+): Promise<{ error?: string }> {
   const t = await getTranslations("editor.chat");
   if (typeof pageId !== "string" || !isBlockId(blockId)) return { error: t("notAllowed") };
-  const access = await getPageAccess(prisma, user.id, pageId);
+  const access = await getPageAccess(prisma, userId, pageId);
   if (!access || !canEditPage(access)) return { error: t("notAllowed") };
   if (await chatLocked(pageId, blockId)) return { error: t("lockedError") };
   const text = normalizeChatMessage(raw);
@@ -149,13 +228,21 @@ export async function postChatMessage(
         : null;
     if (replied?.pageId !== pageId || replied.blockId !== blockId) return { error: t("replyGone") };
   }
-  if (postLimit(user.id) !== null) return { error: t("tooMany") };
+  if (postLimit(userId) !== null) return { error: t("tooMany") };
   const id = randomUUID();
   const key = await loadDataKey(prisma);
   await prisma.chatMessage.create({
-    data: { id, pageId, blockId, authorId: user.id, bodyEnc: sealChatMessage(key, id, text), replyToId },
+    data: {
+      id,
+      pageId,
+      blockId,
+      authorId: userId,
+      bodyEnc: sealChatMessage(key, id, text),
+      replyToId,
+      ...(poll && { poll: { create: { multiple: poll.multiple, optionsEnc: sealPollOptions(key, id, poll.options) } } }),
+    },
   });
-  // Messages are searched with the page.
+  // Messages are searched with the page (a poll's choices too).
   await reindexPage(prisma, pageId);
   // Everyone with the page open refetches (with their own access), as for
   // the child page blocks.
@@ -166,7 +253,83 @@ export async function postChatMessage(
   const names = chatMentionIds(text).length > 0 ? await pagePeopleNames(prisma, pageId) : new Map<string, string>();
   const mentionIds = chatMentionIds(text).filter((id) => names.has(id));
   const excerpt = chatPlainText(text, (mentioned) => names.get(mentioned) ?? null, t("unknownUser"));
-  void notifyChatPosted({ pageId, blockId, actorId: user.id, text: excerpt, mentionIds });
+  void notifyChatPosted({ pageId, blockId, actorId: userId, text: poll ? `📊 ${excerpt}` : excerpt, mentionIds });
+  return {};
+}
+
+// The viewer's vote in a poll: the indexes of the choices they pick, in
+// place of any they picked before (none: their vote taken back). The same
+// access as posting (EDIT, the page not locked, the chat not locked), until
+// the poll is closed.
+export async function voteChatPoll(messageId: string, choices: number[]): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const t = await getTranslations("editor.chat");
+  if (typeof messageId !== "string") return { error: t("notAllowed") };
+  const message = await prisma.chatMessage.findUnique({
+    where: { id: messageId },
+    select: {
+      pageId: true,
+      blockId: true,
+      deletedAt: true,
+      poll: { select: { messageId: true, multiple: true, optionsEnc: true, closedAt: true } },
+    },
+  });
+  if (!message?.poll || message.deletedAt) return { error: t("notAllowed") };
+  const access = await getPageAccess(prisma, user.id, message.pageId);
+  if (!access || !canEditPage(access)) return { error: t("notAllowed") };
+  if (await chatLocked(message.pageId, message.blockId)) return { error: t("lockedError") };
+  if (message.poll.closedAt) return { error: t("pollClosedError") };
+  const key = await loadDataKey(prisma);
+  const vote = normalizePollVote(choices, openPollOptions(key, message.poll).length, message.poll.multiple);
+  if (!vote) return { error: t("pollInvalidVote") };
+  if (reactLimit(user.id) !== null) return { error: t("tooMany") };
+  // Not closed meanwhile: checked again in the same transaction, the poll's
+  // row locked against closing until the vote is in.
+  const changed = await prisma.$transaction(async (tx) => {
+    const open = await tx.$queryRaw<unknown[]>`SELECT 1 FROM "ChatPoll" WHERE "messageId" = ${messageId} AND "closedAt" IS NULL FOR UPDATE`;
+    if (open.length === 0) return false;
+    await tx.chatPollVote.deleteMany({ where: { messageId, userId: user.id } });
+    if (vote.length > 0) await tx.chatPollVote.createMany({ data: vote.map((option) => ({ messageId, userId: user.id, option })) });
+    return true;
+  });
+  if (!changed) return { error: t("pollClosedError") };
+  notifyChildrenChanged(message.pageId);
+  return {};
+}
+
+// The poll's author closes it: no more votes, for good. The same access as
+// changing the message (the chat not locked).
+export async function closeChatPoll(messageId: string): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const t = await getTranslations("editor.chat");
+  const message = await ownMessage(user.id, messageId);
+  if (!message?.poll) return { error: t("notAllowed") };
+  await prisma.chatPoll.updateMany({ where: { messageId: message.poll.messageId, closedAt: null }, data: { closedAt: new Date() } });
+  notifyChildrenChanged(message.pageId);
+  return {};
+}
+
+// Adds the viewer's reaction with `emoji` to someone else's message, or
+// takes it away (`on` false). The same access as posting (EDIT, the page not
+// locked, the chat not locked); not on one's own message, nor one taken back.
+export async function setChatReaction(messageId: string, emoji: string, on: boolean): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const t = await getTranslations("editor.chat");
+  if (typeof messageId !== "string" || !isChatReaction(emoji) || typeof on !== "boolean") return { error: t("notAllowed") };
+  const message = await prisma.chatMessage.findUnique({
+    where: { id: messageId },
+    select: { pageId: true, blockId: true, authorId: true, deletedAt: true },
+  });
+  if (!message || message.deletedAt) return { error: t("notAllowed") };
+  const access = await getPageAccess(prisma, user.id, message.pageId);
+  if (!access || !canEditPage(access)) return { error: t("notAllowed") };
+  if (message.authorId === user.id) return { error: t("ownReaction") };
+  if (await chatLocked(message.pageId, message.blockId)) return { error: t("lockedError") };
+  if (reactLimit(user.id) !== null) return { error: t("tooMany") };
+  const where = { messageId_userId_emoji: { messageId, userId: user.id, emoji } };
+  if (on) await prisma.chatReaction.upsert({ where, create: { messageId, userId: user.id, emoji }, update: {} });
+  else await prisma.chatReaction.deleteMany({ where: { messageId, userId: user.id, emoji } });
+  notifyChildrenChanged(message.pageId);
   return {};
 }
 
@@ -197,7 +360,8 @@ export async function editChatMessage(messageId: string, raw: string): Promise<{
   const user = await requireUser();
   const t = await getTranslations("editor.chat");
   const message = await ownMessage(user.id, messageId);
-  if (!message) return { error: t("notAllowed") };
+  // A poll's question and choices are fixed.
+  if (!message || message.poll) return { error: t("notAllowed") };
   const text = normalizeChatMessage(raw);
   if (!text) return { error: t("invalid") };
   if (postLimit(user.id) !== null) return { error: t("tooMany") };
@@ -212,17 +376,22 @@ export async function editChatMessage(messageId: string, raw: string): Promise<{
 }
 
 // The author takes a message back: its text is replaced by an empty one (so
-// it's gone from the database, not just hidden) and it shows as taken back.
+// it's gone from the database, not just hidden) and it shows as taken back;
+// its reactions go with it, and a poll with its votes.
 export async function deleteChatMessage(messageId: string): Promise<{ error?: string }> {
   const user = await requireUser();
   const t = await getTranslations("editor.chat");
   const message = await ownMessage(user.id, messageId);
   if (!message) return { error: t("notAllowed") };
   const key = await loadDataKey(prisma);
-  await prisma.chatMessage.update({
-    where: { id: messageId },
-    data: { bodyEnc: sealChatMessage(key, messageId, ""), deletedAt: new Date() },
-  });
+  await prisma.$transaction([
+    prisma.chatMessage.update({
+      where: { id: messageId },
+      data: { bodyEnc: sealChatMessage(key, messageId, ""), deletedAt: new Date() },
+    }),
+    prisma.chatReaction.deleteMany({ where: { messageId } }),
+    prisma.chatPoll.deleteMany({ where: { messageId } }),
+  ]);
   await reindexPage(prisma, message.pageId);
   notifyChildrenChanged(message.pageId);
   return {};
@@ -235,7 +404,7 @@ async function ownMessage(userId: string, messageId: unknown) {
   if (typeof messageId !== "string") return null;
   const message = await prisma.chatMessage.findUnique({
     where: { id: messageId },
-    select: { pageId: true, blockId: true, authorId: true, deletedAt: true },
+    select: { pageId: true, blockId: true, authorId: true, deletedAt: true, poll: { select: { messageId: true } } },
   });
   if (!message || message.authorId !== userId || message.deletedAt) return null;
   if (await chatLocked(message.pageId, message.blockId)) return null;

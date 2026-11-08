@@ -2,11 +2,16 @@
 
 export default {
   admin: {
+    auditorView: {
+      note: "You're in the auditors group: you can see everything here, and change nothing.",
+    },
     title: "Admin console",
     masterPassword: "Master password",
     shell: {
       brandSuffix: "Admin console",
       backToApp: "Back to the app",
+      auditor: "Auditor",
+      withAuditor: "{role}, auditor",
       logout: "Log out",
       sourceTitle: "KNOWLECTIVE is published under AGPL-3.0",
       source: "Source code (AGPL-3.0)",
@@ -125,6 +130,15 @@ export default {
       linkPreview: "Link previews",
       linkPreviewLead:
         "Pasting a URL into an empty line of a page makes a card with the site's title, description and image. This server fetches them from the site when the URL is pasted.",
+      auditors: "Auditors",
+      auditorsLead:
+        "Members of the auditors group (Groups → \"Auditors\") can view every page, whatever its permissions, and see this console without changing anything.",
+      auditorsPersonalRoots: "Auditors can also view everyone's personal knowledge root",
+      auditorsPersonalRootsNote:
+        "Read-only, opened from the users list (they aren't listed in the auditors' sidebar). Every page an auditor opens there is recorded in the audit log, and each person's own root page says that auditors may view it.",
+      outboundProxy: "Connections to the outside (proxy)",
+      outboundProxyLead:
+        "The proxy this server's own connections to the outside go through: link previews, desktop notifications, single sign-on, mail (SMTP, through an HTTP CONNECT tunnel) and file storage set here (S3-compatible). Your users' browsers don't use it.",
       pushNotifications: "Desktop notifications",
       pushNotificationsLead:
         "Notifications (chat messages, TODOs, followed pages, mentions) can also show on people's desktops and phones, even when the site isn't open, on the devices where they turn them on. This server sends them through the browsers' push services (Google, Mozilla, Apple, Microsoft), encrypted for each device. Turn off if this server can't reach them; the notifications in the app stay.",
@@ -235,16 +249,23 @@ export default {
       allowPrivate: "Include internal (intranet) sites",
       allowPrivateNote:
         "Also fetches from sites on private addresses (10.x, 172.16–31.x, 192.168.x, etc.). Any logged-in user can then see the titles and descriptions of internal sites this server can reach. This server itself (localhost) and cloud metadata addresses (169.254.x) are never included, even when this is on.",
-      proxy: "Proxy (optional)",
-      proxyNote:
-        "An HTTP proxy for fetching, where the server can't reach outside directly. Empty connects directly. With a proxy, where the connection finally goes is up to the proxy's settings.",
-      proxyUser: "Proxy user name (optional)",
-      proxyPassword: "Proxy password",
-      proxyPasswordKeep: "Empty to keep it",
-      proxyPasswordNote: "Stored encrypted and never shown.",
+    },
+    outboundProxy: {
+      url: "Proxy (optional)",
+      urlNote:
+        "An HTTP proxy, where the server can't reach outside directly. Empty connects directly. With a proxy, where the connection finally goes is up to the proxy's settings.",
+      user: "Proxy user name (optional)",
+      password: "Proxy password",
+      passwordKeep: "Empty to keep it",
+      passwordNote: "Stored encrypted and never shown.",
+      bypass: "Reached without the proxy (optional)",
+      bypassNote:
+        "One per line: a host name, a domain with what's under it (*.example.co.jp), an address or a range (10.0.0.0/8). For servers inside your network, such as the mail server or the file storage. This server itself (localhost) and the bundled file storage are always reached directly.",
       errors: {
-        proxy: "Enter the proxy as http://host:port.",
-        proxyCredentials: "Enter the proxy's user name and password in the fields below, not in the URL.",
+        url: "Enter the proxy as http://host:port.",
+        credentials: "Enter the proxy's user name and password in the fields below, not in the URL.",
+        bypass: "Not a host name, domain, address or range: {entries}",
+        bypassTooMany: "At most {max, number} hosts can be reached without the proxy.",
       },
     },
     api: {
@@ -362,6 +383,7 @@ export default {
       },
     },
     users: {
+      personalRoot: "Personal root",
       makeRole: "Make {role}",
       roleConfirm: "Change {who}'s role to \"{role}\"?",
       issueReset: "Issue a password reset link",
@@ -574,6 +596,8 @@ export default {
       noGrants: "No permissions yet. Give this group permissions from a page's \"⋯\" menu → \"Permissions\".",
       grantRow: ": {access} (also on the pages below)",
       membersHeading: "Members",
+      auditorsNote:
+        "Members can view every page (but those in personal knowledge roots), whatever the pages' permissions say, and see the admin console without changing anything. They sign in to it like admins, with an authenticator app. This group can't be deleted, and only site admins can add or remove its members.",
       allUsersNote:
         "Every registered, enabled user is in this group automatically (including people who register later). Members can't be added or removed, and the group can't be deleted.",
       membersCount: "Members ({count, number})",

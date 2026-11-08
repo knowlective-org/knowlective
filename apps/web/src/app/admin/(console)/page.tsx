@@ -3,7 +3,8 @@ import { isInsecurePublicUrl } from "shared";
 import { siteDefaultLocale } from "@/i18n/locale";
 import { BASE_PATH } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin/auth";
+import { requireAdminView } from "@/lib/admin/auth";
+import { AdminReadOnly } from "./admin-read-only";
 import { getMailSettings } from "@/lib/mail";
 import { getRequestOrigin } from "@/lib/request";
 import styles from "@/styles/ui.module.css";
@@ -22,15 +23,25 @@ import { PublicPagesForm } from "./public-pages-form";
 import { landingPageFor, landingPageOptions } from "@/lib/landing-page";
 import { LandingPageForm } from "./landing-page-form";
 import { PushNotificationsForm } from "./push-notifications-form";
+import { getOutboundProxySettings } from "@/lib/outbound-proxy";
+import { OutboundProxyForm } from "./outbound-proxy-form";
+import { AuditorSettingsForm } from "./auditor-settings-form";
 
 export default async function AdminOverviewPage() {
-  const { actor } = await requireAdmin(["SITE_ADMIN"]);
-  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages, landingOptions, guestLanding, locale, t, brand] =
+  const { actor, readOnly } = await requireAdminView(["SITE_ADMIN"]);
+  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages, landingOptions, guestLanding, locale, t, brand, outboundProxy] =
     await Promise.all([
       getMailSettings(),
       prisma.instanceConfig.findUniqueOrThrow({
         where: { id: 1 },
-        select: { publicUrl: true, publicPagesAllowed: true, searchEnginesAllowed: true, landingPageId: true, pushNotificationsEnabled: true },
+        select: {
+          publicUrl: true,
+          publicPagesAllowed: true,
+          searchEnginesAllowed: true,
+          landingPageId: true,
+          pushNotificationsEnabled: true,
+          auditorsSeePersonalRoots: true,
+        },
       }),
       getRequestOrigin(),
       prisma.user.count({ where: { siteRole: "SITE_ADMIN", disabledAt: null } }),
@@ -42,11 +53,12 @@ export default async function AdminOverviewPage() {
       siteDefaultLocale(),
       getTranslations("admin.overview"),
       getBrand(),
+      getOutboundProxySettings(prisma),
     ]);
   const code = (chunks: React.ReactNode) => <code>{chunks}</code>;
 
   return (
-    <>
+    <AdminReadOnly readOnly={readOnly}>
       {siteAdminCount === 0 && (
         <p data-ui="AdminOverviewPage.noSiteAdminError" className={styles.error} style={{ marginBottom: 24 }}>
           {t("noSiteAdmin")}
@@ -126,6 +138,22 @@ export default async function AdminOverviewPage() {
         <PushNotificationsForm enabled={site.pushNotificationsEnabled} />
       </section>
 
+      <section className={styles.section} data-ui="AdminOverviewPage.auditorsSection">
+        <h2 className={styles.sectionTitle}>{t("auditors")}</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          {t("auditorsLead")}
+        </p>
+        <AuditorSettingsForm personalRoots={site.auditorsSeePersonalRoots} />
+      </section>
+
+      <section className={styles.section} data-ui="AdminOverviewPage.outboundProxySection">
+        <h2 className={styles.sectionTitle}>{t("outboundProxy")}</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          {t("outboundProxyLead")}
+        </p>
+        <OutboundProxyForm current={outboundProxy} />
+      </section>
+
       <section className={styles.section} data-ui="AdminOverviewPage.publicPagesSection">
         <h2 className={styles.sectionTitle}>{t("publicPages")}</h2>
         <p className={styles.note} style={{ marginBottom: 16 }}>
@@ -149,6 +177,6 @@ export default async function AdminOverviewPage() {
           guestsCanView={guestLanding !== null}
         />
       </section>
-    </>
+    </AdminReadOnly>
   );
 }

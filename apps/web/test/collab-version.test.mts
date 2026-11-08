@@ -10,7 +10,7 @@ import { COLLAB_CLIENT_VERSION } from "../src/lib/collab-version";
 // record the new outline and version below.
 //   pnpm --filter web test:unit
 
-const RECORDED_VERSION = 2;
+const RECORDED_VERSION = 5;
 const RECORDED = [
   "mark backgroundColor(stringValue)",
   "mark bold()",
@@ -24,7 +24,7 @@ const RECORDED = [
   "node blockContainer(id)",
   "node blockGroup()",
   "node bulletListItem(backgroundColor,textAlignment,textColor)",
-  "node chat()",
+  "node chat(title)",
   "node checkListItem(backgroundColor,checked,textAlignment,textColor)",
   "node childBoard(groupBy,subGroupBy,title)",
   "node childPages(depth,title)",
@@ -59,6 +59,7 @@ const RECORDED = [
   "node toggleListItem(backgroundColor,textAlignment,textColor)",
   "node video(backgroundColor,caption,name,previewWidth,showPreview,textAlignment,url)",
   "node videoEmbed(url)",
+  "node whiteboard(pageId)",
 ].join("\n");
 
 describe("collab client version", () => {

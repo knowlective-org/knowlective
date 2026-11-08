@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { groupName } from "@/i18n/group-name";
-import { PUBLIC_GROUP } from "shared";
+import { AUDITORS_GROUP, PUBLIC_GROUP } from "shared";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin/auth";
+import { requireAdminView } from "@/lib/admin/auth";
+import { AdminReadOnly } from "../admin-read-only";
 import { manageableGroupIds } from "@/lib/group-access";
 import styles from "@/styles/ui.module.css";
 import { CreateGroupForm } from "./group-forms";
 
 export default async function AdminGroupsPage() {
-  const { actor } = await requireAdmin();
+  const { actor, readOnly } = await requireAdminView();
   const allowed = await manageableGroupIds(actor);
   const groups = await prisma.group.findMany({
     // Content managers only see groups within trees they manage. The public
@@ -25,7 +26,7 @@ export default async function AdminGroupsPage() {
   const t = await getTranslations();
 
   return (
-    <>
+    <AdminReadOnly readOnly={readOnly}>
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>{t("admin.groups.groups")}</h2>
         <div className={styles.tableWrap}>
@@ -47,7 +48,7 @@ export default async function AdminGroupsPage() {
                     </Link>
                   </td>
                   <td>{g.description ?? "-"}</td>
-                  <td>{g.builtIn ? t("admin.common.everyoneAuto") : g._count.members}</td>
+                  <td>{g.builtIn && g.builtIn !== AUDITORS_GROUP ? t("admin.common.everyoneAuto") : g._count.members}</td>
                   <td>{g._count.grants}</td>
                 </tr>
               ))}
@@ -60,6 +61,6 @@ export default async function AdminGroupsPage() {
         <h2 className={styles.sectionTitle}>{t("admin.groups.create")}</h2>
         <CreateGroupForm />
       </section>
-    </>
+    </AdminReadOnly>
   );
 }

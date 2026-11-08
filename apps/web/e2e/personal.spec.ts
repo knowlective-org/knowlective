@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { HOME_PAGE_ID, authFile } from "./accounts";
-import { editorBody, openPage } from "./helpers";
+import { addPageFromTree, editorBody, openPage } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
@@ -27,8 +27,7 @@ test.describe("Personal knowledge root", () => {
 
     // Pages can be added under it, as in any root.
     const rootId = await openPersonalRoot(page);
-    await page.locator(`[data-ui="DocTree.link"][data-id="${rootId}"]`).hover();
-    await page.locator(`[data-ui="DocTree.addChildButton"][data-id="${rootId}"]`).click();
+    await addPageFromTree(page, rootId);
     await page.waitForURL((url) => /\/pages\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith(rootId));
     await expect(editorBody(page)).toBeVisible();
     const childId = new URL(page.url()).pathname.split("/").pop()!;

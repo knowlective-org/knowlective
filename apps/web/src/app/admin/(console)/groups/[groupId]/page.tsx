@@ -5,9 +5,10 @@ import { getDisplayTitle } from "@/i18n/display-title";
 import { groupName } from "@/i18n/group-name";
 import { prisma } from "@/lib/db";
 import { withEmail } from "@/lib/emails";
-import { requireAdmin } from "@/lib/admin/auth";
+import { requireAdminView } from "@/lib/admin/auth";
+import { AdminReadOnly } from "../../admin-read-only";
 // The admin console isn't covered by the network caps (lib/page-access.ts).
-import { getVisibleTrees } from "shared";
+import { AUDITORS_GROUP, getVisibleTrees } from "shared";
 import { canManageGroup } from "@/lib/group-access";
 import styles from "@/styles/ui.module.css";
 import { deleteGroup, removeGroupMember } from "../actions";
@@ -17,7 +18,7 @@ import { RowMenu, type RowMenuItem } from "../../row-menu";
 import { disableUser, enableUser } from "../../users/actions";
 
 export default async function AdminGroupPage({ params }: PageProps<"/admin/groups/[groupId]">) {
-  const { session, role, actor } = await requireAdmin();
+  const { session, role, actor, readOnly } = await requireAdminView();
   const { groupId } = await params;
   if (!(await canManageGroup(actor, groupId))) notFound();
   const group = await prisma.group.findUnique({
@@ -48,7 +49,7 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
   };
 
   return (
-    <>
+    <AdminReadOnly readOnly={readOnly}>
       <p className={styles.note} style={{ marginBottom: 16 }}>
         <Link data-ui="AdminGroupPage.backLink" href="/admin/groups" style={{ textDecoration: "underline" }}>
           {t("admin.groups.back")}
@@ -84,7 +85,7 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
         )}
       </section>
 
-      {group.builtIn ? (
+      {group.builtIn && group.builtIn !== AUDITORS_GROUP ? (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>{t("admin.groups.membersHeading")}</h2>
           <p className={styles.note}>
@@ -95,6 +96,11 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
         <>
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>{t("admin.groups.membersCount", { count: members.length })}</h2>
+        {group.builtIn === AUDITORS_GROUP && (
+          <p className={styles.note} style={{ marginBottom: 16 }} data-ui="AdminGroupPage.auditorsNote">
+            {t("admin.groups.auditorsNote")}
+          </p>
+        )}
         {members.length > 0 && (
           <div className={styles.tableWrap} style={{ marginBottom: 24 }}>
             <table className={styles.table}>
@@ -133,6 +139,7 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
         <AddMemberForm groupId={group.id} />
       </section>
 
+      {!group.builtIn && (
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>{t("admin.groups.delete")}</h2>
         <p className={styles.note} style={{ marginBottom: 12 }}>
@@ -145,9 +152,10 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
           </button>
         </form>
       </section>
+      )}
         </>
       )}
-    </>
+    </AdminReadOnly>
   );
 }
 

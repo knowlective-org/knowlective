@@ -11,6 +11,9 @@ import { openEmail } from "./personal-data";
 // - Across the user's groups, the strongest access wins.
 // - No grant on the page or any ancestor (for any of the user's groups) means
 //   no access at all. Site roles never grant page access.
+// - Members of the built-in auditors group can view every page outside the
+//   personal roots, whatever the grants say (NONE included); the personal
+//   roots too while a site admin allows it (auditorsSeePersonalRoots).
 // - Deleted pages, and everything under them, are inaccessible.
 //
 // Trees are evaluated per knowledge root in memory: every page carries
@@ -121,6 +124,26 @@ export const ALL_USERS_GROUP = "all_users";
 // its grants are VIEW, whatever they say (loadGrants).
 export const PUBLIC_GROUP = "public";
 
+// Built-in group whose members (GroupMember rows, added by a site admin) can
+// view every page outside the personal roots, and see the admin console
+// without changing anything (apps/web/src/lib/admin/auth.ts). It can't be
+// deleted, and isn't granted on pages: its access isn't a grant.
+export const AUDITORS_GROUP = "auditors";
+// In a user's group ids (userGroupIds) in place of the auditors group's own
+// id: so a grant to that group, however made, never counts.
+const AUDITOR = "__auditor__";
+// Added to an auditor's ids while they may view the personal roots too.
+const AUDITOR_PERSONAL = "__auditor_personal__";
+
+// Whether the user is an enabled member of the auditors group.
+export async function isAuditor(prisma: PrismaClient, userId: string): Promise<boolean> {
+  const member = await prisma.groupMember.findFirst({
+    where: { userId, user: { disabledAt: null }, group: { builtIn: AUDITORS_GROUP } },
+    select: { userId: true },
+  });
+  return member !== null;
+}
+
 // The public group's id while public pages are allowed, otherwise null.
 export async function publicGroupId(prisma: PrismaClient): Promise<string | null> {
   const [config, group] = await Promise.all([
@@ -137,12 +160,20 @@ async function userGroupIds(prisma: PrismaClient, userId: string | null): Promis
   const ids = new Set<string>(publicId ? [publicId] : []);
   if (userId === null) return ids;
   const [rows, user, allUsers] = await Promise.all([
-    prisma.groupMember.findMany({ where: { userId }, select: { groupId: true } }),
+    prisma.groupMember.findMany({ where: { userId }, select: { groupId: true, group: { select: { builtIn: true } } } }),
     prisma.user.findUnique({ where: { id: userId }, select: { disabledAt: true } }),
     prisma.group.findUnique({ where: { builtIn: ALL_USERS_GROUP }, select: { id: true } }),
   ]);
-  for (const r of rows) ids.add(r.groupId);
-  if (allUsers && user && !user.disabledAt) ids.add(allUsers.id);
+  const enabled = !!user && !user.disabledAt;
+  for (const r of rows) {
+    if (r.group.builtIn !== AUDITORS_GROUP) ids.add(r.groupId);
+    else if (enabled) ids.add(AUDITOR);
+  }
+  if (ids.has(AUDITOR)) {
+    const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { auditorsSeePersonalRoots: true } });
+    if (config?.auditorsSeePersonalRoots) ids.add(AUDITOR_PERSONAL);
+  }
+  if (allUsers && enabled) ids.add(allUsers.id);
   return ids;
 }
 
@@ -187,10 +218,19 @@ async function accessRules(
 ): Promise<{ grants: Grant[]; groupIds: Set<string> }> {
   const root = await prisma.knowledgeRoot.findUnique({ where: { id: rootId }, select: { ownerId: true, rootPageId: true } });
   if (root?.ownerId) {
+    // Someone else's: an auditor may view it while that's allowed (never
+    // listed in their sidebar: getVisibleTrees() reads no one else's).
+    if (root.ownerId !== userId && groupIds.has(AUDITOR_PERSONAL) && root.rootPageId) {
+      return { grants: [{ pageId: root.rootPageId, groupId: AUDITOR_PERSONAL, access: "VIEW" }], groupIds: new Set([AUDITOR_PERSONAL]) };
+    }
     if (root.ownerId !== userId || !root.rootPageId) return { grants: [], groupIds: new Set() };
     return { grants: [{ pageId: root.rootPageId, groupId: OWNER_GROUP, access: "EDIT" }], groupIds: new Set([OWNER_GROUP]) };
   }
-  return { grants: await loadGrants(prisma, rootId, groupIds), groupIds };
+  const grants = await loadGrants(prisma, rootId, groupIds);
+  // An auditor: VIEW from the root page down, which no grant below takes
+  // away (it's a group of its own, with no other grant).
+  if (groupIds.has(AUDITOR) && root?.rootPageId) grants.push({ pageId: root.rootPageId, groupId: AUDITOR, access: "VIEW" });
+  return { grants, groupIds };
 }
 
 // The personal root this user owns, if any (its id).
@@ -513,8 +553,15 @@ export async function getVisibleTrees(prisma: PrismaClient, userId: string | nul
           distinct: ["rootId"],
         });
   const roots = await prisma.knowledgeRoot.findMany({
-    // The user's own personal root, and the roots their groups reach.
-    where: { OR: [{ id: { in: rootIds.map((r) => r.rootId) } }, ...(userId ? [{ ownerId: userId }] : [])] },
+    // The user's own personal root, and the roots their groups reach (an
+    // auditor: every root but the personal ones).
+    where: {
+      OR: [
+        { id: { in: rootIds.map((r) => r.rootId) } },
+        ...(userId ? [{ ownerId: userId }] : []),
+        ...(groupIds.has(AUDITOR) ? [{ ownerId: null }] : []),
+      ],
+    },
     select: { id: true, rootPageId: true },
     orderBy: { createdAt: "asc" },
   });

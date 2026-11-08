@@ -18,6 +18,7 @@ import { auditTranslator } from "@/i18n/audit";
 import { getTranslations } from "next-intl/server";
 import { isDomainAllowed } from "@/lib/auth/signup";
 import { getPublicUrl } from "@/lib/site-url";
+import { fetchThroughProxy } from "@/lib/outbound-proxy";
 
 // Sign-in with OpenID Connect (authorization code flow with PKCE, state and
 // nonce; client authenticated with its secret). The protocol work — discovery,
@@ -129,12 +130,17 @@ let cached: { key: string; at: number; config: client.Configuration } | null =
 const CACHE_MS = 10 * 60 * 1000;
 
 // openid-client refuses plain http; allowed only for an IdP on this machine
-// (development). The admin form rejects other http issuers.
+// (development). The admin form rejects other http issuers. Every request to
+// the IdP (discovery, keys, tokens, user info: the Configuration keeps the
+// fetch) goes through the outbound proxy, unless the IdP is on its bypass list.
 function discoveryOptions(issuer: URL) {
   const local =
     issuer.protocol === "http:" &&
     ["localhost", "127.0.0.1"].includes(issuer.hostname);
-  return local ? { execute: [client.allowInsecureRequests] } : undefined;
+  return {
+    [client.customFetch]: fetchThroughProxy(prisma),
+    ...(local ? { execute: [client.allowInsecureRequests] } : {}),
+  };
 }
 
 // Unsaved settings (the admin's connection test / save).

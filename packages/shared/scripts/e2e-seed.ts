@@ -4,6 +4,7 @@ import { config as loadEnv } from "dotenv";
 loadEnv({ path: path.resolve(__dirname, "../../../.env") });
 
 import {
+  AUDITORS_GROUP,
   createKnowledgeRoot,
   createPrismaClient,
   emailHash,
@@ -41,7 +42,11 @@ const USERS = [
   { email: "e2e-viewer@example.com", name: "E2E 閲覧者", siteRole: "USER", group: "E2E 閲覧" },
   // In no group: sees none of the test pages.
   { email: "e2e-outsider@example.com", name: "E2E 部外者", siteRole: "USER", group: null },
+  // In the built-in auditors group only: views every page, and the admin
+  // console without changing anything (signs in to it like the admin).
+  { email: "e2e-auditor@example.com", name: "E2E 監査", siteRole: "USER", group: null },
 ] as const;
+const AUDITOR_EMAIL = "e2e-auditor@example.com";
 
 const GROUPS = [
   { name: "E2E 管理", access: "MANAGE" },
@@ -81,14 +86,14 @@ async function main() {
     users.set(u.email, user.id);
     // A person's account comes with a personal knowledge root.
     await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id, "マイページ"));
-    // The admin signs in to /admin with a code from this secret; the others
-    // have no authenticator. A used code can't be used again, so the last
+    // The admin and the auditor sign in to /admin with a code from this
+    // secret; the others have no authenticator. A used code can't be used again, so the last
     // accepted step is cleared too.
     await prisma.user.update({
       where: { id: user.id },
       data: {
         totpSecret:
-          u.siteRole === "SITE_ADMIN"
+          u.siteRole === "SITE_ADMIN" || u.email === AUDITOR_EMAIL
             ? Uint8Array.from(encrypt(dataKey, ADMIN_TOTP_SECRET, `knowlective:user-totp:${user.id}`))
             : null,
         totpLastStep: null,
@@ -106,6 +111,9 @@ async function main() {
     });
     groups.set(g.name, group.id);
   }
+  const auditors = await prisma.group.findUniqueOrThrow({ where: { builtIn: AUDITORS_GROUP }, select: { id: true } });
+  const auditorKey = { groupId: auditors.id, userId: users.get(AUDITOR_EMAIL)! };
+  await prisma.groupMember.upsert({ where: { groupId_userId: auditorKey }, create: auditorKey, update: {} });
   for (const u of USERS) {
     if (!u.group) continue;
     const key = { groupId: groups.get(u.group)!, userId: users.get(u.email)! };

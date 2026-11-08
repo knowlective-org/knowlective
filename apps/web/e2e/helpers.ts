@@ -18,14 +18,20 @@ export async function openPage(page: Page, pageId: string) {
   await expect(editorBody(page)).toBeVisible();
 }
 
+// Adds a page under parentId through the sidebar: the row's "＋" and its
+// menu. The caller waits for the new page.
+export async function addPageFromTree(page: Page, parentId: string, kind: "document" | "whiteboard" = "document") {
+  // The add button only shows while its row is hovered.
+  await page.locator(`[data-ui="DocTree.link"][data-id="${parentId}"]`).hover();
+  await page.locator(`[data-ui="AddPageMenu.toggleButton"][data-id="${parentId}"]`).click();
+  await page.getByTestId(kind === "document" ? "AddPageMenu.documentItem" : "AddPageMenu.whiteboardItem").click();
+}
+
 // Adds a page under the E2E home page, titles it, and returns its id. The
 // title carries a timestamp, so runs don't collide.
 export async function createPage(page: Page, label: string): Promise<{ id: string; title: string }> {
   await openPage(page, HOME_PAGE_ID);
-  const row = page.locator(`[data-ui="DocTree.link"][data-id="${HOME_PAGE_ID}"]`);
-  // The add button only shows while its row is hovered.
-  await row.hover();
-  await page.locator(`[data-ui="DocTree.addChildButton"][data-id="${HOME_PAGE_ID}"]`).click();
+  await addPageFromTree(page, HOME_PAGE_ID);
   await page.waitForURL((url) => /\/pages\/(?!e2e-home)[^/]+$/.test(url.pathname));
   await expect(editorBody(page)).toBeVisible();
   const title = `${label} ${Date.now()}`;

@@ -6,6 +6,7 @@ import { docNotices } from "../src/lib/doc-notices";
 import { type NotificationKind, parseNotificationPrefs, wantsNotification } from "../src/lib/notification-prefs";
 import { type ChatPostedEvent, registerNotificationBridge } from "../src/lib/notification-bridge";
 import { type PushSubscriptionData, isPushEndpoint, subscriptionAad } from "../src/lib/push-endpoint";
+import { loadOutboundProxy, proxyForHost } from "../src/lib/outbound-proxy";
 import { FALLBACK_LOCALE, isLocale } from "../src/i18n/locales";
 import { translatorFor } from "../src/i18n/translator";
 
@@ -353,8 +354,11 @@ export function createNotifier(prisma: PrismaClient) {
     if (!isPushEndpoint(subscription.endpoint)) return false;
     // VAPID needs a contact for the push services: the site's address.
     const subject = publicUrl?.startsWith("https://") ? publicUrl : "mailto:noreply@knowlective.invalid";
+    // Through the outbound proxy, if any (lib/outbound-proxy.ts).
+    const proxy = proxyForHost(await loadOutboundProxy(prisma), new URL(subscription.endpoint).hostname);
     try {
       await webpush.sendNotification(subscription, JSON.stringify(message), {
+        ...(proxy ? { proxy } : {}),
         vapidDetails: { subject, publicKey: keys.publicKey, privateKey: keys.privateKey },
         TTL: 24 * 60 * 60,
         timeout: 10_000,

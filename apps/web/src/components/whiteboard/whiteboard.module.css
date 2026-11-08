@@ -1,0 +1,670 @@
+.root {
+  position: relative;
+  height: calc(100dvh - 190px);
+  min-height: 360px;
+  margin: 0 24px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--color-wb-board);
+  background-image: radial-gradient(var(--color-wb-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@media (max-width: 640px) {
+  .root {
+    margin: 0 8px 16px;
+  }
+}
+
+/* Full screen: over the whole window, the sidebar and the page's top bar
+   included (under the dialogs, z-index 1000). */
+.root[data-fullscreen] {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  cursor: default;
+  outline: none;
+}
+
+.viewport:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+.viewport:is([data-tool="sticky"], [data-tool="rect"], [data-tool="ellipse"], [data-tool="text"], [data-tool="connector"]) {
+  cursor: crosshair;
+}
+
+.viewport[data-panning] {
+  cursor: grab;
+}
+
+.layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+}
+
+.line,
+.lineSelected,
+.lineDraft {
+  stroke-width: 2;
+  fill: none;
+  pointer-events: none;
+}
+
+.line {
+  stroke: var(--color-wb-line);
+}
+
+.lineSelected,
+.lineDraft {
+  stroke: var(--color-primary);
+}
+
+.lineDraft {
+  stroke-dasharray: 6 4;
+}
+
+/* A wide invisible stroke, so the thin line is easy to click. */
+.lineHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+/* A double line's middle, in the board's color: two lines are left. */
+.lineGap {
+  fill: none;
+  stroke: var(--color-wb-board);
+  pointer-events: none;
+}
+
+.arrow {
+  fill: var(--color-wb-line);
+}
+
+.arrowSelected {
+  fill: var(--color-primary);
+}
+
+/* Text is centered from top to bottom and starts at the left. */
+/* Text centered from top to bottom while it fits; longer, it starts at
+   the top and runs out below (not cut off). */
+.box {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: safe center;
+  text-align: left;
+  color: var(--color-wb-ink);
+  background: var(--item-color);
+}
+
+.box[data-type="sticky"] {
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.box:is([data-type="rect"], [data-type="ellipse"]) {
+  padding: 6px 10px;
+  font-size: 14px;
+  border: 2px solid var(--color-wb-line);
+}
+
+.box[data-type="rect"] {
+  border-radius: 6px;
+}
+
+.box[data-type="ellipse"] {
+  border-radius: 50%;
+}
+
+/* A diamond: its outline drawn behind the text, the box itself bare. */
+.box[data-type="diamond"] {
+  font-size: 14px;
+  background: transparent;
+}
+
+.diamond {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.diamond polygon {
+  fill: var(--item-color);
+  stroke: var(--color-wb-line);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The text, where it's been moved to (it may be outside the box). */
+.textPlace {
+  position: relative;
+  width: 100%;
+}
+
+.box[data-type="text"] {
+  padding: 2px 4px;
+  font-size: 16px;
+  line-height: 1.35;
+  background: transparent;
+}
+
+.box[data-selected] {
+  outline: calc(2px / var(--zoom, 1)) solid var(--color-primary);
+  outline-offset: calc(3px / var(--zoom, 1));
+}
+
+/* The box the others line up with when several are selected: around the
+   selection's outline, red and dashed. */
+.alignKey {
+  position: absolute;
+  outline: calc(2px / var(--zoom, 1)) dashed var(--color-danger);
+  outline-offset: calc(8px / var(--zoom, 1));
+  pointer-events: none;
+}
+
+.boxText {
+  width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Lists in an item's text (rich-text.ts). */
+.list {
+  margin: 0;
+  padding-left: 1.3em;
+}
+
+.plainText {
+  white-space: pre-wrap;
+}
+
+.boxInput,
+.labelInput {
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: inherit;
+  background: transparent;
+  border: 0;
+  outline: none;
+  resize: none;
+  user-select: text;
+}
+
+.boxInput {
+  overflow: hidden;
+}
+
+/* Drags the text to another place (sized for the screen). */
+.textHandle {
+  position: absolute;
+  top: 0;
+  left: calc(-20px / var(--zoom, 1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(16px / var(--zoom, 1));
+  height: calc(16px / var(--zoom, 1));
+  font-size: calc(11px / var(--zoom, 1));
+  line-height: 1;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 3px;
+  cursor: move;
+}
+
+/* Drawn, not text: it isn't part of the item's text. */
+.textHandle::before {
+  content: "\2725";
+}
+
+.handle {
+  position: absolute;
+  right: calc(-7px / var(--zoom, 1));
+  bottom: calc(-7px / var(--zoom, 1));
+  width: calc(12px / var(--zoom, 1));
+  height: calc(12px / var(--zoom, 1));
+  background: var(--color-surface);
+  border: calc(2px / var(--zoom, 1)) solid var(--color-primary);
+  border-radius: 2px;
+  cursor: nwse-resize;
+}
+
+/* As wide as its text, up to max-width: left alone, its width would come
+   from the board layer (0 wide), wrapping every character onto its own line. */
+.label {
+  position: absolute;
+  width: max-content;
+  min-width: 40px;
+  max-width: 220px;
+  padding: 2px 8px;
+  font-size: 14px;
+  color: var(--color-wb-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--color-wb-board);
+  border-radius: 4px;
+  transform: translate(-50%, -50%);
+}
+
+/* By a connector's end, beside the line: smaller, quieter. */
+.endLabel {
+  composes: label;
+  padding: 0 2px;
+  font-size: 12px;
+  color: var(--color-muted);
+  background: transparent;
+}
+
+.labelInput {
+  width: 160px;
+  height: 3.2em;
+}
+
+/* A connection dot, just outside the box's side (sized for the screen,
+   whatever the zoom). */
+.connectDot {
+  position: absolute;
+  width: calc(12px / var(--zoom, 1));
+  height: calc(12px / var(--zoom, 1));
+  background: var(--color-surface);
+  border: calc(2px / var(--zoom, 1)) solid var(--color-primary);
+  border-radius: 50%;
+  transform: translate(calc(-50% + var(--dx) * 1px / var(--zoom, 1)), calc(-50% + var(--dy) * 1px / var(--zoom, 1)));
+  cursor: crosshair;
+}
+
+.connectDot:hover {
+  background: var(--color-primary);
+}
+
+/* The side a dragged connector end would go to. */
+.connectDotActive {
+  composes: connectDot;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 calc(4px / var(--zoom, 1)) color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+/* A selected connector's end. */
+.endHandle {
+  position: absolute;
+  width: calc(12px / var(--zoom, 1));
+  height: calc(12px / var(--zoom, 1));
+  background: var(--color-primary);
+  border: calc(2px / var(--zoom, 1)) solid var(--color-surface);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  cursor: move;
+}
+
+/* Where dragged items started. */
+.ghost {
+  position: absolute;
+  border: calc(1.5px / var(--zoom, 1)) dashed var(--color-primary);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* On items dragged with Alt held: they'll be copies. Sized for the screen. */
+.copyMark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(28px / var(--zoom, 1));
+  height: calc(28px / var(--zoom, 1));
+  font-size: calc(22px / var(--zoom, 1));
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.marquee {
+  position: absolute;
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border: calc(1px / var(--zoom, 1)) solid var(--color-primary);
+  pointer-events: none;
+}
+
+.cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  transition: transform 80ms linear;
+}
+
+.cursor svg {
+  display: block;
+  fill: var(--cursor-color);
+  stroke: var(--color-surface);
+  stroke-width: 1;
+}
+
+.cursorName {
+  position: absolute;
+  top: 14px;
+  left: 12px;
+  padding: 1px 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--color-on-primary);
+  background: var(--cursor-color);
+  border-radius: 4px;
+}
+
+.empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  max-width: 80%;
+  font-size: 14px;
+  text-align: center;
+  color: var(--color-muted);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.toolbar,
+.selectionBar,
+.zoom {
+  position: absolute;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.toolbar {
+  top: 50%;
+  left: 12px;
+  flex-direction: column;
+  transform: translateY(-50%);
+}
+
+.selectionBar {
+  top: 12px;
+  left: 50%;
+  flex-wrap: wrap;
+  justify-content: center;
+  /* As wide as its buttons (not the half of the board right of its left
+     edge), wrapping only when the board is narrower. */
+  width: max-content;
+  max-width: calc(100% - 24px);
+  transform: translateX(-50%);
+}
+
+.zoom {
+  right: 12px;
+  bottom: 12px;
+}
+
+.toolButton {
+  width: 36px;
+  height: 36px;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.toolButton:hover,
+.barButton:hover,
+.dangerButton:hover {
+  background: var(--color-hover);
+}
+
+.toolButton[aria-pressed="true"] {
+  background: var(--color-primary-light);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.barButton,
+.dangerButton {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.dangerButton {
+  color: var(--color-danger);
+}
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-primary);
+}
+
+.separator {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: var(--color-border);
+}
+
+.zoomValue {
+  min-width: 52px;
+  height: 32px;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.zoomValue:hover {
+  background: var(--color-hover);
+}
+
+.barButton[aria-pressed="true"] {
+  background: var(--color-primary-light);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+/* In a document (the whiteboard block): a lower board in the block's frame. */
+.root.embedded {
+  height: 420px;
+  min-height: 0;
+  margin: 0;
+}
+
+/* Where a dragged or resized box lines up with others (snap.ts). */
+.guide {
+  position: absolute;
+  background: var(--color-danger);
+  pointer-events: none;
+}
+
+.guide[data-axis="x"] {
+  width: calc(1px / var(--zoom, 1));
+}
+
+.guide[data-axis="y"] {
+  height: calc(1px / var(--zoom, 1));
+}
+
+.toolSeparator {
+  height: 1px;
+  margin: 2px 4px;
+  background: var(--color-border);
+}
+
+.templatePick {
+  position: relative;
+}
+
+/* Beside its button (the toolbar's last), growing upward: the board below
+   would cut it off. */
+.templateMenu {
+  position: absolute;
+  bottom: 0;
+  left: calc(100% + 10px);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.templateItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.templateItem:hover,
+.templateItem:focus-visible {
+  background: var(--color-hover);
+  outline: none;
+}
+
+.templateName {
+  font-size: 14px;
+}
+
+.templateNote {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+/* An image: the picture alone, its whole shape shown. */
+.box[data-type="image"] {
+  justify-content: center;
+  background: transparent;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.imageMissing {
+  font-size: 32px;
+  opacity: 0.4;
+}
+
+/* A box's link to a page, at its top right corner (sized for the screen). */
+.linkBadge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: calc(22px / var(--zoom, 1));
+  height: calc(22px / var(--zoom, 1));
+  font-size: calc(12px / var(--zoom, 1));
+  text-decoration: none;
+  background: var(--color-surface);
+  border: calc(1px / var(--zoom, 1)) solid var(--color-border-strong);
+  border-radius: 50%;
+  transform: translate(40%, -40%);
+  cursor: pointer;
+}
+
+.linkBadge:hover {
+  border-color: var(--color-primary);
+}
+
+@media print {
+  .root {
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+    border: 0;
+    background-image: none;
+  }
+
+  .toolbar,
+  .selectionBar,
+  .zoom,
+  .cursor {
+    display: none;
+  }
+}

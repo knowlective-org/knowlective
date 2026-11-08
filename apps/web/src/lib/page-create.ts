@@ -1,4 +1,4 @@
-import { MAX_PAGE_DEPTH, atLeast } from "shared";
+import { MAX_PAGE_DEPTH, type PageKind, atLeast } from "shared";
 import { getPageAccess } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { notifyChildrenChanged } from "@/lib/collab-events";
@@ -16,6 +16,8 @@ export async function insertChildPage(
   userId: string,
   parentId: unknown,
   title: string,
+  // A document, or a whiteboard (lib/whiteboard.ts); fixed for the page's life.
+  kind: PageKind = "DOCUMENT",
 ): Promise<{ id: string } | { error: CreatePageError }> {
   const parentAccess = typeof parentId === "string" ? await getPageAccess(prisma, userId, parentId) : null;
   if (typeof parentId !== "string" || !parentAccess || !atLeast(parentAccess.access, "EDIT")) {
@@ -41,7 +43,7 @@ export async function insertChildPage(
   const page = await prisma.page.create({
     // An empty title shows as "untitled" until renamed. The collab server seeds the
     // document's title from this when the page is first opened.
-    data: { title, rootId: parentAccess.rootId, parentId, createdById: userId, sortOrder: await nextSortOrder(parentId) },
+    data: { title, kind, rootId: parentAccess.rootId, parentId, createdById: userId, sortOrder: await nextSortOrder(parentId) },
     select: { id: true },
   });
   // Findable by title right away, before anyone opens it.

@@ -9,10 +9,19 @@ import { decrypt, encrypt } from "shared";
 
 export {
   CHAT_HISTORY,
+  CHAT_REACTIONS,
+  isChatReaction,
   MAX_CHAT_MESSAGE_LENGTH,
+  MAX_POLL_OPTION_LENGTH,
+  MAX_POLL_OPTIONS,
+  MIN_POLL_OPTIONS,
+  normalizePollOptions,
+  normalizePollVote,
   REPLY_EXCERPT_LENGTH,
   type ChatData,
   type ChatMessageView,
+  type ChatPollView,
+  type ChatReactionView,
 } from "./chat-types";
 import { MAX_CHAT_MESSAGE_LENGTH } from "./chat-types";
 
@@ -24,6 +33,19 @@ export function sealChatMessage(key: Uint8Array, id: string, text: string) {
 
 export function openChatMessage(key: Uint8Array, row: { id: string; bodyEnc: Uint8Array }): string {
   return decrypt(key, row.bodyEnc, aad(row.id)).toString("utf8");
+}
+
+// A poll's choices (ChatPoll.optionsEnc): a JSON array of strings, bound to
+// its message.
+const pollAad = (messageId: string) => `knowlective:chat-poll:${messageId}`;
+
+export function sealPollOptions(key: Uint8Array, messageId: string, options: string[]) {
+  return Uint8Array.from(encrypt(key, Buffer.from(JSON.stringify(options), "utf8"), pollAad(messageId)));
+}
+
+export function openPollOptions(key: Uint8Array, poll: { messageId: string; optionsEnc: Uint8Array }): string[] {
+  const options: unknown = JSON.parse(decrypt(key, poll.optionsEnc, pollAad(poll.messageId)).toString("utf8"));
+  return Array.isArray(options) ? options.filter((o): o is string => typeof o === "string") : [];
 }
 
 // BlockNote's block ids (UUIDs); anything else isn't a block of ours.

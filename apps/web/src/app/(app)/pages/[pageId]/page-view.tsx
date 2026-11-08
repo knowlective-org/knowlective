@@ -10,7 +10,7 @@ import { AppShell } from "@/components/app-shell";
 import { InitialTitleContext } from "@/components/editor-placeholder";
 import { Sidebar, type SidebarTree } from "@/components/sidebar";
 import { Breadcrumb } from "./breadcrumb";
-import { EditorLoader, StaticDocumentLoader } from "./editor-loader";
+import { EditorLoader, StaticDocumentLoader, StaticWhiteboardLoader, WhiteboardLoader } from "./editor-loader";
 import { PageMenu, ShareButton } from "./page-menu";
 import { FollowButton } from "./follow-button";
 import styles from "./page-view.module.css";
@@ -46,11 +46,13 @@ export type PageLockView = {
 export function PageView({
   pageId,
   initialTitle,
+  kind,
   canEdit,
   lock,
   canManage,
   isRootPage,
   personal,
+  personalNotice,
   shareUrl,
   user,
   guestState,
@@ -60,6 +62,8 @@ export function PageView({
   pageId: string;
   // Page.title, shown while the editor loads.
   initialTitle: string;
+  // A document (BlockNote) or a whiteboard.
+  kind: "DOCUMENT" | "WHITEBOARD";
   // EDIT access to the page.
   canEdit: boolean;
   // Set while the page is locked: nobody can edit it, whatever their access.
@@ -67,8 +71,12 @@ export function PageView({
   // MANAGE access: may change this page's group grants.
   canManage: boolean;
   isRootPage: boolean;
-  // In the user's personal knowledge root: never shared.
+  // In a personal knowledge root (the user's, or an auditor's view of
+  // someone else's): never shared.
   personal: boolean;
+  // Said above the page: an auditor viewing `auditing`'s personal root (it's
+  // recorded), or the owner's root page while auditors may view it.
+  personalNotice: { auditing: string } | { auditorsMayView: true } | null;
   // This page's URL on the site's public URL, for the share button.
   shareUrl: string;
   // null: someone not logged in, on a public page.
@@ -115,6 +123,7 @@ export function PageView({
           <PageMenu
             pageId={pageId}
             title={liveTitle ?? initialTitle}
+            whiteboard={kind === "WHITEBOARD"}
             canEdit={canEdit}
             lock={lock ? { own: lock.own } : null}
             canManage={canManage}
@@ -123,6 +132,11 @@ export function PageView({
           />
           )}
         </div>
+        {personalNotice && (
+          <p className={styles.lockBanner} role="status" data-ui="PageView.personalNotice">
+            {"auditing" in personalNotice ? t("auditingPersonal", { name: personalNotice.auditing }) : t("auditorsMayView")}
+          </p>
+        )}
         {lock && (
           <p className={styles.lockBanner} data-ui="PageView.lockBanner">
             {lock.own
@@ -151,7 +165,13 @@ export function PageView({
           </p>
         )}
         <InitialTitleContext.Provider value={initialTitle}>
-          {user ? (
+          {kind === "WHITEBOARD" ? (
+            user ? (
+              <WhiteboardLoader pageId={pageId} readOnly={readOnly} onTitleChange={setLiveTitle} />
+            ) : (
+              <StaticWhiteboardLoader state={guestState ?? ""} dataUi="PageView.publicDocument" />
+            )
+          ) : user ? (
             <EditorLoader pageId={pageId} readOnly={readOnly} user={user} onTitleChange={setLiveTitle} />
           ) : (
             <StaticDocumentLoader pageId={pageId} state={guestState ?? ""} dataUi="PageView.publicDocument" />

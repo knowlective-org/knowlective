@@ -8,13 +8,39 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- Whiteboard pages: a new kind of page (the + next to a page in the sidebar now opens a menu: a block page or a whiteboard) with a canvas of sticky notes, rectangles, ellipses, diamonds, text, lines and connectors, edited together in real time with everyone's pointers shown. Rectangles and ellipses are drawn by dragging (with Shift for a square or a circle), and an item can be changed into another kind (sticky note, rectangle, ellipse, diamond, text). An item's text can be moved by its handle (outside the item too), and text longer than the item runs out below it instead of being cut off. Connectors meet a diamond at its corners only, and an ellipse at eight points 45° apart (at the middles of the sides around it for right-angle connectors). Text can hold bulleted and numbered lists (lines starting with "- " or "1. ", or the buttons; Enter goes on with the list). Connectors are drawn from the dots that show on the sides of a box under the pointer (or with the connector tool), their ends can be dragged onto other boxes, they run straight or turn at right angles (rounded corners, as few turns as it takes, in and out of the sides their ends are dropped by), and they take text halfway along and by each end (double-click where it should go), and they have an arrowhead at the end, at the start, at both ends or at neither (lines too; lines are drawn by dragging, with Shift at 45° steps, and a double-click makes one level or upright). Where connectors cross, the one on top hops over the other. The zoom buttons stop at fixed steps (100% among them), and clicking the zoom shown goes back to 100%. Pan (drag with the right button, scroll) and zoom (Ctrl/⌘ + scroll, pinch), select several items (drag a frame, Shift+click), colors, bring to front / send to back, duplicate (Ctrl/⌘+D, or end a drag with Alt held: a "+" marks what will be copied, and a dashed outline where it started), undo (Ctrl/⌘+Z), keyboard shortcuts for the tools, and a full screen view over the whole window, sidebar included (the button by the zoom, or Esc with nothing selected to leave). Permissions, moving, the trash, locks, history (restore and masking), public pages and search work as for documents. Images on the board and export aren't there yet
+- An auditors group (built in, "監査"; it can't be deleted): its members, added by a site admin on the group's page, can view every page except those in personal knowledge roots, whatever the pages' permissions say, and can sign in to the admin console (with an authenticator app, like admins) to see every section of it without being able to change anything. The group can't be granted on pages or joined by invitation. A site admin can also let them view everyone's personal knowledge root (admin console, "Overview" → "監査"; off by default): read-only, opened from the users list, every page they open there recorded in the audit log, and each person's own root page saying that auditors may view it
+- The proxy in the admin console is now for all of the server's connections to the outside, not just link previews: desktop notifications, single sign-on, mail (through an HTTP CONNECT tunnel) and file storage set in the admin console go through it too. It has its own section ("外部への接続（プロキシ）") and a list of hosts reached without it (host names, domains, addresses and ranges); this server itself and the bundled file storage are always reached directly
+- Chat blocks have a title (set by anyone who can edit the page; empty shows "Chat", and search finds the page by it), and can be folded to the title alone with the ▾ next to it. Folding is each viewer's own and kept in their browser, as for toggles. Screens opened before this update are asked to reload
+- Reactions to chat messages: someone who can edit the page can react to another person's message with one of eight emoji (the ☺+ under the message; a click on a reaction of one's own takes it away). Each reaction shows how many, with who on hover (no names on public pages). Not on one's own messages; a locked chat takes none, and taking a message back removes its reactions
+- Polls in chat blocks ("投票" by the message box): a question with 2–10 choices, one or several per person as its author chooses. Votes are named (who chose what shows on hover; only counts on public pages) and can be changed until the poll's author closes it, which can't be undone. The question and choices can't be changed once posted. A locked chat keeps its votes but takes no more; taking a poll back deletes it with its votes. Search finds the page by the question and the choices
+- Whiteboards can be shown in documents: the "Whiteboard" block (slash menu) shows a whiteboard page read-only, to be panned, zoomed and opened. Each viewer sees it with their own access: someone who can't open the whiteboard sees only that it can't be shown, not its title. Others' changes to the board (and its title) show as they're made for those signed in
+- Images on whiteboards: drop (or paste) them onto the board. They're attachments of the page (PNG, JPEG, GIF, WebP and AVIF), keep their shape when resized (Shift: freely) and can be connected like the other items
+- Whiteboard items can link to a page (chosen from the pages you can see; opened with the viewer's own access) from the 🔗 at their corner
+- Whiteboard boxes snap to the edges and centers of the others while dragged or resized, with guides showing where (hold Ctrl/⌘ not to snap), or, with "Grid" on, to the board's dots. Several selected boxes can be aligned (left, center, right, top, middle, bottom) or spread out evenly
+- Whiteboard templates: KPT retrospective, brainstorm, org chart and 2 × 2 matrix, put in the middle of the screen (one undo takes a template back)
+- Whiteboards can be exported as an image (PNG) or SVG from the page menu, in the colors on screen, images included
+- A whiteboard says so when a connector is drawn (or an end moved) between two objects another connector already joins
+- A connector drawn from a whiteboard object and dropped on the empty board makes a new object of the same kind, size and color there, connected to it
+- Whiteboard connectors and lines can be drawn thick, dashed or double, as well as normal (also in the PNG and SVG export), with arrowheads of one size whatever the line
+- Several whiteboard objects are lined up with the one selected first, marked with a red dashed outline; clicking another of the selected makes it the one instead (the selection stays)
+- Connector ends meeting a whiteboard object at the same point are spread a little apart along its side, so each can be told apart; an object can keep them together instead (its selection bar)
+- The public API's page details have a `kind` (`DOCUMENT` or `WHITEBOARD`); replacing a whiteboard's content with Markdown is refused (`not_document`, 409)
+
 ### Changed
 
+- The whiteboard's buttons share one set of icons, drawn for it (the buttons that had words too, their names shown on hover), and Ctrl/⌘ + the mouse wheel zooms in smaller steps (a trackpad's pinch as before)
 - The people offered as a TODO's assignee or to mention (`@`) are those who can open the page and have a name. People without a name aren't offered any more (their email address was shown instead, to everyone who could open the page)
+- A chat message is changed in the message box below the chat (marked "Editing message", Esc or × to stop), not in its bubble. What was being written is put aside meanwhile and comes back after; starting a reply stops the change, and the other way round
+- The tables on a page's sharing screen center their cells vertically, so the names, counts and buttons of a row line up
 
 ### Fixed
 
 - Chat messages sent before 0.1.4 are now found by search after the server starts, without the page being edited first
+- Part of a chat message can be selected and copied (Ctrl/⌘+C). Before, the editor took the selection back as soon as it was made, and copying copied the whole block instead
+- On a child page board split into sub-groups by a person column, a long name in a card's picker no longer widens the card's contents: the title stays inside the card instead of spilling into the next lane
 
 ### Security
 
@@ -25,6 +51,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 ### Upgrade notes
 
 - If the public URL (admin console, "Overview") is https, signing in over plain http no longer works (the browser drops the `Secure` cookies)
+- A proxy set for link previews is now used for all the connections the proxy now covers (see Added). If the mail server or a file storage set in the admin console is inside your network and the proxy can't reach it, add it to "プロキシを通さない宛先" (admin console, "Overview") right after updating, or mail and attachments will fail
+- Pages and whiteboards opened before the update must be reloaded before they can be edited again (the editor's version changed for the whiteboard's new items and fields); edits not yet saved in them are lost
 
 ## [0.1.4] - 2026-11-06
 
