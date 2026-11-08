@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-08
+
 ### Added
 
 - A table of contents block ("目次" in the slash menu): the page's headings (H2–H6), indented by level, each scrolling to its heading. It follows the headings as they're typed. Markdown and PDF export write it as a list of the headings
