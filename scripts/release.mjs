@@ -1,4 +1,5 @@
-// Makes a release: pnpm release <version>   (e.g. pnpm release 0.2.0)
+// Makes a release: pnpm release <version> [--trailer "<Key: value>"]...
+//   (e.g. pnpm release 0.2.0)
 //
 // - Sets the version in the root package.json (the one that counts:
 //   apps/web/src/lib/build-info.ts) and, to keep them the same, in
@@ -6,7 +7,8 @@
 // - Turns CHANGELOG.md's "Unreleased" section into this version's, dated
 //   today, with a new empty "Unreleased" above it.
 // - Commits, and tags v<version> (annotated). Nothing is pushed: check the
-//   commit, then `git push && git push origin v<version>`.
+//   commit, then `git push && git push origin v<version>`. Each --trailer
+//   is added to the commit message (e.g. a Co-Authored-By line).
 //
 // Versions are SemVer (MAJOR.MINOR.PATCH), and must go up. Needs a clean
 // working tree, so the release commit holds only the release.
@@ -25,8 +27,14 @@ const fail = (message) => {
   process.exit(1);
 };
 
-const version = process.argv[2]?.replace(/^v/, "");
-if (!version || !SEMVER.test(version)) fail("usage: pnpm release <MAJOR.MINOR.PATCH>  (e.g. 0.2.0)");
+const args = process.argv.slice(2);
+const trailers = [];
+for (let i = args.indexOf("--trailer"); i !== -1; i = args.indexOf("--trailer")) {
+  if (!args[i + 1]) fail("--trailer needs a value, e.g. --trailer \"Co-Authored-By: Name <address>\"");
+  trailers.push(...args.splice(i, 2).slice(1));
+}
+const version = args[0]?.replace(/^v/, "");
+if (!version || args.length !== 1 || !SEMVER.test(version)) fail('usage: pnpm release <MAJOR.MINOR.PATCH> [--trailer "<Key: value>"]  (e.g. 0.2.0)');
 
 // Compares two versions (a pre-release comes before its release).
 function compare(a, b) {
@@ -64,6 +72,6 @@ const today = new Date().toISOString().slice(0, 10);
 writeFileSync(changelogFile, changelog.replace("## [Unreleased]", `## [Unreleased]\n\n## [${version}] - ${today}`));
 
 git("add", ...MANIFESTS, "CHANGELOG.md");
-git("commit", "-m", `${tag} をリリースする`);
+git("commit", "-m", `${tag} をリリースする`, ...trailers.flatMap((t) => ["--trailer", t]));
 git("tag", "-a", tag, "-m", tag);
 console.log(`Released ${tag} (${git("rev-parse", "--short", "HEAD")}). Not pushed: git push && git push origin ${tag}`);

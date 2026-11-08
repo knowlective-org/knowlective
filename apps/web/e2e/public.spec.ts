@@ -1,7 +1,8 @@
 import { type Page, expect, test } from "@playwright/test";
 import { HOME_PAGE_ID, authFile } from "./accounts";
 import { openAdmin, setLandingPage } from "./admin-login";
-import { createPage, editorBody, trashOpenPage, typeInBody } from "./helpers";
+import { withPrisma } from "./db";
+import { addPageFromTree, createPage, editorBody, openPage, trashOpenPage, typeInBody } from "./helpers";
 
 // Public pages: a site admin allows them in /admin (overview), someone with
 // MANAGE publishes a page from its permission settings, and then anyone can read it
@@ -122,6 +123,95 @@ test.describe("Public pages", () => {
       await page.goto(`pages/${id}`);
       await trashOpenPage(page);
     } finally {
+      await guestContext.close();
+    }
+  });
+
+  test("the public knowledge roots' order is set in the admin console, for those not logged in only", async ({ page, browser, baseURL }) => {
+    test.setTimeout(240_000);
+    const guestContext = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const guest = await guestContext.newPage();
+    const publish = async (id: string) => {
+      await page.goto(`pages/${id}/share`);
+      await page.getByTestId("PublishForm.submitButton").click();
+      await page.getByTestId("AppDialog.confirmButton").click();
+      await expect(page.getByTestId("UnpublishForm.submitButton")).toBeVisible();
+    };
+    try {
+      await setPublicPagesAllowed(page, true);
+      // A public page in each of the two E2E roots ("E2E サブ" is the newer).
+      const first = await createPage(page, "E2E 公開の順 1");
+      await publish(first.id);
+      await openPage(page, "e2e-second-home");
+      await addPageFromTree(page, "e2e-second-home");
+      await page.waitForURL((url) => /\/pages\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith("/e2e-second-home"));
+      const secondId = new URL(page.url()).pathname.split("/").pop()!;
+      const secondTitle = `E2E 公開の順 2 ${Date.now()}`;
+      await page.getByTestId("TitleField").fill(secondTitle);
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      await publish(secondId);
+
+      // By default, newest root first.
+      const order = async () => {
+        const ids = await guest.locator('[data-ui="DocTree.link"]').evaluateAll((links) => links.map((a) => a.getAttribute("data-id")));
+        return ids.indexOf(first.id) < ids.indexOf(secondId) ? "first" : "second";
+      };
+      await guest.goto(`pages/${first.id}`);
+      expect(await order()).toBe("second");
+
+      // In the admin console: the older one moved up, and saved.
+      await openAdmin(page);
+      const rows = page.getByTestId("PublicRootOrderForm.row");
+      const firstRow = rows.filter({ hasText: first.title });
+      await expect(rows.first()).toContainText(secondTitle);
+      await firstRow.getByTestId("PublicRootOrderForm.upButton").click();
+      await expect(rows.first()).toContainText(first.title);
+      // Saved, the request kept to send again.
+      const saving = page.waitForRequest((r) => r.method() === "POST" && !!r.headers()["next-action"]);
+      await page.getByTestId("PublicRootOrderForm.submitButton").click();
+      await expect(page.getByTestId("PublicRootOrderForm.status")).toHaveText("保存しました。");
+      const request = await saving;
+      const saved = () =>
+        withPrisma(async (prisma) => (await prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicRootOrder: true } })).publicRootOrder);
+      const order2 = await saved();
+      expect(order2.length).toBe(2);
+      // The same request from people who aren't admins: refused (the order
+      // stays cleared); from the admin, it works.
+      await withPrisma((prisma) => prisma.instanceConfig.update({ where: { id: 1 }, data: { publicRootOrder: [] } }));
+      const replay = (context: { request: import("@playwright/test").APIRequestContext }) =>
+        context.request.post("admin", {
+          headers: { Origin: new URL(baseURL!).origin, "Next-Action": request.headers()["next-action"], "Content-Type": request.headers()["content-type"] },
+          data: request.postDataBuffer()!,
+          maxRedirects: 0,
+        });
+      for (const account of ["editor", "viewer"] as const) {
+        const context = await browser.newContext({ storageState: authFile(account) });
+        await replay(context);
+        await context.close();
+      }
+      await replay(guestContext);
+      expect(await saved()).toEqual([]);
+      await replay(page.context());
+      expect(await saved()).toEqual(order2);
+
+      // Those not logged in see that order; signed-in users keep theirs.
+      await guest.reload();
+      expect(await order()).toBe("first");
+      await openPage(page, HOME_PAGE_ID);
+      const mine = await page.locator('[data-ui="Sidebar.root"] > [data-ui="DocTree"] > ul > li > [data-ui="DocTree.row"] [data-ui="DocTree.link"]').allTextContents();
+      expect(mine.indexOf("E2E サブ")).toBeLessThan(mine.indexOf("E2E"));
+
+      // (In the other root: back to its home page, not E2E's.)
+      await page.goto(`pages/${secondId}`);
+      await page.getByTestId("PageMenu.button").click();
+      await page.getByTestId("PageMenu.delete").click();
+      await page.getByTestId("AppDialog.confirmButton").click();
+      await page.waitForURL("**/pages/e2e-second-home");
+      await page.goto(`pages/${first.id}`);
+      await trashOpenPage(page);
+    } finally {
+      await withPrisma((prisma) => prisma.instanceConfig.update({ where: { id: 1 }, data: { publicRootOrder: [] } }));
+      await setPublicPagesAllowed(page, false);
       await guestContext.close();
     }
   });

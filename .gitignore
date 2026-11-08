@@ -15,3 +15,6 @@ apps/web/e2e/.results/
 
 # Embedding model for semantic search (downloaded on first use)
 apps/web/.models/
+
+# Throwaway scripts (e.g. driving the demo site): never committed
+tmp-*

@@ -1,6 +1,7 @@
 import type { ChildPageItem } from "@/lib/page-property-types";
 // Relative: also loaded by the custom server (server/page-markdown.ts).
 import { displayTitle } from "../../lib/page-title";
+import { type TocHeading, tocHeadings } from "./toc";
 
 // Getting a page's blocks ready for BlockNote's exporters (Markdown, PDF).
 
@@ -67,6 +68,7 @@ function childPageList(
 // - Chat → left out (its messages aren't in the document)
 // - Whiteboard → a link to its page (the title isn't in the document: the
 //   link reads `whiteboard`)
+// - Table of contents → a list of the page's headings, indented by level
 // - TODO → a check list item, with its due date after the text (not the
 //   assignee: the document has only their id)
 // - Mention → "@name" (with `people`; "@" alone without)
@@ -84,8 +86,12 @@ export function prepareBlocksForExport(
     people?: Record<string, string>;
     // A whiteboard block's link text, in the viewer's language.
     whiteboard?: string;
+    // The whole page's headings, for tables of contents (found from the
+    // blocks given at the top).
+    headings?: TocHeading[];
   },
 ): ExportBlock[] {
+  if (!options.headings) options = { ...options, headings: tocHeadings(blocks) };
   const { origin, pageId, childPages, untitled } = options;
   const absolute = (url: unknown) => (typeof url === "string" && url.startsWith("/") ? origin + url : url);
 
@@ -128,6 +134,8 @@ export function prepareBlocksForExport(
       }
       case "maskedText":
         return [block("paragraph", [text("🔒 ••••••••")]), ...children];
+      case "toc":
+        return [...tocList(options.headings ?? [], options.people ?? {}), ...children];
       case "todo": {
         const content = Array.isArray(b.content) ? b.content : [];
         const due = String(b.props?.due ?? "");
@@ -159,6 +167,20 @@ export function prepareBlocksForExport(
         ];
     }
   });
+}
+
+// The headings as a bulleted list, each level below the one before nested
+// in it (a lower heading right after a higher one is nested one step only).
+function tocList(headings: TocHeading[], people: Record<string, string>): ExportBlock[] {
+  const root: ExportBlock[] = [];
+  const stack: { level: number; children: ExportBlock[] }[] = [{ level: 1, children: root }];
+  for (const h of headings) {
+    while (stack.length > 1 && stack[stack.length - 1].level >= h.level) stack.pop();
+    const item = block("bulletListItem", withMentionsAsText(h.content, people) as unknown[], { children: [] });
+    stack[stack.length - 1].children.push(item);
+    stack.push({ level: h.level, children: item.children! });
+  }
+  return root;
 }
 
 // An extended table (its rows and cells already prepared) as BlockNote's

@@ -10,7 +10,7 @@ import { COLLAB_CLIENT_VERSION } from "../src/lib/collab-version";
 // record the new outline and version below.
 //   pnpm --filter web test:unit
 
-const RECORDED_VERSION = 5;
+const RECORDED_VERSION = 6;
 const RECORDED = [
   "mark backgroundColor(stringValue)",
   "mark bold()",
@@ -55,6 +55,7 @@ const RECORDED = [
   "node tableParagraph()",
   "node tableRow()",
   "node text()",
+  "node toc()",
   "node todo(assignee,checked,doneAt,doneBy,due)",
   "node toggleListItem(backgroundColor,textAlignment,textColor)",
   "node video(backgroundColor,caption,name,previewWidth,showPreview,textAlignment,url)",

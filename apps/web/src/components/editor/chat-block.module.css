@@ -290,6 +290,13 @@
   cursor: pointer;
 }
 
+/* What "everyone" means, after it in the "@" menu. */
+.mentionHint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
 .mentionItem[aria-selected="true"],
 .mentionItem:hover {
   background: var(--color-hover);
@@ -630,4 +637,103 @@ button.pollOption:disabled {
   align-items: center;
   justify-content: flex-end;
   font-size: 13px;
+}
+
+/* Formatting in messages (lib/chat-markdown.ts). The bubble keeps its
+   pre-wrap: spaces stay as typed, and a code block's lines too. */
+.mdParagraph + .mdParagraph,
+.mdParagraph + .mdList,
+.mdList + .mdParagraph,
+.mdQuote + *,
+* + .mdQuote,
+.mdCode + *,
+* + .mdCode {
+  margin-top: 4px;
+}
+
+.mdList {
+  display: grid;
+  gap: 1px;
+}
+
+.mdListItem {
+  display: flex;
+  gap: 6px;
+}
+
+.mdMarker {
+  flex: none;
+  min-width: 1em;
+  text-align: right;
+  opacity: 0.75;
+}
+
+.mdQuote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 3px solid currentColor;
+  opacity: 0.85;
+}
+
+.inlineCode,
+.mdCode {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  background: rgba(127, 127, 127, 0.18);
+  border-radius: 4px;
+}
+
+.inlineCode {
+  padding: 0 4px;
+}
+
+.mdCode {
+  margin: 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* The formatting buttons above the message box. */
+.formatBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.formatButton {
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.formatButton:hover:not(:disabled) {
+  color: var(--color-primary);
+  background: var(--color-hover);
+}
+
+.formatButton[data-kind="bold"] {
+  font-weight: 700;
+}
+
+.formatButton[data-kind="italic"] {
+  font-style: italic;
+}
+
+.formatButton[data-kind="strike"] {
+  text-decoration: line-through;
+}
+
+@media print {
+  .formatBar {
+    display: none;
+  }
 }

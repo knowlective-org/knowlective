@@ -22,6 +22,7 @@ import { codeBlock } from "./code-block";
 import { maskedBlock } from "./masked-block";
 import { chatBlock } from "./chat-block";
 import { whiteboardBlock } from "./whiteboard-embed-block";
+import { tocBlock } from "./toc-block";
 import { continueList, todoBlock } from "./todo-block";
 import { mentionInline } from "./mention-inline";
 import { toggleEnter } from "./toggle-enter";
@@ -81,6 +82,7 @@ export const editorSchema = withMultiColumn(BlockNoteSchema.create({
     maskedText: maskedBlock(),
     chat: chatBlock(),
     whiteboard: whiteboardBlock(),
+    toc: tocBlock(),
     todo: todoBlock(),
     gridTable: gridTableBlock,
     gridRow: gridRowBlock,
@@ -174,6 +176,14 @@ export function customSlashMenuItems(
       group: t("editor.slash.diagramGroup"),
       icon: <span aria-hidden>▦</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "whiteboard" }),
+    },
+    {
+      title: t("editor.slash.toc"),
+      subtext: t("editor.slash.tocSub"),
+      aliases: aliases("tocAliases", ["toc", "contents", "table of contents", "outline", "index"]),
+      group: t("editor.slash.otherGroup"),
+      icon: <span aria-hidden>☰</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "toc" }),
     },
     {
       title: t("editor.slash.gridTable"),

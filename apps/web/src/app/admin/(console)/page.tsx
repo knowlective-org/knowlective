@@ -26,6 +26,9 @@ import { PushNotificationsForm } from "./push-notifications-form";
 import { getOutboundProxySettings } from "@/lib/outbound-proxy";
 import { OutboundProxyForm } from "./outbound-proxy-form";
 import { AuditorSettingsForm } from "./auditor-settings-form";
+import { publicTrees } from "@/lib/sidebar-data";
+import { getDisplayTitle } from "@/i18n/display-title";
+import { PublicRootOrderForm } from "./public-root-order-form";
 
 export default async function AdminOverviewPage() {
   const { actor, readOnly } = await requireAdminView(["SITE_ADMIN"]);
@@ -56,6 +59,15 @@ export default async function AdminOverviewPage() {
       getOutboundProxySettings(prisma),
     ]);
   const code = (chunks: React.ReactNode) => <code>{chunks}</code>;
+  // The roots with public pages, named as someone not logged in sees them:
+  // by their public pages' titles (a root's own title only if it's public).
+  const displayTitle = await getDisplayTitle();
+  const publicRoots = site.publicPagesAllowed
+    ? (await publicTrees()).map((tree) => {
+        const titles = tree.entryIds.map((id) => displayTitle(tree.pages.find((p) => p.id === id)?.title ?? ""));
+        return { rootId: tree.rootId, label: titles.length > 2 ? t("publicRootMore", { first: titles.slice(0, 2).join(" / "), more: titles.length - 2 }) : titles.join(" / ") };
+      })
+    : [];
 
   return (
     <AdminReadOnly readOnly={readOnly}>
@@ -165,6 +177,23 @@ export default async function AdminOverviewPage() {
           publicCount={publicPages.length}
         />
       </section>
+
+      {site.publicPagesAllowed && (
+        <section className={styles.section} data-ui="AdminOverviewPage.publicRootOrderSection">
+          <h2 className={styles.sectionTitle}>{t("publicRootOrder")}</h2>
+          <p className={styles.note} style={{ marginBottom: 16 }}>
+            {t("publicRootOrderLead")}
+          </p>
+          {publicRoots.length >= 2 ? (
+            // Remade when roots come or go (not when the order is saved: it'd lose its status).
+            <PublicRootOrderForm key={publicRoots.map((r) => r.rootId).sort().join(" ")} roots={publicRoots} />
+          ) : (
+            <p className={styles.note} data-ui="AdminOverviewPage.publicRootOrderStatus">
+              {t("publicRootOrderFew")}
+            </p>
+          )}
+        </section>
+      )}
 
       <section className={styles.section} data-ui="AdminOverviewPage.landingPageSection">
         <h2 className={styles.sectionTitle}>{t("landing")}</h2>

@@ -63,6 +63,89 @@ test("replies quote the message, mentions are by name, and URLs are links", asyn
   await trashOpenPage(page);
 });
 
+test("@everyone: offered first, shown in the viewer's language, notifying everyone who can open the page, once in 5 minutes", async ({ page }) => {
+  const { id } = await createPage(page, "E2E チャットの全員");
+  await insertChat(page);
+  const input = page.getByTestId("ChatBlock.messageInput");
+  await input.click();
+  await page.keyboard.type("@全");
+  await expect(page.getByTestId("ChatBlock.mentionItem").first()).toHaveAttribute("data-id", "all");
+  await expect(page.getByTestId("ChatBlock.mentionItem").first()).toContainText("全員");
+  await page.keyboard.press("Enter");
+  await expect(input).toHaveValue("@全員 ");
+  await page.keyboard.type("資料を見ておいてください");
+  await page.keyboard.press("Enter");
+  const mention = page.getByTestId("ChatBlock.messageRow").first().getByTestId("ChatBlock.mention");
+  await expect(mention).toHaveText("@全員");
+  await expect(mention).toHaveAttribute("data-id", "all");
+  // Kept as the token for everyone, not a name.
+  const { recipients, outsider } = await withPrisma(async (prisma) => {
+    const ids = async (...names: string[]) =>
+      (await prisma.user.findMany({ where: { name: { in: names } }, select: { id: true } })).map((u) => u.id);
+    return { recipients: await ids(ACCOUNTS.admin.name, ACCOUNTS.viewer.name), outsider: await ids(ACCOUNTS.outsider.name) };
+  });
+  // Everyone else who can open the page is notified of the mention; someone
+  // who can't, isn't.
+  await expect
+    .poll(() => withPrisma((prisma) => prisma.notification.count({ where: { pageId: id, userId: { in: recipients }, kind: "MENTION" } })))
+    .toBe(2);
+  expect(await withPrisma((prisma) => prisma.notification.count({ where: { pageId: id, userId: { in: outsider } } }))).toBe(0);
+
+  // Again right away: refused, and the message stays in the box.
+  await page.keyboard.type("@全員");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("もう一度");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("AppDialog.message")).toContainText("5分に1回");
+  await page.getByTestId("AppDialog.closeButton").click();
+  await expect(page.getByTestId("ChatBlock.messageRow")).toHaveCount(1);
+  await expect(input).toHaveValue("@全員 もう一度");
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await trashOpenPage(page);
+});
+
+test("messages are formatted with Markdown, typed or from the buttons and shortcuts; HTML stays text", async ({ page }) => {
+  await createPage(page, "E2E チャットの書式");
+  await insertChat(page);
+  const input = page.getByTestId("ChatBlock.messageInput");
+  await input.click();
+  // Typed: bold, code, a list (Shift+Enter for new lines), and HTML.
+  await page.keyboard.type("**太字** と `code` <b>タグ</b>");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("- ひとつめ");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("- ふたつめ");
+  await page.keyboard.press("Enter");
+  const first = page.getByTestId("ChatBlock.messageRow").first().getByTestId("ChatBlock.text");
+  await expect(first.locator("strong")).toHaveText("太字");
+  await expect(first.locator("code")).toHaveText("code");
+  await expect(first.locator('[role="listitem"]')).toHaveText(["•ひとつめ", "•ふたつめ"]);
+  await expect(first.locator("b")).toHaveCount(0);
+  await expect(first).toContainText("<b>タグ</b>");
+
+  // From the keyboard and the buttons: the selection is formatted.
+  await input.click();
+  await page.keyboard.type("大事");
+  await page.keyboard.press("Shift+Home");
+  await page.keyboard.press("Control+b");
+  await expect(input).toHaveValue("**大事**");
+  await page.keyboard.press("End");
+  await page.keyboard.type(" 資料");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.locator('[data-ui="ChatBlock.formatButton"][data-id="link"]').click();
+  await expect(input).toHaveValue("**大事** [資料](https://)");
+  // The address is selected: typed over.
+  await page.keyboard.type("https://example.com/doc");
+  await page.keyboard.press("Enter");
+  const second = page.getByTestId("ChatBlock.messageRow").nth(1).getByTestId("ChatBlock.text");
+  await expect(second.locator("strong")).toHaveText("大事");
+  await expect(second.getByTestId("ChatBlock.textLink")).toHaveAttribute("href", "https://example.com/doc");
+  await expect(second.getByTestId("ChatBlock.textLink")).toHaveText("資料");
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await trashOpenPage(page);
+});
+
 // Locking, called directly (not from the screen): only someone who can edit
 // the page can. Its id is in the editor's scripts.
 test("locking a chat, called directly, only works for someone who can edit the page", async ({ page, browser, baseURL }) => {

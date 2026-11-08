@@ -20,6 +20,7 @@ import { getPublicUrl } from "@/lib/site-url";
 import { InvalidPublicUrlError, normalizePublicUrl, type SiteRole } from "shared";
 import { invitableRoles } from "@/lib/roles";
 import { recordAudit } from "@/lib/audit";
+import { normalizeRootOrder } from "@/lib/root-order";
 import { reconnectDocuments } from "@/lib/collab-events";
 import { landingPageOptions } from "@/lib/landing-page";
 import { publicPageIds } from "@/lib/public-pages";
@@ -582,6 +583,21 @@ export async function saveLandingPage(_prev: LandingPageSettingState, formData: 
     { pageId: id },
   );
   revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+export type PublicRootOrderState = { error?: string; saved?: boolean };
+
+// The order of the knowledge roots in the sidebar of someone not logged in
+// (the ids, in the order of the form's rows). Only the order: which roots
+// show is still up to the pages' permissions.
+export async function savePublicRootOrder(_prev: PublicRootOrderState, formData: FormData): Promise<PublicRootOrderState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const order = normalizeRootOrder(formData.getAll("rootId"));
+  if (!order) return { error: (await getTranslations("admin.publicRootOrder"))("invalid") };
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { publicRootOrder: order } });
+  await recordAudit(actor, "public-pages.order", (await auditTranslator())("audit.publicRootOrder"), { order });
+  revalidatePath("/", "layout");
   return { saved: true };
 }
 

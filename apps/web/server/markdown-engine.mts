@@ -74,6 +74,7 @@ const serverSchema = withMultiColumn(BlockNoteSchema.create({
     maskedText: createBlockSpec(BLOCK_CONFIGS.maskedText, plain)(),
     chat: createBlockSpec(BLOCK_CONFIGS.chat, plain)(),
     whiteboard: createBlockSpec(BLOCK_CONFIGS.whiteboard, plain)(),
+    toc: createBlockSpec(BLOCK_CONFIGS.toc, plain)(),
     todo: createBlockSpec(BLOCK_CONFIGS.todo, withText)(),
     gridTable: gridSpec("gridTable", GRID_TABLE_PROPS),
     gridRow: gridSpec("gridRow"),

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Throwaway scripts (ignored by git too).
+    "tmp-*",
   ]),
 ]);
 

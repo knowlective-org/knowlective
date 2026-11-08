@@ -1,7 +1,8 @@
 // A chat message's text, as the chat block shows it: links for http(s) URLs,
 // and mentions. A mention is kept in the text as `<@user id>` (the name is
 // looked up when it's shown, so it follows a change of name, and isn't shown
-// to someone not logged in).
+// to someone not logged in). `<@all>` mentions everyone who can open the
+// page (EVERYONE: shown as "@everyone" in the viewer's language).
 //
 // Dependency-free: the chat block (browser) and the server both use it;
 // unit-tested (test/chat-text.test.ts).
@@ -16,13 +17,22 @@ const MENTION = /<@([A-Za-z0-9_-]{1,64})>/g;
 const URL = /https?:\/\/[^\s<>"'「」『』（）()、。]+/g;
 const TRAILING = /[.,;:!?)\]}’”]+$/;
 
+// The id in `<@…>` that means everyone who can open the page (no user has
+// it: user ids are cuids).
+export const EVERYONE = "all";
+
 export function chatMention(userId: string): string {
   return `<@${userId}>`;
 }
 
-// The people a message mentions, each once.
+// The people a message mentions by name, each once (not everyone).
 export function chatMentionIds(text: string): string[] {
-  return [...new Set([...text.matchAll(MENTION)].map((m) => m[1]))];
+  return [...new Set([...text.matchAll(MENTION)].map((m) => m[1]))].filter((id) => id !== EVERYONE);
+}
+
+// Whether a message mentions everyone who can open the page.
+export function chatMentionsEveryone(text: string): boolean {
+  return [...text.matchAll(MENTION)].some((m) => m[1] === EVERYONE);
 }
 
 function links(text: string): ChatSegment[] {
@@ -60,8 +70,8 @@ export function chatSegments(text: string): ChatSegment[] {
   return out;
 }
 
-// The text with mentions as "@name" (`name(id)`; null: someone unnamed),
-// for excerpts (a reply's quote, a notification).
-export function chatPlainText(text: string, name: (userId: string) => string | null, unnamed: string): string {
-  return text.replace(MENTION, (_, id: string) => `@${name(id) ?? unnamed}`);
+// The text with mentions as "@name" (`name(id)`; null: someone unnamed,
+// `everyone` for everyone), for excerpts (a reply's quote, a notification).
+export function chatPlainText(text: string, name: (userId: string) => string | null, unnamed: string, everyone: string = EVERYONE): string {
+  return text.replace(MENTION, (_, id: string) => `@${id === EVERYONE ? everyone : (name(id) ?? unnamed)}`);
 }

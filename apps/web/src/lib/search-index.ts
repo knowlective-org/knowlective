@@ -3,7 +3,10 @@ import * as Y from "yjs";
 import { decrypt, loadDataKey, type PrismaClient } from "shared";
 import { normalizeTitle } from "./page-title";
 import { openChatMessage, openPollOptions } from "./chat";
-import { chatMentionIds, chatPlainText } from "./chat-text";
+import { chatMentionIds, chatMentionsEveryone, chatPlainText } from "./chat-text";
+import { chatMarkdownPlain } from "./chat-markdown";
+import { isLocale, FALLBACK_LOCALE } from "../i18n/locales";
+import { translatorFor } from "../i18n/translator";
 import { pagePeopleNames } from "./page-people";
 import { whiteboardFileIds, whiteboardText } from "./whiteboard";
 
@@ -183,10 +186,17 @@ async function chatText(prisma: PrismaClient, dataKey: Uint8Array, pageId: strin
   const texts = rows.reverse().map((r) => [openChatMessage(dataKey, r), ...(r.poll ? openPollOptions(dataKey, r.poll) : [])].join(" "));
   // Mentions are found by name, as the chat shows them (lib/page-people.ts).
   const names = texts.some((text) => chatMentionIds(text).length > 0) ? await pagePeopleNames(prisma, pageId) : new Map<string, string>();
+  // "@everyone" in the site's default language (the index isn't per viewer).
+  const everyone = texts.some(chatMentionsEveryone) ? await everyoneLabel(prisma) : undefined;
   return texts
-    .map((text) => chatPlainText(text, (id) => names.get(id) ?? null, "").replace(/\s+/g, " ").trim())
+    .map((text) => chatPlainText(chatMarkdownPlain(text), (id) => names.get(id) ?? null, "", everyone).replace(/\s+/g, " ").trim())
     .filter(Boolean)
     .join("\n");
+}
+
+async function everyoneLabel(prisma: PrismaClient): Promise<string> {
+  const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { defaultLocale: true } });
+  return translatorFor(isLocale(config?.defaultLocale) ? config.defaultLocale : FALLBACK_LOCALE)("editor.chat.everyone");
 }
 
 // `files`: the names of the attachments the page shows; `fileTexts`: the

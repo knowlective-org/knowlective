@@ -479,6 +479,10 @@ model InstanceConfig {
   // can reach). Off: every response says X-Robots-Tag: noindex, nofollow
   // (apps/web/server/robots.ts).
   searchEnginesAllowed     Boolean @default(false)
+  // The order of the knowledge roots in the sidebar of someone not logged in
+  // (ids, first first; the admin console's overview). Roots not in it come
+  // first, newest first, as in a signed-in user's default order.
+  publicRootOrder          String[] @default([])
   // Desktop notifications (Web Push, apps/web/server/notifications.ts): the
   // server sends them through the browsers' push services (Google, Mozilla,
   // Apple, Microsoft). Off for a network that can't reach them; the

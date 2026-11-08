@@ -32,8 +32,9 @@ import {
   type ChatPollView,
   type ChatReactionView,
 } from "@/lib/chat";
-import { chatMentionIds, chatPlainText } from "@/lib/chat-text";
-import { pagePeopleNames } from "@/lib/page-people";
+import { EVERYONE, chatMentionIds, chatMentionsEveryone, chatPlainText } from "@/lib/chat-text";
+import { chatMarkdownPlain } from "@/lib/chat-markdown";
+import { pageAudienceIds, pagePeopleNames } from "@/lib/page-people";
 
 // Chat blocks: reading needs to be able to open the page (public pages too,
 // without names), posting needs to be able to edit it (EDIT, not locked).
@@ -51,9 +52,13 @@ import { pagePeopleNames } from "@/lib/page-people";
 // votes (their own poll too) and can change their vote until the poll's
 // author closes it, for good. A lock keeps the votes but stops voting and
 // closing; taking the poll back deletes it with its votes.
+// A message can mention everyone who can open the page (`<@all>`): anyone
+// who can post may, at most once per EVERYONE_INTERVAL_MS in a chat.
 
 const postLimit = createRateLimiter(60_000, 30);
 const reactLimit = createRateLimiter(60_000, 60);
+const EVERYONE_INTERVAL_MS = 5 * 60_000;
+const everyoneLimit = createRateLimiter(EVERYONE_INTERVAL_MS, 1);
 
 async function namesOf(ids: Iterable<string>): Promise<Map<string, string>> {
   const people = await prisma.user.findMany({ where: { id: { in: [...new Set(ids)] } }, select: { id: true, name: true, emailEnc: true } });
@@ -120,7 +125,10 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
     const [authors, people] = await Promise.all([namesOf(ids), mentioned ? pagePeopleNames(prisma, pageId) : new Map<string, string>()]);
     names = new Map([...people, ...authors]);
   }
-  const unknown = (await getTranslations("editor.chat"))("unknownUser");
+  const tChat = await getTranslations("editor.chat");
+  const unknown = tChat("unknownUser");
+  // "@everyone" isn't anyone's name: shown to all, signed in or not.
+  const everyone = tChat("everyone");
   const authorName = (id: string | null) => (user ? (id ? (names.get(id) ?? unknown) : unknown) : null);
   const canEdit = !!user && canEditPage(access);
   // Each emoji's reactions, in CHAT_REACTIONS' order (any other is ignored).
@@ -158,11 +166,14 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
           ? {
               id: reply.id,
               author: authorName(reply.authorId),
-              excerpt: chatPlainText(quoted.get(reply.id)!, (id) => names.get(id) ?? null, unknown).slice(0, REPLY_EXCERPT_LENGTH),
+              excerpt: chatPlainText(chatMarkdownPlain(quoted.get(reply.id)!), (id) => names.get(id) ?? null, unknown, everyone).slice(0, REPLY_EXCERPT_LENGTH),
               deleted: reply.deletedAt !== null,
             }
           : null,
-        names: Object.fromEntries(chatMentionIds(text).flatMap((id) => (names.has(id) ? [[id, names.get(id)!]] : []))),
+        names: {
+          ...Object.fromEntries(chatMentionIds(text).flatMap((id) => (names.has(id) ? [[id, names.get(id)!]] : []))),
+          ...(chatMentionsEveryone(text) ? { [EVERYONE]: everyone } : {}),
+        },
         reactions: r.deletedAt ? [] : reactionsOf(r.reactions),
         poll: r.poll && !r.deletedAt ? pollOf(r.poll) : null,
       };
@@ -229,6 +240,11 @@ async function post(
     if (replied?.pageId !== pageId || replied.blockId !== blockId) return { error: t("replyGone") };
   }
   if (postLimit(userId) !== null) return { error: t("tooMany") };
+  const toEveryone = chatMentionsEveryone(text);
+  if (toEveryone) {
+    const wait = everyoneLimit(`${pageId}:${blockId}`);
+    if (wait !== null) return { error: t("everyoneTooSoon", { minutes: EVERYONE_INTERVAL_MS / 60_000, seconds: wait }) };
+  }
   const id = randomUUID();
   const key = await loadDataKey(prisma);
   await prisma.chatMessage.create({
@@ -248,11 +264,13 @@ async function post(
   // the child page blocks.
   notifyChildrenChanged(pageId);
   // Those in the chat are notified (not waited for); those it mentions, of
-  // the mention: only those who can be mentioned on the page. The excerpt
-  // shows mentions by name.
+  // the mention: only those who can be mentioned on the page, or, for
+  // everyone, all who can open it. The excerpt shows mentions by name.
   const names = chatMentionIds(text).length > 0 ? await pagePeopleNames(prisma, pageId) : new Map<string, string>();
-  const mentionIds = chatMentionIds(text).filter((id) => names.has(id));
-  const excerpt = chatPlainText(text, (mentioned) => names.get(mentioned) ?? null, t("unknownUser"));
+  const mentionIds = [
+    ...new Set([...chatMentionIds(text).filter((id) => names.has(id)), ...(toEveryone ? await pageAudienceIds(prisma, pageId) : [])]),
+  ];
+  const excerpt = chatPlainText(chatMarkdownPlain(text), (mentioned) => names.get(mentioned) ?? null, t("unknownUser"), t("everyone"));
   void notifyChatPosted({ pageId, blockId, actorId: userId, text: poll ? `📊 ${excerpt}` : excerpt, mentionIds });
   return {};
 }
