@@ -136,7 +136,10 @@ test("@everyone: offered first, shown in the viewer's language, notifying everyo
     .toBe(2);
   expect(await withPrisma((prisma) => prisma.notification.count({ where: { pageId: id, userId: { in: outsider } } }))).toBe(0);
 
-  // Again right away: refused, and the message stays in the box.
+  // Again right away: refused, and the message stays in the box. (Once the
+  // first is sent: until then the box is disabled, and keys don't reach it.)
+  await expect(input).toBeFocused();
+  await expect(input).toBeEditable();
   await page.keyboard.type("@全員");
   await page.keyboard.press("Enter");
   await page.keyboard.type("もう一度");
