@@ -223,6 +223,10 @@ test.describe("Chat text selection", () => {
     await page.keyboard.press("Enter");
     const text = page.getByTestId("ChatBlock.text").first();
     await expect(text).toHaveText("あいうえおかきくけこさしすせそ");
+    // Sent: the box takes the focus back, which would undo a selection made
+    // before.
+    await expect(page.getByTestId("ChatBlock.messageInput")).toBeFocused();
+    await expect(page.getByTestId("ChatBlock.messageInput")).toBeEditable();
 
     // From the body (the editor has the focus), drag over part of the message.
     await editorBody(page).locator(".bn-inline-content").first().click();

@@ -71,6 +71,10 @@ test("part of a message can be quoted, and code keeps its indentation on a new l
   await page.keyboard.press("Enter");
   const text = page.getByTestId("ChatBlock.messageRow").first().getByTestId("ChatBlock.text");
   await expect(text).toHaveText("明日の会議は10時からです");
+  // Sent: the box takes the focus back, which would undo a selection made
+  // before.
+  await expect(input).toBeFocused();
+  await expect(input).toBeEditable();
 
   // Select "10時から" in the message.
   await text.evaluate((el) => {
