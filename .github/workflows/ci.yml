@@ -92,10 +92,17 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock docker.io/aquasec/trivy:0.63.0 image
           --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 knowlective:ci
 
+  # Split into shards, each a job of its own with its own services and
+  # database: the tests run one at a time (they share the database), so this
+  # is how they run side by side. Each shard signs in again (auth.setup.ts).
   e2e:
-    name: End-to-end tests
+    name: End-to-end tests (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -149,13 +156,13 @@ jobs:
           KNOWLECTIVE_E2E_SETUP: "1"
 
       - name: Run the tests
-        run: pnpm --filter web e2e
+        run: pnpm --filter web e2e --shard=${{ matrix.shard }}/4
 
       - name: Keep the traces and screenshots of failed tests
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-results
+          name: e2e-results-${{ matrix.shard }}
           path: apps/web/e2e/.results
           # The folder's name starts with a dot.
           include-hidden-files: true
