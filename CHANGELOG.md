@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-11
+
 ### Added
 
 - A child page calendar block ("子ページカレンダー" in the slash menu): the page's child pages on a month's calendar, each on the day in a date column (or when it was created or last changed). Drag a card to another day to change its date, or onto "no date" to clear it; "+" on a day adds a child page dated that day; pages without a date wait in a tray below, with a date field. A page with no date column yet offers to make one ("日付"). Each viewer moves between months and filters for themselves (the filter kept on their account, as for the table and board). Markdown and PDF export write it as links to the child pages
