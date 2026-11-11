@@ -141,16 +141,13 @@ jobs:
         with:
           path: apps/web/.models
           key: models-${{ hashFiles('apps/web/server/semantic-model.ts') }}
-      # The system packages come from Ubuntu's mirrors through apt, which the
-      # runners have failed to reach for hours at a time. The runner image has
-      # Chrome, and with it what Chromium needs: without the mirrors, the
-      # browser alone (a missing package would fail the tests at launch).
+      # The browser alone, not its system packages (--with-deps): the runner
+      # image has Chrome, and with it what Chromium needs. apt reaches them
+      # through Ubuntu's mirrors, which the runners have failed to resolve for
+      # hours at a time, each try taking 10 to 20 minutes to give up. Should
+      # the image lose a package, the tests fail at the browser's launch.
       - name: Install the browser
-        run: |
-          pnpm --filter web exec playwright install --with-deps chromium || {
-            echo "::warning::apt failed; installing the browser without its system packages"
-            pnpm --filter web exec playwright install chromium
-          }
+        run: pnpm --filter web exec playwright install chromium
 
       # Over TCP: while the image initialises the database (pg_tde), its
       # temporary server only listens on the socket.
