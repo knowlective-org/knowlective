@@ -4,28 +4,13 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons";
 import { createReactBlockSpec } from "@blocknote/react";
-import { resolveAppUrl, withBasePath } from "@/lib/base-path";
+import { resolveAppUrl } from "@/lib/base-path";
+import { type PdfDocument, type PdfJs, loadPdfJs, pdfOptions } from "./pdf-loader";
 import styles from "./pdf-block.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
 
 // The tallest a page is drawn, so a portrait page doesn't fill the screen.
 const MAX_PAGE_HEIGHT = 480;
-
-type PdfJs = typeof import("pdfjs-dist");
-type PdfDocument = Awaited<ReturnType<PdfJs["getDocument"]>["promise"]>;
-let pdfjsLoading: Promise<PdfJs> | undefined;
-
-// The worker and the data pdf.js fetches on demand come from /api/pdfjs.
-const assetUrl = (pdfjs: PdfJs, dir: string) => withBasePath(`/api/pdfjs/${pdfjs.version}/${dir}`);
-
-// pdf.js is large, so it's only downloaded once a page shows a PDF.
-function loadPdfJs(): Promise<PdfJs> {
-  pdfjsLoading ??= import("pdfjs-dist").then((pdfjs) => {
-    pdfjs.GlobalWorkerOptions.workerSrc = assetUrl(pdfjs, "build/pdf.worker.min.mjs");
-    return pdfjs;
-  });
-  return pdfjsLoading;
-}
 
 // PDF: an attached PDF shown one page at a time. The document holds only the
 // file's URL (/api/files/<id>, which checks the viewer's access) and name;
@@ -65,16 +50,8 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
     void loadPdfJs()
       .then((pdfjs) => {
         if (stale) return;
-        task = pdfjs.getDocument({
-          url,
-          cMapUrl: assetUrl(pdfjs, "cmaps/"),
-          cMapPacked: true,
-          standardFontDataUrl: assetUrl(pdfjs, "standard_fonts/"),
-          wasmUrl: assetUrl(pdfjs, "wasm/"),
-          iccUrl: assetUrl(pdfjs, "iccs/"),
-          // Forms are drawn as they look; nothing in the PDF is run.
-          enableXfa: false,
-        });
+        // Forms are drawn as they look; nothing in the PDF is run.
+        task = pdfjs.getDocument({ url, ...pdfOptions(pdfjs) });
         return task.promise;
       })
       .then((loaded) => {

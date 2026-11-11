@@ -25,7 +25,16 @@ const ja: MessageShape<typeof en> = {
       text: "テキストファイル",
       docx: "Word ファイル",
     },
-    pdfChoice: "「{name}」をファイルとして添付しますか？ それとも、ページをめくって読める表示で埋め込みますか？",
+    pdfChoice:
+      "「{name}」をファイルとして添付しますか？ ページをめくって読める表示で埋め込みますか？ それとも、文字をこのページに展開しますか？",
+    pdfChoiceNoUpload: "「{name}」の文字を、このページに展開しますか？（このサイトでは、ファイルの追加が無効になっています）",
+    pdfExpandNote: "\n\n展開では文字だけを取り出し、大きい文字を見出しにします。画像・表・段組みは再現されません。",
+    expandPdfFailed: "この PDF から文字を読み取れませんでした。",
+    expandPdfNoText: "この PDF には読み取れる文字がありません（スキャンした画像の PDF など）。",
+    expandPdfPassword: "パスワードで保護された PDF は展開できません。",
+    expandPdfTruncated: "最初の {count, number} ページだけを取り込みました。",
+    replaceConfirmPdf:
+      "このページのタイトルと本文を「{name}」の文字で置き換えます。タイトルは PDF の最初の見出し（大きい文字）、なければファイル名になります。\n\n今の内容はページの履歴に残ります。",
     pdfChoiceTitle: "PDF ファイル",
     attach: "ファイルとして添付",
     embedPages: "ページ送りで表示",

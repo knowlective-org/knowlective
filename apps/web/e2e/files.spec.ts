@@ -32,7 +32,71 @@ function twoPagePdf(): string {
   return base64(pdf);
 }
 
+// A one-page PDF with text (Helvetica, so ASCII only): a large title, a
+// heading, and two lines of body text.
+function textPdf(): string {
+  const lines: [number, number, string][] = [
+    [24, 160, "Quarterly Report"],
+    [14, 130, "Overview"],
+    [10, 110, "Sales went up this quarter,"],
+    [10, 98, "mostly in the north."],
+  ];
+  const stream = lines.map(([size, y, t]) => `BT /F1 ${size} Tf 20 ${y} Td (${t}) Tj ET`).join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((body, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return base64(pdf);
+}
+
 test.describe("Files", () => {
+  test("a PDF's text can be expanded into the page, or replace the page", async ({ page }) => {
+    const { id } = await createPage(page, "E2E PDF の展開");
+    await typeInBody(page, "前の本文");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+    await pasteFile(page, { name: "report.pdf", type: "application/pdf", base64: textPdf() });
+    await page.locator('[data-ui="AppDialog.choiceButton"][data-id="expand"]').click();
+    const headings = editorBody(page).locator('[data-content-type="heading"]');
+    await expect(headings).toHaveText(["Quarterly Report", "Overview"]);
+    await expect(editorBody(page).locator('[data-content-type="paragraph"]', { hasText: "Sales" })).toHaveText(
+      "Sales went up this quarter, mostly in the north.",
+    );
+    await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(0);
+    // Nothing was uploaded.
+    expect(await withPrisma((prisma) => prisma.fileObject.count({ where: { pageId: id } }))).toBe(0);
+
+    // Replacing: the first heading is the title.
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await page.waitForTimeout(500);
+    await pasteFile(page, { name: "report.pdf", type: "application/pdf", base64: textPdf() });
+    await page.locator('[data-ui="AppDialog.choiceButton"][data-id="replace"]').click();
+    await page.getByTestId("AppDialog.confirmButton").click();
+    await expect(page.getByTestId("TitleField")).toHaveValue("Quarterly Report");
+    await expect(headings).toHaveText(["Overview"]);
+    await expect(editorBody(page)).not.toContainText("前の本文");
+
+    // A PDF without text (scanned, say) says so.
+    await pasteFile(page, { name: "blank.pdf", type: "application/pdf", base64: twoPagePdf() });
+    await page.locator('[data-ui="AppDialog.choiceButton"][data-id="expand"]').click();
+    await expect(page.getByTestId("AppDialog")).toContainText("読み取れる文字がありません");
+    await page.getByTestId("AppDialog.closeButton").click();
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
   test("expanding a text file into the page makes each line a paragraph", async ({ page }) => {
     await createPage(page, "E2E テキスト");
     await pasteFile(page, { name: "メモ.txt", type: "text/plain", base64: base64("一行目です\n\n二行目です\n") });

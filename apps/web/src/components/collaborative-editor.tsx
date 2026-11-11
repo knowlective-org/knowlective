@@ -29,6 +29,8 @@ import { useDisplayTitle } from "@/i18n/use-display-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 import { EditorFormattingToolbar, EditorSideMenu } from "./editor/block-type-menu";
 import { docxToHtml } from "./editor/docx-import";
+import { MAX_PDF_IMPORT_PAGES, PdfPasswordError, readPdfBlocks } from "./editor/pdf-import";
+import { type PdfBlock, pdfTitle } from "./editor/pdf-text";
 import { singleUrl } from "./editor/link-preview-block";
 import { parseVideoUrl } from "./editor/video-url";
 import { type ExportBlock, downloadBlob, hasChildPageBlocks, prepareBlocksForExport } from "./editor/markdown-export";
@@ -307,13 +309,15 @@ async function replacePage(
   pageId: string,
   file: File,
   blockId: string,
+  // The title and blocks (a PDF's); a Markdown file's otherwise.
+  content?: () => Promise<{ title: string; blocks: ImportedBlock[] } | null>,
 ): Promise<Record<string, never>> {
   // Every block would go, and locked ones can't (block-lock.ts).
   if (lockedBlockIds(provider.document).size > 0) {
     void showAlert(text("editor.replaceLocked"), { title: text("editor.replaceFailedTitle") });
     return discardFileBlock(editor, blockId);
   }
-  const confirmed = await showConfirm(text("editor.replaceConfirm", { name: file.name }), {
+  const confirmed = await showConfirm(text(content ? "editor.replaceConfirmPdf" : "editor.replaceConfirm", { name: file.name }), {
     title: text("editor.replaceConfirmTitle"),
     confirmLabel: text("editor.replace"),
     danger: true,
@@ -324,8 +328,17 @@ async function replacePage(
     void showAlert(saved.error, { title: text("editor.replaceFailedTitle") });
     return discardFileBlock(editor, blockId);
   }
-  const { title, body } = splitMarkdownTitle(await readTextFile(file), file.name);
-  const parsed = prepareImportedBlocks(editor.tryParseMarkdownToBlocks(body) as ImportedBlock[]);
+  let title: string;
+  let parsed: ImportedBlock[];
+  if (content) {
+    const read = await content();
+    if (!read) return discardFileBlock(editor, blockId);
+    ({ title, blocks: parsed } = read);
+  } else {
+    const split = splitMarkdownTitle(await readTextFile(file), file.name);
+    title = split.title;
+    parsed = prepareImportedBlocks(editor.tryParseMarkdownToBlocks(split.body) as ImportedBlock[]);
+  }
   if (!editor.getBlock(blockId)) return {};
   // Done right after BlockNote has updated the file block with the return
   // value (as in discardFileBlock), since the file block goes too. An empty
@@ -350,20 +363,64 @@ function isPdfFile(file: File): boolean {
   return /\.pdf$/i.test(file.name) || file.type === "application/pdf";
 }
 
-// A PDF is attached either way; the choice is how it's shown. Returns what
-// BlockNote updates the file block it has just created (`blockId`) with.
-async function attachOrEmbedPdf(editor: BlockEditor, pageId: string, file: File, blockId: string) {
+// A PDF: attached as a file, attached and shown page by page, or its text
+// expanded into the page or put in place of the page (read in the browser,
+// pdf-import.ts; nothing is uploaded for those two, so they're what's left
+// when adding files is turned off). Returns what BlockNote updates the file
+// block it has just created (`blockId`) with.
+async function attachOrEmbedPdf(
+  provider: HocuspocusProvider,
+  editor: BlockEditor,
+  pageId: string,
+  file: File,
+  blockId: string,
+  uploads: boolean,
+) {
   const choice = await showChoice(
-    text("editor.pdfChoice", { name: file.name }),
+    text(uploads ? "editor.pdfChoice" : "editor.pdfChoiceNoUpload", { name: file.name }) + text("editor.pdfExpandNote"),
+    // The last is the suggested one: page by page, as before (expanding when
+    // nothing can be uploaded).
     [
-      { value: "attach", label: text("editor.attach") },
-      { value: "embed", label: text("editor.embedPages") },
+      { value: "replace" as const, label: text("editor.replacePage") },
+      ...(uploads ? [{ value: "attach" as const, label: text("editor.attach") }] : []),
+      { value: "expand" as const, label: text("editor.expand") },
+      ...(uploads ? [{ value: "embed" as const, label: text("editor.embedPages") }] : []),
     ],
     { title: text("editor.pdfChoiceTitle") },
   );
   if (choice === null) return discardFileBlock(editor, blockId);
+  if (choice === "expand") {
+    const blocks = await pdfBlocksOf(file);
+    if (!blocks) return discardFileBlock(editor, blockId);
+    if (editor.getBlock(blockId)) editor.insertBlocks(blocks as never[], blockId, "after");
+    return discardFileBlock(editor, blockId);
+  }
+  if (choice === "replace") {
+    return replacePage(provider, editor, pageId, file, blockId, async () => {
+      const blocks = await pdfBlocksOf(file);
+      return blocks ? pdfTitle(blocks, file.name) : null;
+    });
+  }
   const url = await uploadFile(pageId, file);
   return choice === "embed" ? { type: "pdf", props: { url, name: file.name } } : url;
+}
+
+// A PDF's text as blocks, or null (and why, said) when there's none to take.
+async function pdfBlocksOf(file: File): Promise<PdfBlock[] | null> {
+  const title = { title: text("editor.expandFailedTitle") };
+  try {
+    const { blocks, truncated } = await readPdfBlocks(file);
+    if (blocks.length === 0) {
+      void showAlert(text("editor.expandPdfNoText"), title);
+      return null;
+    }
+    if (truncated) void showAlert(text("editor.expandPdfTruncated", { count: MAX_PDF_IMPORT_PAGES }));
+    return blocks;
+  } catch (error) {
+    console.error("[editor] reading a PDF failed", error);
+    void showAlert(text(error instanceof PdfPasswordError ? "editor.expandPdfPassword" : "editor.expandPdfFailed"), title);
+    return null;
+  }
 }
 
 // A Markdown, text or Word file (dropped, pasted, or chosen in a file block)
@@ -385,13 +442,13 @@ async function expandOrUpload(provider: HocuspocusProvider, pageId: string, file
     if (editor && blockId) return discardFileBlock(editor, blockId);
     throw new Error(message);
   };
-  if (!policy.enabled && !(editor && blockId && (kind === "markdown" || kind === "text"))) {
+  if (!policy.enabled && !(editor && blockId && (kind === "markdown" || kind === "text" || isPdfFile(file)))) {
     return refuse(text("files.errors.disabled"));
   }
   if (!isUploadAllowed(file.name, policy.extensions)) {
     return refuse(uploadRefusedMessage(file.name, (key, values) => text(`files.errors.${key}`, values)));
   }
-  if (editor && blockId && isPdfFile(file)) return attachOrEmbedPdf(editor, pageId, file, blockId);
+  if (editor && blockId && isPdfFile(file)) return attachOrEmbedPdf(provider, editor, pageId, file, blockId, policy.enabled);
   if (!editor || !blockId || !kind) {
     return uploadFile(pageId, file);
   }
