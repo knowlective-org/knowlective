@@ -1,11 +1,14 @@
 # Continuous integration on GitHub's machines (nothing runs on yours).
 #
-#   push to staging       every check, including the end-to-end tests
-#   pull request → master the same (a pull request from a fork runs with
-#                         read-only access and no secrets; CI uses none)
-#   weekly (Monday)       the same, on master: new vulnerabilities in the
+#   push to staging       the quick checks only (types, lint, access checks,
+#                         unit tests, audit, gitleaks)
+#   pull request → master every check, adding the end-to-end tests and the
+#                         image: what reaches production goes through here
+#                         (a pull request from a fork runs with read-only
+#                         access and no secrets; CI uses none)
+#   weekly (Monday)       every check, on master: new vulnerabilities in the
 #                         dependencies and the image show up without a change
-#   by hand               Actions tab → CI → Run workflow
+#   by hand               Actions tab → CI → Run workflow (every check)
 #
 # Nothing is deployed or published. The keys the tests use are made inside the
 # job and thrown away with it.
@@ -80,6 +83,8 @@ jobs:
 
   image:
     name: Docker image (build, trivy)
+    # Not on a push to staging (the pull request to master runs it).
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -97,6 +102,8 @@ jobs:
   # is how they run side by side. Each shard signs in again (auth.setup.ts).
   e2e:
     name: End-to-end tests (${{ matrix.shard }}/4)
+    # Not on a push to staging (the pull request to master runs them).
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
