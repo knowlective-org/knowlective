@@ -311,7 +311,7 @@ DB の変更は要らない（`User.locale` と `InstanceConfig.defaultLocale` �
 
 ## API
 
-個人の API キーを使って、プログラムから HTTP（`/api/v1`）でページを読んだり変更したりできる。
+個人の API キーを使って、プログラムから HTTP（`/api/v1`）でページ・チャット・ホワイトボードを読んだり変更したりできる。
 
 - 管理画面「ユーザー」→「API」（サイト管理者のみ）で有効にする（初期値はオフ）。キーを発行できるロールもここで選ぶ（初期値はすべて）
 - キーは各自が、サイドバーの「アカウント」で発行する：名前・できること（「読み取りのみ」か「読み書き」）・有効期限（30・90・365 日か、なし）。発行のときに本人確認をする（パスキーを登録していればパスキー、なければメールアドレスに送る6桁の確認コード。コードは10分・1回限り）。パスキーがなく、メール送信も設定されていなければ発行できない。キーは1回だけ表示される
@@ -324,8 +324,13 @@ DB の変更は要らない（`User.locale` と `InstanceConfig.defaultLocale` �
 | `GET /api/v1/me` | キーの持ち主とキーの情報 |
 | `GET /api/v1/pages` | 持ち主が見られるページの一覧（`id`・`title`・`parentId`・`rootId`・`access`・`locked`） |
 | `GET /api/v1/pages/<id>` | 1ページ。本文は Markdown（`markdown`） |
-| `POST /api/v1/pages` | ページを作る：`{ "parentId": "...", "title": "...", "markdown": "..." }`（`title`・`markdown` は省略可）。親の下の最後に入る |
+| `POST /api/v1/pages` | ページを作る：`{ "parentId": "...", "title": "...", "markdown": "..." }`（`title`・`markdown` は省略可）。親の下の最後に入る。`"kind": "WHITEBOARD"` でホワイトボード（`markdown` なし） |
 | `PATCH /api/v1/pages/<id>` | タイトルと本文（全体）を置き換える：`{ "title": "...", "markdown": "..." }`（どちらか一方でもよい） |
+| `GET /api/v1/pages/<id>/chats` | ページのチャットブロック（`id`・`title`） |
+| `GET /api/v1/pages/<id>/chats/<チャットの id>/messages` | チャットの最近のメッセージ（古い順）：本文（Markdown。メンションは `<@ユーザーの id>`）・`plainText`・`mentions`（名前）・送った人・返信先・リアクション・投票 |
+| `POST /api/v1/pages/<id>/chats/<チャットの id>/messages` | メッセージを送る：`{ "text": "...", "replyToId": "..." }`（`replyToId` は省略可。`<@ユーザーの id>` でメンション、`<@all>` でページを開ける全員）。編集の権限が必要で、チャットがロックされていないこと（`chat_locked`） |
+| `GET /api/v1/pages/<id>/whiteboard` | ホワイトボードの項目（奥から順）：箱（`sticky`・`rect`・`ellipse`・`diamond`・`text`・`image`）・`connector`・`line` |
+| `POST /api/v1/pages/<id>/whiteboard` | ホワイトボードをまとめて変更する：`{ "add": [...], "update": [{ "id": "...", ... }], "remove": ["..."] }`。追加する項目は `id` を自分で付けられる（同じリクエストのコネクターでつなぐため）。箱を消すと、つながったコネクターも消える。項目の欄は `GET` と同じで、画像の `src` はそのページの添付ファイルだけ。ボードに表示できないものは断る（`invalid_body`、理由付き） |
 
 ```bash
 curl -H "Authorization: Bearer kn_..." https://<公開 URL>/api/v1/pages
@@ -335,7 +340,7 @@ curl -X PATCH -H "Authorization: Bearer kn_..." -H "Content-Type: application/js
 
 - タイトルは本文と別。Markdown の見出しはそのまま対応する（`## ` がページの H2。`# ` は H2 になる）ので、`GET` で受け取ったものをそのまま送り返せる。```` ```mermaid ```` は図になる。子ページ一覧・テーブルは、持ち主が見られる子ページへのリンクとして出る
 - 変更は開いているドキュメントを通すので、ページを開いている人の画面にすぐ反映され、変更前の内容はページの履歴に残る
-- エラーは `{ "error": { "code": "...", "message": "..." } }`（`invalid_key`・`insufficient_scope`・`not_found`・`forbidden`・`page_locked`・`blocks_locked`（ロックしたブロックがあると本文を置き換えられない）・`rate_limited`・`api_disabled` など）。Windows の curl で日本語を送るときは、本文を UTF-8 のファイルにして `-d @file.json` で渡す
+- エラーは `{ "error": { "code": "...", "message": "..." } }`（`invalid_key`・`insufficient_scope`・`not_found`・`forbidden`・`page_locked`・`blocks_locked`（ロックしたブロックがあると本文を置き換えられない）・`chat_locked`・`not_whiteboard`・`rate_limited`・`api_disabled` など）。Windows の curl で日本語を送るときは、本文を UTF-8 のファイルにして `-d @file.json` で渡す
 
 ## 管理画面（`/admin`）
 

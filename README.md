@@ -308,7 +308,7 @@ Instead of a password, you can log in with a passkey (fingerprint, face, or the 
 
 ## API
 
-Programs can read and change pages over HTTP (`/api/v1`) with a personal API key.
+Programs can read and change pages, chats and whiteboards over HTTP (`/api/v1`) with a personal API key.
 
 - A site admin turns it on under "Users" → "API" in the admin console (off by default), and chooses the roles that can issue keys (all of them by default)
 - Each person issues their own keys under "Account" in the sidebar: a name, the access ("Read only" or "Read and write"), and an expiry (30, 90 or 365 days, or never). Issuing asks them to confirm it's them: with their passkey if they have registered one, otherwise with a 6-digit code emailed to their address (valid for 10 minutes, once). Without a passkey and without mail sending set up, keys can't be issued. The key is shown once
@@ -321,8 +321,13 @@ Programs can read and change pages over HTTP (`/api/v1`) with a personal API key
 | `GET /api/v1/me` | The key's owner and the key |
 | `GET /api/v1/pages` | Every page the owner can see (`id`, `title`, `parentId`, `rootId`, `access`, `locked`) |
 | `GET /api/v1/pages/<id>` | One page, with its content as Markdown (`markdown`) |
-| `POST /api/v1/pages` | A new page: `{ "parentId": "...", "title": "...", "markdown": "..." }` (`title` and `markdown` optional). Created last under the parent |
+| `POST /api/v1/pages` | A new page: `{ "parentId": "...", "title": "...", "markdown": "..." }` (`title` and `markdown` optional). Created last under the parent. `"kind": "WHITEBOARD"` makes a whiteboard (without `markdown`) |
 | `PATCH /api/v1/pages/<id>` | Replaces the title and/or the whole body: `{ "title": "...", "markdown": "..." }` |
+| `GET /api/v1/pages/<id>/chats` | The page's chat blocks (`id`, `title`) |
+| `GET /api/v1/pages/<id>/chats/<chat id>/messages` | The chat's latest messages, oldest first: text (Markdown, mentions as `<@user id>`), `plainText`, `mentions` (names), author, reply, reactions, poll |
+| `POST /api/v1/pages/<id>/chats/<chat id>/messages` | Posts a message: `{ "text": "...", "replyToId": "..." }` (`replyToId` optional; `<@user id>` mentions someone, `<@all>` everyone who can open the page). Needs edit access, the chat not locked (`chat_locked`) |
+| `GET /api/v1/pages/<id>/whiteboard` | The whiteboard's items, back to front: boxes (`sticky`, `rect`, `ellipse`, `diamond`, `text`, `image`), `connector` and `line` |
+| `POST /api/v1/pages/<id>/whiteboard` | Changes the whiteboard at once: `{ "add": [...], "update": [{ "id": "...", ... }], "remove": ["..."] }`. Added items may bring their own `id` so connectors in the same request can join them; removing a box removes its connectors. Fields as `GET` returns them; an image's `src` must be an attachment of the page. Anything the board can't show is refused (`invalid_body`, with the reason) |
 
 ```bash
 curl -H "Authorization: Bearer kn_..." https://<public URL>/api/v1/pages
@@ -332,7 +337,7 @@ curl -X PATCH -H "Authorization: Bearer kn_..." -H "Content-Type: application/js
 
 - The title is separate from the body: headings in the Markdown map one to one (`## ` is the page's H2; a `# ` becomes an H2). What `GET` returns can be sent back unchanged. ```` ```mermaid ```` blocks are diagrams; child page lists and tables come out as links to the child pages the owner can see
 - Changes go through the live document, so people with the page open see them at once, and the content from before is kept in the page's history
-- Errors are `{ "error": { "code": "...", "message": "..." } }` (`invalid_key`, `insufficient_scope`, `not_found`, `forbidden`, `page_locked`, `blocks_locked` (the body can't be replaced while some of its blocks are locked), `rate_limited`, `api_disabled`, …)
+- Errors are `{ "error": { "code": "...", "message": "..." } }` (`invalid_key`, `insufficient_scope`, `not_found`, `forbidden`, `page_locked`, `blocks_locked` (the body can't be replaced while some of its blocks are locked), `chat_locked`, `not_whiteboard`, `rate_limited`, `api_disabled`, …)
 
 ## Admin console (`/admin`)
 

@@ -28,6 +28,7 @@ import { BLOCKS_LOCKED, CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildr
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 import { copyWhiteboard, hasWhiteboardContent } from "../src/lib/whiteboard";
+import { applyWhiteboardOps } from "../src/lib/whiteboard-ops";
 import { startSemanticSearch } from "./semantic-search";
 import { createNotifier } from "./notifications";
 import { FALLBACK_LOCALE, isLocale, negotiateLocale } from "../src/i18n/locales";
@@ -380,6 +381,17 @@ export async function createCollab() {
             title.insert(0, content.title);
           }
         });
+      } finally {
+        await connection.disconnect();
+      }
+    },
+    // Changes to a whiteboard (checked by the caller, lib/whiteboard-ops.ts),
+    // made in the live document as `userId`: everyone with the board open
+    // sees them, as any edit.
+    async changeWhiteboard(pageId, userId, ops) {
+      const connection = await hocuspocus.openDirectConnection(pageId, { userId });
+      try {
+        await connection.transact((doc) => applyWhiteboardOps(doc, ops));
       } finally {
         await connection.disconnect();
       }

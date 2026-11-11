@@ -84,7 +84,12 @@ test.describe("Access matrix", () => {
       expect(file.status(), `${account} attachment`).toBe(["guest", "outsider"].includes(account) ? 404 : 200);
       // The API takes keys only: a logged-in browser's cookies don't count
       // (401 without a key; 403 while the API is off in the admin console).
-      expect([401, 403], `${account} api`).toContain((await context.request.get("api/v1/me")).status());
+      for (const path of ["api/v1/me", `api/v1/pages/${pageId}/chats`, `api/v1/pages/${pageId}/chats/x/messages`, `api/v1/pages/${pageId}/whiteboard`]) {
+        expect([401, 403], `${account} ${path}`).toContain((await context.request.get(path)).status());
+      }
+      expect([401, 403], `${account} whiteboard POST`).toContain(
+        (await context.request.post(`api/v1/pages/${pageId}/whiteboard`, { data: { remove: ["x"] } })).status(),
+      );
       // For search engines: open to all, and listing no page that isn't public.
       expect((await context.request.get("robots.txt")).status(), `${account} robots.txt`).toBe(200);
       const sitemap = await context.request.get("sitemap.xml");

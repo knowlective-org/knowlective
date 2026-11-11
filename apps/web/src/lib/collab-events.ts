@@ -1,3 +1,5 @@
+import type { WhiteboardOps } from "./whiteboard-ops";
+
 // Shared by the collab server (server/collab.ts), Server Actions and the
 // editor (browser) — keep dependency-free.
 //
@@ -32,6 +34,7 @@ type CollabBridge = {
   restoreVersion(pageId: string, versionId: string, userId: string): Promise<void>;
   saveCurrentVersion(pageId: string): Promise<void>;
   replaceContent(pageId: string, userId: string, content: { title?: string; body?: Uint8Array }): Promise<void>;
+  changeWhiteboard(pageId: string, userId: string, ops: WhiteboardOps): Promise<void>;
   liveState(pageId: string): Uint8Array | null;
 };
 
@@ -102,6 +105,14 @@ export async function replacePageContent(
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   if (!bridge) throw new Error("The collaboration server is not running");
   await bridge.replaceContent(pageId, userId, content);
+}
+
+// Makes checked changes to a whiteboard (lib/whiteboard-ops.ts) as `userId`,
+// through the live document. Throws outside the custom server.
+export async function changeWhiteboard(pageId: string, userId: string, ops: WhiteboardOps): Promise<void> {
+  const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
+  if (!bridge) throw new Error("The collaboration server is not running");
+  await bridge.changeWhiteboard(pageId, userId, ops);
 }
 
 // The page's document as currently open in the collab server (including
