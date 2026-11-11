@@ -384,6 +384,7 @@ const ja: MessageShape<typeof en> = {
       viewOnly: "閲覧のみの権限ではファイルを追加できません。",
       locked: "このページはロックされているため、ファイルを追加できません。",
       network: "このネットワークからは、ファイルを添付できません。",
+      disabled: "このサイトでは、ファイルの追加が無効になっています。",
       notConfigured: "ファイル保存が設定されていません。管理者に連絡してください。",
       tooLarge: "ファイルが大きすぎます（上限 {max, number}MB）。",
       unreadable: "ファイルを読み取れませんでした。",

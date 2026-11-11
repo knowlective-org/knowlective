@@ -6,6 +6,28 @@ import { isAllowedAddress, parsePreviewUrl } from "../src/lib/link-preview";
 import { checkLogoSvg } from "../src/lib/logo-svg";
 import { safeHttpUrl } from "../src/lib/safe-url";
 import { parseVideoUrl } from "../src/components/editor/video-url";
+import { sameSitePath } from "../src/lib/same-site-link";
+
+describe("links to this site open in the same tab", () => {
+  const origin = "https://kn.example.com";
+  test("pages on this site, as an app path", () => {
+    assert.equal(sameSitePath("https://kn.example.com/pages/abc", origin, ""), "/pages/abc");
+    assert.equal(sameSitePath("/pages/abc?x=1#h", origin, ""), "/pages/abc?x=1#h");
+    assert.equal(sameSitePath("https://kn.example.com/kn/pages/abc", origin, "/kn"), "/pages/abc");
+    assert.equal(sameSitePath("https://kn.example.com/kn", origin, "/kn"), "/");
+  });
+  test("other sites, other schemes, files and paths outside the base path are left alone", () => {
+    assert.equal(sameSitePath("https://evil.example.com/pages/abc", origin, ""), null);
+    assert.equal(sameSitePath("http://kn.example.com/pages/abc", origin, ""), null);
+    assert.equal(sameSitePath("https://kn.example.com.evil.com/x", origin, ""), null);
+    assert.equal(sameSitePath("//evil.example.com/x", origin, ""), null);
+    assert.equal(sameSitePath("javascript:alert(1)", origin, ""), null);
+    assert.equal(sameSitePath("mailto:a@example.com", origin, ""), null);
+    assert.equal(sameSitePath("https://kn.example.com/api/files/abc", origin, ""), null);
+    assert.equal(sameSitePath("https://kn.example.com/other/pages/abc", origin, "/kn"), null);
+    assert.equal(sameSitePath("https://kn.example.com/knx/pages", origin, "/kn"), null);
+  });
+});
 
 // The checks that stand between untrusted input and the server or the
 // browser: addresses the server may fetch from (link previews), uploaded

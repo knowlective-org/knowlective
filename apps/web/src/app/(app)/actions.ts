@@ -8,7 +8,7 @@ import { findAccessiblePage } from "@/lib/auth/pages";
 import { normalizeTitle } from "@/lib/page-title";
 import { type CreatePageError, insertChildPage } from "@/lib/page-create";
 import { endUserSession, getCurrentUser, requireUser } from "@/lib/auth/session";
-import { getAllowedUploadExtensions } from "@/lib/storage";
+import { getAllowedUploadExtensions, getUploadsEnabled } from "@/lib/storage";
 import { COLLAB_CLIENT_VERSION, OUTDATED_CLIENT } from "@/lib/collab-version";
 
 // auth: public — ends whatever session the caller has (none: nothing to end).
@@ -35,12 +35,13 @@ export async function getCollabToken(pageId: string, version?: number): Promise<
   return createCollabToken(user.id, pageId, COLLAB_CLIENT_VERSION);
 }
 
-// Extensions of the files that may be added to a page (empty = any), so the
-// editor can refuse a file before asking what to do with it. The upload route
-// checks again.
-export async function getUploadExtensions(): Promise<string[]> {
+// Whether files can be added at all, and the extensions of those that may be
+// (empty = any), so the editor can refuse a file before asking what to do
+// with it. The upload route checks again.
+export async function getUploadPolicy(): Promise<{ enabled: boolean; extensions: string[] }> {
   await requireUser();
-  return getAllowedUploadExtensions();
+  const [enabled, extensions] = await Promise.all([getUploadsEnabled(), getAllowedUploadExtensions()]);
+  return { enabled, extensions };
 }
 
 // The order of the knowledge roots in this user's sidebar (ids, first

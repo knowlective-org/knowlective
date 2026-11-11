@@ -1,4 +1,4 @@
-import type { ItemColor, Route, SHAPE_TYPES } from "@/lib/whiteboard";
+import type { ConnectorEnds, ItemColor, Route, SHAPE_TYPES, Side } from "@/lib/whiteboard";
 
 // Ready-made boards put in with the toolbar's "Templates": what they're made
 // of, laid out from their top left at (0, 0). Their text is in the language
@@ -17,8 +17,18 @@ export type TemplateBox = {
   h: number;
   text: string;
   color: ItemColor;
+  // Connectors meeting at one point of it stay together (a tree's trunk).
+  connectorEnds?: ConnectorEnds;
 };
-export type TemplateConnector = { from: string; to: string; route: Route; arrows: "end" | "none" };
+export type TemplateConnector = {
+  from: string;
+  to: string;
+  route: Route;
+  arrows: "end" | "none";
+  // The sides the ends are on (elbow routes go out and in through them).
+  fromSide?: Side;
+  toSide?: Side;
+};
 export type Template = { boxes: TemplateBox[]; connectors: TemplateConnector[] };
 
 // The texts a template needs, by key (whiteboard.templates.<name>.<key>).
@@ -89,20 +99,24 @@ function brainstorm(t: Translate): Template {
   };
 }
 
-// One at the top, three under it, two under each of those: joined by
-// right-angle connectors.
+// One at the top, three teams under it, two members under each team: the
+// teams hang from the head's bottom on right-angle connectors, and each
+// team's members are stacked below it, set in to the right, on a line down
+// from the team's bottom into their left side.
 function orgChart(t: Translate): Template {
   const W = 150;
   const H = 60;
-  const boxes: TemplateBox[] = [box("head", "rect", 375, 0, W, H, t("orgChart.head"), "blue")];
+  const MW = 140;
+  const MH = 50;
+  const boxes: TemplateBox[] = [{ ...box("head", "rect", 325, 0, W, H, t("orgChart.head"), "blue"), connectorEnds: "merge" }];
   const connectors: TemplateConnector[] = [];
   for (let i = 0; i < 3; i++) {
-    const x = i * 300 + 75;
-    boxes.push(box(`unit${i}`, "rect", x, 140, W, H, t("orgChart.unit"), "white"));
-    connectors.push({ from: "head", to: `unit${i}`, route: "elbow", arrows: "none" });
+    const x = i * 325;
+    boxes.push({ ...box(`unit${i}`, "rect", x, 140, W, H, t("orgChart.unit"), "white"), connectorEnds: "merge" });
+    connectors.push({ from: "head", to: `unit${i}`, route: "elbow", arrows: "none", fromSide: "bottom", toSide: "top" });
     for (let j = 0; j < 2; j++) {
-      boxes.push(box(`member${i}${j}`, "rect", x - 80 + j * 160, 280, W - 10, H - 10, t("orgChart.member"), "white"));
-      connectors.push({ from: `unit${i}`, to: `member${i}${j}`, route: "elbow", arrows: "none" });
+      boxes.push(box(`member${i}${j}`, "rect", x + 113, 230 + j * 75, MW, MH, t("orgChart.member"), "white"));
+      connectors.push({ from: `unit${i}`, to: `member${i}${j}`, route: "elbow", arrows: "none", fromSide: "bottom", toSide: "left" });
     }
   }
   return { boxes, connectors };

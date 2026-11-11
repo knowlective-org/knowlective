@@ -114,6 +114,16 @@ test.describe("Files", () => {
     const response = await page.request.get(src!);
     expect(response.status()).toBe(200);
     expect(response.headers()["content-type"]).toBe("image/png");
+    expect(response.headers()["accept-ranges"]).toBe("bytes");
+    const whole = await response.body();
+
+    // Part of it, as media players ask (Safari plays no video without 206).
+    const part = await page.request.get(src!, { headers: { Range: "bytes=2-5" } });
+    expect(part.status()).toBe(206);
+    expect(part.headers()["content-range"]).toBe(`bytes 2-5/${whole.length}`);
+    expect(Buffer.compare(await part.body(), whole.subarray(2, 6))).toBe(0);
+    const past = await page.request.get(src!, { headers: { Range: `bytes=${whole.length}-` } });
+    expect(past.status()).toBe(416);
     await expect(page.getByTestId("AppDialog")).toHaveCount(0);
     await trashOpenPage(page);
   });
@@ -128,6 +138,20 @@ test.describe("Files", () => {
     await expect(block.getByTestId("PdfBlock.error")).toHaveCount(0);
     await block.getByTestId("PdfBlock.nextButton").click();
     await expect(block.getByTestId("PdfBlock.status")).toHaveText("2 / 2");
+
+    // Full screen: the window, on the same page; ← turns back, Esc leaves.
+    await block.getByTestId("PdfBlock.fullscreenButton").click();
+    await expect(block).toHaveAttribute("data-fullscreen", "true");
+    const box = await block.boundingBox();
+    expect(box!.width).toBe(page.viewportSize()!.width);
+    await expect(block.getByTestId("PdfBlock.status")).toHaveText("2 / 2");
+    await page.keyboard.press("ArrowLeft");
+    await expect(block.getByTestId("PdfBlock.status")).toHaveText("1 / 2");
+    await page.keyboard.press("Escape");
+    await expect(block).not.toHaveAttribute("data-fullscreen");
+    await expect(block.getByTestId("PdfBlock.status")).toHaveText("1 / 2");
+    await block.getByTestId("PdfBlock.nextButton").click();
+    await expect(block.getByTestId("PdfBlock.status")).toHaveText("2 / 2");
     await expect(block.getByTestId("PdfBlock.nextButton")).toBeDisabled();
     await trashOpenPage(page);
   });
@@ -140,6 +164,36 @@ test.describe("Files", () => {
     await expect(dialog).toContainText(".exe");
     await page.getByTestId("AppDialog.closeButton").click();
     await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("with adding files turned off, nothing is uploaded; text files can still be expanded", async ({ page }) => {
+    const { id } = await createPage(page, "E2E ファイルの追加なし");
+    const set = (uploadsEnabled: boolean) =>
+      withPrisma((prisma) => prisma.instanceConfig.update({ where: { id: 1 }, data: { uploadsEnabled } }));
+    await set(false);
+    try {
+      await pasteFile(page, { name: "点.png", type: "image/png", base64: PNG });
+      const dialog = page.getByTestId("AppDialog");
+      await expect(dialog).toContainText("ファイルの追加が無効");
+      await page.getByTestId("AppDialog.closeButton").click();
+      await expect(editorBody(page).locator('[data-content-type="image"]')).toHaveCount(0);
+
+      // A text file: expanding only (no "attach").
+      await pasteFile(page, { name: "メモ.txt", type: "text/plain", base64: base64("一行目") });
+      await expect(page.locator('[data-ui="AppDialog.choiceButton"][data-id="attach"]')).toHaveCount(0);
+      await page.locator('[data-ui="AppDialog.choiceButton"][data-id="expand"]').click();
+      await expect(editorBody(page)).toContainText("一行目");
+
+      // The upload route refuses too.
+      const response = await page.request.post(`api/files?pageId=${id}`, {
+        multipart: { file: { name: "a.png", mimeType: "image/png", buffer: Buffer.from(PNG, "base64") } },
+        headers: { Origin: new URL(page.url()).origin },
+      });
+      expect(response.status()).toBe(403);
+    } finally {
+      await set(true);
+    }
     await trashOpenPage(page);
   });
 

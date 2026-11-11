@@ -39,8 +39,22 @@ test.describe("Admin console", () => {
     await page.reload();
     await expect(allowPrivate).not.toBeChecked();
 
-    // Files: the allowed extensions are shown as tags, and adding one works.
+    // Files: adding files can be turned off (and back on).
     await page.getByTestId("AdminSidebar.navLink").filter({ hasText: "ファイル" }).click();
+    const uploads = page.getByTestId("UploadsEnabledForm.enabledCheckbox");
+    await expect(uploads).toBeChecked();
+    await uploads.uncheck();
+    await page.getByTestId("UploadsEnabledForm.submitButton").click();
+    await expect(page.getByTestId("UploadsEnabledForm.status")).toHaveText("保存しました。");
+    await page.reload();
+    await expect(uploads).not.toBeChecked();
+    await uploads.check();
+    await page.getByTestId("UploadsEnabledForm.submitButton").click();
+    await expect(page.getByTestId("UploadsEnabledForm.status")).toHaveText("保存しました。");
+    await page.reload();
+    await expect(uploads).toBeChecked();
+
+    // The allowed extensions are shown as tags, and adding one works.
     await expect(page.locator('[data-ui="UploadTypesForm.extensionItem"][data-id="pdf"]')).toBeVisible();
     await page.getByTestId("UploadTypesForm.extensionInput").fill("e2etest,");
     await expect(page.locator('[data-ui="UploadTypesForm.extensionItem"][data-id="e2etest"]')).toBeVisible();

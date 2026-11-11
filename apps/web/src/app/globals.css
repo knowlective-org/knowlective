@@ -532,18 +532,42 @@ a {
   flex-wrap: wrap;
 }
 
+/* A card of its own (border, badge on its frame), apart from the dark code. */
 .bn-root .knowlective-code-preview {
+  position: relative;
   flex: 1 0 calc(100% - 24px);
   min-width: 0;
-  margin: 0 12px 12px;
-  padding: 8px 12px;
+  margin: 14px 12px 12px;
+  padding: 18px 12px 10px;
   color: CanvasText;
-  background: var(--color-surface);
-  border-radius: 4px;
-  overflow-x: auto;
+  font-family: system-ui, sans-serif;
+  background: var(--color-background);
+  border: 2px solid var(--color-primary-light);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--color-border-strong);
   white-space: normal;
   cursor: auto;
   user-select: text;
+}
+
+.bn-root .knowlective-code-preview-output {
+  overflow-x: auto;
+}
+
+.bn-root .knowlective-code-preview-badge {
+  position: absolute;
+  top: -11px;
+  left: 10px;
+  padding: 1px 8px;
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: 0.02em;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 9px;
+  user-select: none;
 }
 
 .bn-root [data-content-type="codeBlock"][data-preview="only"] > pre {
@@ -564,9 +588,7 @@ a {
 }
 
 .bn-root .bn-editor[contenteditable="false"] [data-content-type="codeBlock"][data-preview="only"] > .knowlective-code-preview {
-  margin: 0;
-  padding: 0;
-  background: transparent;
+  margin: 14px 0 0;
 }
 
 .bn-root .knowlective-code-preview iframe {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { HocuspocusProvider } from "@hocuspocus/provider";
 import { yUndoPluginKey } from "y-prosemirror";
@@ -11,12 +12,13 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote } from "@blocknote/react";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
-import { getUploadExtensions } from "@/app/(app)/actions";
+import { getUploadPolicy } from "@/app/(app)/actions";
 import { lockedBlockIds } from "@/lib/block-locks";
 import { saveVersionBeforeReplace } from "@/app/(app)/pages/[pageId]/history/actions";
 import { getLinkPreviewEnabled, loadLinkPreview } from "@/app/(app)/link-preview-actions";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { BASE_PATH, resolveAppUrl } from "@/lib/base-path";
+import { sameSitePath } from "@/lib/same-site-link";
 import { UploadError, postFile as postSharedFile } from "@/lib/upload-file";
 import { CHILDREN_CHANGED } from "@/lib/collab-events";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/page-export";
@@ -370,26 +372,33 @@ async function attachOrEmbedPdf(editor: BlockEditor, pageId: string, file: File,
 // page; the user chooses.
 //
 // A file of a type the administrators don't allow (/admin/files) is refused
-// first, expanding included. If the list can't be fetched, the upload route
-// still refuses the file.
+// first, expanding included. With files turned off there (no uploads at
+// all), Markdown and text files can still be expanded (nothing is uploaded);
+// any other file is refused. If the settings can't be fetched, the upload
+// route still refuses the file.
 async function expandOrUpload(provider: HocuspocusProvider, pageId: string, file: File, blockId?: string) {
   const editor = editors.get(provider);
-  const allowed = await getUploadExtensions().catch(() => []);
-  if (!isUploadAllowed(file.name, allowed)) {
-    const message = uploadRefusedMessage(file.name, (key, values) => text(`files.errors.${key}`, values));
+  const policy = await getUploadPolicy().catch(() => ({ enabled: true, extensions: [] as string[] }));
+  const kind = importKind(file);
+  const refuse = (message: string) => {
     void showAlert(message, { title: text("editor.refusedTitle") });
     if (editor && blockId) return discardFileBlock(editor, blockId);
     throw new Error(message);
+  };
+  if (!policy.enabled && !(editor && blockId && (kind === "markdown" || kind === "text"))) {
+    return refuse(text("files.errors.disabled"));
+  }
+  if (!isUploadAllowed(file.name, policy.extensions)) {
+    return refuse(uploadRefusedMessage(file.name, (key, values) => text(`files.errors.${key}`, values)));
   }
   if (editor && blockId && isPdfFile(file)) return attachOrEmbedPdf(editor, pageId, file, blockId);
-  const kind = importKind(file);
   if (!editor || !blockId || !kind) {
     return uploadFile(pageId, file);
   }
   const choice = await showChoice(
     text("editor.expandChoice", { name: file.name }) + (kind === "docx" ? text("editor.expandDocxNote") : ""),
     [
-      { value: "attach", label: text("editor.attach") },
+      ...(policy.enabled ? [{ value: "attach" as const, label: text("editor.attach") }] : []),
       // Markdown only: its leading heading can be the title.
       ...(kind === "markdown" ? [{ value: "replace" as const, label: text("editor.replacePage") }] : []),
       { value: "expand", label: text("editor.expand") },
@@ -432,9 +441,23 @@ function EditorBody({
     text = t;
   }, [t]);
   const displayTitle = useDisplayTitle();
+  const router = useRouter();
   const editor = useCreateBlockNote(
     withCollaboration({
       schema: editorSchema,
+      // A link clicked in the text: one to this site opens in this tab
+      // (components/same-tab-links.tsx does the same outside the editor),
+      // others in a new one, as BlockNote's own.
+      links: {
+        onClick: (event) => {
+          const link = (event.target as Element | null)?.closest?.("a[href]");
+          if (!(link instanceof HTMLAnchorElement)) return false;
+          const path = sameSitePath(link.href, window.location.origin, BASE_PATH);
+          if (path !== null && !event.ctrlKey && !event.metaKey && !event.shiftKey) router.push(path);
+          else window.open(link.href, "_blank", "noopener,noreferrer");
+          return true;
+        },
+      },
       extensions: [
         blockLockExtension(provider.document, {
           // Labels are drawn as the editor is made, before `text` is set.

@@ -11,6 +11,24 @@
   overflow: hidden;
 }
 
+/* Full screen: over the whole window (the sidebar and the page's bar too). */
+.block[data-fullscreen] {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.block[data-fullscreen] .frame {
+  flex: 1;
+  min-height: 0;
+}
+
 .frame {
   display: flex;
   justify-content: center;
@@ -63,6 +81,10 @@
 }
 
 .pagerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   width: 28px;
   height: 28px;
   font: inherit;

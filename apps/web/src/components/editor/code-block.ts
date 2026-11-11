@@ -11,6 +11,7 @@ import {
 } from "@blocknote/core";
 import { codeBlockOptions } from "@blocknote/code-block";
 import { type IndentUnit, INDENT_UNITS } from "@/lib/reindent";
+import { lineIndent } from "@/lib/auto-indent";
 import { showNotice } from "../notice";
 import { CODE_BLOCK_EXTRA_PROPS } from "./block-configs";
 import { withOurLanguages } from "./code-languages";
@@ -65,6 +66,38 @@ const selectAllInCode = createExtension({
   },
 });
 
+// Enter keeps the line's indentation. Ahead of BlockNote's Enter, which
+// adds a bare new line (and leaves the block on Enter at its end after two
+// empty lines: an indented empty line at the end loses its indentation, so
+// that still works).
+const enterKeepsIndent = createExtension({
+  key: "knowlective-code-enter-indent",
+  runsBefore: ["code-block-keyboard-shortcuts"],
+  keyboardShortcuts: {
+    Enter: ({ editor }) => {
+      const { selection } = editor.prosemirrorState;
+      const { $from } = selection;
+      if (!selection.empty || $from.parent.type.name !== "codeBlock") return false;
+      const text = $from.parent.textContent;
+      const caret = $from.parentOffset;
+      const indent = lineIndent(text, caret);
+      if (!indent) return false;
+      const tiptap = editor._tiptapEditor;
+      const lineStart = text.lastIndexOf("\n", caret - 1) + 1;
+      if (caret === text.length && text.slice(lineStart).trim() === "") {
+        return tiptap.commands.command(({ tr }) => {
+          tr.insertText("\n", $from.pos - (caret - lineStart), $from.pos);
+          return true;
+        });
+      }
+      return tiptap.commands.command(({ tr }) => {
+        tr.insertText(`\n${indent}`);
+        return true;
+      });
+    },
+  },
+});
+
 const INDENT_KEY = "knowlective-code-indent";
 
 function savedIndent(): IndentUnit {
@@ -90,6 +123,7 @@ type CodeText = {
   previewBelow: string;
   previewOnly: string;
   previewLabel: string;
+  previewBadge: string;
   previewFailed: string;
   previewNavigated: string;
 };
@@ -179,8 +213,15 @@ function previewArea(block: CodeBlockView, editor: Editor): { dom: HTMLElement; 
   dom.dataset.ui = "CodeBlock.preview";
   dom.setAttribute("role", "region");
   dom.setAttribute("aria-label", text.previewLabel);
+  // A badge on its frame, so it doesn't read as part of the code.
+  const badge = document.createElement("div");
+  badge.className = "knowlective-code-preview-badge";
+  badge.dataset.ui = "CodeBlock.previewBadge";
+  badge.setAttribute("aria-hidden", "true");
+  badge.textContent = text.previewBadge;
   const output = document.createElement("div");
-  dom.append(output);
+  output.className = "knowlective-code-preview-output";
+  dom.append(badge, output);
 
   let shown: string | null = null;
   let undo = () => {};
@@ -267,5 +308,5 @@ export const codeBlock = createBlockSpec(
     },
     toExternalHTML: (block) => createPreCode(block),
   },
-  [...(original.extensions ?? []), selectAllInCode, syntaxHighlighter],
+  [...(original.extensions ?? []), selectAllInCode, enterKeepsIndent, syntaxHighlighter],
 )();

@@ -8,6 +8,29 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- Quoting part of a chat message: select text in a message and a "Quote" button appears above it; it starts a reply with the selected text as a quote in the message box
+- In code, a new line keeps the indentation of the line it's made from: Enter in a code block, and Shift+Enter inside ``` fences in a chat message. In a code block, Enter on an indented empty last line drops the indentation, so a third Enter still leaves the block
+- Full screen for PDF blocks (the button by the page numbers): the PDF fills the window on the page being read; ← → turn pages and Esc leaves
+- Adding files can be turned off for the whole site (admin console → "Files" → "ファイルの追加", site admins; recorded in the audit log). Off, nothing can be uploaded (attachments, images, video, PDFs, whiteboard images, the images in Word files); files already attached still open, and Markdown and text files can still be expanded into a page
+
+### Changed
+
+- Links to this site (pages, search, …) open in the same tab, in the text, chat messages, link previews and read-only pages; links to other sites still open a new tab
+- Backspace at the start of an indented block takes it back out one level and keeps its type, undoing Tab; list items, headings and TODOs used to turn into paragraphs first
+- A code block's preview is set apart from the code: a light card with a border and a "Preview" badge
+- The chat's formatting buttons sit on a darker bar and use the same line icons as the whiteboard (as do the chat's title, lock and poll marks)
+- The whiteboard's org chart template: members are stacked under each team and joined from the team's bottom into their left side, with the head's and teams' connectors joined at one point
+
+### Fixed
+
+- Videos (and audio) attached to pages didn't play in Safari and on iPhone and iPad, and couldn't be seeked: attachments now answer range requests (206). `.mov` files and media whose type the browser didn't give are served as playable media
+
+### Upgrade notes
+
+- A database migration adds the setting for adding files (`InstanceConfig.uploadsEnabled`, on); it's applied at startup
+
 ## [0.2.2] - 2026-11-08
 
 ### Added

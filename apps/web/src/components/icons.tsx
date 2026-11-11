@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-// The whiteboard's icons: one set, drawn on a 20 × 20 grid with 1.6 wide
+// The app's line icons (the whiteboard's and the chat's): one set, drawn on a 20 × 20 grid with 1.6 wide
 // round strokes in the text color (so they follow the theme and the
 // buttons' state). Each is one or more paths; `w` changes a path's width,
 // `dash` dashes it and `fill` fills it.
@@ -28,6 +28,14 @@ const ICONS = {
   // Text
   bulletList: [{ d: "M8 5.5h9M8 10h9M8 14.5h9" }, { d: "M4 5.5h.01M4 10h.01M4 14.5h.01", w: 2.8 }],
   numberedList: [{ d: "M8.5 5.5H17M8.5 10H17M8.5 14.5H17M3.5 4.5l1.2-1v4.3M3.2 12.3a1.1 1.1 0 0 1 2.1.4c0 1-2.1 1.4-2.1 2.6h2.2" }],
+  bold: [{ d: "M6 4h5a3 3 0 0 1 0 6H6ZM6 10h5.8a3 3 0 0 1 0 6H6Z", w: 2 }],
+  italic: [{ d: "M8.5 4H15M5 16h6.5M11.8 4 8.2 16" }],
+  strike: [{ d: "M3.5 10h13M13.8 6.2C13.3 4.9 11.8 4 10 4 7.8 4 6.2 5.2 6.2 6.9c0 1 .5 1.8 1.6 2.4M6.4 13.6c.6 1.4 2 2.4 3.9 2.4 2.3 0 3.9-1.2 3.9-3 0-.8-.3-1.5-.9-2" }],
+  code: [{ d: "M7 6 3 10l4 4M13 6l4 4-4 4M11.2 4.5 8.8 15.5" }],
+  quote: [{ d: "M4.5 9.5h3.5V14H4.5ZM4.5 9.5C4.5 7 5.5 5.5 7.5 5M12 9.5h3.5V14H12ZM12 9.5c0-2.5 1-4 3-4.5" }],
+  poll: [{ d: "M4 16.5V11M8 16.5V5M12 16.5V8.5M16 16.5V3.5" }],
+  chat: [{ d: "M4.5 4h11A1.5 1.5 0 0 1 17 5.5v7a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3h-.5A1.5 1.5 0 0 1 3 12.5v-7A1.5 1.5 0 0 1 4.5 4Z" }],
+  lock: [{ d: "M5 9h10v8H5ZM7 9V6.5a3 3 0 0 1 6 0V9" }],
   resetText: [{ d: "M7 5.5 4 8.5l3 3M4 8.5h8.5a3.5 3.5 0 0 1 0 7H9" }],
 
   // Lining up

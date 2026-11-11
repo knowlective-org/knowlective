@@ -63,6 +63,47 @@ test("replies quote the message, mentions are by name, and URLs are links", asyn
   await trashOpenPage(page);
 });
 
+test("part of a message can be quoted, and code keeps its indentation on a new line", async ({ page }) => {
+  await createPage(page, "E2E チャットの部分引用");
+  await insertChat(page);
+  const input = page.getByTestId("ChatBlock.messageInput");
+  await input.fill("明日の会議は10時からです");
+  await page.keyboard.press("Enter");
+  const text = page.getByTestId("ChatBlock.messageRow").first().getByTestId("ChatBlock.text");
+  await expect(text).toHaveText("明日の会議は10時からです");
+
+  // Select "10時から" in the message.
+  await text.evaluate((el) => {
+    const node = el.querySelector("*:not(:has(*))")?.firstChild ?? el.firstChild!;
+    const start = node.textContent!.indexOf("10時から");
+    const range = document.createRange();
+    range.setStart(node, start);
+    range.setEnd(node, start + "10時から".length);
+    getSelection()!.removeAllRanges();
+    getSelection()!.addRange(range);
+  });
+  await page.getByTestId("ChatBlock.quoteSelectionButton").click();
+  await expect(page.getByTestId("ChatBlock.replyingStatus")).toContainText("10時から");
+  await expect(input).toHaveValue("> 10時から\n");
+  await page.keyboard.type("了解です");
+  await page.keyboard.press("Enter");
+  const reply = page.getByTestId("ChatBlock.messageRow").nth(1);
+  await expect(reply.getByTestId("ChatBlock.replyQuote")).toContainText("明日の会議");
+  await expect(reply.getByTestId("ChatBlock.text")).toContainText("10時から");
+  await expect(reply.getByTestId("ChatBlock.text")).toContainText("了解です");
+
+  // In code (``` fences), Shift+Enter keeps the line's indentation.
+  await input.click();
+  await page.keyboard.type("```");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("    a();");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("b();");
+  await expect(input).toHaveValue("```\n    a();\n    b();");
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await trashOpenPage(page);
+});
+
 test("@everyone: offered first, shown in the viewer's language, notifying everyone who can open the page, once in 5 minutes", async ({ page }) => {
   const { id } = await createPage(page, "E2E チャットの全員");
   await insertChat(page);

@@ -322,6 +322,10 @@ export default {
       },
     },
     files: {
+      uploads: "Adding files",
+      uploadsLead:
+        "Whether files can be added to pages at all: attachments, images, video, PDFs, whiteboard images and the images in Word files. Off, nothing can be uploaded; files already attached can still be opened, and Markdown and text files can still be expanded into a page.",
+      uploadsEnabled: "Allow adding files to pages",
       types: "File types that can be added",
       typesLead:
         "Limits, by extension, the files that can be added to pages (dragged and dropped, pasted or chosen). Files with other extensions, and files without one, can no longer be added.",

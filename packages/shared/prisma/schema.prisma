@@ -455,6 +455,10 @@ model InstanceConfig {
   // Empty = no restriction. The default is RECOMMENDED_EXTENSIONS in
   // apps/web/src/lib/upload-types.ts; keep the two the same.
   uploadAllowedExtensions String[] @default(["avif", "bmp", "csv", "doc", "docx", "gif", "heic", "heif", "jpeg", "jpg", "json", "m4a", "markdown", "md", "mov", "mp3", "mp4", "odp", "ods", "odt", "ogg", "pdf", "png", "ppt", "pptx", "rtf", "tsv", "txt", "wav", "webm", "webp", "xls", "xlsx", "zip"])
+  // Whether files can be added to pages at all (/admin/files). Off: no
+  // uploads anywhere (attachments, images, whiteboards, Word's images);
+  // files already attached stay as they are.
+  uploadsEnabled Boolean @default(true)
 
   // Link previews: whether the server fetches the pages of pasted URLs, and
   // whether private (intranet) addresses are fetched too.

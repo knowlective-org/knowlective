@@ -1,7 +1,16 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
+import {
+  type ReactNode,
+  type Ref,
+  type TextareaHTMLAttributes,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import {
   closeChatPoll,
@@ -28,6 +37,7 @@ import {
 import { EVERYONE, chatMention, chatSegments } from "@/lib/chat-text";
 import { type ChatBlockNode, type ChatFormat, type ChatInline, applyChatFormat, chatBlocks, chatMarkdownPlain } from "@/lib/chat-markdown";
 import { beginSaving } from "@/lib/saving-status";
+import { insideCodeFence, lineIndent } from "@/lib/auto-indent";
 import { showAlert, showConfirm } from "@/components/dialog";
 import { useChildrenData, usePageEditor } from "./page-context";
 import { usePagePeople } from "./page-people";
@@ -35,6 +45,7 @@ import styles from "./chat-block.module.css";
 import mentionStyles from "./mention-inline.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
 import { BlockTitle } from "./block-title";
+import { Icon, type IconName } from "@/components/icons";
 
 // Chat block: a title, then a log of messages with a form below it; a new message goes at
 // the bottom of the log, the viewer's own on the right, everyone else's on
@@ -100,6 +111,7 @@ function saveFolded(blockId: string, folded: boolean) {
 
 type Person = { id: string; name: string };
 type Reply = { id: string; author: string | null; excerpt: string };
+type ComposerApi = { quote: (text: string) => void };
 
 function Chat({
   blockId,
@@ -120,6 +132,8 @@ function Chat({
   };
   const { data, reload } = useChildrenData<ChatData>((pageId) => loadChat(pageId, blockId));
   const [replyTo, setReplyTo] = useState<Reply | null>(null);
+  // The new message's box: puts selected text in it as a quote.
+  const composer = useRef<ComposerApi | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creatingPoll, setCreatingPoll] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -160,7 +174,7 @@ function Chat({
           >
             <span aria-hidden>{folded ? "▸" : "▾"}</span>
           </button>
-          <span aria-hidden>💬</span>
+          <Icon name="chat" size={18} className={styles.titleIcon} />
           <BlockTitle value={title} placeholder={t("label")} editable={titleEditable} onSave={onTitle} uiName="ChatBlock" />
         </div>
         {!folded && data?.canLock && <LockButton blockId={blockId} locked={data.locked} onChanged={reload} />}
@@ -182,17 +196,18 @@ function Chat({
             }}
             onReply={
               data.canPost
-                ? (reply) => {
+                ? (reply, quoted) => {
                     setEditingId(null);
                     setCreatingPoll(false);
                     setReplyTo(reply);
+                    if (quoted) composer.current?.quote(quoted);
                   }
                 : undefined
             }
           />
           {data.locked && (
             <p className={styles.locked} role="status" data-ui="ChatBlock.lockedStatus">
-              <span aria-hidden>🔒</span> {t("lockedStatus")}
+              <Icon name="lock" size={16} className={styles.inlineIcon} /> {t("lockedStatus")}
             </p>
           )}
           {data.canPost && (
@@ -200,6 +215,7 @@ function Chat({
               <Composer
                 blockId={blockId}
                 replyTo={replying}
+                api={composer}
                 onCancelReply={() => setReplyTo(null)}
                 hidden={!!editing || creatingPoll}
                 onPosted={reload}
@@ -264,11 +280,13 @@ function Log({
   editingId: string | null;
   onEdited: () => Promise<void>;
   onEdit: (id: string) => void;
-  onReply?: (reply: Reply) => void;
+  // `quoted`: part of the message's text the viewer selected, to quote.
+  onReply?: (reply: Reply, quoted?: string) => void;
 }) {
   const t = useTranslations("editor.chat");
   const ref = useRef<HTMLDivElement>(null);
   const last = data.messages.at(-1)?.id;
+  const selection = useMessageSelection(ref, !!onReply);
   // The newest message in view whenever one arrives.
   useLayoutEffect(() => {
     if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
@@ -289,8 +307,29 @@ function Log({
     void row.offsetWidth;
     row.classList.add(styles.flash);
   };
+  const quoteSelection = () => {
+    const m = selection && data.messages.find((x) => x.id === selection.messageId && !x.deleted);
+    if (!m || !onReply) return;
+    window.getSelection()?.removeAllRanges();
+    onReply({ id: m.id, author: m.author, excerpt: oneLine(selection.text) }, selection.text);
+  };
   return (
     <div className={styles.log} ref={ref} role="log" aria-label={t("label")} tabIndex={-1} data-ui="ChatBlock.log">
+      {selection && onReply && (
+        <button
+          type="button"
+          className={styles.quoteSelectionButton}
+          style={{ top: selection.top, left: selection.left }}
+          title={t("quoteSelectionTitle")}
+          // Keep the selection until the click.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={quoteSelection}
+          data-ui="ChatBlock.quoteSelectionButton"
+        >
+          <Icon name="quote" size={16} style={{ margin: 0 }} />
+          {t("quoteSelection")}
+        </button>
+      )}
       {data.messages.map((m) => (
         // Own messages can be changed while posting is allowed (the same access);
         // a poll's text can't, but it can be closed.
@@ -313,6 +352,52 @@ function Log({
 
 // A message's text as one line, without its formatting, mentions by name
 // (for the reply being written).
+const oneLine = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 80);
+
+// Text selected inside one message's bubble in the log (`ref`): which
+// message, the text, and where to show the "Quote" button (over the
+// selection, on the screen).
+function useMessageSelection(ref: { current: HTMLDivElement | null }, enabled: boolean) {
+  const [selection, setSelection] = useState<{ messageId: string; text: string; top: number; left: number } | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const update = () => {
+      const log = ref.current;
+      const sel = window.getSelection();
+      if (!log || !sel || sel.isCollapsed || sel.rangeCount === 0) return setSelection(null);
+      const bubbleOf = (node: Node | null) =>
+        (node instanceof Element ? node : node?.parentElement)?.closest<HTMLElement>('[data-ui="ChatBlock.text"]') ?? null;
+      const bubble = bubbleOf(sel.anchorNode);
+      if (!bubble || bubble !== bubbleOf(sel.focusNode) || !log.contains(bubble)) return setSelection(null);
+      const messageId = bubble.closest<HTMLElement>('[data-ui="ChatBlock.messageRow"]')?.dataset.id;
+      const text = sel.toString().trim();
+      if (!messageId || !text) return setSelection(null);
+      const rects = sel.getRangeAt(0).getClientRects();
+      const end = rects[rects.length - 1] ?? sel.getRangeAt(0).getBoundingClientRect();
+      const first = rects[0] ?? end;
+      // Fixed on the screen (the log would clip it): above the selection,
+      // below it at the top of the window.
+      const above = first.top >= 34;
+      setSelection({
+        messageId,
+        text,
+        top: above ? first.top - 30 : end.bottom + 4,
+        left: Math.max(4, Math.min(end.right - 40, window.innerWidth - 90)),
+      });
+    };
+    document.addEventListener("selectionchange", update);
+    // Scrolling (the page or the log) moves the selection.
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      document.removeEventListener("selectionchange", update);
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [ref, enabled]);
+  return enabled ? selection : null;
+}
+
 function excerptOf(m: ChatMessageView): string {
   return chatSegments(chatMarkdownPlain(m.text))
     .map((s) => (s.type === "mention" ? `@${m.names[s.userId] ?? ""}` : s.text))
@@ -523,7 +608,7 @@ function Message({
         <div className={styles.bubble} data-ui="ChatBlock.text">
           {m.poll && (
             <span className={styles.pollIcon} aria-label={t("pollLabel")} role="img">
-              📊{" "}
+              <Icon name="poll" size={16} className={styles.inlineIcon} />{" "}
             </span>
           )}
           <MessageText message={m} />
@@ -828,7 +913,7 @@ function PollComposer({ blockId, onDone, onPosted }: { blockId: string; onDone: 
       }}
     >
       <div className={styles.pollFormTitle}>
-        <span aria-hidden>📊</span> {t("pollFormLabel")}
+        <Icon name="poll" size={16} className={styles.inlineIcon} /> {t("pollFormLabel")}
       </div>
       <textarea
         ref={questionRef}
@@ -951,15 +1036,15 @@ const FORMAT_KEYS: Record<string, ChatFormat> = { b: "bold", i: "italic", e: "co
 
 // The formatting buttons above the message box: each wraps the selection in
 // Markdown (or prefixes its lines). The box keeps the focus and the selection.
-const FORMATS: { kind: ChatFormat; icon: string }[] = [
-  { kind: "bold", icon: "B" },
-  { kind: "italic", icon: "I" },
-  { kind: "strike", icon: "S" },
-  { kind: "code", icon: "</>" },
-  { kind: "link", icon: "🔗" },
-  { kind: "bullet", icon: "•" },
-  { kind: "numbered", icon: "1." },
-  { kind: "quote", icon: "❝" },
+const FORMATS: { kind: ChatFormat; icon: IconName }[] = [
+  { kind: "bold", icon: "bold" },
+  { kind: "italic", icon: "italic" },
+  { kind: "strike", icon: "strike" },
+  { kind: "code", icon: "code" },
+  { kind: "link", icon: "link" },
+  { kind: "bullet", icon: "bulletList" },
+  { kind: "numbered", icon: "numberedList" },
+  { kind: "quote", icon: "quote" },
 ];
 
 function FormatBar({ onFormat, disabled }: { onFormat: (kind: ChatFormat) => void; disabled: boolean }) {
@@ -981,7 +1066,7 @@ function FormatBar({ onFormat, disabled }: { onFormat: (kind: ChatFormat) => voi
           data-ui="ChatBlock.formatButton"
           data-id={kind}
         >
-          {icon}
+          <Icon name={icon} size={18} />
         </button>
       ))}
     </div>
@@ -1082,7 +1167,19 @@ function ChatInput({
               return;
             }
           }
-          if (e.key === "Enter" && !e.shiftKey) {
+          // A new line in code (inside ``` fences) keeps the line's indentation.
+          if (e.key === "Enter" && e.shiftKey) {
+            const el = e.currentTarget;
+            const indent = lineIndent(el.value, el.selectionStart);
+            if (indent && insideCodeFence(el.value, el.selectionStart)) {
+              e.preventDefault();
+              el.setRangeText(`\n${indent}`, el.selectionStart, el.selectionEnd, "end");
+              onValueChange(el.value);
+              setCaret(el.selectionStart);
+            }
+            return;
+          }
+          if (e.key === "Enter") {
             e.preventDefault();
             onSend();
           }
@@ -1121,6 +1218,7 @@ function ChatInput({
 function Composer({
   blockId,
   replyTo = null,
+  api,
   onCancelReply,
   editing = null,
   onEndEdit,
@@ -1130,6 +1228,8 @@ function Composer({
 }: {
   blockId: string;
   replyTo?: Reply | null;
+  // For quoting selected text of a message (in the box, as a Markdown quote).
+  api?: Ref<ComposerApi>;
   onCancelReply?: () => void;
   editing?: ChatMessageView | null;
   onEndEdit?: () => void;
@@ -1155,6 +1255,21 @@ function Composer({
     // Changing a message: the caret after its text.
     if (isEdit) el.setSelectionRange(el.value.length, el.value.length);
   }, [sending, hidden, replyTo, isEdit]);
+
+  // A quote asked for: its lines, each with "> ", before what's written.
+  useImperativeHandle(api, () => ({
+    quote: (selected: string) => {
+      const lines = selected.replace(/\r/g, "").replace(/\n+$/, "").split("\n");
+      const quoted = `${lines.map((l) => `> ${l}`).join("\n")}\n`;
+      setText((current) => quoted + current);
+      requestAnimationFrame(() => {
+        const el = ref.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(quoted.length, quoted.length);
+      });
+    },
+  }), []);
 
   // A formatting button or shortcut: the selection formatted (Markdown),
   // and selected again.
@@ -1265,7 +1380,7 @@ function Composer({
             title={t("pollButtonTitle")}
             data-ui="ChatBlock.pollButton"
           >
-            <span aria-hidden>📊</span> {t("pollButton")}
+            <Icon name="poll" size={16} className={styles.inlineIcon} /> {t("pollButton")}
           </button>
         )}
         <button

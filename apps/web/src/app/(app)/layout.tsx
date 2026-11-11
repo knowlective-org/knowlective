@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { isSetupComplete } from "shared";
 import { prisma } from "@/lib/db";
 import { RefreshOnReturn } from "@/components/refresh-on-return";
+import { SameTabLinks } from "@/components/same-tab-links";
 
 // Every app screen requires first-run setup (master password + data key).
 // Until then, send all visitors to /setup.
@@ -14,6 +15,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <>
       <RefreshOnReturn />
+      <SameTabLinks />
       {children}
     </>
   );

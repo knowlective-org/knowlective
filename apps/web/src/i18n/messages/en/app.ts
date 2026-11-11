@@ -387,6 +387,7 @@ export default {
       viewOnly: "Files can't be added with view-only permission.",
       locked: "This page is locked, so files can't be added.",
       network: "Files can't be attached from this network.",
+      disabled: "Adding files is turned off on this site.",
       notConfigured: "File storage isn't set up. Please contact an administrator.",
       tooLarge: "The file is too large (the limit is {max, number} MB).",
       unreadable: "Couldn't read the file.",
