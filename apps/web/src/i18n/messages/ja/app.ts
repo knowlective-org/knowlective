@@ -185,6 +185,7 @@ const ja: MessageShape<typeof en> = {
     options: "選択肢が不正です（名前は50文字以内、50個まで）。",
     value: "値が不正です。",
     defaultStatus: "ステータス",
+    defaultDate: "日付",
     defaultStatusOptions: {
       todo: "未着手",
       doing: "進行中",

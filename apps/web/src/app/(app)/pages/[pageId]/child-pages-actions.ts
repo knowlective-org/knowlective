@@ -245,6 +245,31 @@ export async function addStatusColumn(pageId: string): Promise<{ id: string } | 
   return { id };
 }
 
+// The column a child page calendar starts with when the page has no date
+// column yet: "Date", named in the language of whoever adds it.
+export async function addDateColumn(pageId: string): Promise<{ id: string } | { error: string }> {
+  const user = await requireUser();
+  const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
+  if (!canEditPage(access)) return { error: await notAllowed() };
+  const existing = await prisma.pagePropertyDef.aggregate({ where: { pageId }, _count: true, _max: { position: true } });
+  const t = await getTranslations("childPages");
+  if (existing._count >= MAX_COLUMNS) return { error: t("tooManyColumns", { max: MAX_COLUMNS }) };
+  const id = randomUUID();
+  const key = await loadDataKey(prisma);
+  await prisma.pagePropertyDef.create({
+    data: {
+      id,
+      pageId,
+      type: "DATE",
+      name: sealColumnName(key, id, t("defaultDate")),
+      options: null,
+      position: (existing._max.position ?? -1) + 1,
+    },
+  });
+  await notifyTable(pageId);
+  return { id };
+}
+
 export async function renameColumn(defId: string, rawName: string): Promise<Result> {
   const user = await requireUser();
   const def = await editableColumn(user.id, defId);

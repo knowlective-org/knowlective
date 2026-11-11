@@ -32,6 +32,7 @@ export function hasChildPageBlocks(blocks: ExportBlock[]): boolean {
       b.type === "childPages" ||
       b.type === "childTable" ||
       b.type === "childBoard" ||
+      b.type === "childCalendar" ||
       hasChildPageBlocks(b.children ?? []),
   );
 }
@@ -149,7 +150,8 @@ export function prepareBlocksForExport(
       }
       case "childPages":
       case "childTable":
-      case "childBoard": {
+      case "childBoard":
+      case "childCalendar": {
         const levels = b.type === "childPages" ? Number(b.props?.depth ?? 1) : 1;
         const title = String(b.props?.title ?? "");
         return [

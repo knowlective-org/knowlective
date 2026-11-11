@@ -186,6 +186,7 @@ export default {
     options: "The options are invalid (names up to 50 characters, up to 50 options).",
     value: "The value is invalid.",
     defaultStatus: "Status",
+    defaultDate: "Date",
     defaultStatusOptions: {
       todo: "Not started",
       doing: "In progress",

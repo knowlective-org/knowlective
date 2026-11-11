@@ -10,6 +10,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- A child page calendar block ("子ページカレンダー" in the slash menu): the page's child pages on a month's calendar, each on the day in a date column (or when it was created or last changed). Drag a card to another day to change its date, or onto "no date" to clear it; "+" on a day adds a child page dated that day; pages without a date wait in a tray below, with a date field. A page with no date column yet offers to make one ("日付"). Each viewer moves between months and filters for themselves (the filter kept on their account, as for the table and board). Markdown and PDF export write it as links to the child pages
+
 - A summary row for the extended table ("集計行" on the table's bar): under each column, its sum, average, count of numbers or of filled cells, minimum, maximum, or, with a condition written as in a spreadsheet ("完了", ">=10", "<>保留", "*" wildcards), how many cells meet it (COUNTIF) or the sum of the rows that do, tested on this column or another (SUMIF). Editors click a column's summary to choose; it follows the cells as they change. Numbers may have separators, currency signs or "%" and be in full-width digits. Markdown and PDF export add it as a last row
 - A PDF's text can be expanded into a page or replace the page (title included), as for Markdown files: the choices offered for a PDF now include "ページに展開" and "このページを置き換える". The text is read in the browser (nothing is uploaded for it, so it also works with adding files turned off), larger text becomes headings and lines starting with a bullet or a number list items; images, tables and columns aren't kept. PDFs without text (scanned images) and password-protected ones are refused with a message
 - API for chats and whiteboards: `GET /api/v1/pages/<id>/chats` lists a page's chats, `GET`/`POST …/chats/<chat id>/messages` reads and posts messages (as in the chat block: Markdown, mentions as `<@user id>`, replies; the same access, lock and rate limits; those mentioned are notified), `GET`/`POST /api/v1/pages/<id>/whiteboard` reads the board's items and adds, changes and removes them in one request, live on open boards. `POST /api/v1/pages` takes `"kind": "WHITEBOARD"`. See the README's API section
@@ -34,7 +36,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Upgrade notes
 
-- Pages opened before the update must be reloaded before they can be edited again (the editor's version changed for the extended table's summary row)
+- Pages opened before the update must be reloaded before they can be edited again (the editor's version changed for the extended table's summary row and the child page calendar)
 - A database migration adds the setting for adding files (`InstanceConfig.uploadsEnabled`, on); it's applied at startup
 
 ## [0.2.2] - 2026-11-08

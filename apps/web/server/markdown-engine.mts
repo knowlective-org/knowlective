@@ -67,6 +67,7 @@ const serverSchema = withMultiColumn(BlockNoteSchema.create({
     childPages: createBlockSpec(BLOCK_CONFIGS.childPages, plain)(),
     childTable: createBlockSpec(BLOCK_CONFIGS.childTable, plain)(),
     childBoard: createBlockSpec(BLOCK_CONFIGS.childBoard, plain)(),
+    childCalendar: createBlockSpec(BLOCK_CONFIGS.childCalendar, plain)(),
     mermaid: createBlockSpec(BLOCK_CONFIGS.mermaid, plain)(),
     pdf: createBlockSpec(BLOCK_CONFIGS.pdf, plain)(),
     linkPreview: createBlockSpec(BLOCK_CONFIGS.linkPreview, plain)(),
