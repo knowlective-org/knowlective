@@ -2,6 +2,7 @@ import { getVisibleTrees } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { apiError, apiJson, pageDetail, pageSummary, readPageInput, withApiKey } from "@/lib/api/http";
 import { markdownToBody } from "@/lib/api/page-content";
+import { adoptFilesInBody } from "@/lib/file-copy";
 import { replacePageContent } from "@/lib/collab-events";
 import { insertChildPage } from "@/lib/page-create";
 
@@ -39,7 +40,8 @@ export async function POST(request: Request) {
       return apiError("not_found", "The parent page doesn't exist, or the key's owner can't edit it.");
     }
     if (input.markdown !== undefined) {
-      await replacePageContent(created.id, user.id, { body: await markdownToBody(input.markdown) });
+      const body = await adoptFilesInBody(user.id, created.id, await markdownToBody(input.markdown));
+      await replacePageContent(created.id, user.id, { body });
     }
     const page = await prisma.page.findUniqueOrThrow({ where: { id: created.id }, select: { rootId: true } });
     return apiJson(await pageDetail(user.id, created.id, page.rootId), 201);

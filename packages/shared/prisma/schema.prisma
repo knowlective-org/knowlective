@@ -891,7 +891,13 @@ model FileObject {
   // one does. Deleted with its stored object some time after
   // (apps/web/src/lib/file-cleanup.ts).
   unreferencedAt  DateTime?
+  // The file this one is a copy of: a block copied from another page gets a
+  // copy of its file as this page's own (apps/web/src/lib/file-copy.ts), so
+  // whoever can open this page can open it. One copy per page and source.
+  // No foreign key: the source may be deleted later.
+  copiedFromId    String?
 
+  @@unique([pageId, copiedFromId])
   @@index([rootId])
 }
 

@@ -3,6 +3,7 @@ import { getPageAccess } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { apiError, apiJson, pageDetail, readPageInput, withApiKey } from "@/lib/api/http";
 import { markdownToBody } from "@/lib/api/page-content";
+import { adoptFilesInBody } from "@/lib/file-copy";
 import { BLOCKS_LOCKED, replacePageContent } from "@/lib/collab-events";
 
 type Context = RouteContext<"/api/v1/pages/[pageId]">;
@@ -43,7 +44,10 @@ export async function PATCH(request: Request, ctx: Context) {
     try {
       await replacePageContent(pageId, user.id, {
         title: input.title,
-        body: input.markdown === undefined ? undefined : await markdownToBody(input.markdown),
+        body:
+          input.markdown === undefined
+            ? undefined
+            : await adoptFilesInBody(user.id, pageId, await markdownToBody(input.markdown)),
       });
     } catch (error) {
       if ((error as { code?: unknown }).code === BLOCKS_LOCKED) return apiError("blocks_locked");

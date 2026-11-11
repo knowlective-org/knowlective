@@ -28,6 +28,8 @@ import { blockNoteDictionary } from "@/i18n/blocknote";
 import { useDisplayTitle } from "@/i18n/use-display-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 import { EditorFormattingToolbar, EditorSideMenu } from "./editor/block-type-menu";
+import { useAdoptFiles } from "./editor/adopt-files";
+import { dragCopyExtension } from "./editor/drag-copy";
 import { docxToHtml } from "./editor/docx-import";
 import { MAX_PDF_IMPORT_PAGES, PdfPasswordError, readPdfBlocks } from "./editor/pdf-import";
 import { type PdfBlock, pdfTitle } from "./editor/pdf-text";
@@ -516,6 +518,8 @@ function EditorBody({
         },
       },
       extensions: [
+        // Ctrl-dragging a block copies it, dropped in the margins too.
+        dragCopyExtension(),
         blockLockExtension(provider.document, {
           // Labels are drawn as the editor is made, before `text` is set.
           label: (lock) => t(lock === "edit" ? "editor.blockLock.editLabel" : "editor.blockLock.deleteLabel"),
@@ -607,6 +611,9 @@ function EditorBody({
       demoteH1(added.map((c) => c.block as AnyBlock));
     });
   }, [editor, readOnly]);
+
+  // Attachments of blocks copied from other pages become this page's own.
+  useAdoptFiles(editor, provider, pageId, readOnly);
 
   // A click on a file path in the text copies it (a browser won't open it).
   useFilePaths(editor);

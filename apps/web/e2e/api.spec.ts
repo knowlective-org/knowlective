@@ -11,6 +11,10 @@ import { startMailCapture } from "./mail-capture";
 // test. The cleanup turns the API off again and removes the keys and the
 // pages made here.
 
+// A 1×1 PNG.
+const PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
 const createdPages: string[] = [];
 let mail: Awaited<ReturnType<typeof startMailCapture>>;
 
@@ -178,6 +182,50 @@ test.describe("Public API", () => {
     await page.getByTestId("AppDialog.confirmButton").click();
     await expect(page.getByTestId("ApiKeySection.empty")).toBeVisible();
     expect((await request.get("api/v1/me", { headers: auth(key) })).status()).toBe(401);
+  });
+
+  test("attachments of other pages in written Markdown become the page's own", async ({ page, browser, request }) => {
+    const key = await issueKeyAs(browser, "editor", "E2E の添付", "WRITE");
+    // An image on the editor's own root page, which nobody else can open.
+    const personalPageId = await withPrisma(async (prisma) => {
+      const user = await prisma.user.findFirstOrThrow({ where: await userWhere(prisma, ACCOUNTS.editor.email) });
+      return (await prisma.knowledgeRoot.findUniqueOrThrow({ where: { ownerId: user.id } })).rootPageId!;
+    });
+    const upload = await page.request.post(`api/files?pageId=${encodeURIComponent(personalPageId)}`, {
+      multipart: { file: { name: "api.png", mimeType: "image/png", buffer: Buffer.from(PNG, "base64") } },
+    });
+    expect(upload.status()).toBe(201);
+    const sourceId = ((await upload.json()) as { url: string }).url.split("/").pop()!;
+
+    const created = await createViaApi(request, key, {
+      parentId: HOME_PAGE_ID,
+      title: `API の添付 ${Date.now()}`,
+      markdown: `![api](/api/files/${sourceId})\n`,
+    });
+    expect(created.status()).toBe(201);
+    const body = await created.json();
+    const copy = await withPrisma((prisma) =>
+      prisma.fileObject.findFirstOrThrow({ where: { pageId: body.id, copiedFromId: sourceId } }),
+    );
+    // The export writes absolute URLs; written back, they stay this page's file.
+    const absolute = new RegExp(`\\((https?://[^)]*)/api/files/${copy.id}\\)`).exec(body.markdown);
+    expect(absolute).not.toBeNull();
+    const rewritten = await request.patch(`api/v1/pages/${body.id}`, {
+      headers: auth(key),
+      data: { markdown: `${body.markdown}\n![again](${absolute![1]}/api/files/${sourceId})\n` },
+    });
+    expect(rewritten.status()).toBe(200);
+    await expect
+      .poll(() => withPrisma((prisma) => prisma.pageFileRefs.findUnique({ where: { pageId: body.id } })).then((r) => r?.fileIds))
+      .toEqual([copy.id]);
+    expect(await withPrisma((prisma) => prisma.fileObject.count({ where: { pageId: body.id } }))).toBe(1);
+
+    const viewer = await browser.newContext({ storageState: authFile("viewer") });
+    try {
+      expect((await viewer.request.get(`api/files/${copy.id}`)).status()).toBe(200);
+    } finally {
+      await viewer.close();
+    }
   });
 
   test("chats and whiteboards: read and written through the API, shown at once on open pages", async ({ page, browser, request }) => {
