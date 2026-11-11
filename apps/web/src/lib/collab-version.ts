@@ -8,7 +8,7 @@
 // Bump it whenever any of that changes; test/collab-version.test.mts fails
 // until the recorded schema matches. No dependencies: the browser and the
 // collab server both read it.
-export const COLLAB_CLIENT_VERSION = 6;
+export const COLLAB_CLIENT_VERSION = 7;
 
 // What getCollabToken returns instead of a token to an outdated editor.
 export const OUTDATED_CLIENT = "outdated-client";

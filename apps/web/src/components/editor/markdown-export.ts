@@ -2,6 +2,7 @@ import type { ChildPageItem } from "@/lib/page-property-types";
 // Relative: also loaded by the custom server (server/page-markdown.ts).
 import { displayTitle } from "../../lib/page-title";
 import { type TocHeading, tocHeadings } from "./toc";
+import { parseSummary, roundSummary, summaryValue } from "./grid-summary";
 
 // Getting a page's blocks ready for BlockNote's exporters (Markdown, PDF).
 
@@ -198,12 +199,39 @@ function gridTableAsTable(table: ExportBlock, rows: ExportBlock[]): ExportBlock 
       columnWidths: Array.from({ length: columns }, () => undefined),
       ...(table.props?.headerRow !== false ? { headerRows: 1 } : {}),
       ...(table.props?.headerColumn === true ? { headerCols: 1 } : {}),
-      rows: rows.map((row) => {
-        const cells = row.children ?? [];
-        return { cells: Array.from({ length: columns }, (_, i) => cell(cells[i]?.children ?? [])) };
-      }),
+      rows: [
+        ...rows.map((row) => {
+          const cells = row.children ?? [];
+          return { cells: Array.from({ length: columns }, (_, i) => cell(cells[i]?.children ?? [])) };
+        }),
+        ...summaryRow(table, rows, columns).map((texts) => ({
+          cells: texts.map((t) => ({ ...cell([]), content: t ? [text(t, { bold: true })] : [] })),
+        })),
+      ],
     },
   });
+}
+
+// The table's summary row (grid-summary.ts), if it has one: each column's
+// function as a spreadsheet names it, and its value.
+function summaryRow(table: ExportBlock, rows: ExportBlock[], columns: number): string[][] {
+  const specs = parseSummary(table.props?.summary, columns);
+  if (!specs) return [];
+  const plain = (blocks: ExportBlock[]) =>
+    cellText(blocks)
+      .map((item) => (item && typeof item === "object" && "text" in item ? String((item as { text: unknown }).text) : ""))
+      .join("");
+  const body = rows
+    .slice(table.props?.headerRow !== false ? 1 : 0)
+    .map((row) => Array.from({ length: columns }, (_, i) => plain(row.children?.[i]?.children ?? [])));
+  return [
+    specs.map((spec, col) => {
+      if (!spec) return "";
+      const value = summaryValue(spec, body, col);
+      const name = spec.fn.toUpperCase() + (spec.criteria !== undefined ? `(${spec.criteria})` : "");
+      return `${name}: ${value === null ? "–" : roundSummary(value).toLocaleString()}`;
+    }),
+  ];
 }
 
 // The text of a cell's blocks (nested ones too), one after another.

@@ -10,6 +10,9 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- A summary row for the extended table ("集計行" on the table's bar): under each column, its sum, average, count of numbers or of filled cells, minimum, maximum, or, with a condition written as in a spreadsheet ("完了", ">=10", "<>保留", "*" wildcards), how many cells meet it (COUNTIF) or the sum of the rows that do, tested on this column or another (SUMIF). Editors click a column's summary to choose; it follows the cells as they change. Numbers may have separators, currency signs or "%" and be in full-width digits. Markdown and PDF export add it as a last row
+- Filters for the child page board, as for the child page table: by title, any column, who made or changed a page and when. Each viewer's own, kept on their account
+
 - Quoting part of a chat message: select text in a message and a "Quote" button appears above it; it starts a reply with the selected text as a quote in the message box
 - In code, a new line keeps the indentation of the line it's made from: Enter in a code block, and Shift+Enter inside ``` fences in a chat message. In a code block, Enter on an indented empty last line drops the indentation, so a third Enter still leaves the block
 - Full screen for PDF blocks (the button by the page numbers): the PDF fills the window on the page being read; ← → turn pages and Esc leaves
@@ -29,6 +32,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Upgrade notes
 
+- Pages opened before the update must be reloaded before they can be edited again (the editor's version changed for the extended table's summary row)
 - A database migration adds the setting for adding files (`InstanceConfig.uploadsEnabled`, on); it's applied at startup
 
 ## [0.2.2] - 2026-11-08

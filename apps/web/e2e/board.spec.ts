@@ -82,6 +82,45 @@ test.describe("Child page board", () => {
     await trashOpenPage(page);
   });
 
+  test("cards can be filtered, each viewer for themselves, kept on their account", async ({ page }) => {
+    const board = await createPage(page, "E2E ボードのフィルター");
+    await insertBoard(page);
+    await page.getByTestId("ChildBoardBlock.createStatusButton").click();
+    for (const name of ["請求書の確認", "会議の準備"]) {
+      await lane(page, "未着手").getByTestId("ChildBoardBlock.addCardButton").click();
+      await page.getByTestId("ChildBoardBlock.addCardInput").fill(name);
+      await page.keyboard.press("Enter");
+      await expect(page.locator('[data-ui="ChildBoardBlock.card"]').filter({ hasText: name })).toBeVisible();
+    }
+    await expect(page.getByTestId("ChildBoardBlock.board")).toHaveAttribute("aria-busy", "false");
+    const cards = page.locator('[data-ui="ChildBoardBlock.card"]');
+    await expect(cards).toHaveCount(2);
+
+    // By words in the title.
+    await page.getByTestId("ChildBoardBlock.filterMenu").click();
+    await page.locator('[data-ui="FilterPanel.textInput"][data-key="title"]').fill("会議");
+    await expect(cards).toHaveCount(1);
+    await expect(cards.first()).toContainText("会議の準備");
+    await expect(lane(page, "未着手").getByTestId("ChildBoardBlock.laneCount")).toHaveText("1");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("ChildBoardBlock.filterMenu")).toContainText("1");
+
+    // Kept on the account: still filtered after a reload (saved a moment after the change).
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await page.reload();
+    await expect(cards).toHaveCount(1);
+
+    // Nothing matches: says so.
+    await page.getByTestId("ChildBoardBlock.filterMenu").click();
+    await page.locator('[data-ui="FilterPanel.textInput"][data-key="title"]').fill("該当なし");
+    await expect(page.getByTestId("ChildBoardBlock.noMatchStatus")).toBeVisible();
+    await page.getByTestId("FilterPanel.clearButton").click();
+    await expect(cards).toHaveCount(2);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await openPage(page, board.id);
+    await trashOpenPage(page);
+  });
+
   test("a viewer sees the cards but can't move them", async ({ page, browser }) => {
     const board = await createPage(page, "E2E ボード 閲覧");
     await insertBoard(page);

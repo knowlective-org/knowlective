@@ -123,3 +123,65 @@ test.describe("Extended table", () => {
     await trashOpenPage(page);
   });
 });
+
+test("a summary row adds up its columns: sums, counts and conditions (COUNTIF, SUMIF)", async ({ page }) => {
+  await createPage(page, "E2E 拡張テーブルの集計");
+  await insertGridTable(page);
+  // Two columns of the three: item, amount, status; header row + 2 body rows (+1 added).
+  await page.getByTestId("GridTable.addRowButton").click();
+  await expect(cells(page)).toHaveCount(12);
+  const values = ["品目", "金額", "状態", "りんご", "1,200", "完了", "みかん", "300", "未着手", "ぶどう", "500", "完了"];
+  for (const [i, value] of values.entries()) {
+    await cellText(page, i).click();
+    await page.keyboard.type(value);
+  }
+
+  await page.getByTestId("GridTable.summaryRowCheckbox").check();
+  const summary = page.getByTestId("GridTable.summaryRow");
+  await expect(summary).toBeVisible();
+  const summaryCell = (col: number) => summary.locator(`[data-ui="GridTable.summaryCell"][data-col="${col}"]`);
+
+  // Sum of the amounts (the header row isn't counted).
+  await summaryCell(1).click();
+  await page.getByTestId("GridTable.summaryFunctionSelect").selectOption("sum");
+  await page.getByTestId("GridTable.summaryApplyButton").click();
+  await expect(summaryCell(1).getByTestId("GridTable.summaryValue")).toHaveText("2,000");
+
+  // How many are done.
+  await summaryCell(2).click();
+  await page.getByTestId("GridTable.summaryFunctionSelect").selectOption("countif");
+  await page.getByTestId("GridTable.summaryCriteriaInput").fill("完了");
+  await page.getByTestId("GridTable.summaryApplyButton").click();
+  await expect(summaryCell(2).getByTestId("GridTable.summaryValue")).toHaveText("2");
+
+  // The amounts of the rows that are done: SUMIF on the status column.
+  await summaryCell(1).click();
+  await page.getByTestId("GridTable.summaryFunctionSelect").selectOption("sumif");
+  await page.getByTestId("GridTable.summaryCriteriaInput").fill("完了");
+  await page.getByTestId("GridTable.summaryRangeSelect").selectOption("2");
+  await page.getByTestId("GridTable.summaryApplyButton").click();
+  await expect(summaryCell(1).getByTestId("GridTable.summaryValue")).toHaveText("1,700");
+
+  // It follows the cells as they change.
+  await cellText(page, 8).click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type("完了");
+  await expect(summaryCell(2).getByTestId("GridTable.summaryValue")).toHaveText("3");
+  await expect(summaryCell(1).getByTestId("GridTable.summaryValue")).toHaveText("2,000");
+
+  // Kept in the document: still there after a reload.
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("GridTable.summaryRow")).toBeVisible();
+  await expect(summaryCell(2).getByTestId("GridTable.summaryValue")).toHaveText("3");
+
+  // Turned off again.
+  await page.getByTestId("GridTable").hover();
+  await page.getByTestId("GridTable.summaryRowCheckbox").uncheck();
+  await expect(page.getByTestId("GridTable.summaryRow")).toBeHidden();
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await trashOpenPage(page);
+});

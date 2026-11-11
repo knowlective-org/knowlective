@@ -262,6 +262,110 @@ a {
   background: linear-gradient(to right, transparent 3px, var(--color-primary) 3px, var(--color-primary) 5px, transparent 5px);
 }
 
+/* The summary row under the table (grid-summary.ts): not part of the
+   document; an editor clicks a column's cell to choose what it shows. */
+.bn-root .kn-grid-summary {
+  display: grid;
+  grid-template-columns: var(--kn-grid-columns, repeat(auto-fit, minmax(var(--kn-grid-min-width), 1fr)));
+  min-width: min-content;
+  margin-top: -1px;
+  border: 1px solid var(--color-border-strong);
+  border-top-width: 2px;
+  border-radius: 0 0 4px 4px;
+  background: var(--color-hover);
+}
+
+.bn-root .kn-grid-summary[hidden] {
+  display: none;
+}
+
+.bn-root .kn-grid-table[data-summary="true"] > .kn-grid-scroll > .kn-grid-body {
+  border-radius: 4px 4px 0 0;
+}
+
+.bn-root .kn-grid-summary-cell {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.bn-root .kn-grid-summary-cell:not(:last-child) {
+  border-right: 1px solid var(--color-border-strong);
+}
+
+.bn-root button.kn-grid-summary-cell {
+  cursor: pointer;
+}
+
+.bn-root button.kn-grid-summary-cell:hover,
+.bn-root button.kn-grid-summary-cell:focus-visible {
+  background: var(--color-selected);
+}
+
+.bn-root .kn-grid-summary-fn {
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bn-root .kn-grid-summary-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A column's summary menu: a small form. */
+.kn-grid-summary-menu {
+  gap: 8px;
+  width: 280px;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.kn-grid-summary-menu label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kn-grid-summary-menu label[hidden] {
+  display: none;
+}
+
+.kn-grid-summary-menu select,
+.kn-grid-summary-menu input {
+  padding: 4px 6px;
+  font: inherit;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+}
+
+.kn-grid-menu.kn-grid-summary-menu > button {
+  align-self: flex-end;
+  padding: 4px 14px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+.kn-grid-menu.kn-grid-summary-menu > button:hover {
+  background: var(--color-primary);
+  opacity: 0.9;
+}
+
 /* A cell's menu (in the page's body). */
 .kn-grid-menu {
   position: fixed;
