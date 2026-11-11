@@ -182,3 +182,15 @@ jobs:
       - name: Service logs
         if: failure()
         run: docker compose logs --tail 200
+
+  # The shards' result under one name, the check master's ruleset requires
+  # ("End-to-end tests"): it stays the same however many shards there are.
+  e2e-result:
+    name: End-to-end tests
+    if: always() && github.event_name != 'push'
+    needs: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every shard passed
+        run: test "${{ needs.e2e.result }}" = success
