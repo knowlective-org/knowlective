@@ -26,3 +26,33 @@ test("links in the text are bold and carry a link icon", async ({ page }) => {
   expect(look.icon).toContain("svg");
   await trashOpenPage(page);
 });
+
+test("a link to this site opens in the same tab; one to another site in a new tab", async ({ page, context }) => {
+  const target = await createPage(page, "E2E リンク先");
+  const { id } = await createPage(page, "E2E 同じタブのリンク");
+  await typeInBody(page, "移動 ");
+  const href = page.url().replace(/pages\/[^/?#]+.*$/, `pages/${target.id}`);
+  await page.evaluate((h) => {
+    const data = new DataTransfer();
+    data.setData("text/html", `<a href="${h}">リンク先へ</a> <a href="https://example.com/x">外部</a>`);
+    data.setData("text/plain", "リンク先へ 外部");
+    document.querySelector(".bn-editor")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, href);
+  const internal = editorBody(page).locator(".bn-inline-content a", { hasText: "リンク先へ" });
+  await expect(internal).toBeVisible();
+
+  // Another site: a new tab, this one stays.
+  const popup = context.waitForEvent("page");
+  await editorBody(page).locator(".bn-inline-content a", { hasText: "外部" }).click();
+  await (await popup).close();
+  expect(page.url()).toContain(id);
+
+  // This site: here.
+  const pages = context.pages().length;
+  await internal.click();
+  await page.waitForURL(new RegExp(`pages/${target.id}`));
+  expect(context.pages().length).toBe(pages);
+  await trashOpenPage(page);
+  await page.goto(`pages/${id}`);
+  await trashOpenPage(page);
+});

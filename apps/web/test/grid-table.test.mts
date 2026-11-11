@@ -52,6 +52,25 @@ describe("extended table", () => {
     assert.match(markdown, /\|\s*検索\s*\|\s*本文 添付ファイル\s*\|/);
   });
 
+  test("its summary row is written as a last row, the functions named as in a spreadsheet", async () => {
+    const numbers = {
+      type: "gridTable",
+      props: { headerRow: true, headerColumn: false, widths: "", summary: JSON.stringify([{ fn: "counta" }, { fn: "sum" }]) },
+      children: [
+        { type: "gridRow", children: [cell({ type: "paragraph", content: text("品目") }), cell({ type: "paragraph", content: text("金額") })] },
+        { type: "gridRow", children: [cell({ type: "paragraph", content: text("A") }), cell({ type: "paragraph", content: text("1,000") })] },
+        { type: "gridRow", children: [cell({ type: "paragraph", content: text("B") }), cell({ type: "paragraph", content: text("250") })] },
+      ],
+    };
+    // The summary prop survives the server's round trip too.
+    const [back] = stateToBlocks(blocksToUpdate([numbers])) as (typeof numbers)[];
+    assert.equal(back.props.summary, numbers.props.summary);
+    const prepared = prepareBlocksForExport([numbers] as never, { origin: "https://example.com", pageId: "p", childPages: null, untitled: "Untitled" });
+    const markdown = await blocksToMarkdown(prepared);
+    assert.match(markdown, /COUNTA: 2/);
+    assert.match(markdown, /SUM: 1,250/);
+  });
+
   test("column widths: one per column, 1 where missing or invalid", () => {
     assert.deepEqual(gridWidths("[2,1]", 3), [2, 1, 1]);
     assert.deepEqual(gridWidths("not json", 2), [1, 1]);

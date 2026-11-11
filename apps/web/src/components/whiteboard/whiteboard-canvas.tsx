@@ -47,7 +47,7 @@ import {
   readItems,
   whiteboardMap,
 } from "@/lib/whiteboard";
-import { getUploadExtensions } from "@/app/(app)/actions";
+import { getUploadPolicy } from "@/app/(app)/actions";
 import { showAlert } from "@/components/dialog";
 import { showNotice } from "@/components/notice";
 import { PagePickerDialog } from "@/components/page-picker-dialog";
@@ -81,7 +81,7 @@ import {
   zoomAt,
 } from "./geometry";
 import { enterInList, parseRichText, toggleList } from "./rich-text";
-import { Icon, type IconName } from "./icons";
+import { Icon, type IconName } from "@/components/icons";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 import { ALIGNMENTS, type Alignment, type Guide, align, distribute, snapMove, snapResize } from "./snap";
 import { TEMPLATES, type TemplateName, buildTemplate, templateBounds } from "./templates";
@@ -537,7 +537,12 @@ export function WhiteboardCanvas({
       if (files.length > 0) showNotice(t("imagesOnly"));
       return;
     }
-    const allowed = await getUploadExtensions().catch(() => []);
+    const policy = await getUploadPolicy().catch(() => ({ enabled: true, extensions: [] as string[] }));
+    if (!policy.enabled) {
+      await showAlert(tRoot("files.errors.disabled"), { title: t("imageRefused") });
+      return;
+    }
+    const allowed = policy.extensions;
     const done = beginSaving();
     const added: string[] = [];
     try {
@@ -594,10 +599,31 @@ export function WhiteboardCanvas({
         map.set(id, item);
       };
       for (const b of template.boxes) {
-        put(ids.get(b.key)!, { type: b.type, x: clampCoord(b.x + dx), y: clampCoord(b.y + dy), w: b.w, h: b.h, text: b.text, color: b.color, z: ++z });
+        put(ids.get(b.key)!, {
+          type: b.type,
+          x: clampCoord(b.x + dx),
+          y: clampCoord(b.y + dy),
+          w: b.w,
+          h: b.h,
+          text: b.text,
+          color: b.color,
+          z: ++z,
+          ...(b.connectorEnds ? { connectorEnds: b.connectorEnds } : {}),
+        });
       }
       for (const c of template.connectors) {
-        put(newId(), { type: "connector", from: ids.get(c.from)!, to: ids.get(c.to)!, arrows: c.arrows, route: c.route, text: "", color: DEFAULT_COLOR.connector, z: ++z });
+        put(newId(), {
+          type: "connector",
+          from: ids.get(c.from)!,
+          to: ids.get(c.to)!,
+          arrows: c.arrows,
+          route: c.route,
+          text: "",
+          color: DEFAULT_COLOR.connector,
+          z: ++z,
+          ...(c.fromSide ? { fromSide: c.fromSide } : {}),
+          ...(c.toSide ? { toSide: c.toSide } : {}),
+        });
       }
     });
     undo.current?.stopCapturing();

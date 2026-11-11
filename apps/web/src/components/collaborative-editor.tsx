@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { HocuspocusProvider } from "@hocuspocus/provider";
 import { yUndoPluginKey } from "y-prosemirror";
@@ -11,12 +12,13 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote } from "@blocknote/react";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
-import { getUploadExtensions } from "@/app/(app)/actions";
+import { getUploadPolicy } from "@/app/(app)/actions";
 import { lockedBlockIds } from "@/lib/block-locks";
 import { saveVersionBeforeReplace } from "@/app/(app)/pages/[pageId]/history/actions";
 import { getLinkPreviewEnabled, loadLinkPreview } from "@/app/(app)/link-preview-actions";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { BASE_PATH, resolveAppUrl } from "@/lib/base-path";
+import { sameSitePath } from "@/lib/same-site-link";
 import { UploadError, postFile as postSharedFile } from "@/lib/upload-file";
 import { CHILDREN_CHANGED } from "@/lib/collab-events";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/page-export";
@@ -26,7 +28,11 @@ import { blockNoteDictionary } from "@/i18n/blocknote";
 import { useDisplayTitle } from "@/i18n/use-display-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 import { EditorFormattingToolbar, EditorSideMenu } from "./editor/block-type-menu";
+import { useAdoptFiles } from "./editor/adopt-files";
+import { dragCopyExtension } from "./editor/drag-copy";
 import { docxToHtml } from "./editor/docx-import";
+import { MAX_PDF_IMPORT_PAGES, PdfPasswordError, readPdfBlocks } from "./editor/pdf-import";
+import { type PdfBlock, pdfTitle } from "./editor/pdf-text";
 import { singleUrl } from "./editor/link-preview-block";
 import { parseVideoUrl } from "./editor/video-url";
 import { type ExportBlock, downloadBlob, hasChildPageBlocks, prepareBlocksForExport } from "./editor/markdown-export";
@@ -305,13 +311,15 @@ async function replacePage(
   pageId: string,
   file: File,
   blockId: string,
+  // The title and blocks (a PDF's); a Markdown file's otherwise.
+  content?: () => Promise<{ title: string; blocks: ImportedBlock[] } | null>,
 ): Promise<Record<string, never>> {
   // Every block would go, and locked ones can't (block-lock.ts).
   if (lockedBlockIds(provider.document).size > 0) {
     void showAlert(text("editor.replaceLocked"), { title: text("editor.replaceFailedTitle") });
     return discardFileBlock(editor, blockId);
   }
-  const confirmed = await showConfirm(text("editor.replaceConfirm", { name: file.name }), {
+  const confirmed = await showConfirm(text(content ? "editor.replaceConfirmPdf" : "editor.replaceConfirm", { name: file.name }), {
     title: text("editor.replaceConfirmTitle"),
     confirmLabel: text("editor.replace"),
     danger: true,
@@ -322,8 +330,17 @@ async function replacePage(
     void showAlert(saved.error, { title: text("editor.replaceFailedTitle") });
     return discardFileBlock(editor, blockId);
   }
-  const { title, body } = splitMarkdownTitle(await readTextFile(file), file.name);
-  const parsed = prepareImportedBlocks(editor.tryParseMarkdownToBlocks(body) as ImportedBlock[]);
+  let title: string;
+  let parsed: ImportedBlock[];
+  if (content) {
+    const read = await content();
+    if (!read) return discardFileBlock(editor, blockId);
+    ({ title, blocks: parsed } = read);
+  } else {
+    const split = splitMarkdownTitle(await readTextFile(file), file.name);
+    title = split.title;
+    parsed = prepareImportedBlocks(editor.tryParseMarkdownToBlocks(split.body) as ImportedBlock[]);
+  }
   if (!editor.getBlock(blockId)) return {};
   // Done right after BlockNote has updated the file block with the return
   // value (as in discardFileBlock), since the file block goes too. An empty
@@ -348,20 +365,64 @@ function isPdfFile(file: File): boolean {
   return /\.pdf$/i.test(file.name) || file.type === "application/pdf";
 }
 
-// A PDF is attached either way; the choice is how it's shown. Returns what
-// BlockNote updates the file block it has just created (`blockId`) with.
-async function attachOrEmbedPdf(editor: BlockEditor, pageId: string, file: File, blockId: string) {
+// A PDF: attached as a file, attached and shown page by page, or its text
+// expanded into the page or put in place of the page (read in the browser,
+// pdf-import.ts; nothing is uploaded for those two, so they're what's left
+// when adding files is turned off). Returns what BlockNote updates the file
+// block it has just created (`blockId`) with.
+async function attachOrEmbedPdf(
+  provider: HocuspocusProvider,
+  editor: BlockEditor,
+  pageId: string,
+  file: File,
+  blockId: string,
+  uploads: boolean,
+) {
   const choice = await showChoice(
-    text("editor.pdfChoice", { name: file.name }),
+    text(uploads ? "editor.pdfChoice" : "editor.pdfChoiceNoUpload", { name: file.name }) + text("editor.pdfExpandNote"),
+    // The last is the suggested one: page by page, as before (expanding when
+    // nothing can be uploaded).
     [
-      { value: "attach", label: text("editor.attach") },
-      { value: "embed", label: text("editor.embedPages") },
+      { value: "replace" as const, label: text("editor.replacePage") },
+      ...(uploads ? [{ value: "attach" as const, label: text("editor.attach") }] : []),
+      { value: "expand" as const, label: text("editor.expand") },
+      ...(uploads ? [{ value: "embed" as const, label: text("editor.embedPages") }] : []),
     ],
     { title: text("editor.pdfChoiceTitle") },
   );
   if (choice === null) return discardFileBlock(editor, blockId);
+  if (choice === "expand") {
+    const blocks = await pdfBlocksOf(file);
+    if (!blocks) return discardFileBlock(editor, blockId);
+    if (editor.getBlock(blockId)) editor.insertBlocks(blocks as never[], blockId, "after");
+    return discardFileBlock(editor, blockId);
+  }
+  if (choice === "replace") {
+    return replacePage(provider, editor, pageId, file, blockId, async () => {
+      const blocks = await pdfBlocksOf(file);
+      return blocks ? pdfTitle(blocks, file.name) : null;
+    });
+  }
   const url = await uploadFile(pageId, file);
   return choice === "embed" ? { type: "pdf", props: { url, name: file.name } } : url;
+}
+
+// A PDF's text as blocks, or null (and why, said) when there's none to take.
+async function pdfBlocksOf(file: File): Promise<PdfBlock[] | null> {
+  const title = { title: text("editor.expandFailedTitle") };
+  try {
+    const { blocks, truncated } = await readPdfBlocks(file);
+    if (blocks.length === 0) {
+      void showAlert(text("editor.expandPdfNoText"), title);
+      return null;
+    }
+    if (truncated) void showAlert(text("editor.expandPdfTruncated", { count: MAX_PDF_IMPORT_PAGES }));
+    return blocks;
+  } catch (error) {
+    console.error("[editor] reading a PDF failed", error);
+    void showAlert(text(error instanceof PdfPasswordError ? "editor.expandPdfPassword" : "editor.expandPdfFailed"), title);
+    return null;
+  }
 }
 
 // A Markdown, text or Word file (dropped, pasted, or chosen in a file block)
@@ -370,26 +431,33 @@ async function attachOrEmbedPdf(editor: BlockEditor, pageId: string, file: File,
 // page; the user chooses.
 //
 // A file of a type the administrators don't allow (/admin/files) is refused
-// first, expanding included. If the list can't be fetched, the upload route
-// still refuses the file.
+// first, expanding included. With files turned off there (no uploads at
+// all), Markdown and text files can still be expanded (nothing is uploaded);
+// any other file is refused. If the settings can't be fetched, the upload
+// route still refuses the file.
 async function expandOrUpload(provider: HocuspocusProvider, pageId: string, file: File, blockId?: string) {
   const editor = editors.get(provider);
-  const allowed = await getUploadExtensions().catch(() => []);
-  if (!isUploadAllowed(file.name, allowed)) {
-    const message = uploadRefusedMessage(file.name, (key, values) => text(`files.errors.${key}`, values));
+  const policy = await getUploadPolicy().catch(() => ({ enabled: true, extensions: [] as string[] }));
+  const kind = importKind(file);
+  const refuse = (message: string) => {
     void showAlert(message, { title: text("editor.refusedTitle") });
     if (editor && blockId) return discardFileBlock(editor, blockId);
     throw new Error(message);
+  };
+  if (!policy.enabled && !(editor && blockId && (kind === "markdown" || kind === "text" || isPdfFile(file)))) {
+    return refuse(text("files.errors.disabled"));
   }
-  if (editor && blockId && isPdfFile(file)) return attachOrEmbedPdf(editor, pageId, file, blockId);
-  const kind = importKind(file);
+  if (!isUploadAllowed(file.name, policy.extensions)) {
+    return refuse(uploadRefusedMessage(file.name, (key, values) => text(`files.errors.${key}`, values)));
+  }
+  if (editor && blockId && isPdfFile(file)) return attachOrEmbedPdf(provider, editor, pageId, file, blockId, policy.enabled);
   if (!editor || !blockId || !kind) {
     return uploadFile(pageId, file);
   }
   const choice = await showChoice(
     text("editor.expandChoice", { name: file.name }) + (kind === "docx" ? text("editor.expandDocxNote") : ""),
     [
-      { value: "attach", label: text("editor.attach") },
+      ...(policy.enabled ? [{ value: "attach" as const, label: text("editor.attach") }] : []),
       // Markdown only: its leading heading can be the title.
       ...(kind === "markdown" ? [{ value: "replace" as const, label: text("editor.replacePage") }] : []),
       { value: "expand", label: text("editor.expand") },
@@ -432,10 +500,26 @@ function EditorBody({
     text = t;
   }, [t]);
   const displayTitle = useDisplayTitle();
+  const router = useRouter();
   const editor = useCreateBlockNote(
     withCollaboration({
       schema: editorSchema,
+      // A link clicked in the text: one to this site opens in this tab
+      // (components/same-tab-links.tsx does the same outside the editor),
+      // others in a new one, as BlockNote's own.
+      links: {
+        onClick: (event) => {
+          const link = (event.target as Element | null)?.closest?.("a[href]");
+          if (!(link instanceof HTMLAnchorElement)) return false;
+          const path = sameSitePath(link.href, window.location.origin, BASE_PATH);
+          if (path !== null && !event.ctrlKey && !event.metaKey && !event.shiftKey) router.push(path);
+          else window.open(link.href, "_blank", "noopener,noreferrer");
+          return true;
+        },
+      },
       extensions: [
+        // Ctrl-dragging a block copies it, dropped in the margins too.
+        dragCopyExtension(),
         blockLockExtension(provider.document, {
           // Labels are drawn as the editor is made, before `text` is set.
           label: (lock) => t(lock === "edit" ? "editor.blockLock.editLabel" : "editor.blockLock.deleteLabel"),
@@ -527,6 +611,9 @@ function EditorBody({
       demoteH1(added.map((c) => c.block as AnyBlock));
     });
   }, [editor, readOnly]);
+
+  // Attachments of blocks copied from other pages become this page's own.
+  useAdoptFiles(editor, provider, pageId, readOnly);
 
   // A click on a file path in the text copies it (a browser won't open it).
   useFilePaths(editor);

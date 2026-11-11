@@ -30,6 +30,8 @@ export type ApiErrorCode =
   | "page_locked"
   | "blocks_locked"
   | "not_document"
+  | "not_whiteboard"
+  | "chat_locked"
   | "too_deep";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -45,6 +47,8 @@ const STATUS: Record<ApiErrorCode, number> = {
   page_locked: 423,
   blocks_locked: 423,
   not_document: 409,
+  not_whiteboard: 409,
+  chat_locked: 423,
   too_deep: 400,
 };
 
@@ -62,6 +66,8 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   blocks_locked: "Some of the page's blocks are locked, so its body can't be replaced (the title can).",
   too_deep: "The page would be nested too deep.",
   not_document: "The page is a whiteboard: its content can't be written as Markdown (the title can).",
+  not_whiteboard: "The page isn't a whiteboard.",
+  chat_locked: "The chat is locked.",
 };
 
 const NO_STORE = { "Cache-Control": "no-store" };

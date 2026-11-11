@@ -185,6 +185,7 @@ const ja: MessageShape<typeof en> = {
     options: "選択肢が不正です（名前は50文字以内、50個まで）。",
     value: "値が不正です。",
     defaultStatus: "ステータス",
+    defaultDate: "日付",
     defaultStatusOptions: {
       todo: "未着手",
       doing: "進行中",
@@ -384,6 +385,7 @@ const ja: MessageShape<typeof en> = {
       viewOnly: "閲覧のみの権限ではファイルを追加できません。",
       locked: "このページはロックされているため、ファイルを追加できません。",
       network: "このネットワークからは、ファイルを添付できません。",
+      disabled: "このサイトでは、ファイルの追加が無効になっています。",
       notConfigured: "ファイル保存が設定されていません。管理者に連絡してください。",
       tooLarge: "ファイルが大きすぎます（上限 {max, number}MB）。",
       unreadable: "ファイルを読み取れませんでした。",

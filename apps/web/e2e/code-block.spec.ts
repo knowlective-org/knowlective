@@ -32,6 +32,39 @@ test.describe("Code blocks", () => {
     await trashOpenPage(page);
   });
 
+  test("Enter keeps the line's indentation, and still leaves the block after two empty lines", async ({ page }) => {
+    await createPage(page, "E2E コードのインデント");
+    await typeInBody(page, "``` ");
+    const block = editorBody(page).locator('[data-content-type="codeBlock"]');
+    await page.keyboard.type("if (a) {");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("    b();");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("c();");
+    await expect(block.locator("code")).toHaveText("if (a) {\n    b();\n    c();");
+    // Enter on an indented empty line at the end drops its indentation, so
+    // the third Enter still leaves the block.
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("後の段落");
+    await expect(block.locator("code")).toHaveText("if (a) {\n    b();\n    c();");
+    await expect(editorBody(page).locator('[data-content-type="paragraph"]').last()).toHaveText("後の段落");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("a preview is set apart from the code, with a badge", async ({ page }) => {
+    await createPage(page, "E2E プレビューの見た目");
+    await typeInBody(page, "```markdown ");
+    await page.keyboard.type("**太字**");
+    const block = editorBody(page).locator('[data-content-type="codeBlock"]');
+    await block.getByTestId("CodeBlock.previewSelect").selectOption("below");
+    await expect(block.getByTestId("CodeBlock.previewBadge")).toHaveText("プレビュー");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
   test("are highlighted by their language, chosen with ```python or the picker", async ({ page }) => {
     await createPage(page, "E2E コードの色分け");
     await typeInBody(page, "```python ");

@@ -101,7 +101,7 @@ function useRun() {
 }
 
 // How cells show and sort in the viewer's language.
-type Format = {
+export type Format = {
   dateTime: (iso: string) => string;
   displayTitle: (title: string) => string;
   collator: Intl.Collator;
@@ -114,7 +114,7 @@ function resolveOrder(saved: string[], available: string[]): string[] {
   return [...ordered, ...available.filter((k) => !ordered.includes(k))];
 }
 
-type ColumnView = { key: string; label: string; custom: PropertyColumn | null };
+export type ColumnView = { key: string; label: string; custom: PropertyColumn | null };
 
 function ChildTable({
   blockId,
@@ -455,7 +455,7 @@ function Frame({ title, children }: { title: string; children: ReactNode }) {
 // The viewer's own view of this table: loaded from their account, saved back
 // a moment after each change. `personal`: it's kept on the account (false
 // for someone not logged in, whose view lasts while the page is open).
-function usePersonalView(pageId: string, blockId: string) {
+export function usePersonalView(pageId: string, blockId: string) {
   const [view, setViewState] = useState<TableView>(EMPTY_VIEW);
   const [personal, setPersonal] = useState(false);
   const failed = useTranslations("editor.save")("failed");
@@ -520,7 +520,7 @@ function localDate(iso: string): string {
 }
 
 // How the filters read a row's cells (lib/table-view.ts).
-function cellReader(row: ChildTableRow, data: ChildTableData, format: Format): CellReader {
+export function cellReader(row: ChildTableRow, data: ChildTableData, format: Format): CellReader {
   const column = (key: string) => data.columns.find((c) => c.id === key);
   return {
     text(key) {
@@ -562,7 +562,7 @@ function filterKindOf(column: ColumnView): FilterKind {
 
 // One row per column (the title and the visible columns): words for text,
 // ticks for options and people, a from–to range for dates.
-function FilterPanel({
+export function FilterPanel({
   columns,
   data,
   filters,
@@ -804,7 +804,7 @@ function HeaderCell({
 
 // A button that opens a small panel below it; closes on outside click / Esc.
 // The panel is position: fixed so the table's scroll container can't clip it.
-function Popover({
+export function Popover({
   open,
   onOpenChange,
   trigger,

@@ -22,6 +22,7 @@ const ja: MessageShape<typeof en> = {
     invitationNoAddress: "宛先指定なし",
     invitationGroups: "（グループ: {groups}）",
     publicPagesAllowed: "ページの公開（ログインなしでの閲覧）を{allowed, select, true {許可} other {禁止}}",
+    uploads: "{enabled, select, true {ファイルの追加をオン} other {ファイルの追加をオフ}}",
     pushNotifications: "{enabled, select, true {デスクトップ通知をオン} other {デスクトップ通知をオフ}}",
     searchEngines: "{allowed, select, true {検索エンジンに載ることを許可} other {検索エンジンに載せないように変更}}",
     publicRootOrder: "公開しているナレッジルートの並び順を変更",

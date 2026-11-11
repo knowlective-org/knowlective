@@ -2,8 +2,8 @@
 
 import { PageLink } from "./page-link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import {
   addStatusColumn,
@@ -16,6 +16,7 @@ import { showAlert } from "@/components/dialog";
 import { useDisplayTitle } from "@/i18n/use-display-title";
 import { useReportSaving } from "@/lib/saving-status";
 import {
+  BUILTIN_COLUMNS,
   OPTION_COLORS,
   type ChildTableData,
   type ChildTableRow,
@@ -23,6 +24,8 @@ import {
   type SelectOption,
 } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
+import { matchesFilters } from "@/lib/table-view";
+import { type ColumnView, type Format, FilterPanel, Popover, cellReader, usePersonalView } from "./child-table-block";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-board-block.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
@@ -50,6 +53,7 @@ export const childBoardBlock = createReactBlockSpec(
   {
     render: ({ block, editor }) => (
       <ChildBoard
+        blockId={block.id}
         title={block.props.title}
         groupBy={block.props.groupBy}
         subGroupBy={block.props.subGroupBy}
@@ -74,12 +78,14 @@ function useRun() {
 type SubGroup = { value: string; name: string; color?: string };
 
 function ChildBoard({
+  blockId,
   title,
   groupBy,
   subGroupBy,
   editable,
   onChange,
 }: {
+  blockId: string;
   title: string;
   groupBy: string;
   subGroupBy: string;
@@ -95,6 +101,37 @@ function ChildBoard({
   const [creatingColumn, setCreatingColumn] = useState(false);
   const t = useTranslations("editor");
   const run = useRun();
+  // The viewer's own filter (as the child page table's: saved on their
+  // account, keyed by this block).
+  const { view, setView } = usePersonalView(pageId, blockId);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const formatter = useFormatter();
+  const locale = useLocale();
+  const displayTitle = useDisplayTitle();
+  const format = useMemo<Format>(
+    () => ({
+      dateTime: (iso) => formatter.dateTime(new Date(iso), { dateStyle: "short", timeStyle: "short" }),
+      displayTitle,
+      collator: new Intl.Collator(locale),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayTitle and formatter follow the locale
+    [locale],
+  );
+  const filterColumns = useMemo<ColumnView[]>(
+    () => [
+      { key: "title", label: t("childTable.title"), custom: null },
+      ...(data?.columns ?? []).filter((c) => c.type !== "MASKED").map((c) => ({ key: c.id, label: c.name, custom: c })),
+      ...BUILTIN_COLUMNS.map((k) => ({ key: k, label: t(`childTable.builtin.${k}`), custom: null })),
+    ],
+    [data, t],
+  );
+  const filterCount = Object.keys(view.filters).length;
+  const rows = useMemo(() => {
+    if (!data) return [];
+    if (filterCount === 0) return data.rows;
+    const known = new Set(filterColumns.map((c) => c.key));
+    return data.rows.filter((row) => matchesFilters(view.filters, known, cellReader(row, data, format)));
+  }, [data, view.filters, filterCount, filterColumns, format]);
 
   // A move is shown at once and saved after: "saving" until the server has it.
   const saving = Object.keys(moved).length > 0;
@@ -114,6 +151,16 @@ function ChildBoard({
         onSave={(next) => onChange({ title: next })}
         uiName="ChildBoardBlock"
       />
+      {data && column && (
+        <Popover
+          open={filterOpen}
+          onOpenChange={setFilterOpen}
+          trigger={filterCount > 0 ? t("childTable.filterCount", { count: filterCount }) : t("childTable.filter")}
+          dataUi="ChildBoardBlock.filterMenu"
+        >
+          <FilterPanel columns={filterColumns} data={data} filters={view.filters} onChange={(filters) => setView({ ...view, filters })} />
+        </Popover>
+      )}
       {editable && selects.length > 1 && column && (
         <select
           className={styles.inlineSelect}
@@ -266,12 +313,17 @@ function ChildBoard({
     return (
       <div className={styles.block} contentEditable={false} data-ui="ChildBoardBlock">
         {header}
-        {board(data.rows, null)}
+        {filterCount > 0 && rows.length === 0 && data.rows.length > 0 && (
+          <p className={styles.muted} data-ui="ChildBoardBlock.noMatchStatus">
+            {t("childTable.noMatch")}
+          </p>
+        )}
+        {board(rows, null)}
       </div>
     );
   }
   const groups = subGroupsOf(subColumn, data);
-  const rowsIn = (value: string) => data.rows.filter((r) => valueIn(r, subColumn) === value);
+  const rowsIn = (value: string) => rows.filter((r) => valueIn(r, subColumn) === value);
   const shownGroups: SubGroup[] = [
     // "Not set" only while it has cards; the others always (to add cards to).
     ...groups.filter((g) => g.value !== NO_VALUE || rowsIn(NO_VALUE).length > 0),

@@ -11,6 +11,10 @@ import { startMailCapture } from "./mail-capture";
 // test. The cleanup turns the API off again and removes the keys and the
 // pages made here.
 
+// A 1×1 PNG.
+const PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
 const createdPages: string[] = [];
 let mail: Awaited<ReturnType<typeof startMailCapture>>;
 
@@ -178,6 +182,142 @@ test.describe("Public API", () => {
     await page.getByTestId("AppDialog.confirmButton").click();
     await expect(page.getByTestId("ApiKeySection.empty")).toBeVisible();
     expect((await request.get("api/v1/me", { headers: auth(key) })).status()).toBe(401);
+  });
+
+  test("attachments of other pages in written Markdown become the page's own", async ({ page, browser, request }) => {
+    const key = await issueKeyAs(browser, "editor", "E2E の添付", "WRITE");
+    // An image on the editor's own root page, which nobody else can open.
+    const personalPageId = await withPrisma(async (prisma) => {
+      const user = await prisma.user.findFirstOrThrow({ where: await userWhere(prisma, ACCOUNTS.editor.email) });
+      return (await prisma.knowledgeRoot.findUniqueOrThrow({ where: { ownerId: user.id } })).rootPageId!;
+    });
+    const upload = await page.request.post(`api/files?pageId=${encodeURIComponent(personalPageId)}`, {
+      multipart: { file: { name: "api.png", mimeType: "image/png", buffer: Buffer.from(PNG, "base64") } },
+    });
+    expect(upload.status()).toBe(201);
+    const sourceId = ((await upload.json()) as { url: string }).url.split("/").pop()!;
+
+    const created = await createViaApi(request, key, {
+      parentId: HOME_PAGE_ID,
+      title: `API の添付 ${Date.now()}`,
+      markdown: `![api](/api/files/${sourceId})\n`,
+    });
+    expect(created.status()).toBe(201);
+    const body = await created.json();
+    const copy = await withPrisma((prisma) =>
+      prisma.fileObject.findFirstOrThrow({ where: { pageId: body.id, copiedFromId: sourceId } }),
+    );
+    // The export writes absolute URLs; written back, they stay this page's file.
+    const absolute = new RegExp(`\\((https?://[^)]*)/api/files/${copy.id}\\)`).exec(body.markdown);
+    expect(absolute).not.toBeNull();
+    const rewritten = await request.patch(`api/v1/pages/${body.id}`, {
+      headers: auth(key),
+      data: { markdown: `${body.markdown}\n![again](${absolute![1]}/api/files/${sourceId})\n` },
+    });
+    expect(rewritten.status()).toBe(200);
+    await expect
+      .poll(() => withPrisma((prisma) => prisma.pageFileRefs.findUnique({ where: { pageId: body.id } })).then((r) => r?.fileIds))
+      .toEqual([copy.id]);
+    expect(await withPrisma((prisma) => prisma.fileObject.count({ where: { pageId: body.id } }))).toBe(1);
+
+    const viewer = await browser.newContext({ storageState: authFile("viewer") });
+    try {
+      expect((await viewer.request.get(`api/files/${copy.id}`)).status()).toBe(200);
+    } finally {
+      await viewer.close();
+    }
+  });
+
+  test("chats and whiteboards: read and written through the API, shown at once on open pages", async ({ page, browser, request }) => {
+    const key = await issueKey(page, ACCOUNTS.editor.email, "E2E チャットとボード", "WRITE");
+    const created = await createViaApi(request, key, { parentId: HOME_PAGE_ID, title: `API のチャット ${Date.now()}` });
+    const pageId = (await created.json()).id;
+
+    // A chat block, added on the page.
+    await openPage(page, pageId);
+    await editorBody(page).click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("/チャット");
+    await page.getByRole("option", { name: /チャット/ }).first().click();
+    await expect(page.getByTestId("ChatBlock.empty")).toBeVisible();
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+    const chats = await request.get(`api/v1/pages/${pageId}/chats`, { headers: auth(key) });
+    expect(chats.status()).toBe(200);
+    const [chat] = (await chats.json()).chats;
+    expect(chat.id).toBeTruthy();
+    const messagesUrl = `api/v1/pages/${pageId}/chats/${chat.id}/messages`;
+
+    // Posted as the key's owner, with formatting and a mention: shown at once.
+    const admin = await withPrisma(async (prisma) => (await prisma.user.findFirstOrThrow({ where: { name: ACCOUNTS.admin.name }, select: { id: true } })).id);
+    const posted = await request.post(messagesUrl, { headers: auth(key), data: { text: `**確認** お願いします <@${admin}>` } });
+    expect(posted.status()).toBe(201);
+    const message = (await posted.json()).message;
+    expect(message.author.name).toBe(ACCOUNTS.editor.name);
+    expect(message.mentions[admin]).toBe(ACCOUNTS.admin.name);
+    expect(message.plainText).toBe(`確認 お願いします @${ACCOUNTS.admin.name}`);
+    await expect(page.getByTestId("ChatBlock.text")).toContainText("確認 お願いします");
+
+    // A reply; then the list, oldest first.
+    const reply = await request.post(messagesUrl, { headers: auth(key), data: { text: "了解", replyToId: message.id } });
+    expect(reply.status()).toBe(201);
+    const list = await (await request.get(messagesUrl, { headers: auth(key) })).json();
+    expect(list.messages.map((m: { text: string }) => m.text)).toEqual([`**確認** お願いします <@${admin}>`, "了解"]);
+    expect(list.messages[1].replyToId).toBe(message.id);
+
+    // Refused: an empty message, a chat that isn't there, a reply to nothing.
+    expect((await request.post(messagesUrl, { headers: auth(key), data: { text: "  " } })).status()).toBe(400);
+    expect((await request.post(`api/v1/pages/${pageId}/chats/nochat/messages`, { headers: auth(key), data: { text: "x" } })).status()).toBe(404);
+    expect((await request.post(messagesUrl, { headers: auth(key), data: { text: "x", replyToId: "missing" } })).status()).toBe(400);
+
+    // A viewer's key reads but can't post (the viewer can only view the page).
+    const viewerKey = await issueKeyAs(browser, "viewer", "E2E 閲覧のキー", "WRITE");
+    expect((await request.get(messagesUrl, { headers: auth(viewerKey) })).status()).toBe(200);
+    expect((await request.post(messagesUrl, { headers: auth(viewerKey), data: { text: "x" } })).status()).toBe(403);
+
+    // A whiteboard page, made through the API; boxes and a connector added at once.
+    const boardRes = await createViaApi(request, key, { parentId: HOME_PAGE_ID, title: `API のボード ${Date.now()}`, kind: "WHITEBOARD" });
+    expect(boardRes.status()).toBe(201);
+    const boardId = (await boardRes.json()).id;
+    expect((await request.get(`api/v1/pages/${pageId}/whiteboard`, { headers: auth(key) })).status()).toBe(409);
+    await page.goto(`pages/${boardId}`);
+    await expect(page.getByTestId("Whiteboard.canvas")).toBeVisible();
+
+    const boardUrl = `api/v1/pages/${boardId}/whiteboard`;
+    const added = await request.post(boardUrl, {
+      headers: auth(key),
+      data: {
+        add: [
+          { id: "plan", type: "sticky", x: 0, y: 0, w: 120, h: 100, text: "計画" },
+          { id: "do", type: "rect", x: 240, y: 0, w: 120, h: 70, text: "実行", color: "blue" },
+          { type: "connector", from: "plan", to: "do", route: "elbow" },
+        ],
+      },
+    });
+    expect(added.status()).toBe(200);
+    expect((await added.json()).items).toHaveLength(3);
+    // The open board shows them at once.
+    await expect(page.locator('[data-ui="Whiteboard.item"]')).toHaveCount(2);
+    await expect(page.locator('[data-ui="Whiteboard.item"]', { hasText: "計画" })).toBeVisible();
+    await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(1);
+
+    // Changed and removed: removing a box takes its connector with it.
+    const changed = await request.post(boardUrl, { headers: auth(key), data: { update: [{ id: "plan", text: "計画（改）" }], remove: ["do"] } });
+    expect(changed.status()).toBe(200);
+    await expect(page.locator('[data-ui="Whiteboard.item"]')).toHaveText(["計画（改）"]);
+    await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(0);
+    const items = (await (await request.get(boardUrl, { headers: auth(key) })).json()).items;
+    expect(items.map((i: { id: string }) => i.id)).toEqual(["plan"]);
+
+    // Refused: what the board can't show; a viewer's change.
+    const bad = await request.post(boardUrl, { headers: auth(key), data: { add: [{ type: "rect", color: "red" }] } });
+    expect(bad.status()).toBe(400);
+    expect((await bad.json()).error.message).toContain("color");
+    expect((await request.post(boardUrl, { headers: auth(viewerKey), data: { remove: ["plan"] } })).status()).toBe(403);
+    // A read-only key reads only.
+    const readKey = await issueKeyAs(browser, "editor", "E2E 読み取りのキー", "READ");
+    expect((await request.get(boardUrl, { headers: auth(readKey) })).status()).toBe(200);
+    expect((await request.post(boardUrl, { headers: auth(readKey), data: { remove: ["plan"] } })).status()).toBe(403);
   });
 
   test.describe("with a passkey", () => {

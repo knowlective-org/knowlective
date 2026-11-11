@@ -2,29 +2,15 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "@/components/icons";
 import { createReactBlockSpec } from "@blocknote/react";
-import { resolveAppUrl, withBasePath } from "@/lib/base-path";
+import { resolveAppUrl } from "@/lib/base-path";
+import { type PdfDocument, type PdfJs, loadPdfJs, pdfOptions } from "./pdf-loader";
 import styles from "./pdf-block.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
 
 // The tallest a page is drawn, so a portrait page doesn't fill the screen.
 const MAX_PAGE_HEIGHT = 480;
-
-type PdfJs = typeof import("pdfjs-dist");
-type PdfDocument = Awaited<ReturnType<PdfJs["getDocument"]>["promise"]>;
-let pdfjsLoading: Promise<PdfJs> | undefined;
-
-// The worker and the data pdf.js fetches on demand come from /api/pdfjs.
-const assetUrl = (pdfjs: PdfJs, dir: string) => withBasePath(`/api/pdfjs/${pdfjs.version}/${dir}`);
-
-// pdf.js is large, so it's only downloaded once a page shows a PDF.
-function loadPdfJs(): Promise<PdfJs> {
-  pdfjsLoading ??= import("pdfjs-dist").then((pdfjs) => {
-    pdfjs.GlobalWorkerOptions.workerSrc = assetUrl(pdfjs, "build/pdf.worker.min.mjs");
-    return pdfjs;
-  });
-  return pdfjsLoading;
-}
 
 // PDF: an attached PDF shown one page at a time. The document holds only the
 // file's URL (/api/files/<id>, which checks the viewer's access) and name;
@@ -52,6 +38,10 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
   const [page, setPage] = useState(1);
   const t = useTranslations("editor.pdf");
   const [width, setWidth] = useState(0);
+  const [height, setHeight] = useState(0);
+  // Full screen: the block fills the window (over the page), on the same
+  // page of the PDF; Esc or the button leaves, ← → turn pages.
+  const [full, setFull] = useState(false);
 
   useEffect(() => {
     if (!url) return;
@@ -60,16 +50,8 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
     void loadPdfJs()
       .then((pdfjs) => {
         if (stale) return;
-        task = pdfjs.getDocument({
-          url,
-          cMapUrl: assetUrl(pdfjs, "cmaps/"),
-          cMapPacked: true,
-          standardFontDataUrl: assetUrl(pdfjs, "standard_fonts/"),
-          wasmUrl: assetUrl(pdfjs, "wasm/"),
-          iccUrl: assetUrl(pdfjs, "iccs/"),
-          // Forms are drawn as they look; nothing in the PDF is run.
-          enableXfa: false,
-        });
+        // Forms are drawn as they look; nothing in the PDF is run.
+        task = pdfjs.getDocument({ url, ...pdfOptions(pdfjs) });
         return task.promise;
       })
       .then((loaded) => {
@@ -93,7 +75,10 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
   useEffect(() => {
     const el = frame.current;
     if (!el) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(Math.floor(entry.contentRect.width)));
+    const observer = new ResizeObserver(([entry]) => {
+      setWidth(Math.floor(entry.contentRect.width));
+      setHeight(Math.floor(entry.contentRect.height));
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -108,7 +93,8 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
       .then((pdfPage) => {
         if (stale) return;
         const natural = pdfPage.getViewport({ scale: 1 });
-        const scale = Math.min(width / natural.width, MAX_PAGE_HEIGHT / natural.height);
+        const fit = full ? Math.max(100, height - 16) : MAX_PAGE_HEIGHT;
+        const scale = Math.min((full ? width - 16 : width) / natural.width, fit / natural.height);
         // Draw at the screen's pixel density, shown at the CSS size.
         const ratio = window.devicePixelRatio || 1;
         const viewport = pdfPage.getViewport({ scale: scale * ratio });
@@ -128,7 +114,9 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
       stale = true;
       rendering?.cancel();
     };
-  }, [pdf, page, width]);
+    // (The height only matters full screen; it follows the drawn page otherwise.)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdf, page, width, full, full ? height : 0]);
 
   const pages = pdf?.numPages ?? 0;
   const go = (next: number) => {
@@ -136,8 +124,27 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
     setPage(Math.min(Math.max(next, 1), pages));
   };
 
+  // Full screen: Esc leaves; ← → (and PageUp / PageDown) turn pages.
+  useEffect(() => {
+    if (!full) return;
+    const turn = (by: number) => {
+      setError(null);
+      setPage((p) => Math.min(Math.max(p + by, 1), Math.max(pages, 1)));
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFull(false);
+      else if (e.key === "ArrowLeft" || e.key === "PageUp") turn(-1);
+      else if (e.key === "ArrowRight" || e.key === "PageDown") turn(1);
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [full, pages]);
+
   return (
-    <div className={styles.block} contentEditable={false} data-ui="PdfBlock">
+    <div className={styles.block} contentEditable={false} data-ui="PdfBlock" data-fullscreen={full || undefined}>
       <div className={styles.frame} ref={frame}>
         {!url ? (
           <p className={styles.muted}>{t("none")}</p>
@@ -187,6 +194,17 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
               data-ui="PdfBlock.nextButton"
             >
               ›
+            </button>
+            <button
+              type="button"
+              className={styles.pagerButton}
+              onClick={() => setFull(!full)}
+              aria-label={full ? t("exitFullscreen") : t("fullscreen")}
+              title={full ? t("exitFullscreen") : t("fullscreen")}
+              aria-pressed={full}
+              data-ui="PdfBlock.fullscreenButton"
+            >
+              <Icon name={full ? "exitFullscreen" : "fullscreen"} size={18} />
             </button>
           </div>
         )}

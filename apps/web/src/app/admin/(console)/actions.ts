@@ -465,6 +465,22 @@ export async function testStorageConnection(): Promise<StorageTestState> {
   return { result: !result.ok && result.message === READ_BACK_MISMATCH ? { ...result, message: t("readBack") } : result };
 }
 
+export type UploadsEnabledState = { error?: string; saved?: boolean };
+
+// Whether files can be added to pages at all. Recorded in the audit log.
+export async function saveUploadsEnabled(_prev: UploadsEnabledState, formData: FormData): Promise<UploadsEnabledState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const enabled = formData.get("enabled") === "on";
+  const before = await prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { uploadsEnabled: true } });
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { uploadsEnabled: enabled } });
+  if (before.uploadsEnabled !== enabled) {
+    const audit = await auditTranslator();
+    await recordAudit(actor, "uploads.settings", audit("audit.uploads", { enabled: String(enabled) }), { enabled });
+  }
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
 export type UploadLimitState = { error?: string; saved?: boolean };
 
 export async function saveUploadLimit(_prev: UploadLimitState, formData: FormData): Promise<UploadLimitState> {

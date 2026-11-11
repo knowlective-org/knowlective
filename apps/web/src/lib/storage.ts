@@ -164,6 +164,12 @@ export async function getMaxUploadSizeMb(): Promise<number> {
   return Math.min(config?.maxUploadSizeMb ?? DEFAULT_MAX_UPLOAD_SIZE_MB, MAX_FILE_SIZE_MB_LIMIT);
 }
 
+// Whether files can be added to pages at all (/admin/files).
+export async function getUploadsEnabled(): Promise<boolean> {
+  const config = await prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { uploadsEnabled: true } });
+  return config?.uploadsEnabled ?? true;
+}
+
 // Extensions of the files an editor may attach (lib/upload-types.ts). Empty =
 // any file.
 export async function getAllowedUploadExtensions(): Promise<string[]> {

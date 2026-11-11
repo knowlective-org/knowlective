@@ -47,6 +47,18 @@ export const BLOCK_CONFIGS = {
     },
     content: "none",
   },
+  childCalendar: {
+    type: "childCalendar",
+    propSchema: {
+      // Shown above the calendar; empty shows the placeholder title.
+      title: { default: "" },
+      // Where each card's date comes from: a date column's id, or "createdAt"
+      // / "updatedAt". Empty (or a column that no longer exists) uses the
+      // page's first date column.
+      dateBy: { default: "" },
+    },
+    content: "none",
+  },
   linkPreview: {
     type: "linkPreview",
     propSchema: {

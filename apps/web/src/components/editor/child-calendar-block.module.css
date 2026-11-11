@@ -1,0 +1,304 @@
+/* Child page calendar block inside the editor. */
+
+.block {
+  width: 100%;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.header {
+  composes: header from "./child-blocks.module.css";
+}
+
+.inlineSelect {
+  composes: inlineSelect from "./child-blocks.module.css";
+}
+
+.primaryButton {
+  composes: primaryButton from "./child-blocks.module.css";
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.muted {
+  margin: 0;
+  padding: 2px 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.empty {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 4px 0 8px;
+}
+
+.monthLabel {
+  min-width: 120px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.navButton,
+.todayButton {
+  height: 28px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.navButton {
+  width: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.todayButton {
+  margin-left: 8px;
+}
+
+.navButton:hover,
+.todayButton:hover {
+  background: var(--color-hover);
+}
+
+/* Seven columns; the weeks grow with their cards. */
+.grid {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.weekRow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekRow:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.weekday {
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+  text-align: center;
+  background: var(--color-hover);
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 88px;
+  padding: 4px;
+}
+
+.weekday:not(:last-child),
+.day:not(:last-child) {
+  border-right: 1px solid var(--color-border);
+}
+
+/* Days of the months before and after. */
+.day[data-out] {
+  background: color-mix(in srgb, var(--color-hover) 60%, transparent);
+}
+
+.day[data-out] .dayNumber {
+  color: var(--color-muted);
+}
+
+/* A card is being dragged over this day. */
+.day[data-over] {
+  background: var(--color-primary-light);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+.dayHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 22px;
+}
+
+.dayNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  border-radius: 11px;
+}
+
+.day[data-today] .dayNumber {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+/* Sunday and Saturday. */
+.day[data-weekday="0"]:not([data-today]) .dayNumber,
+.weekday[data-weekday="0"] {
+  color: var(--color-danger);
+}
+
+.addButton {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.day:hover .addButton,
+.addButton:focus-visible {
+  opacity: 1;
+}
+
+.addButton:hover {
+  color: var(--color-primary);
+  background: var(--color-hover);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card,
+.cardDragging {
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 4px;
+}
+
+.card[draggable="true"] {
+  cursor: grab;
+}
+
+.cardDragging {
+  opacity: 0.4;
+}
+
+.cardLink {
+  display: block;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardLink:hover {
+  text-decoration: underline;
+}
+
+.addInput {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+}
+
+/* Pages without a date (a drop here takes a date away). */
+.undated {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--color-hover);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 6px;
+}
+
+.undated[data-over] {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+.undatedHeader {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.count {
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.undatedCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.undatedItem {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  max-width: 100%;
+}
+
+.dateInput {
+  height: 24px;
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+/* Narrow screens: the days get small; only the cards' marks show. */
+@media (max-width: 600px) {
+  .day {
+    min-height: 56px;
+    padding: 2px;
+  }
+
+  .card,
+  .cardDragging {
+    padding: 1px 3px;
+    font-size: 11px;
+  }
+}
+
+@media print {
+  .addButton,
+  .todayButton,
+  .navButton,
+  .dateInput {
+    display: none;
+  }
+
+  .block {
+    break-inside: avoid;
+  }
+}

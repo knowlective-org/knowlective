@@ -25,6 +25,7 @@ export default {
     invitationNoAddress: "(no address)",
     invitationGroups: " (groups: {groups})",
     publicPagesAllowed: "{allowed, select, true {Allowed} other {Disallowed}} publishing pages (viewing without logging in)",
+    uploads: "{enabled, select, true {Turned adding files on} other {Turned adding files off}}",
     pushNotifications: "{enabled, select, true {Turned desktop notifications on} other {Turned desktop notifications off}}",
     searchEngines: "{allowed, select, true {Allowed search engines to list the site} other {Kept the site out of search engines}}",
     publicRootOrder: "Changed the order of the public knowledge roots",

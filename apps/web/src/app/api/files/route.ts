@@ -6,7 +6,7 @@ import { fileUploaded } from "@/lib/file-search";
 import { requestNetworkCaps } from "@/lib/page-access";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getAllowedUploadExtensions, getMaxUploadSizeMb, getStorageConfig, putFile } from "@/lib/storage";
+import { getAllowedUploadExtensions, getMaxUploadSizeMb, getStorageConfig, getUploadsEnabled, putFile } from "@/lib/storage";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 
 // POST /api/files?pageId=<id>  (multipart, field "file")
@@ -43,6 +43,8 @@ export async function POST(req: NextRequest) {
 
   // Attaching not allowed from this network (lib/network-policy.ts).
   if (!(await requestNetworkCaps()).upload) return json(403, { error: t("network") });
+  // Turned off by the administrators (/admin/files).
+  if (!(await getUploadsEnabled())) return json(403, { error: t("disabled") });
 
   const pageId = req.nextUrl.searchParams.get("pageId");
   const page = pageId ? await findAccessiblePage(user.id, pageId) : null;

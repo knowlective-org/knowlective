@@ -8,6 +8,49 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Fixed
+
+- Dragging a block by its ⋮⋮ handle with Ctrl (Option on a Mac) held copied it when dropped onto another block, but moved it when dropped in the margins or below the last block. It's copied there too now
+- In a chat's message box, typing right after picking someone from the "@" list could put the first letter at the end of the message, after what was typed next
+- Attachments (images, videos, files, PDFs) in a block copied from another page could only be opened by those who could open the page they were uploaded on: everyone else got 404 for them (a block copied from one's own root showed its file to oneself only). When someone who can edit the page, and can open the file's page, has the page open, the file is now copied to the page as its own and the block points to the copy, for everyone. Blocks pasted before this are fixed the same way, the next time such a person opens the page. Markdown written through the API gets the same, and the absolute attachment URLs the API's Markdown export writes are taken back as this site's attachments (before, a page written back with them lost track of its files, which were deleted 30 days later)
+
+### Upgrade notes
+
+- A database migration adds `FileObject.copiedFromId` (applied on start)
+
+## [0.3.0] - 2026-11-11
+
+### Added
+
+- A child page calendar block ("子ページカレンダー" in the slash menu): the page's child pages on a month's calendar, each on the day in a date column (or when it was created or last changed). Drag a card to another day to change its date, or onto "no date" to clear it; "+" on a day adds a child page dated that day; pages without a date wait in a tray below, with a date field. A page with no date column yet offers to make one ("日付"). Each viewer moves between months and filters for themselves (the filter kept on their account, as for the table and board). Markdown and PDF export write it as links to the child pages
+
+- A summary row for the extended table ("集計行" on the table's bar): under each column, its sum, average, count of numbers or of filled cells, minimum, maximum, or, with a condition written as in a spreadsheet ("完了", ">=10", "<>保留", "*" wildcards), how many cells meet it (COUNTIF) or the sum of the rows that do, tested on this column or another (SUMIF). Editors click a column's summary to choose; it follows the cells as they change. Numbers may have separators, currency signs or "%" and be in full-width digits. Markdown and PDF export add it as a last row
+- A PDF's text can be expanded into a page or replace the page (title included), as for Markdown files: the choices offered for a PDF now include "ページに展開" and "このページを置き換える". The text is read in the browser (nothing is uploaded for it, so it also works with adding files turned off), larger text becomes headings and lines starting with a bullet or a number list items; images, tables and columns aren't kept. PDFs without text (scanned images) and password-protected ones are refused with a message
+- API for chats and whiteboards: `GET /api/v1/pages/<id>/chats` lists a page's chats, `GET`/`POST …/chats/<chat id>/messages` reads and posts messages (as in the chat block: Markdown, mentions as `<@user id>`, replies; the same access, lock and rate limits; those mentioned are notified), `GET`/`POST /api/v1/pages/<id>/whiteboard` reads the board's items and adds, changes and removes them in one request, live on open boards. `POST /api/v1/pages` takes `"kind": "WHITEBOARD"`. See the README's API section
+- Filters for the child page board, as for the child page table: by title, any column, who made or changed a page and when. Each viewer's own, kept on their account
+
+- Quoting part of a chat message: select text in a message and a "Quote" button appears above it; it starts a reply with the selected text as a quote in the message box
+- In code, a new line keeps the indentation of the line it's made from: Enter in a code block, and Shift+Enter inside ``` fences in a chat message. In a code block, Enter on an indented empty last line drops the indentation, so a third Enter still leaves the block
+- Full screen for PDF blocks (the button by the page numbers): the PDF fills the window on the page being read; ← → turn pages and Esc leaves
+- Adding files can be turned off for the whole site (admin console → "Files" → "ファイルの追加", site admins; recorded in the audit log). Off, nothing can be uploaded (attachments, images, video, PDFs, whiteboard images, the images in Word files); files already attached still open, and Markdown and text files can still be expanded into a page
+
+### Changed
+
+- Links to this site (pages, search, …) open in the same tab, in the text, chat messages, link previews and read-only pages; links to other sites still open a new tab
+- Backspace at the start of an indented block takes it back out one level and keeps its type, undoing Tab; list items, headings and TODOs used to turn into paragraphs first
+- A code block's preview is set apart from the code: a light card with a border and a "Preview" badge
+- The chat's formatting buttons sit on a darker bar and use the same line icons as the whiteboard (as do the chat's title, lock and poll marks)
+- The whiteboard's org chart template: members are stacked under each team and joined from the team's bottom into their left side, with the head's and teams' connectors joined at one point
+
+### Fixed
+
+- Videos (and audio) attached to pages didn't play in Safari and on iPhone and iPad, and couldn't be seeked: attachments now answer range requests (206). `.mov` files and media whose type the browser didn't give are served as playable media
+
+### Upgrade notes
+
+- Pages opened before the update must be reloaded before they can be edited again (the editor's version changed for the extended table's summary row and the child page calendar)
+- A database migration adds the setting for adding files (`InstanceConfig.uploadsEnabled`, on); it's applied at startup
+
 ## [0.2.2] - 2026-11-08
 
 ### Added

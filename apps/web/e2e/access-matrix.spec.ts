@@ -84,7 +84,12 @@ test.describe("Access matrix", () => {
       expect(file.status(), `${account} attachment`).toBe(["guest", "outsider"].includes(account) ? 404 : 200);
       // The API takes keys only: a logged-in browser's cookies don't count
       // (401 without a key; 403 while the API is off in the admin console).
-      expect([401, 403], `${account} api`).toContain((await context.request.get("api/v1/me")).status());
+      for (const path of ["api/v1/me", `api/v1/pages/${pageId}/chats`, `api/v1/pages/${pageId}/chats/x/messages`, `api/v1/pages/${pageId}/whiteboard`]) {
+        expect([401, 403], `${account} ${path}`).toContain((await context.request.get(path)).status());
+      }
+      expect([401, 403], `${account} whiteboard POST`).toContain(
+        (await context.request.post(`api/v1/pages/${pageId}/whiteboard`, { data: { remove: ["x"] } })).status(),
+      );
       // For search engines: open to all, and listing no page that isn't public.
       expect((await context.request.get("robots.txt")).status(), `${account} robots.txt`).toBe(200);
       const sitemap = await context.request.get("sitemap.xml");
@@ -184,5 +189,51 @@ test.describe("Access matrix", () => {
       expect(pickable.includes(boardTitle), `${account} pickable`).toBe(sees);
       await context.close();
     }
+  });
+
+  test("copying another page's attachment, called directly, needs the page's Edit and the file's page", async ({ page, browser, baseURL }) => {
+    // The action's id, from the request the admin's editor makes for the
+    // page's own attachment when the page opens.
+    let action: string | undefined;
+    page.on("request", (request) => {
+      const id = request.headers()["next-action"];
+      if (id && request.postData() === JSON.stringify([pageId, [fileId]])) action = id;
+    });
+    await openPage(page, pageId);
+    await expect.poll(() => action).toBeTruthy();
+
+    // A file on the admin's own root page (nobody else can open it), and a
+    // page the editor can edit.
+    const personalPageId = await withPrisma(async (prisma) => {
+      const owner = await prisma.fileObject.findUniqueOrThrow({ where: { id: fileId }, select: { uploadedById: true } });
+      return (await prisma.knowledgeRoot.findUniqueOrThrow({ where: { ownerId: owner.uploadedById! } })).rootPageId!;
+    });
+    const upload = await page.request.post(`api/files?pageId=${encodeURIComponent(personalPageId)}`, {
+      multipart: { file: { name: "一覧.txt", mimeType: "text/plain", buffer: Buffer.from("personal") } },
+    });
+    expect(upload.status()).toBe(201);
+    const personalFile = ((await upload.json()) as { url: string }).url.split("/").pop()!;
+    const { id: targetId } = await createPage(page, "E2E 一覧の添付のコピー");
+    const copies = () => withPrisma((prisma) => prisma.fileObject.count({ where: { copiedFromId: personalFile } }));
+
+    const origin = new URL(baseURL!).origin;
+    const call = (request: APIRequestContext) =>
+      request.post(`pages/${targetId}`, {
+        headers: { Origin: origin, "Next-Action": action!, Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8" },
+        data: JSON.stringify([targetId, [personalFile]]),
+        maxRedirects: 0,
+      });
+    // Refused for those who can't edit the page, and for the editor, who can't
+    // open the file's page…
+    for (const account of ["guest", "outsider", "viewer", "editor"] as const) {
+      const context = await contextFor(browser, account);
+      await call(context.request);
+      expect(await copies(), account).toBe(0);
+      await context.close();
+    }
+    // …and the very same request works for the admin, who can.
+    await call(page.request);
+    expect(await copies()).toBe(1);
+    await trashOpenPage(page);
   });
 });

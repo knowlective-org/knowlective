@@ -12,6 +12,17 @@ import {
   MAX_GRID_ROWS,
   gridWidths,
 } from "./grid-table-config";
+import {
+  MAX_CRITERIA_LENGTH,
+  SUMMARY_FUNCTIONS,
+  type SummaryFunction,
+  type SummarySpec,
+  parseSummary,
+  roundSummary,
+  serializeSummary,
+  shiftSummary,
+  summaryValue,
+} from "./grid-summary";
 
 // The extended table in the editor (the nodes: grid-table-config.ts):
 // - for editors, a bar above it (header row, header column, adding a row or
@@ -40,6 +51,17 @@ type GridText = {
   deleteRow: string;
   deleteColumn: string;
   resize: string;
+  summaryRow: string;
+  summaryLabel: string;
+  summaryMenu: string;
+  summaryNone: string;
+  summaryFunctions: Record<SummaryFunction, string>;
+  summaryCriteria: string;
+  summaryCriteriaHint: string;
+  summaryRange: string;
+  summaryThisColumn: string;
+  summaryColumn: string;
+  summaryApply: string;
 };
 
 type Editor = Pick<BlockNoteEditor, "dictionary" | "isEditable">;
@@ -127,6 +149,7 @@ function insertColumn(view: EditorView, tablePos: number, at: number) {
   // As wide as the others are on average.
   widths.splice(at, 0, widths.reduce((a, b) => a + b, 0) / widths.length);
   tr.setNodeAttribute(tablePos, "widths", JSON.stringify(widths.map((w) => Math.round(w * 100) / 100)));
+  if (table.attrs.summary) tr.setNodeAttribute(tablePos, "summary", shiftSummary(table.attrs.summary, columns, at, 1));
   const firstCell = childPositions(tr.doc.nodeAt(tablePos)!.child(0), rows[0])[at];
   tr.setSelection(TextSelection.near(tr.doc.resolve(firstCell + 1)));
   view.dispatch(tr.scrollIntoView());
@@ -157,6 +180,7 @@ function deleteColumn(view: EditorView, tablePos: number, at: number) {
   const widths = gridWidths(table.attrs.widths, columns);
   widths.splice(at, 1);
   tr.setNodeAttribute(tablePos, "widths", JSON.stringify(widths));
+  if (table.attrs.summary) tr.setNodeAttribute(tablePos, "summary", shiftSummary(table.attrs.summary, columns, at, -1));
   view.dispatch(tr);
 }
 
@@ -329,6 +353,106 @@ function showCellMenu(anchor: HTMLElement, items: { label: string; ui: string; r
   menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
 }
 
+// A column's summary menu (in the page's body, as the cell menu): what it
+// shows, and the condition for COUNTIF / SUMIF.
+function showSummaryMenu(
+  anchor: HTMLElement,
+  text: GridText,
+  columns: number,
+  col: number,
+  current: SummarySpec,
+  apply: (spec: SummarySpec) => void,
+) {
+  openMenu?.close();
+  const menu = document.createElement("form");
+  menu.className = "kn-grid-menu kn-grid-summary-menu";
+  menu.dataset.ui = "GridTable.summaryMenu";
+  menu.setAttribute("aria-label", text.summaryMenu);
+
+  const fn = document.createElement("select");
+  fn.dataset.ui = "GridTable.summaryFunctionSelect";
+  fn.setAttribute("aria-label", text.summaryMenu);
+  fn.append(new Option(text.summaryNone, ""));
+  for (const f of SUMMARY_FUNCTIONS) fn.append(new Option(text.summaryFunctions[f], f));
+  fn.value = current?.fn ?? "";
+
+  const criteriaLabel = document.createElement("label");
+  const criteria = document.createElement("input");
+  criteria.dataset.ui = "GridTable.summaryCriteriaInput";
+  criteria.maxLength = MAX_CRITERIA_LENGTH;
+  criteria.value = current?.criteria ?? "";
+  criteria.placeholder = text.summaryCriteriaHint;
+  criteria.title = text.summaryCriteriaHint;
+  criteriaLabel.append(document.createTextNode(text.summaryCriteria), criteria);
+
+  const rangeLabel = document.createElement("label");
+  const range = document.createElement("select");
+  range.dataset.ui = "GridTable.summaryRangeSelect";
+  for (let i = 0; i < columns; i++) {
+    range.append(new Option(i === col ? text.summaryThisColumn : text.summaryColumn.replace("{n}", String(i + 1)), String(i)));
+  }
+  range.value = String(current?.range ?? col);
+  rangeLabel.append(document.createTextNode(text.summaryRange), range);
+
+  const sync = () => {
+    criteriaLabel.hidden = fn.value !== "countif" && fn.value !== "sumif";
+    rangeLabel.hidden = fn.value !== "sumif";
+  };
+  fn.addEventListener("change", sync);
+  sync();
+
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.dataset.ui = "GridTable.summaryApplyButton";
+  submit.textContent = text.summaryApply;
+  menu.append(fn, criteriaLabel, rangeLabel, submit);
+  menu.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const f = fn.value as SummaryFunction | "";
+    const r = Number(range.value);
+    apply(
+      f === ""
+        ? null
+        : {
+            fn: f,
+            ...(f === "countif" || f === "sumif" ? { criteria: criteria.value.slice(0, MAX_CRITERIA_LENGTH) } : {}),
+            ...(f === "sumif" && r !== col ? { range: r } : {}),
+          },
+    );
+    close();
+  });
+
+  const rect = anchor.getBoundingClientRect();
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 300))}px`;
+  document.body.append(menu);
+  const onPointer = (event: PointerEvent) => {
+    if (!menu.contains(event.target as globalThis.Node) && event.target !== anchor) close();
+  };
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      close();
+      anchor.focus();
+    }
+  };
+  // Scrolling the page closes it (not scrolling inside it).
+  const onScroll = (event: Event) => {
+    if (!menu.contains(event.target as globalThis.Node)) close();
+  };
+  function close() {
+    menu.remove();
+    document.removeEventListener("pointerdown", onPointer, true);
+    document.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("scroll", onScroll, true);
+    if (openMenu?.close === close) openMenu = null;
+  }
+  document.addEventListener("pointerdown", onPointer, true);
+  document.addEventListener("keydown", onKey, true);
+  window.addEventListener("scroll", onScroll, true);
+  openMenu = { close };
+  fn.focus();
+}
+
 class GridTableView implements NodeView {
   dom: HTMLElement;
   contentDOM: HTMLElement;
@@ -336,6 +460,12 @@ class GridTableView implements NodeView {
   private bar: HTMLElement | null = null;
   private headerRow: HTMLInputElement | null = null;
   private headerColumn: HTMLInputElement | null = null;
+  private summaryToggle: HTMLInputElement | null = null;
+  // The summary row, under the rows (in the scrolling part, so its columns
+  // line up with theirs); not part of the document.
+  private summaryRow: HTMLElement;
+  private text: GridText;
+  private editable: boolean;
   private frame = 0;
 
   constructor(
@@ -348,13 +478,20 @@ class GridTableView implements NodeView {
     this.dom.className = "kn-grid-table";
     this.dom.dataset.nodeType = "gridTable";
     this.dom.dataset.ui = "GridTable";
-    if (editor.isEditable) this.dom.append(this.toolbar(gridText(editor)));
+    this.text = gridText(editor);
+    this.editable = editor.isEditable;
+    if (editor.isEditable) this.dom.append(this.toolbar(this.text));
     this.scroll = document.createElement("div");
     this.scroll.className = "kn-grid-scroll";
     this.contentDOM = document.createElement("div");
     this.contentDOM.className = "kn-grid-body";
     this.contentDOM.setAttribute("role", "table");
-    this.scroll.append(this.contentDOM);
+    this.summaryRow = document.createElement("div");
+    this.summaryRow.className = "kn-grid-summary";
+    this.summaryRow.contentEditable = "false";
+    this.summaryRow.dataset.ui = "GridTable.summaryRow";
+    this.summaryRow.setAttribute("role", "row");
+    this.scroll.append(this.contentDOM, this.summaryRow);
     this.dom.append(this.scroll);
     this.apply(node);
   }
@@ -376,11 +513,20 @@ class GridTableView implements NodeView {
     const headerColumn = checkbox(text.headerColumn, "GridTable.headerColumnCheckbox", (checked) =>
       at((pos) => setTableAttr(this.view, pos, "headerColumn", checked))(),
     );
+    const summary = checkbox(text.summaryRow, "GridTable.summaryRowCheckbox", (checked) =>
+      at((pos) => {
+        const table = tableAt(this.view.state, pos);
+        if (!table) return;
+        setTableAttr(this.view, pos, "summary", checked ? serializeSummary(Array.from({ length: columnCount(table) }, () => null)) : "");
+      })(),
+    );
     this.headerRow = headerRow.input;
     this.headerColumn = headerColumn.input;
+    this.summaryToggle = summary.input;
     bar.append(
       headerRow.dom,
       headerColumn.dom,
+      summary.dom,
       button(`＋ ${text.addRow}`, "GridTable.addRowButton", at((pos) => insertRow(this.view, pos, Infinity))),
       button(`＋ ${text.addColumn}`, "GridTable.addColumnButton", at((pos) => insertColumn(this.view, pos, MAX_GRID_COLUMNS))),
       button(
@@ -403,6 +549,9 @@ class GridTableView implements NodeView {
     this.contentDOM.style.setProperty("--kn-grid-columns", columnsTemplate(widths));
     if (this.headerRow) this.headerRow.checked = node.attrs.headerRow === true;
     if (this.headerColumn) this.headerColumn.checked = node.attrs.headerColumn === true;
+    if (this.summaryToggle) this.summaryToggle.checked = !!node.attrs.summary;
+    this.summaryRow.style.setProperty("--kn-grid-columns", columnsTemplate(widths));
+    this.drawSummary(node);
     // Once ProseMirror has drawn the rows and cells.
     cancelAnimationFrame(this.frame);
     this.frame = requestAnimationFrame(() => this.roles());
@@ -422,6 +571,77 @@ class GridTableView implements NodeView {
     });
   }
 
+  // The summary row: each column's value, worked out from the text of the
+  // body's cells (the header row left out). An editor clicks a column's
+  // cell to choose what it shows.
+  private drawSummary(node: PMNode) {
+    const columns = columnCount(node);
+    const specs = parseSummary(node.attrs.summary, columns);
+    this.summaryRow.hidden = !specs;
+    this.dom.dataset.summary = String(!!specs);
+    if (!specs) {
+      this.summaryRow.replaceChildren();
+      return;
+    }
+    const rows: string[][] = [];
+    node.forEach((row, _offset, r) => {
+      if (r === 0 && node.attrs.headerRow === true) return;
+      const cells: string[] = [];
+      row.forEach((cell) => cells.push(cell.textBetween(0, cell.content.size, " ", " ")));
+      rows.push(cells);
+    });
+    const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
+    const cells = specs.map((spec, col) => {
+      const cell = document.createElement(this.editable ? "button" : "div");
+      cell.className = "kn-grid-summary-cell";
+      cell.dataset.ui = "GridTable.summaryCell";
+      cell.dataset.col = String(col);
+      cell.setAttribute("role", "cell");
+      const value = summaryValue(spec, rows, col);
+      const label = document.createElement("span");
+      label.className = "kn-grid-summary-fn";
+      const shown = document.createElement("span");
+      shown.className = "kn-grid-summary-value";
+      shown.dataset.ui = "GridTable.summaryValue";
+      if (spec) {
+        label.textContent = this.text.summaryFunctions[spec.fn] + (spec.criteria ? ` ${spec.criteria}` : "");
+        shown.textContent = value === null ? "–" : number.format(roundSummary(value));
+      } else if (col === 0) {
+        label.textContent = this.text.summaryLabel;
+      }
+      cell.append(label, shown);
+      if (cell instanceof HTMLButtonElement) {
+        cell.type = "button";
+        cell.title = this.text.summaryMenu;
+        cell.addEventListener("click", (event) => {
+          event.preventDefault();
+          this.chooseSummary(cell, col);
+        });
+      }
+      return cell;
+    });
+    this.summaryRow.replaceChildren(...cells);
+  }
+
+  // A column's summary: the function, and for COUNTIF / SUMIF the condition
+  // (and SUMIF's column to test it on).
+  private chooseSummary(anchor: HTMLElement, col: number) {
+    const pos = this.getPos();
+    const table = pos === undefined ? null : tableAt(this.view.state, pos);
+    if (pos === undefined || !table) return;
+    const columns = columnCount(table);
+    const specs = parseSummary(table.attrs.summary, columns) ?? Array.from({ length: columns }, () => null);
+    showSummaryMenu(anchor, this.text, columns, col, specs[col], (spec) => {
+      const now = this.getPos();
+      const latest = now === undefined ? null : tableAt(this.view.state, now);
+      if (now === undefined || !latest) return;
+      const next = parseSummary(latest.attrs.summary, columnCount(latest)) ?? Array.from({ length: columnCount(latest) }, () => null);
+      if (col >= next.length) return;
+      next[col] = spec;
+      setTableAttr(this.view, now, "summary", serializeSummary(next));
+    });
+  }
+
   update(node: PMNode): boolean {
     if (node.type !== this.node.type) return false;
     this.node = node;
@@ -430,12 +650,14 @@ class GridTableView implements NodeView {
   }
 
   stopEvent(event: Event): boolean {
-    return !!this.bar?.contains(event.target as globalThis.Node);
+    const target = event.target as globalThis.Node;
+    return !!this.bar?.contains(target) || this.summaryRow.contains(target);
   }
 
   ignoreMutation(mutation: ViewMutationRecord): boolean {
     if (mutation.type === "selection") return false;
     if (this.bar?.contains(mutation.target)) return true;
+    if (this.summaryRow.contains(mutation.target)) return true;
     return (
       mutation.type === "attributes" &&
       (mutation.target === this.dom || mutation.target === this.scroll || mutation.target === this.contentDOM)

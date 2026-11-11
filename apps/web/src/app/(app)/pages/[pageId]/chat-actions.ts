@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { getTranslations } from "next-intl/server";
 import { canEditPage, loadDataKey } from "shared";
 import { getPageAccess } from "@/lib/page-access";
@@ -9,7 +8,6 @@ import { displayName } from "@/lib/emails";
 import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { notifyChildrenChanged } from "@/lib/collab-events";
 import { reindexPage } from "@/lib/search-index";
-import { notifyChatPosted } from "@/lib/notification-bridge";
 import { cursorColorFor } from "@/lib/cursor-color";
 import { createRateLimiter } from "@/lib/rate-limit";
 import {
@@ -27,14 +25,14 @@ import {
   openChatMessage,
   openPollOptions,
   sealChatMessage,
-  sealPollOptions,
   type ChatData,
   type ChatPollView,
   type ChatReactionView,
 } from "@/lib/chat";
 import { EVERYONE, chatMentionIds, chatMentionsEveryone, chatPlainText } from "@/lib/chat-text";
 import { chatMarkdownPlain } from "@/lib/chat-markdown";
-import { pageAudienceIds, pagePeopleNames } from "@/lib/page-people";
+import { pagePeopleNames } from "@/lib/page-people";
+import { chatLocked, postChat, postLimit } from "@/lib/chat-post";
 
 // Chat blocks: reading needs to be able to open the page (public pages too,
 // without names), posting needs to be able to edit it (EDIT, not locked).
@@ -55,10 +53,7 @@ import { pageAudienceIds, pagePeopleNames } from "@/lib/page-people";
 // A message can mention everyone who can open the page (`<@all>`): anyone
 // who can post may, at most once per EVERYONE_INTERVAL_MS in a chat.
 
-const postLimit = createRateLimiter(60_000, 30);
 const reactLimit = createRateLimiter(60_000, 60);
-const EVERYONE_INTERVAL_MS = 5 * 60_000;
-const everyoneLimit = createRateLimiter(EVERYONE_INTERVAL_MS, 1);
 
 async function namesOf(ids: Iterable<string>): Promise<Map<string, string>> {
   const people = await prisma.user.findMany({ where: { id: { in: [...new Set(ids)] } }, select: { id: true, name: true, emailEnc: true } });
@@ -184,9 +179,6 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
   };
 }
 
-async function chatLocked(pageId: string, blockId: string): Promise<boolean> {
-  return !!(await prisma.chatLock.findUnique({ where: { pageId_blockId: { pageId, blockId } }, select: { pageId: true } }));
-}
 
 // `replyToId`: the message it replies to, in the same chat (or null).
 export async function postChatMessage(
@@ -226,53 +218,23 @@ async function post(
   poll: { options: string[]; multiple: boolean } | null,
 ): Promise<{ error?: string }> {
   const t = await getTranslations("editor.chat");
-  if (typeof pageId !== "string" || !isBlockId(blockId)) return { error: t("notAllowed") };
-  const access = await getPageAccess(prisma, userId, pageId);
-  if (!access || !canEditPage(access)) return { error: t("notAllowed") };
-  if (await chatLocked(pageId, blockId)) return { error: t("lockedError") };
-  const text = normalizeChatMessage(raw);
-  if (!text) return { error: t("invalid") };
-  if (replyToId !== null) {
-    const replied =
-      typeof replyToId === "string"
-        ? await prisma.chatMessage.findUnique({ where: { id: replyToId }, select: { pageId: true, blockId: true } })
-        : null;
-    if (replied?.pageId !== pageId || replied.blockId !== blockId) return { error: t("replyGone") };
+  const result = await postChat(userId, pageId, blockId, raw, replyToId, poll, { unknownUser: t("unknownUser"), everyone: t("everyone") });
+  if (!("error" in result)) return {};
+  const e = result.error;
+  switch (e.code) {
+    case "not_allowed":
+      return { error: t("notAllowed") };
+    case "locked":
+      return { error: t("lockedError") };
+    case "invalid":
+      return { error: t("invalid") };
+    case "reply_gone":
+      return { error: t("replyGone") };
+    case "too_many":
+      return { error: t("tooMany") };
+    case "everyone_too_soon":
+      return { error: t("everyoneTooSoon", { minutes: e.minutes, seconds: e.seconds }) };
   }
-  if (postLimit(userId) !== null) return { error: t("tooMany") };
-  const toEveryone = chatMentionsEveryone(text);
-  if (toEveryone) {
-    const wait = everyoneLimit(`${pageId}:${blockId}`);
-    if (wait !== null) return { error: t("everyoneTooSoon", { minutes: EVERYONE_INTERVAL_MS / 60_000, seconds: wait }) };
-  }
-  const id = randomUUID();
-  const key = await loadDataKey(prisma);
-  await prisma.chatMessage.create({
-    data: {
-      id,
-      pageId,
-      blockId,
-      authorId: userId,
-      bodyEnc: sealChatMessage(key, id, text),
-      replyToId,
-      ...(poll && { poll: { create: { multiple: poll.multiple, optionsEnc: sealPollOptions(key, id, poll.options) } } }),
-    },
-  });
-  // Messages are searched with the page (a poll's choices too).
-  await reindexPage(prisma, pageId);
-  // Everyone with the page open refetches (with their own access), as for
-  // the child page blocks.
-  notifyChildrenChanged(pageId);
-  // Those in the chat are notified (not waited for); those it mentions, of
-  // the mention: only those who can be mentioned on the page, or, for
-  // everyone, all who can open it. The excerpt shows mentions by name.
-  const names = chatMentionIds(text).length > 0 ? await pagePeopleNames(prisma, pageId) : new Map<string, string>();
-  const mentionIds = [
-    ...new Set([...chatMentionIds(text).filter((id) => names.has(id)), ...(toEveryone ? await pageAudienceIds(prisma, pageId) : [])]),
-  ];
-  const excerpt = chatPlainText(chatMarkdownPlain(text), (mentioned) => names.get(mentioned) ?? null, t("unknownUser"), t("everyone"));
-  void notifyChatPosted({ pageId, blockId, actorId: userId, text: poll ? `📊 ${excerpt}` : excerpt, mentionIds });
-  return {};
 }
 
 // The viewer's vote in a poll: the indexes of the choices they pick, in

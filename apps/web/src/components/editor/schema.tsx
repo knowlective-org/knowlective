@@ -13,6 +13,7 @@ import { withMultiColumn } from "@blocknote/xl-multi-column";
 import type { Messages } from "@/i18n/messages/en";
 import { childPagesBlock } from "./child-pages-block";
 import { childBoardBlock } from "./child-board-block";
+import { childCalendarBlock } from "./child-calendar-block";
 import { childTableBlock } from "./child-table-block";
 import { linkPreviewBlock } from "./link-preview-block";
 import { mermaidBlock } from "./mermaid-block";
@@ -26,6 +27,7 @@ import { tocBlock } from "./toc-block";
 import { continueList, todoBlock } from "./todo-block";
 import { mentionInline } from "./mention-inline";
 import { toggleEnter } from "./toggle-enter";
+import { backspaceOutdent } from "./backspace-outdent";
 import { gridCellBlock, gridRowBlock, gridTableBlock, newGridTable } from "./grid-table-block";
 import { HEADING_LEVELS } from "./block-configs";
 
@@ -52,9 +54,11 @@ import { HEADING_LEVELS } from "./block-configs";
 export { HEADING_LEVELS };
 
 // Enter in a toggle's title keeps the blocks inside it (toggle-enter.ts);
-// ahead of the block's own Enter.
+// ahead of the block's own Enter. Backspace at the start of an indented
+// block takes it out a level (backspace-outdent.ts; for every block, it's
+// just carried here).
 function withToggleEnter<T extends { extensions?: readonly unknown[] }>(spec: T): T {
-  return { ...spec, extensions: [toggleEnter, ...(spec.extensions ?? [])] as unknown as T["extensions"] };
+  return { ...spec, extensions: [toggleEnter, backspaceOutdent, ...(spec.extensions ?? [])] as unknown as T["extensions"] };
 }
 
 export const editorSchema = withMultiColumn(BlockNoteSchema.create({
@@ -75,6 +79,7 @@ export const editorSchema = withMultiColumn(BlockNoteSchema.create({
     childPages: childPagesBlock(),
     childTable: childTableBlock(),
     childBoard: childBoardBlock(),
+    childCalendar: childCalendarBlock(),
     mermaid: mermaidBlock(),
     pdf: pdfBlock(),
     linkPreview: linkPreviewBlock(),
@@ -160,6 +165,14 @@ export function customSlashMenuItems(
       group,
       icon: <span aria-hidden>🗂️</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childBoard" }),
+    },
+    {
+      title: t("editor.slash.childCalendar"),
+      subtext: t("editor.slash.childCalendarSub"),
+      aliases: aliases("childCalendarAliases", ["calendar", "schedule", "date", "child", "children", "subpage", "month"]),
+      group,
+      icon: <span aria-hidden>📅</span>,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childCalendar" }),
     },
     {
       title: t("editor.slash.mermaid"),
