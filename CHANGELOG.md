@@ -11,6 +11,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 ### Fixed
 
 - Dragging a block by its ⋮⋮ handle with Ctrl (Option on a Mac) held copied it when dropped onto another block, but moved it when dropped in the margins or below the last block. It's copied there too now
+- In a chat's message box, typing right after picking someone from the "@" list could put the first letter at the end of the message, after what was typed next
 - Attachments (images, videos, files, PDFs) in a block copied from another page could only be opened by those who could open the page they were uploaded on: everyone else got 404 for them (a block copied from one's own root showed its file to oneself only). When someone who can edit the page, and can open the file's page, has the page open, the file is now copied to the page as its own and the block points to the copy, for everyone. Blocks pasted before this are fixed the same way, the next time such a person opens the page. Markdown written through the API gets the same, and the absolute attachment URLs the API's Markdown export writes are taken back as this site's attachments (before, a page written back with them lost track of its files, which were deleted 30 days later)
 
 ### Upgrade notes

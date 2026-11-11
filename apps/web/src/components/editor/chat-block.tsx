@@ -1114,6 +1114,19 @@ function ChatInput({
       : [];
   const selected = Math.min(active, Math.max(0, options.length - 1));
 
+  // The caret after a chosen name, as soon as the new text is in the box: a
+  // key typed before that (it was a frame later) went in at the end, and the
+  // caret then moved back before it.
+  const placeCaret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const pos = placeCaret.current;
+    const el = ref.current;
+    if (pos === null || !el) return;
+    placeCaret.current = null;
+    el.focus();
+    el.setSelectionRange(pos, pos);
+  });
+
   const choose = (p: Person) => {
     if (!at) return;
     const inserted = `@${p.name} `;
@@ -1122,10 +1135,7 @@ function ChatInput({
     onValueChange(next);
     const pos = at.start + inserted.length;
     setCaret(pos);
-    requestAnimationFrame(() => {
-      ref.current?.focus();
-      ref.current?.setSelectionRange(pos, pos);
-    });
+    placeCaret.current = pos;
   };
 
   return (
