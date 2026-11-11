@@ -12,6 +12,10 @@ test("Backspace at the start of an indented list item outdents it and keeps the 
   await page.keyboard.press("Enter");
   await page.keyboard.type("二つ目");
   await page.keyboard.press("Home");
+  // The editor learns of the caret's move from "selectionchange", which the
+  // browser fires a moment later: a key before that acts at the end.
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.anchorOffset)).toBe(0);
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 50)));
   await page.keyboard.press("Tab");
   const second = editorBody(page).locator('[data-content-type="bulletListItem"]', { hasText: "二つ目" });
   const nested = editorBody(page).locator('.bn-block-group .bn-block-group [data-content-type="bulletListItem"]', { hasText: "二つ目" });
