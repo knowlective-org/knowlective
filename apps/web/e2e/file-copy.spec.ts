@@ -40,6 +40,10 @@ test.describe("Attachments of blocks copied from other pages", () => {
         .dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
     }, new URL(sourceUrl.slice(1), page.url().replace(/pages\/[^/]+$/, "")).href);
 
+    // Asked first, with the file's name.
+    await expect(page.getByTestId("AppDialog")).toContainText("copied.png");
+    await page.getByTestId("AppDialog.confirmButton").click();
+
     // A copy as this page's own, and the block shows it.
     await expect
       .poll(() => withPrisma((prisma) => prisma.fileObject.findFirst({ where: { pageId: id, copiedFromId: sourceId } })), {
@@ -72,5 +76,49 @@ test.describe("Attachments of blocks copied from other pages", () => {
     expect(await withPrisma((prisma) => prisma.fileObject.count({ where: { pageId: id } }))).toBe(1);
 
     await trashOpenPage(page);
+  });
+
+  test("are copied only when the person whose access it takes agrees", async ({ page, browser, baseURL }) => {
+    // A file on the admin's own root page: the editor can't open it.
+    const admin = await browser.newContext({ storageState: authFile("admin") });
+    try {
+      const adminRoot = await withPrisma(async (prisma) => {
+        const user = await prisma.user.findFirstOrThrow({ where: await userWhere(prisma, ACCOUNTS.admin.email) });
+        return (await prisma.knowledgeRoot.findUniqueOrThrow({ where: { ownerId: user.id } })).rootPageId!;
+      });
+      const upload = await admin.request.post(`api/files?pageId=${encodeURIComponent(adminRoot)}`, {
+        multipart: { file: { name: "admin-only.png", mimeType: "image/png", buffer: Buffer.from(PNG, "base64") } },
+      });
+      expect(upload.status()).toBe(201);
+      const sourceId = ((await upload.json()) as { url: string }).url.split("/").pop()!;
+      expect((await page.request.get(`api/files/${sourceId}`)).status()).toBe(404);
+
+      // The editor puts it on a page the admin can edit too.
+      const { id } = await createPage(page, "E2E 添付ファイルの確認");
+      await editorBody(page).click();
+      await page.keyboard.press("Control+End");
+      await page.evaluate((src) => {
+        const data = new DataTransfer();
+        data.setData("text/html", `<img src="${src}" alt="other">`);
+        document
+          .querySelector(".bn-editor")!
+          .dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+      }, `${new URL(baseURL!).origin}${new URL(page.url()).pathname.replace(/pages\/[^/]+$/, "")}api/files/${sourceId}`);
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+      // The admin, who can open it, is asked when opening the page; declined,
+      // nothing is copied.
+      const adminPage = await admin.newPage();
+      await adminPage.goto(`pages/${id}`);
+      await expect(adminPage.getByTestId("AppDialog")).toContainText("admin-only.png");
+      await adminPage.getByTestId("AppDialog.cancelButton").click();
+      await expect(adminPage.getByTestId("AppDialog")).toHaveCount(0);
+      await adminPage.waitForTimeout(1500);
+      expect(await withPrisma((prisma) => prisma.fileObject.count({ where: { copiedFromId: sourceId } }))).toBe(0);
+
+      await trashOpenPage(page);
+    } finally {
+      await admin.close();
+    }
   });
 });

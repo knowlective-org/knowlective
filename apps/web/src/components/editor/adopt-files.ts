@@ -51,7 +51,17 @@ function editLocked(doc: PMNode, pos: number, editor: object): boolean {
   return typeof id === "string" && locks.get(id) === "edit";
 }
 
-export function useAdoptFiles(editor: Editor, provider: HocuspocusProvider, pageId: string, readOnly: boolean) {
+// Copying shows the file to everyone who can open this page, with the access
+// of the person whose editor asks, and the block may have been put here by
+// someone who can't open the file: so that person is asked first (`confirm`,
+// with the files' names), once per file while the page is open.
+export function useAdoptFiles(
+  editor: Editor,
+  provider: HocuspocusProvider,
+  pageId: string,
+  readOnly: boolean,
+  confirm: (names: string[]) => Promise<boolean>,
+) {
   useEffect(() => {
     if (readOnly) return;
     // File id → the URL the page should use; null: leave it.
@@ -83,8 +93,13 @@ export function useAdoptFiles(editor: Editor, provider: HocuspocusProvider, page
       if (ask.length > 0) {
         for (const id of ask) asking.add(id);
         try {
-          const adopted = await adoptPageFiles(pageId, ask);
-          for (const id of ask) known.set(id, adopted[id] ?? null);
+          const { urls, pending } = await adoptPageFiles(pageId, ask, false);
+          for (const id of ask) if (!pending.some((p) => p.id === id)) known.set(id, urls[id] ?? null);
+          if (pending.length > 0) {
+            const ok = !stopped && (await confirm(pending.map((p) => p.name)));
+            const copied = ok ? (await adoptPageFiles(pageId, pending.map((p) => p.id), true)).urls : {};
+            for (const p of pending) known.set(p.id, copied[p.id] ?? null);
+          }
         } catch {
           // Offline, or the server restarting: asked again on a later change.
         } finally {
@@ -107,5 +122,7 @@ export function useAdoptFiles(editor: Editor, provider: HocuspocusProvider, page
       off();
       provider.off("synced", schedule);
     };
+    // `confirm` is read when needed, not a reason to start over.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, provider, pageId, readOnly]);
 }

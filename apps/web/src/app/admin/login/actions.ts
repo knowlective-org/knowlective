@@ -3,6 +3,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { verifyMasterPassword, verifyPassword, verifyPasswordAgainstDummy } from "shared";
+import { passwordCheckLimit } from "@/lib/concurrency-limit";
 import { prisma } from "@/lib/db";
 import { emailWhere } from "@/lib/emails";
 import {
@@ -67,10 +68,13 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
     where: await emailWhere(email),
     select: { id: true, passwordHash: true, totpSecret: true },
   });
-  // Same cost whether or not the account exists.
-  const passwordOk = user
-    ? await verifyPassword(password, user.passwordHash)
-    : await verifyPasswordAgainstDummy(password);
+  // Same cost whether or not the account exists. Too many being checked at
+  // once: refused before the slow part.
+  const checked = await passwordCheckLimit(() =>
+    user ? verifyPassword(password, user.passwordHash) : verifyPasswordAgainstDummy(password),
+  );
+  if (!checked.ok) return { error: (await getTranslations("admin.login.errors"))("busy"), email };
+  const passwordOk = checked.value;
   // Not saying "not an admin" separately: it would confirm the password.
   const allowed = passwordOk && user !== null && (await getAdminConsoleAccess(user.id)) !== null;
 
@@ -162,7 +166,9 @@ export async function loginWithMasterPassword(
   }
 
   const config = await getAdminConfig();
-  const passwordOk = await verifyMasterPassword(prisma, password);
+  const masterChecked = await passwordCheckLimit(() => verifyMasterPassword(prisma, password));
+  if (!masterChecked.ok) return { error: (await getTranslations("admin.login.errors"))("busy") };
+  const passwordOk = masterChecked.value;
   const enrolled = config.totpSecret !== null;
   let totpOk = !enrolled;
 

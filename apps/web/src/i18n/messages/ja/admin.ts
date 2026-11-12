@@ -88,6 +88,7 @@ const ja: MessageShape<typeof en> = {
         remaining: "{message}（あと{remaining}回でロックされます）。",
         missing: "メールアドレスとパスワードを入力してください。",
         wrongOrNotAdmin: "メールアドレスまたはパスワードが正しくないか、管理者権限がありません",
+        busy: "ログインが混み合っています。少し待ってから、もう一度お試しください。",
         wrongCode: "認証コードが正しくありません",
         masterMissing: "マスターパスワードを入力してください。",
         wrongMasterOrCode: "マスターパスワードまたは認証コードが正しくありません",

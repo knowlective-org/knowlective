@@ -26,7 +26,7 @@ import { registerSemanticSearch, type SemanticHit, type SemanticStatus } from ".
 //   no page shows any more is dropped on the next full pass.
 
 // Changing the model or the passages makes every stored vector stale.
-const INDEX_VERSION = `${MODEL}:${MODEL_DTYPE}:chunks-v3`;
+const INDEX_VERSION = `${MODEL}:${MODEL_DTYPE}:chunks-v4`;
 
 // Passage size (characters of text), the overlap of passages cut out of one
 // long line, and upper bounds: of a page's body, of its chats (the latest

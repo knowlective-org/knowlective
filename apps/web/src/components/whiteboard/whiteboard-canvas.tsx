@@ -776,7 +776,10 @@ export function WhiteboardCanvas({
     const fileIds = [...new Set(pasted.flatMap((i) => (isBox(i) && i.src ? [i.src.slice("/api/files/".length)] : [])))];
     if (pageId && clip.page !== pageId && fileIds.length > 0) {
       const done = beginSaving();
-      const adopted = await adoptPageFiles(pageId, fileIds).catch(() => ({}) as Record<string, string | null>);
+      // Pasted by this person: copied without asking.
+      const adopted = await adoptPageFiles(pageId, fileIds, true)
+        .then((r) => r.urls)
+        .catch(() => ({}) as Record<string, string | null>);
       done();
       pasted = pasted.map((i) => (isBox(i) && i.src ? { ...i, src: adopted[i.src.slice("/api/files/".length)] ?? i.src } : i));
     }

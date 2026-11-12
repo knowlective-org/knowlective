@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 //
 // - Same parent (reorder only): EDIT on the parent. Nothing about access
 //   changes.
-// - New parent: EDIT on the page, on every live page under it, and on the new
+// - New parent: EDIT on the page, on every page under it (in the trash too), and on the new
 //   parent. The subtree's access then comes from the new place, so the
 //   caller records it in the audit log and reconnects open editors.
 //
@@ -110,7 +110,10 @@ export async function planMove(
     if (!atLeast(source.access.get(pageId) ?? null, "EDIT")) {
       return { error: t("noEdit") };
     }
-    if (liveDescendantIds.some((id) => !atLeast(source.access.get(id) ?? null, "EDIT"))) {
+    // Every page under it, those in the trash included: they move too, and
+    // take their access from the new place (a page in the trash taken away
+    // from the mover could otherwise come within their reach).
+    if (subtreeIds.slice(1).some((id) => !atLeast(source.access.get(id) ?? null, "EDIT"))) {
       return { error: t("noEditChild") };
     }
     if (liveDescendantIds.some((id) => source.locks.has(id))) {

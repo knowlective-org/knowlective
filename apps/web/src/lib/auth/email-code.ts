@@ -55,12 +55,19 @@ export async function checkEmailCode(userId: string, purpose: EmailCodePurpose, 
     orderBy: { createdAt: "desc" },
   });
   if (!row || !row.codeHash) return false;
+  // A try is counted in the database before the code is compared, one at a
+  // time: tries sent at the same moment each take one of the MAX_ATTEMPTS.
+  const counted = await prisma.emailCode.updateMany({
+    where: { id: row.id, usedAt: null, attempts: { lt: MAX_ATTEMPTS } },
+    data: { attempts: { increment: 1 } },
+  });
+  if (counted.count !== 1) return false;
   const ok = timingSafeEqual(Buffer.from(row.codeHash, "hex"), Buffer.from(hashCode(row.id, normalized), "hex"));
-  const attempts = row.attempts + 1;
-  // Conditional on still unused: two tries at once can't both succeed.
+  // Used up: by the right code (once: conditional on still unused), or by
+  // the last try.
   const { count } = await prisma.emailCode.updateMany({
-    where: { id: row.id, usedAt: null },
-    data: { attempts, ...(ok || attempts >= MAX_ATTEMPTS ? { usedAt: new Date() } : {}) },
+    where: { id: row.id, usedAt: null, ...(ok ? {} : { attempts: { gte: MAX_ATTEMPTS } }) },
+    data: { usedAt: new Date() },
   });
   return ok && count === 1;
 }

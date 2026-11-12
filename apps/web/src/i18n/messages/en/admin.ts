@@ -87,6 +87,7 @@ export default {
         remaining: "{message} ({remaining, plural, one {# more failure} other {# more failures}} locks it).",
         missing: "Enter your email address and password.",
         wrongOrNotAdmin: "The email address or password is incorrect, or the account isn't an admin",
+        busy: "Many people are logging in right now. Please wait a moment and try again.",
         wrongCode: "The authenticator code is incorrect",
         masterMissing: "Enter the master password.",
         wrongMasterOrCode: "The master password or the authenticator code is incorrect",

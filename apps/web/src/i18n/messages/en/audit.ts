@@ -59,6 +59,7 @@ export default {
     oidcSyncName: "{sync, select, true {update the display name at every log-in} other {set the display name only when the account is created}}",
     oidcGroupsClaim: "groups attribute: {claim, select, none {none (off)} other {{claim}}}",
     oidcGroups: "Groups from single sign-on — joined: {added, select, none {none} other {{added}}}; left: {removed, select, none {none} other {{removed}}}; created: {created, select, none {none} other {{created}}}",
+    oidcLinkUnconfirmed: "Single sign-on linked to the account of {email}, whose address had been typed in without being confirmed; its password, passkeys, API keys and sessions from before were revoked",
     oidcNameChange: "{allowed, select, true {let single sign-on accounts change their name} other {keep single sign-on accounts' names}}",
     oidcEmailChange: "{allowed, select, true {let single sign-on accounts change their email address without confirmation} other {confirm single sign-on accounts' email address changes}}",
     nameChange: "Changed their name from \"{from}\" to \"{to}\"",

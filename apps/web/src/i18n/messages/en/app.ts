@@ -407,7 +407,7 @@ export default {
     locked: "This page is locked, so it can't be moved. Unlock it first.",
     destinationLocked: "The destination is locked with its child pages, so pages can't be moved there.",
     noEdit: "Moving this page needs edit permission.",
-    noEditChild: "It has child pages you can't edit, so it can't be moved.",
+    noEditChild: "It has child pages you can't edit (in the trash too), so it can't be moved.",
     lockedChild: "It has locked child pages, so it can't be moved.",
     intoItself: "A page can't be moved into itself or a page under it.",
     tooDeep: "It can't go there: pages would be nested more than {max, number} levels deep.",

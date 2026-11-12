@@ -235,13 +235,15 @@ export async function pageSearchText(prisma: PrismaClient, pageId: string, state
     fileIds = referencedFileIds(doc);
     chatIds = chatBlockIds(doc);
   }
-  // Only this knowledge root's files: a link pasted from another root's page
-  // doesn't make that file searchable here.
+  // Only this page's own files: whoever finds this page could otherwise read
+  // a file of a page they can't open, by putting its URL here. A file of
+  // another page becomes this page's own when copied (lib/file-copy.ts).
+  // (`fileIds`, all the page shows, still keeps the others from clean-up.)
   const rows =
     fileIds.length === 0
       ? []
       : await prisma.fileObject.findMany({
-          where: { id: { in: fileIds }, rootId: page.rootId },
+          where: { id: { in: fileIds }, pageId },
           select: { id: true, name: true, textEnc: true },
         });
   const byId = new Map(rows.map((r) => [r.id, r]));
