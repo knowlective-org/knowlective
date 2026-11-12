@@ -1,6 +1,7 @@
 import { getFormatter, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
 import { countAuditLogs, listAuditLogs } from "@/lib/audit";
+import { auditSummaries } from "./audit-view";
 import { Pagination, pageParam } from "@/components/pagination";
 import { openOptionalEmail } from "@/lib/emails";
 import {
@@ -42,7 +43,7 @@ export default async function AdminSecurityPage({ searchParams }: PageProps<"/ad
     prisma.adminLoginAttempt
       .findMany({ orderBy: { createdAt: "desc" }, take: 30 })
       .then((rows) => Promise.all(rows.map(async (a) => ({ ...a, email: await openOptionalEmail(a.emailEnc) })))),
-    listAuditLogs(AUDIT_PAGE_SIZE, (auditPage - 1) * AUDIT_PAGE_SIZE),
+    listAuditLogs(AUDIT_PAGE_SIZE, (auditPage - 1) * AUDIT_PAGE_SIZE).then((logs) => auditSummaries(logs, session.userId)),
     getTranslations("admin.security"),
     getFormatter(),
   ]);
@@ -85,7 +86,9 @@ export default async function AdminSecurityPage({ searchParams }: PageProps<"/ad
                   <tr data-ui="AdminSecurityPage.auditLogRow" data-id={log.id} key={log.id}>
                     <td style={{ whiteSpace: "nowrap" }}>{dateFormat.format(log.createdAt)}</td>
                     <td>{log.actorLabel}</td>
-                    <td>{log.summary}</td>
+                    <td data-ui="AdminSecurityPage.auditSummary" data-hidden={log.hidden || undefined}>
+                      {log.hidden ? t("auditHidden", { action: log.action }) : log.summary}
+                    </td>
                   </tr>
                 ))}
               </tbody>

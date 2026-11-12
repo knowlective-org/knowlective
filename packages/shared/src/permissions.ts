@@ -216,7 +216,9 @@ async function accessRules(
   userId: string | null,
   groupIds: Set<string>,
 ): Promise<{ grants: Grant[]; groupIds: Set<string> }> {
-  const root = await prisma.knowledgeRoot.findUnique({ where: { id: rootId }, select: { ownerId: true, rootPageId: true } });
+  const root = await prisma.knowledgeRoot.findUnique({ where: { id: rootId }, select: { ownerId: true, rootPageId: true, deletedAt: true } });
+  // Deleted by a site admin: nobody, auditors included, can open any of it.
+  if (root?.deletedAt) return { grants: [], groupIds: new Set() };
   if (root?.ownerId) {
     // Someone else's: an auditor may view it while that's allowed (never
     // listed in their sidebar: getVisibleTrees() reads no one else's).
@@ -337,8 +339,10 @@ export async function getUsersWithPageAccess(
   // A personal root: its owner alone.
   const owner = await prisma.page.findUnique({
     where: { id: pageId },
-    select: { root: { select: { owner: { select: { id: true, name: true, emailEnc: true, disabledAt: true } } } } },
+    select: { root: { select: { deletedAt: true, owner: { select: { id: true, name: true, emailEnc: true, disabledAt: true } } } } },
   });
+  // A deleted root: nobody.
+  if (owner?.root.deletedAt) return [];
   const personal = owner?.root.owner;
   let users: { id: string; name: string | null; emailEnc: Uint8Array | null }[];
   if (personal) {
@@ -554,8 +558,9 @@ export async function getVisibleTrees(prisma: PrismaClient, userId: string | nul
         });
   const roots = await prisma.knowledgeRoot.findMany({
     // The user's own personal root, and the roots their groups reach (an
-    // auditor: every root but the personal ones).
+    // auditor: every root but the personal ones). Not deleted ones.
     where: {
+      deletedAt: null,
       OR: [
         { id: { in: rootIds.map((r) => r.rootId) } },
         ...(userId ? [{ ownerId: userId }] : []),

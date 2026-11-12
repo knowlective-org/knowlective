@@ -18,6 +18,9 @@ const ja: MessageShape<typeof en> = {
     publicRemove: "ページ「{title}」（とその下のページ）のインターネットへの公開をやめる",
     rootCreate:
       "ナレッジルート「{title}」を作成し、グループ「{group}」に管理権限を付与{newGroup, select, true {（グループを新規作成し、作成者が参加）} other {}}{shareWithAll, select, true {。全ユーザーに閲覧権限を付与} other {}}",
+    rootDelete: "ナレッジルート「{title}」を削除（誰も開けない。元に戻せる）",
+    rootRestore: "ナレッジルート「{title}」を元に戻した",
+    hiddenPage: "閲覧できないページ",
     invitationIssue: "{email} を{role}として招待{groups}",
     invitationNoAddress: "宛先指定なし",
     invitationGroups: "（グループ: {groups}）",

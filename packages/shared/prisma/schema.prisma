@@ -122,6 +122,12 @@ model KnowledgeRoot {
   // (deletePersonalRoot), so no foreign-key action here.
   ownerId    String?  @unique
   owner      User?    @relation("PersonalRoot", fields: [ownerId], references: [id], onDelete: Restrict)
+  // Deleted by a site admin (/admin/roots): nobody can open any of its pages
+  // (permissions.ts gives a deleted root no grants), but everything is kept,
+  // and it can be restored there. Not for personal roots. The user isn't a
+  // foreign key (a master password login has none).
+  deletedAt   DateTime?
+  deletedById String?
 
   // Every page in the tree, including the root page.
   pages Page[]       @relation("KnowledgeRootPages")

@@ -8,6 +8,8 @@ import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
 import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { notifyChildrenChanged } from "@/lib/collab-events";
+import { currentPageState } from "@/lib/api/page-content";
+import { hasChildViewBlock } from "@/lib/child-view-blocks";
 import {
   MAX_COLUMNS,
   normalizeColumnName,
@@ -169,6 +171,10 @@ export async function loadPageProperties(pageId: string): Promise<PageProperties
   const data = await loadChildTable(page.parentId);
   const row = data?.rows.find((r) => r.id === pageId);
   if (!data || !row || data.columns.length === 0) return null;
+  // Only while the parent shows its child pages with their columns (a table,
+  // board or calendar block): not for columns left from one taken away.
+  const parentState = await currentPageState(page.parentId);
+  if (!parentState || !hasChildViewBlock(parentState)) return null;
   return { columns: data.columns, row, assignees: data.assignees, userNames: data.userNames };
 }
 

@@ -13,10 +13,11 @@ import { auditTranslator } from "@/i18n/audit";
 import { displayTitleWith } from "@/i18n/display-title";
 import { groupName } from "@/i18n/group-name";
 
-// The audit log's translator and the page's title in its language.
+// The audit log's translator, the page's title in its language, and what
+// stands for it where it's hidden (lib/audit-pages.ts).
 async function auditFor(title: string) {
   const audit = await auditTranslator();
-  return { audit, title: displayTitleWith(audit)(title) };
+  return { audit, title: displayTitleWith(audit)(title), hidden: audit("audit.hiddenPage") };
 }
 
 // Group grants on one page. Only users with MANAGE on the page may change
@@ -102,17 +103,20 @@ export async function setGrant(formData: FormData): Promise<void> {
     create: { pageId, groupId, access: access as PageAccess },
     update: { access: access as PageAccess },
   });
-  const { audit, title } = await auditFor(page.title);
-  await recordAudit(
-    { userId: user.id, label: userLabel(user) },
-    "page.grant.set",
+  const { audit, title, hidden } = await auditFor(page.title);
+  const summary = (shown: string) =>
     audit("audit.grantSet", {
-      title,
+      title: shown,
       group: groupName(audit, group),
       before: before ? audit(`access.${before.access}`) : "none",
       after: audit(`access.${access as PageAccess}`),
-    }),
+    });
+  await recordAudit(
+    { userId: user.id, label: userLabel(user) },
+    "page.grant.set",
+    summary(title),
     { pageId, groupId, from: before?.access ?? null, to: access as PageAccess },
+    summary(hidden),
   );
   return afterGrantChange(pageId, user.id);
 }
@@ -137,12 +141,15 @@ async function revertGrant(pageId: string, groupId: string): Promise<never> {
   if (!grant) back(pageId);
   if (grant.group.builtIn === PUBLIC_GROUP) back(pageId, "invalid");
   await prisma.pageGrant.delete({ where: { pageId_groupId: { pageId, groupId } } });
-  const { audit, title } = await auditFor(page.title);
+  const { audit, title, hidden } = await auditFor(page.title);
+  const summary = (shown: string) =>
+    audit("audit.grantRemove", { title: shown, group: groupName(audit, grant.group), access: audit(`access.${grant.access}`) });
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.grant.remove",
-    audit("audit.grantRemove", { title, group: groupName(audit, grant.group), access: audit(`access.${grant.access}`) }),
+    summary(title),
     { pageId, groupId, from: grant.access },
+    summary(hidden),
   );
   // The actor may have just removed their own access to this page.
   return afterGrantChange(pageId, user.id);
@@ -163,12 +170,13 @@ export async function publishPage(formData: FormData): Promise<void> {
   const existing = await prisma.pageGrant.findUnique({ where: { pageId_groupId: { pageId, groupId: group.id } } });
   if (existing) back(pageId);
   await prisma.pageGrant.create({ data: { pageId, groupId: group.id, access: "VIEW" } });
-  const { audit, title } = await auditFor(page.title);
+  const { audit, title, hidden } = await auditFor(page.title);
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.public.set",
     audit("audit.publicSet", { title }),
     { pageId },
+    audit("audit.publicSet", { title: hidden }),
   );
   revalidatePath(`/pages/${pageId}`, "layout");
   back(pageId);
@@ -184,12 +192,13 @@ export async function unpublishPage(formData: FormData): Promise<void> {
   if (!group) back(pageId);
   const { count } = await prisma.pageGrant.deleteMany({ where: { pageId, groupId: group.id } });
   if (count === 0) back(pageId);
-  const { audit, title } = await auditFor(page.title);
+  const { audit, title, hidden } = await auditFor(page.title);
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.public.remove",
     audit("audit.publicRemove", { title }),
     { pageId },
+    audit("audit.publicRemove", { title: hidden }),
   );
   reconnectDocuments(await subtreeIds(pageId));
   revalidatePath(`/pages/${pageId}`, "layout");

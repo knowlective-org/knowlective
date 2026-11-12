@@ -1,7 +1,7 @@
 // Turning pasted text and Markdown / text files into the editor's blocks.
-// (Word files: docx-import.ts.)
+// (Word files: docx-import.ts; CSV files, as a table: csv-import.ts.)
 
-export type ImportKind = "markdown" | "text" | "docx";
+export type ImportKind = "markdown" | "text" | "docx" | "csv";
 
 // A file larger than this is attached as a file without offering to expand it
 // into the page. Word files are mostly their images, which become attachments.
@@ -9,6 +9,7 @@ const MAX_IMPORT_BYTES: Record<ImportKind, number> = {
   markdown: 2 * 1024 * 1024,
   text: 2 * 1024 * 1024,
   docx: 50 * 1024 * 1024,
+  csv: 2 * 1024 * 1024,
 };
 
 // How a file's content can be expanded into the page, or null if it can only
@@ -22,7 +23,9 @@ export function importKind(file: File): ImportKind | null {
         ? "text"
         : /\.docx$/i.test(file.name)
           ? "docx"
-          : null;
+          : /\.(csv|tsv)$/i.test(file.name) || file.type === "text/csv"
+            ? "csv"
+            : null;
   return kind && file.size <= MAX_IMPORT_BYTES[kind] ? kind : null;
 }
 

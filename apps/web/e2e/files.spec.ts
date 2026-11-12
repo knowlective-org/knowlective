@@ -112,6 +112,24 @@ test.describe("Files", () => {
     await trashOpenPage(page);
   });
 
+  test("a CSV file can be attached or expanded into a table, its first row the header", async ({ page }) => {
+    await createPage(page, "E2E CSV");
+    await pasteFile(page, { name: "名簿.csv", type: "text/csv", base64: base64('名前,部署,メモ\n山田,開発,"カンマ, を含む"\n佐藤,営業\n') });
+
+    const dialog = page.getByTestId("AppDialog");
+    await expect(dialog).toContainText("名簿.csv");
+    await expect(dialog).toContainText("1行目が見出しの行");
+    await expect(dialog.locator('[data-ui="AppDialog.choiceButton"][data-id="attach"]')).toBeVisible();
+    await dialog.locator('[data-ui="AppDialog.choiceButton"][data-id="expand"]').click();
+
+    const table = editorBody(page).locator('[data-content-type="table"]');
+    await expect(table.locator("th")).toHaveText(["名前", "部署", "メモ"]);
+    await expect(table.locator("tr").nth(1).locator("td")).toHaveText(["山田", "開発", "カンマ, を含む"]);
+    await expect(table.locator("tr").nth(2).locator("td")).toHaveText(["佐藤", "営業", ""]);
+    await expect(editorBody(page).locator('[data-content-type="file"]')).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
   test("a Markdown file can replace the whole page, title included", async ({ page }) => {
     const { id, title: oldTitle } = await createPage(page, "E2E 置き換え");
     await typeInBody(page, "置き換える前の本文");
@@ -203,11 +221,18 @@ test.describe("Files", () => {
     await block.getByTestId("PdfBlock.nextButton").click();
     await expect(block.getByTestId("PdfBlock.status")).toHaveText("2 / 2");
 
-    // Full screen: the window, on the same page; ← turns back, Esc leaves.
+    // Full screen: the whole window (also with the block selected, which
+    // BlockNote styles), on the same page; ← turns back, Esc leaves.
+    // BlockNote's rule for a selected block's content, as the production
+    // build orders the styles (after the block's own; the dev server's
+    // order hides it).
+    await page.addStyleTag({ content: ".bn-block-content.ProseMirror-selectednode>*,.ProseMirror-selectednode>.bn-block-content>*{position:relative}" });
+    await block.locator("canvas").click();
+    await expect(page.locator(".ProseMirror-selectednode [data-ui='PdfBlock']")).toHaveCount(1);
     await block.getByTestId("PdfBlock.fullscreenButton").click();
     await expect(block).toHaveAttribute("data-fullscreen", "true");
-    const box = await block.boundingBox();
-    expect(box!.width).toBe(page.viewportSize()!.width);
+    const box = (await block.boundingBox())!;
+    expect([box.x, box.y, box.width, box.height]).toEqual([0, 0, page.viewportSize()!.width, page.viewportSize()!.height]);
     await expect(block.getByTestId("PdfBlock.status")).toHaveText("2 / 2");
     await page.keyboard.press("ArrowLeft");
     await expect(block.getByTestId("PdfBlock.status")).toHaveText("1 / 2");
