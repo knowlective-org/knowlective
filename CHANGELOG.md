@@ -8,14 +8,30 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- Knowledge roots in the admin console ("ナレッジルート", site admins; auditors view it): every knowledge root but the users' own, with its name, number of pages, the groups with access and when it was made, and nothing of what's in it. A knowledge root can be deleted there (typing back a code to confirm): nobody can open any of its pages any more, nor find them in search, and pages open in it are closed. Nothing is removed, and it can be restored on the same screen, with the same access. Both are recorded in the audit log
+- Copy, cut and paste on a whiteboard (Ctrl/⌘+C, X, V): the selected items, with the connectors between them, paste under the pointer (or in the middle of the screen), also on another whiteboard; pasting again there puts each copy a little further down and to the right, and one undo takes a paste back. Images pasted on another page become that page's own attachments, as for blocks. Other apps get the items' text. Items copied in Miro paste as the board's own: sticky notes (their color matched to the nearest of the board's), rectangles, ellipses, diamonds, text, connectors with their labels and the sides they're attached by, lines, and frames (a rectangle with the title above); Miro's images, drawings and other kinds are left out, with a note saying how many. Text from elsewhere becomes a text box
+- CSV files (and TSV) dropped or pasted into a page can be attached or expanded into a table, its first row the header row (UTF-8 or Shift_JIS; quoted fields may hold commas and line breaks; up to 1,000 rows and 50 columns, more is cut off with a note). Like Markdown and text files, they can be expanded with adding files turned off
+
+### Changed
+
+- A whiteboard's two boxes can be joined by more than one connector, through different sides: a connector is refused only where one already joins them by the same sides (a connector drawn without choosing a side matches any side)
+- Code blocks have a little room above and below them
+
 ### Fixed
 
+- A page showed its parent's columns (such as the date a calendar block made) under its title even when the parent no longer had a child page table, board or calendar (or had only the plain child page list). They now show only while the parent has one of those blocks; the columns and their values are kept
+- The change log in the admin console showed site admins the titles of pages they can't open (pages moved, locked, their permissions changed, published, masked in the history, or chosen as the landing page). Such titles are now hidden ("閲覧できないページ") from those who can't open the page; an entry recorded before this one, naming such a page, is shown only as hidden. Knowledge roots' names still show
+- A PDF block's full screen took only the window's width, staying where the block was, when the block was selected (as clicking it does): the editor's style for a selected block won over it
+- In an HTML code block, CSS in a `<style>` element and JavaScript in a `<script>` element weren't highlighted, and everything after them was colored as invalid. Every language's grammar is now used as written (Shiki's precompiled grammars lose the `\G` anchor these rules rely on)
 - Dragging a block by its ⋮⋮ handle with Ctrl (Option on a Mac) held copied it when dropped onto another block, but moved it when dropped in the margins or below the last block. It's copied there too now
 - In a chat's message box, typing right after picking someone from the "@" list could put the first letter at the end of the message, after what was typed next
 - Attachments (images, videos, files, PDFs) in a block copied from another page could only be opened by those who could open the page they were uploaded on: everyone else got 404 for them (a block copied from one's own root showed its file to oneself only). When someone who can edit the page, and can open the file's page, has the page open, the file is now copied to the page as its own and the block points to the copy, for everyone. Blocks pasted before this are fixed the same way, the next time such a person opens the page. Markdown written through the API gets the same, and the absolute attachment URLs the API's Markdown export writes are taken back as this site's attachments (before, a page written back with them lost track of its files, which were deleted 30 days later)
 
 ### Upgrade notes
 
+- A database migration adds `KnowledgeRoot.deletedAt` and `deletedById` (applied on start)
 - A database migration adds `FileObject.copiedFromId` (applied on start)
 
 ## [0.3.0] - 2026-11-11

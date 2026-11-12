@@ -48,6 +48,7 @@ import {
   whiteboardMap,
 } from "@/lib/whiteboard";
 import { getUploadPolicy } from "@/app/(app)/actions";
+import { adoptPageFiles } from "@/app/(app)/pages/[pageId]/file-actions";
 import { showAlert } from "@/components/dialog";
 import { showNotice } from "@/components/notice";
 import { PagePickerDialog } from "@/components/page-picker-dialog";
@@ -55,6 +56,7 @@ import { resolveAppUrl } from "@/lib/base-path";
 import { beginSaving } from "@/lib/saving-status";
 import { UploadError, postFile } from "@/lib/upload-file";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
+import { type Clip, clipBounds, clipHtml, clipItems, clipText, readClip } from "./clipboard";
 import {
   type Camera,
   type Point,
@@ -124,9 +126,15 @@ type LineEnds = { x1: number; y1: number; x2: number; y2: number };
 
 type RemoteCursor = { clientId: number; name: string; color: string; x: number; y: number };
 
-// Whether the connector links these two boxes, either way round. Two boxes
-// get one connector at most: more would lie on top of each other.
-const linksBoxes = (c: ConnectorItem, a: string, b: string) => (c.from === a && c.to === b) || (c.from === b && c.to === a);
+// Whether the connector links box `a` at side `aSide` to box `b` at side
+// `bSide`, either way round. Two boxes get one connector per pair of sides
+// at most: more would lie on top of each other; through other sides, they
+// run apart. No side chosen (null: the connector picks one itself) may be
+// any side, so it matches every side.
+const sameSide = (s: Side | null, t: Side | null) => s === null || t === null || s === t;
+const linksBoxes = (c: ConnectorItem, a: string, aSide: Side | null, b: string, bSide: Side | null) =>
+  (c.from === a && c.to === b && sameSide(c.fromSide, aSide) && sameSide(c.toSide, bSide)) ||
+  (c.from === b && c.to === a && sameSide(c.fromSide, bSide) && sameSide(c.toSide, aSide));
 
 // The pickers for a connector's or line's arrowheads (ARROW_ENDS), and a
 // connector's route (ROUTES).
@@ -740,6 +748,83 @@ export function WhiteboardCanvas({
     if (copies) setSelected(new Set(copies.values()));
   };
 
+  // Copy and paste (clipboard.ts). A paste goes under the pointer while it's
+  // on the board, else to the middle of the screen; pasting the same again
+  // there, each a little further down and to the right.
+  const pointerWorld = useRef<Point | null>(null);
+  const lastPaste = useRef<{ key: string; at: Point; count: number } | null>(null);
+
+  const copySelection = (data: DataTransfer): boolean => {
+    const chosen = clipItems(items, selection);
+    if (chosen.length === 0) return false;
+    data.setData("text/html", clipHtml(pageId ?? "", chosen));
+    data.setData("text/plain", clipText(chosen));
+    return true;
+  };
+
+  const pasteClip = async (clip: Clip, key: string) => {
+    if (clip.skipped > 0) showNotice(t("pasteSkipped", { count: clip.skipped }));
+    let pasted = clip.items;
+    const bounds = clipBounds(pasted);
+    if (!bounds) return;
+    if (map.size + pasted.length > MAX_ITEMS) {
+      showNotice(t("tooManyItems", { max: MAX_ITEMS }));
+      return;
+    }
+    // Images of another page: made this page's own first, as in documents
+    // (lib/file-copy.ts), so everyone who can open this page sees them.
+    const fileIds = [...new Set(pasted.flatMap((i) => (isBox(i) && i.src ? [i.src.slice("/api/files/".length)] : [])))];
+    if (pageId && clip.page !== pageId && fileIds.length > 0) {
+      const done = beginSaving();
+      const adopted = await adoptPageFiles(pageId, fileIds).catch(() => ({}) as Record<string, string | null>);
+      done();
+      pasted = pasted.map((i) => (isBox(i) && i.src ? { ...i, src: adopted[i.src.slice("/api/files/".length)] ?? i.src } : i));
+    }
+    const at = pointerWorld.current ?? viewCenter();
+    const last = lastPaste.current;
+    const count = last && last.key === key && last.at.x === at.x && last.at.y === at.y ? last.count + 1 : 0;
+    lastPaste.current = { key, at, count };
+    const dx = Math.round(at.x - bounds.x - bounds.w / 2) + count * 24;
+    const dy = Math.round(at.y - bounds.y - bounds.h / 2) + count * 24;
+    const ids = new Map(pasted.map((i) => [i.id, newId()]));
+    let z = topZ();
+    undo.current?.stopCapturing();
+    change(() => {
+      for (const i of pasted) {
+        const fields: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(i)) if (k !== "id" && v !== null && v !== "") fields[k] = v;
+        if (i.type === "connector") Object.assign(fields, { from: ids.get(i.from), to: ids.get(i.to), text: i.text });
+        else if (i.type === "line") Object.assign(fields, movedLine(i, dx, dy));
+        else Object.assign(fields, { x: clampCoord(i.x + dx), y: clampCoord(i.y + dy), text: i.text });
+        fields.z = ++z;
+        const item = new Y.Map<unknown>();
+        for (const [k, v] of Object.entries(fields)) item.set(k, v);
+        map.set(ids.get(i.id)!, item);
+      }
+    });
+    undo.current?.stopCapturing();
+    setSelected(new Set(pasted.filter((i) => i.type !== "connector").map((i) => ids.get(i.id)!)));
+    setEditing(null);
+    setTool("select");
+  };
+
+  // Text from elsewhere: a text box with it.
+  const pasteText = (text: string) => {
+    const lines = text.replace(/\r\n?/g, "\n").trim().slice(0, MAX_TEXT_LENGTH).split("\n");
+    if (lines.join("").trim() === "") return;
+    // About as wide as the longest line (wide characters twice), within reason.
+    const width = (line: string) => [...line].reduce((w, c) => w + (c.charCodeAt(0) > 0x2e7f ? 16 : 8), 0);
+    const w = Math.min(480, Math.max(DEFAULT_SIZE.text.w, Math.max(...lines.map(width)) + 16));
+    const rows = lines.reduce((n, line) => n + Math.max(1, Math.ceil((width(line) + 16) / w)), 0);
+    const h = Math.min(MAX_SIZE, DEFAULT_SIZE.text.h * rows);
+    const at = pointerWorld.current ?? viewCenter();
+    const id = addItem({ type: "text", x: clampCoord(at.x - w / 2), y: clampCoord(at.y - h / 2), w, h, text: lines.join("\n"), color: DEFAULT_COLOR.text });
+    if (id) {
+      setSelected(new Set([id]));
+      setTool("select");
+    }
+  };
+
   const moveSelection = (dx: number, dy: number) => {
     change(() => {
       for (const b of boxes) if (selection.has(b.id)) setField(b.id, { x: clampCoord(b.x + dx), y: clampCoord(b.y + dy) });
@@ -970,6 +1055,7 @@ export function WhiteboardCanvas({
     const point = canvasPoint(e);
     const world = toWorld(camera, point);
     sendPointer(world);
+    pointerWorld.current = world;
     if (!gesture.current && tool === "select" && !readOnly) {
       // The front box at or near the pointer (near: its dots lie just outside).
       const pad = 24 / camera.zoom;
@@ -1205,8 +1291,11 @@ export function WhiteboardCanvas({
       setReconnecting(null);
       const drop = dropAt(e.clientX, e.clientY, toWorld(camera, canvasPoint(e)));
       const box = drop?.box;
-      // Not onto two boxes another connector already links (either way).
-      const taken = box && items.some((i) => i.type === "connector" && i.id !== g.id && linksBoxes(i, box.id, g.fixed));
+      // Not onto two boxes another connector already links through the same
+      // sides (either way).
+      const moving = byId.get(g.id);
+      const fixedSide = moving?.type === "connector" ? (g.end === "from" ? moving.toSide : moving.fromSide) : null;
+      const taken = box && items.some((i) => i.type === "connector" && i.id !== g.id && linksBoxes(i, box.id, drop.side, g.fixed, fixedSide));
       // The side it was dropped toward: an elbow runs into (or out of) that side.
       if (taken) showNotice(t("connectorExists"));
       else if (box && box.id !== g.fixed) change(() => setField(g.id, { [g.end]: box.id, [`${g.end}Side`]: drop.side }));
@@ -1222,9 +1311,10 @@ export function WhiteboardCanvas({
         // there, connected to it (one step to undo).
         connectToCopy(g.from, g.fromSide, world);
       } else if (box && box.id !== g.from) {
-        // Already connected (either way): that connector, not a second on top
-        // of it, selected and told. Its arrowheads say which way it points.
-        const existing = items.find((i) => i.type === "connector" && linksBoxes(i, g.from, box.id));
+        // Already connected through the same sides (either way): that
+        // connector, not a second on top of it, selected and told. Its
+        // arrowheads say which way it points.
+        const existing = items.find((i) => i.type === "connector" && linksBoxes(i, g.from, g.fromSide, box.id, drop.side));
         if (existing) showNotice(t("connectorExists"));
         const id =
           existing?.id ??
@@ -1412,6 +1502,7 @@ export function WhiteboardCanvas({
         onPointerCancel={onPointerUp}
         onPointerLeave={() => {
           sendPointer(null);
+          pointerWorld.current = null;
           setHovered(null);
         }}
         onDoubleClick={onDoubleClick}
@@ -1420,13 +1511,38 @@ export function WhiteboardCanvas({
           if (!(e.target as Element).closest("textarea")) e.preventDefault();
         }}
         onKeyDown={onKeyDown}
-        // Images pasted or dropped on the board.
-        onPaste={(e) => {
-          if (readOnly || !pageId || (e.target as Element).closest("textarea")) return;
-          const files = [...e.clipboardData.files];
-          if (files.length === 0) return;
+        // The selection copied (also from a board one can only view), or cut.
+        onCopy={(e) => {
+          if ((e.target as Element).closest("textarea") || !copySelection(e.clipboardData)) return;
           e.preventDefault();
-          void addImages(files, viewCenter());
+        }}
+        onCut={(e) => {
+          if (readOnly || (e.target as Element).closest("textarea") || !copySelection(e.clipboardData)) return;
+          e.preventDefault();
+          removeItems(selection);
+        }}
+        // Items copied on a board or in Miro, images, or text, pasted.
+        onPaste={(e) => {
+          if (readOnly || (e.target as Element).closest("textarea")) return;
+          const html = e.clipboardData.getData("text/html");
+          const clip = html ? readClip(html) : null;
+          if (clip) {
+            e.preventDefault();
+            void pasteClip(clip, html);
+            return;
+          }
+          const files = [...e.clipboardData.files];
+          if (files.length > 0) {
+            if (!pageId) return;
+            e.preventDefault();
+            void addImages(files, pointerWorld.current ?? viewCenter());
+            return;
+          }
+          const text = e.clipboardData.getData("text/plain");
+          if (text.trim()) {
+            e.preventDefault();
+            pasteText(text);
+          }
         }}
         onDragOver={(e) => {
           if (readOnly || !pageId || !e.dataTransfer.types.includes("Files")) return;

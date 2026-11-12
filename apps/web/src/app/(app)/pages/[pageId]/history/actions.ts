@@ -167,6 +167,8 @@ export async function applyMask(pageId: string, rawStrings: string[]): Promise<M
       matches,
     }),
     { pageId: id, versionIds: hits.map((h) => h.id), matches },
+    // The title hidden (lib/audit-pages.ts).
+    audit("audit.versionMask", { title: audit("audit.hiddenPage"), versions: hits.length, matches }),
   );
   return { versions: hits.length, matches, inCurrent: false };
 }

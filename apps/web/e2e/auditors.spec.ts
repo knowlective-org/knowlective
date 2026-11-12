@@ -74,7 +74,7 @@ test("an auditor sees the admin console read-only, and its actions refuse them",
     await openAdmin(auditor, "", "auditor");
     // Every section a site admin sees, with the controls disabled.
     await expect(auditor.getByTestId("AdminReadOnly.status")).toBeVisible();
-    await expect(auditor.getByTestId("AdminSidebar.navLink")).toHaveText(["概要", "ユーザー", "グループ", "ファイル", "セキュリティ", "バージョン情報"]);
+    await expect(auditor.getByTestId("AdminSidebar.navLink")).toHaveText(["概要", "ユーザー", "グループ", "ナレッジルート", "ファイル", "セキュリティ", "バージョン情報"]);
     await expect(auditor.getByTestId("AdminSidebar.nav").locator("..")).toContainText(`${ACCOUNTS.auditor.name} (監査)`);
     await expect(auditor.getByTestId("OutboundProxyForm.urlInput")).toBeDisabled();
     await expect(auditor.getByTestId("LinkPreviewSettingsForm.submitButton")).toBeDisabled();
@@ -82,6 +82,10 @@ test("an auditor sees the admin console read-only, and its actions refuse them",
     await expect(auditor.getByTestId("AdminReadOnly.status")).toBeVisible();
     await auditor.getByTestId("AdminSidebar.navLink").filter({ hasText: "ユーザー" }).click();
     await expect(auditor.getByTestId("AdminUsersPage.userRow").filter({ hasText: ACCOUNTS.editor.email })).toBeVisible();
+    // Knowledge roots: listed, but none can be deleted.
+    await auditor.getByTestId("AdminSidebar.navLink").filter({ hasText: "ナレッジルート" }).click();
+    await expect(auditor.getByTestId("AdminReadOnly.status")).toBeVisible();
+    await expect(auditor.getByTestId("DeleteRootButton.submitButton").first()).toBeDisabled();
 
     // The auditors group: its members listed; it can't be deleted.
     await auditor.getByTestId("AdminSidebar.navLink").filter({ hasText: "グループ" }).click();

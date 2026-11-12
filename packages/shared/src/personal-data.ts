@@ -124,4 +124,6 @@ export async function encryptLegacyPersonalData(prisma: PrismaClient, dataKey: U
 }
 
 // The sealed part of an audit log entry.
-export type AuditText = { actorLabel: string; summary: string; detail: Prisma.JsonValue | null };
+// `redacted`: for an entry naming pages, the summary with their titles
+// hidden, shown to those who can't open one of them (apps/web lib/audit.ts).
+export type AuditText = { actorLabel: string; summary: string; detail: Prisma.JsonValue | null; redacted?: string };

@@ -60,16 +60,19 @@ export async function movePage(pageId: string, parentId: string, beforeId: strin
   if (plan.parentChanges) {
     const audit = await auditTranslator();
     const displayTitle = displayTitleWith(audit);
+    // With the pages' titles, or hidden (lib/audit-pages.ts; the root's name isn't).
+    const summary = (page: (title: string) => string) =>
+      audit("audit.pageMove", {
+        title: page(plan.title),
+        descendants: plan.liveDescendantIds.length,
+        from: plan.fromParentTitle !== null ? audit("audit.pageMoveFrom", { title: page(plan.fromParentTitle) }) : "",
+        to: page(plan.toParentTitle),
+        root: plan.toRootTitle !== null ? audit("audit.pageMoveRoot", { root: displayTitle(plan.toRootTitle) }) : "",
+      });
     await recordAudit(
       { userId: user.id, label: userLabel(user) },
       "page.move",
-      audit("audit.pageMove", {
-        title: displayTitle(plan.title),
-        descendants: plan.liveDescendantIds.length,
-        from: plan.fromParentTitle !== null ? audit("audit.pageMoveFrom", { title: displayTitle(plan.fromParentTitle) }) : "",
-        to: displayTitle(plan.toParentTitle),
-        root: plan.toRootTitle !== null ? audit("audit.pageMoveRoot", { root: displayTitle(plan.toRootTitle) }) : "",
-      }),
+      summary(displayTitle),
       {
         pageId: plan.pageId,
         fromParentId: plan.fromParentId,
@@ -79,6 +82,7 @@ export async function movePage(pageId: string, parentId: string, beforeId: strin
         descendants: plan.liveDescendantIds.length,
         accessChanges: plan.accessChanges,
       },
+      summary(() => audit("audit.hiddenPage")),
     );
     // Access may have changed: open editors reconnect and are checked again.
     reconnectDocuments([plan.pageId, ...plan.liveDescendantIds]);

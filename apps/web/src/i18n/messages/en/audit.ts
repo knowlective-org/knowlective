@@ -21,6 +21,9 @@ export default {
     publicRemove: "Stopped publishing the page \"{title}\" (and the pages under it) to the internet",
     rootCreate:
       "Created the knowledge root \"{title}\" and gave the group \"{group}\" manage permission{newGroup, select, true { (a new group, joined by its creator)} other {}}{shareWithAll, select, true {. Gave all users view permission} other {}}",
+    rootDelete: "Deleted the knowledge root \"{title}\" (nobody can open it; it can be restored)",
+    rootRestore: "Restored the knowledge root \"{title}\"",
+    hiddenPage: "a page you can't open",
     invitationIssue: "Invited {email} as {role}{groups}",
     invitationNoAddress: "(no address)",
     invitationGroups: " (groups: {groups})",

@@ -56,6 +56,7 @@ test.describe("Child page table", () => {
 
     await page.getByTestId("ChildTableBlock.pageLink").click();
     await expect(page.getByTestId("TitleField")).toHaveValue("子ページ");
+    const childUrl = page.url();
     const property = page.getByTestId("PageProperties.row");
     await expect(property).toHaveCount(1);
     await expect(property).toContainText("担当部署");
@@ -69,6 +70,17 @@ test.describe("Child page table", () => {
     await expect(page.getByTestId("ChildTableBlock.row").locator("input").first()).toHaveValue("開発部");
     // A page outside any table has no properties.
     await expect(page.getByTestId("PageProperties")).toHaveCount(0);
+
+    // The table taken away (its columns stay): the child page shows none.
+    await page.getByTestId("ChildTableBlock").hover();
+    await page.locator(".bn-side-menu [draggable=true]").click();
+    await page.getByRole("menuitem", { name: "削除", exact: true }).click();
+    await expect(page.getByTestId("ChildTableBlock")).toHaveCount(0);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await page.goto(childUrl);
+    await expect(page.getByTestId("TitleField")).toHaveValue("子ページ");
+    await expect(page.getByTestId("PageProperties")).toHaveCount(0);
+    await page.goto(parentUrl);
     await trashOpenPage(page);
   });
 

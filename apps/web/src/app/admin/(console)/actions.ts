@@ -592,11 +592,14 @@ export async function saveLandingPage(_prev: LandingPageSettingState, formData: 
   const landing = id ? (await landingPageOptions(actor.userId)).find((o) => o.id === id) : null;
   if (landing === undefined) return { error: (await getTranslations("admin.landing.errors"))("notListed") };
   await prisma.instanceConfig.update({ where: { id: 1 }, data: { landingPageId: id } });
+  const audit = await auditTranslator();
   await recordAudit(
     actor,
     "landing-page.settings",
-    (await auditTranslator())("audit.landingPage", { set: String(landing !== null), label: landing?.label ?? "" }),
+    audit("audit.landingPage", { set: String(landing !== null), label: landing?.label ?? "" }),
     { pageId: id },
+    // The page's title hidden (lib/audit-pages.ts).
+    audit("audit.landingPage", { set: String(landing !== null), label: audit("audit.hiddenPage") }),
   );
   revalidatePath("/admin", "layout");
   return { saved: true };

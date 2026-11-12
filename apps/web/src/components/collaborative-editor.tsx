@@ -36,6 +36,7 @@ import { type PdfBlock, pdfTitle } from "./editor/pdf-text";
 import { singleUrl } from "./editor/link-preview-block";
 import { parseVideoUrl } from "./editor/video-url";
 import { type ExportBlock, downloadBlob, hasChildPageBlocks, prepareBlocksForExport } from "./editor/markdown-export";
+import { MAX_CSV_COLUMNS, MAX_CSV_ROWS, csvToTable } from "./editor/csv-import";
 import {
   type ImportKind,
   type ImportedBlock,
@@ -258,7 +259,7 @@ function discardFileBlock(editor: BlockEditor, blockId: string): Record<string, 
   return {};
 }
 
-// Adds the content of a Markdown, text or Word file to the page, in place of
+// Adds the content of a Markdown, text, Word or CSV file (a table) to the page, in place of
 // the file block BlockNote has just created for it (`blockId`).
 async function expandFile(
   editor: BlockEditor,
@@ -284,6 +285,14 @@ async function expandFile(
       );
       return discardFileBlock(editor, blockId);
     }
+  } else if (kind === "csv") {
+    const table = csvToTable(await readTextFile(file), file.name);
+    if (!table) {
+      void showAlert(text("editor.expandCsvEmpty"), { title: text("editor.expandFailedTitle") });
+      return discardFileBlock(editor, blockId);
+    }
+    if (table.truncated) void showAlert(text("editor.expandCsvTruncated", { rows: MAX_CSV_ROWS, columns: MAX_CSV_COLUMNS }));
+    blocks = [table.block as ImportedBlock];
   } else {
     const text = await readTextFile(file);
     blocks =
@@ -425,7 +434,7 @@ async function pdfBlocksOf(file: File): Promise<PdfBlock[] | null> {
   }
 }
 
-// A Markdown, text or Word file (dropped, pasted, or chosen in a file block)
+// A Markdown, text, Word or CSV file (dropped, pasted, or chosen in a file block)
 // can be attached like any other file or expanded into the page (a Markdown
 // file can also replace the whole page), and a PDF attached or shown page by
 // page; the user chooses.
@@ -444,7 +453,7 @@ async function expandOrUpload(provider: HocuspocusProvider, pageId: string, file
     if (editor && blockId) return discardFileBlock(editor, blockId);
     throw new Error(message);
   };
-  if (!policy.enabled && !(editor && blockId && (kind === "markdown" || kind === "text" || isPdfFile(file)))) {
+  if (!policy.enabled && !(editor && blockId && (kind === "markdown" || kind === "text" || kind === "csv" || isPdfFile(file)))) {
     return refuse(text("files.errors.disabled"));
   }
   if (!isUploadAllowed(file.name, policy.extensions)) {
@@ -455,7 +464,8 @@ async function expandOrUpload(provider: HocuspocusProvider, pageId: string, file
     return uploadFile(pageId, file);
   }
   const choice = await showChoice(
-    text("editor.expandChoice", { name: file.name }) + (kind === "docx" ? text("editor.expandDocxNote") : ""),
+    text("editor.expandChoice", { name: file.name }) +
+      (kind === "docx" ? text("editor.expandDocxNote") : kind === "csv" ? text("editor.expandCsvNote") : ""),
     [
       ...(policy.enabled ? [{ value: "attach" as const, label: text("editor.attach") }] : []),
       // Markdown only: its leading heading can be the title.
@@ -563,7 +573,7 @@ function EditorBody({
         }
       },
       // Guests can't add files; without uploadFile BlockNote ignores drops.
-      // For Markdown, text and Word files, expandOrUpload asks whether to attach or expand.
+      // For Markdown, text, Word and CSV files, expandOrUpload asks whether to attach or expand.
       // Files are stored as "/api/files/<id>", without the base path.
       resolveFileUrl: async (url: string) => resolveAppUrl(url),
       uploadFile: readOnly

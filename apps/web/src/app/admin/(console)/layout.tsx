@@ -14,10 +14,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 // Content managers only see users (invitations) and groups. Labels: admin.shell.nav.
-const NAV: { href: string; key: "overview" | "users" | "groups" | "files" | "security" | "about"; siteAdminOnly?: boolean }[] = [
+const NAV: { href: string; key: "overview" | "users" | "groups" | "roots" | "files" | "security" | "about"; siteAdminOnly?: boolean }[] = [
   { href: "/admin", key: "overview", siteAdminOnly: true },
   { href: "/admin/users", key: "users" },
   { href: "/admin/groups", key: "groups" },
+  { href: "/admin/roots", key: "roots", siteAdminOnly: true },
   { href: "/admin/files", key: "files", siteAdminOnly: true },
   { href: "/admin/security", key: "security", siteAdminOnly: true },
   { href: "/admin/about", key: "about", siteAdminOnly: true },

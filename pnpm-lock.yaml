@@ -71,7 +71,7 @@ importers:
       '@shikijs/engine-javascript':
         specifier: 4.6.0
         version: 4.6.0
-      '@shikijs/langs-precompiled':
+      '@shikijs/langs':
         specifier: 4.6.0
         version: 4.6.0
       '@shikijs/themes':
@@ -1559,6 +1559,10 @@ packages:
 
   '@shikijs/langs-precompiled@4.6.0':
     resolution: {integrity: sha512-LO4zGfclIlPH/4ec89Ys5+PAPtIAvOEadxKpFbiI87ALvOIMdzCRAaMxnQ2b2GieaElVtOVYOiGdBLaU4dvQLA==}
+    engines: {node: '>=20'}
+
+  '@shikijs/langs@4.6.0':
+    resolution: {integrity: sha512-1yMEX3oCVV54LUq/ovfpRkDQoYDkcvjSWFFa/YLUDMiSoRzMi2uxLJYbv41ahT8Lu9lFMaa7hecd3Q39trqUyg==}
     engines: {node: '>=20'}
 
   '@shikijs/primitive@4.6.0':
@@ -6215,6 +6219,10 @@ snapshots:
     dependencies:
       '@shikijs/types': 4.6.0
       oniguruma-to-es: 4.3.6
+
+  '@shikijs/langs@4.6.0':
+    dependencies:
+      '@shikijs/types': 4.6.0
 
   '@shikijs/primitive@4.6.0':
     dependencies:

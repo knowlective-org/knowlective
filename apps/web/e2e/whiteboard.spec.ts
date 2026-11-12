@@ -240,6 +240,98 @@ test.describe("Whiteboard", () => {
     }
   });
 
+  test("copy, cut and paste: the board's own items, what Miro copies, and text", async ({ browser }) => {
+    const context = await browser.newContext({ storageState: authFile("editor") });
+    const page = await context.newPage();
+    // A clipboard event on the board, as the browser sends for Ctrl+C / X / V
+    // (the system clipboard isn't used): what it put there, or what's pasted.
+    const clipboard = (type: "copy" | "cut" | "paste", data: Record<string, string> = {}) =>
+      page.evaluate(
+        ({ type, data }) => {
+          const transfer = new DataTransfer();
+          for (const [format, value] of Object.entries(data)) transfer.setData(format, value);
+          const board = document.querySelector('[data-ui="Whiteboard.canvas"]')!;
+          board.dispatchEvent(new ClipboardEvent(type, { clipboardData: transfer, bubbles: true, cancelable: true }));
+          return { html: transfer.getData("text/html"), text: transfer.getData("text/plain") };
+        },
+        { type, data },
+      );
+    try {
+      await createWhiteboard(page, "E2E ホワイトボードのコピー");
+      await addSticky(page, 150, 150, "コピー元A");
+      await addSticky(page, 400, 150, "コピー元B");
+      await page.getByTestId("Whiteboard.connectorToolButton").click();
+      const a = (await item(page, "コピー元A").boundingBox())!;
+      const b = (await item(page, "コピー元B").boundingBox())!;
+      await page.mouse.move(a.x + 50, a.y + 50);
+      await page.mouse.down();
+      await page.mouse.move(b.x + 50, b.y + 50, { steps: 5 });
+      await page.mouse.up();
+      await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(1);
+
+      await clickBoard(page, 700, 450);
+      await page.keyboard.press("Control+a");
+      const copied = await clipboard("copy");
+      expect(copied.text).toBe("コピー元A\nコピー元B");
+
+      // Pasted under the pointer, with the connector between them; one undo
+      // takes it all back.
+      const canvas = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
+      await page.mouse.move(canvas.x + 400, canvas.y + 400);
+      await clipboard("paste", { "text/html": copied.html, "text/plain": copied.text });
+      await expect(item(page, "コピー元A")).toHaveCount(2);
+      await expect(item(page, "コピー元B")).toHaveCount(2);
+      await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(2);
+      const pasted = (await item(page, "コピー元A").nth(1).boundingBox())!;
+      const pastedB = (await item(page, "コピー元B").nth(1).boundingBox())!;
+      expect(Math.round((pasted.x + pastedB.x + pastedB.width) / 2)).toBe(Math.round(canvas.x + 400));
+      await page.keyboard.press("Control+z");
+      await expect(page.getByTestId("Whiteboard.item")).toHaveCount(2);
+      await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(1);
+
+      // Cut: gone, with its connector; pasted back.
+      await item(page, "コピー元B").click();
+      const cut = await clipboard("cut");
+      await expect(item(page, "コピー元B")).toHaveCount(0);
+      await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(0);
+      await clipboard("paste", { "text/html": cut.html });
+      await expect(item(page, "コピー元B")).toHaveCount(1);
+
+      // From Miro (its undocumented format: JSON with 59 added to each byte,
+      // in Base64): a green sticky note and a diamond, connected.
+      const miro = {
+        data: {
+          objects: [
+            { type: 14, id: 0, widgetData: { type: "sticker", json: { _position: { offsetPx: { x: 0, y: 0 }, schema: "canvasOffsetPx" }, scale: { scale: 0.5 }, size: { width: 200, height: 200 }, text: "<p>Miroの付箋</p>", style: JSON.stringify({ sbc: 0x6ae08d }) } } },
+            { type: 14, id: 1, widgetData: { type: "shape", json: { _position: { offsetPx: { x: 300, y: 0 }, schema: "canvasOffsetPx" }, scale: { scale: 1 }, size: { width: 160, height: 100 }, text: "<p>Miroの図形</p>", shape: "8", style: JSON.stringify({ bc: -1 }) } } },
+            { type: 14, id: 2, widgetData: { type: "line", json: { primary: { point: { x: 1, y: 0.5 }, widgetIndex: 0 }, secondary: { point: { x: 0, y: 0.5 }, widgetIndex: 1 }, style: JSON.stringify({ a_end: 9, lt: 0 }), line: { captions: [{ text: "<p>つながり</p>", position: { x: 0.5, y: 0.5 } }] } } } },
+          ],
+        },
+      };
+      const bytes = Buffer.from(Buffer.from(JSON.stringify(miro)).map((byte) => (byte + 59) & 255));
+      const html = `<meta charset="utf-8"><span data-meta="&lt;--(miro-data-v1)${bytes.toString("base64")}(/miro-data-v1)--&gt;"></span>`;
+      await clickBoard(page, 700, 450);
+      await page.mouse.move(canvas.x + 500, canvas.y + 450);
+      await clipboard("paste", { "text/html": html, "text/plain": "Miroの付箋\nMiroの図形" });
+      await expect(item(page, "Miroの付箋")).toHaveAttribute("data-type", "sticky");
+      await expect(item(page, "Miroの付箋")).toHaveAttribute("style", /--color-wb-green/);
+      await expect(item(page, "Miroの図形")).toHaveAttribute("data-type", "diamond");
+      // The connector between them (the one between the copied notes went with the cut).
+      await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(1);
+      await expect(page.getByTestId("Whiteboard.connectorLabel").filter({ hasText: "つながり" })).toHaveCount(1);
+
+      // Text from elsewhere: a text box with it.
+      await clickBoard(page, 100, 450);
+      await clipboard("paste", { "text/plain": "貼り付けた文章\n二行目" });
+      await expect(item(page, "貼り付けた文章")).toHaveAttribute("data-type", "text");
+
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      await trashOpenPage(page);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("rectangles and ellipses are drawn by dragging, square and round with Shift", async ({ browser }) => {
     const context = await browser.newContext({ storageState: authFile("editor") });
     const page = await context.newPage();
@@ -347,7 +439,7 @@ test.describe("Whiteboard", () => {
       await page.mouse.move(target.x + 50, target.y + 50, { steps: 6 });
       await page.mouse.up();
       await expect(line).toHaveCount(1);
-      await expect(page.getByTestId("Notice")).toHaveText("すでに同じオブジェクト同士を接続しているコネクターが存在しています");
+      await expect(page.getByTestId("Notice")).toHaveText("同じ辺どうしで、同じオブジェクトを接続しているコネクターがすでにあります");
       // Nor the other way round.
       await page.keyboard.press("Escape");
       await item(page, "終わり").hover();
@@ -400,6 +492,26 @@ test.describe("Whiteboard", () => {
       expect(Math.round(copy.x + copy.width / 2)).toBe(Math.round(canvas.x + 750));
       await expect(line.nth(1)).toHaveAttribute("data-from", await idOf("付け替え先"));
       await expect(line.nth(1)).toHaveAttribute("data-to", await idOf("新しい付箋"));
+
+      // Two boxes already connected (from 始まり's right side), connected again
+      // from another side: a second connector; from that side once more: not.
+      const fromBottom = async () => {
+        await page.keyboard.press("Escape");
+        await item(page, "始まり").hover();
+        const bottom = page.locator('[data-ui="Whiteboard.connectHandle"][data-id="bottom"]');
+        const b = (await bottom.boundingBox())!;
+        const t = (await item(page, "付け替え先").boundingBox())!;
+        await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(t.x + 50, t.y + 50, { steps: 6 });
+        await page.mouse.up();
+      };
+      await fromBottom();
+      await expect(line).toHaveCount(3);
+      await expect(line.nth(2)).toHaveAttribute("data-from-side", "bottom");
+      await fromBottom();
+      await expect(line).toHaveCount(3);
+      await expect(page.getByTestId("Notice")).toHaveText("同じ辺どうしで、同じオブジェクトを接続しているコネクターがすでにあります");
 
       await expect(page.getByTestId("PageView.status")).toHaveCount(0);
       await trashOpenPage(page);

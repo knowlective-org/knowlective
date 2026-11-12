@@ -12,10 +12,19 @@ export async function recordAudit(
   action: string,
   summary: string,
   detail?: Prisma.InputJsonValue,
+  // For an entry naming pages (lib/audit-pages.ts, which says where in
+  // `detail` their ids are): the summary again with their titles hidden
+  // (audit.hiddenPage), shown to those who can't open one of them.
+  redacted?: string,
 ): Promise<void> {
   // The id is chosen here: the sealed text is bound to it.
   const id = randomUUID();
-  const text: AuditText = { actorLabel: actor.label, summary, detail: (detail ?? null) as AuditText["detail"] };
+  const text: AuditText = {
+    actorLabel: actor.label,
+    summary,
+    detail: (detail ?? null) as AuditText["detail"],
+    ...(redacted !== undefined ? { redacted } : {}),
+  };
   await prisma.auditLog.create({
     data: { id, actorId: actor.userId, action, sealed: sealAudit(await loadDataKey(prisma), id, text) },
   });

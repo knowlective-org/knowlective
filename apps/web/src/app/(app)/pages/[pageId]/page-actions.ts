@@ -143,22 +143,24 @@ export async function lockPage(pageId: string, withChildren: boolean): Promise<{
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.lock",
-    lockAudit(await auditTranslator(), "audit.pageLock", page.title, withChildren),
-    { pageId, withChildren },
+    ...lockAudit(await auditTranslator(), "audit.pageLock", page.title, withChildren, { pageId, withChildren }),
   );
   // Open editors reconnect and come back read-only.
   reconnectDocuments(withChildren ? [pageId, ...descendants] : [pageId]);
   return {};
 }
 
-// An audit log entry for locking or unlocking `title`.
+// An audit log entry for locking or unlocking `title`: its summary, detail,
+// and the summary with the title hidden (lib/audit-pages.ts).
 function lockAudit(
   audit: Awaited<ReturnType<typeof auditTranslator>>,
   key: "audit.pageLock" | "audit.pageUnlock",
   title: string,
   withChildren: boolean,
-): string {
-  return audit(key, { title: displayTitleWith(audit)(title), withChildren: String(withChildren) });
+  detail: { pageId: string; withChildren: boolean },
+): [string, typeof detail, string] {
+  const summary = (shown: string) => audit(key, { title: shown, withChildren: String(withChildren) });
+  return [summary(displayTitleWith(audit)(title)), detail, summary(audit("audit.hiddenPage"))];
 }
 
 // Unlocks the page. Needs EDIT on it; anyone with EDIT may, not only the
@@ -185,8 +187,7 @@ export async function unlockPage(pageId: string): Promise<{ error?: string }> {
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
     "page.unlock",
-    lockAudit(await auditTranslator(), "audit.pageUnlock", page.title, page.lockSubtree),
-    { pageId, withChildren: page.lockSubtree },
+    ...lockAudit(await auditTranslator(), "audit.pageUnlock", page.title, page.lockSubtree, { pageId, withChildren: page.lockSubtree }),
   );
   reconnectDocuments(page.lockSubtree ? [pageId, ...liveDescendants(pages, live, pageId)] : [pageId]);
   return {};

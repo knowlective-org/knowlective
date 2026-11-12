@@ -77,6 +77,8 @@ export async function restorePage(pageId: string, newParentId?: string): Promise
       from: displayTitle(from.title),
     }),
     { pageId, fromParentId: from.id, toParentId: to.id },
+    // The titles hidden (lib/audit-pages.ts).
+    audit("audit.pageRestoreMove", { title: audit("audit.hiddenPage"), to: audit("audit.hiddenPage"), from: audit("audit.hiddenPage") }),
   );
   notifyChildrenChanged(newParentId);
   return {};
