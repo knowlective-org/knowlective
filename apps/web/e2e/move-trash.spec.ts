@@ -35,6 +35,11 @@ test("a page moves only if every page under it, in the trash too, can be edited"
     await page.goto(`pages/${ids.moved}`);
     await page.getByTestId("PageMenu.button").click();
     await page.getByTestId("PageMenu.move").click();
+    // Found by its title: the matches alone, after the titles above them.
+    await page.getByTestId("MoveDialog.filterInput").fill(`移動先 ${stamp}`);
+    const options = page.getByTestId("MoveDialog.parentSelect").locator("option");
+    await expect(options).toHaveCount(1);
+    await expect(options).toHaveText(`E2E 移動 ${stamp} / E2E 移動先 ${stamp}`);
     await page.getByTestId("MoveDialog.parentSelect").selectOption(ids.target);
     await page.getByTestId("MoveDialog.submitButton").click();
     await expect(page.getByTestId("AppDialog")).toContainText("ごみ箱にあるもの");

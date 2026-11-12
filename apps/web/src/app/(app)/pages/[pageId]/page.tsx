@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
@@ -14,6 +14,7 @@ import { publicPageState } from "@/lib/public-page-state";
 import { getBrand } from "@/lib/brand";
 import { jsonLd, pageDescription } from "@/lib/seo";
 import { auditorsSeePersonalRoots, noteAuditorView } from "@/lib/personal-root-audit";
+import { shortcutTarget } from "@/lib/shortcuts";
 import { type PageLockView, PageView } from "./page-view";
 
 // Shared by generateMetadata and the page within one request. Someone not
@@ -32,7 +33,7 @@ const loadPage = cache(async (pageId: string) => {
 // and Open Graph / Twitter card tags (lib/seo.ts).
 export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">): Promise<Metadata> {
   const { user, page } = await loadPage((await params).pageId);
-  if (!page) return {};
+  if (!page || page.kind === "SHORTCUT") return {};
   const title = (await getDisplayTitle())(page.title);
   if (user) return { title };
   const [description, base, brand] = await Promise.all([pageDescription(page.id), getPublicUrl(), getBrand()]);
@@ -49,6 +50,13 @@ export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">)
 export default async function PageEditorRoute({ params }: PageProps<"/pages/[pageId]">) {
   const { user, page } = await loadPage((await params).pageId);
   if (!page) notFound();
+  // A shortcut opens its target, if the viewer can open that (their own
+  // access to it, not the shortcut's); otherwise there's nothing here.
+  if (page.kind === "SHORTCUT") {
+    const target = await shortcutTarget(user?.id ?? null, page.shortcutTargetId);
+    if (!target) notFound();
+    redirect(`/pages/${target}`);
+  }
 
   // Someone else's personal root (an auditor): recorded, and said so. The
   // owner's root page says auditors may look, while they may.

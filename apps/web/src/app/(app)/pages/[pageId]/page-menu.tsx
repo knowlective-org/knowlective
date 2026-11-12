@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useDisplayTitle } from "@/i18n/use-display-title";
 import { showAlert, showChoice, showConfirm, showCopyText, showTypedConfirm } from "@/components/dialog";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, EXPORT_WHITEBOARD_EVENT } from "@/lib/page-export";
+import { ChildListDialog } from "@/components/child-list-dialog";
 import { MoveDialog } from "./move-dialog";
 import { checkDeletePage, deletePage, loadPageInfo, lockPage, type PageInfo, unlockPage } from "./page-actions";
 import styles from "./page-view.module.css";
@@ -68,6 +69,7 @@ export function PageMenu({
   canManage,
   isRootPage,
   personal,
+  hasChildren,
 }: {
   pageId: string;
   // Current (live) title, for the delete confirmation.
@@ -82,11 +84,15 @@ export function PageMenu({
   isRootPage: boolean;
   // In the user's personal knowledge root: there's nothing to share.
   personal: boolean;
+  // The page has child pages the user can see (listed by "child pages").
+  hasChildren: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [shortcutOpen, setShortcutOpen] = useState(false);
+  const [childrenOpen, setChildrenOpen] = useState(false);
   const [locking, setLocking] = useState(false);
   const [info, setInfo] = useState<PageInfo | null | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
@@ -164,6 +170,20 @@ export function PageMenu({
             <Link href={`/pages/${pageId}/history`} role="menuitem" className={styles.menuItem} data-ui="PageMenu.history">
               {t("history")}
             </Link>
+            {hasChildren && (
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                data-ui="PageMenu.childPages"
+                onClick={() => {
+                  setOpen(false);
+                  setChildrenOpen(true);
+                }}
+              >
+                {t("childPages")}
+              </button>
+            )}
             {!canEdit ? (
               <PlannedItem label={lock ? t("unlock") : t("lock")} note={t("needsEdit")} />
             ) : !lock ? (
@@ -305,6 +325,19 @@ export function PageMenu({
             ) : (
               <PlannedItem label={t("move")} note={isRootPage ? t("rootCannotMove") : lock && canEdit ? t("locked") : t("needsEdit")} />
             )}
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              data-ui="PageMenu.createShortcut"
+              onClick={() => {
+                setOpen(false);
+                setShortcutOpen(true);
+              }}
+            >
+              <span>{t("createShortcut")}</span>
+              <span className={styles.menuNote}>{t("createShortcutNote")}</span>
+            </button>
             {canEdit && !isRootPage && !lock ? (
               <button
                 type="button"
@@ -347,6 +380,8 @@ export function PageMenu({
         </div>
       )}
       {moveOpen && <MoveDialog pageId={pageId} title={title} onClose={() => setMoveOpen(false)} />}
+      {shortcutOpen && <MoveDialog pageId={pageId} title={title} shortcut onClose={() => setShortcutOpen(false)} />}
+      {childrenOpen && <ChildListDialog pageId={pageId} title={displayTitle(title)} onClose={() => setChildrenOpen(false)} />}
     </div>
   );
 }

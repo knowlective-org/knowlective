@@ -65,7 +65,8 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   page_locked: "The page is locked.",
   blocks_locked: "Some of the page's blocks are locked, so its body can't be replaced (the title can).",
   too_deep: "The page would be nested too deep.",
-  not_document: "The page is a whiteboard: its content can't be written as Markdown (the title can).",
+  not_document:
+    "The page isn't a document: a whiteboard's content can't be written as Markdown (its title can), and a shortcut can't be changed here.",
   not_whiteboard: "The page isn't a whiteboard.",
   chat_locked: "The chat is locked.",
 };
@@ -173,7 +174,7 @@ export async function pageDetail(userId: string, pageId: string, rootId: string)
   return {
     ...(self ? pageSummary(self, visible, rootId) : { id: pageId, parentId: null, rootId }),
     title: content.title,
-    // "DOCUMENT", or "WHITEBOARD" (its markdown is empty).
+    // "DOCUMENT", "WHITEBOARD" or "SHORTCUT" (their markdown is empty).
     kind: page.kind,
     markdown: content.markdown,
     createdAt: page.createdAt.toISOString(),

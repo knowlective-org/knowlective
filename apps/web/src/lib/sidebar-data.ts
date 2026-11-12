@@ -6,6 +6,7 @@ import { getBrand } from "@/lib/brand";
 import type { CurrentUser } from "@/lib/auth/session";
 import type { SidebarInfo } from "@/app/(app)/pages/[pageId]/page-view";
 import { orderRoots } from "@/lib/root-order";
+import { resolveShortcuts } from "@/lib/shortcuts";
 
 // Everything the sidebar needs for a signed-in user.
 export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
@@ -18,7 +19,7 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
   // Counted like the list shows them: on pages the user can open now.
   const visibleIds = new Set(visible.flatMap((t) => t.pages.map((p) => p.id)));
   const unreadNotifications = unread.filter((pageId) => visibleIds.has(pageId)).length;
-  const trees = orderRoots(visible, prefs?.rootOrder ?? []);
+  const trees = orderRoots(resolveShortcuts(visible), prefs?.rootOrder ?? []);
   const isManager = user.siteRole === "SITE_ADMIN" || user.siteRole === "CONTENT_MANAGER";
   return {
     trees: trees.map(sidebarTree),
@@ -54,10 +55,10 @@ export async function publicTrees() {
     getVisibleTrees(prisma, null),
     prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { publicRootOrder: true } }),
   ]);
-  return orderRoots(visible, config?.publicRootOrder ?? []);
+  return orderRoots(resolveShortcuts(visible), config?.publicRootOrder ?? []);
 }
 
-function sidebarTree(t: Awaited<ReturnType<typeof getVisibleTrees>>[number]) {
+function sidebarTree(t: ReturnType<typeof resolveShortcuts>[number]) {
   return {
     rootId: t.rootId,
     rootPageId: t.rootPageId,
@@ -70,7 +71,10 @@ function sidebarTree(t: Awaited<ReturnType<typeof getVisibleTrees>>[number]) {
       parentId: p.parentId,
       canEdit: atLeast(p.access, "EDIT"),
       locked: p.lock !== null,
-      canAddChild: atLeast(p.access, "EDIT") && !p.lock?.coversChildren,
+      // A shortcut has no child pages.
+      canAddChild: atLeast(p.access, "EDIT") && !p.lock?.coversChildren && !p.shortcut,
+      // A shortcut: the page it opens (null: one the viewer can't open).
+      shortcut: p.shortcut,
     })),
   };
 }

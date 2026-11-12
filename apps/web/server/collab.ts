@@ -221,6 +221,11 @@ export async function createCollab() {
       if (!result) {
         throw new Error("No access to this page");
       }
+      // A shortcut has no document of its own (lib/shortcuts.ts).
+      const kind = await prisma.page.findUnique({ where: { id: documentName }, select: { kind: true } });
+      if (kind?.kind === "SHORTCUT") {
+        throw new Error("A shortcut has no document");
+      }
       // VIEW, or a locked page: the server drops any update this connection
       // sends.
       if (!canEditPage(result) || !caps.write) {

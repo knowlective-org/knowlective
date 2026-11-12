@@ -16,8 +16,10 @@ export async function insertChildPage(
   userId: string,
   parentId: unknown,
   title: string,
-  // A document, or a whiteboard (lib/whiteboard.ts); fixed for the page's life.
+  // A document, a whiteboard (lib/whiteboard.ts) or a shortcut (lib/shortcuts.ts,
+  // which checks `shortcutTargetId`); fixed for the page's life.
   kind: PageKind = "DOCUMENT",
+  shortcutTargetId: string | null = null,
 ): Promise<{ id: string } | { error: CreatePageError }> {
   const parentAccess = typeof parentId === "string" ? await getPageAccess(prisma, userId, parentId) : null;
   if (typeof parentId !== "string" || !parentAccess || !atLeast(parentAccess.access, "EDIT")) {
@@ -31,8 +33,10 @@ export async function insertChildPage(
   // tree. The cap also stops a corrupted cycle.
   const tree = await prisma.page.findMany({
     where: { rootId: parentAccess.rootId },
-    select: { id: true, parentId: true },
+    select: { id: true, parentId: true, kind: true },
   });
+  // Nothing goes under a shortcut (it opens another page; it has no children).
+  if (tree.find((p) => p.id === parentId)?.kind === "SHORTCUT") return { error: "notAllowed" };
   const parentOf = new Map(tree.map((p) => [p.id, p.parentId]));
   let depth = 0;
   for (let cursor = parentOf.get(parentId) ?? null; cursor; cursor = parentOf.get(cursor) ?? null) {
@@ -43,7 +47,15 @@ export async function insertChildPage(
   const page = await prisma.page.create({
     // An empty title shows as "untitled" until renamed. The collab server seeds the
     // document's title from this when the page is first opened.
-    data: { title, kind, rootId: parentAccess.rootId, parentId, createdById: userId, sortOrder: await nextSortOrder(parentId) },
+    data: {
+      title,
+      kind,
+      shortcutTargetId: kind === "SHORTCUT" ? shortcutTargetId : null,
+      rootId: parentAccess.rootId,
+      parentId,
+      createdById: userId,
+      sortOrder: await nextSortOrder(parentId),
+    },
     select: { id: true },
   });
   // Findable by title right away, before anyone opens it.

@@ -61,27 +61,43 @@ function useMasks(): Masks {
 }
 
 // Asks for the column's passphrase (a new one, typed twice, while the
-// column has no values) and checks it against a value.
+// column has no values) and checks it against a value, in the dialog: the
+// key takes a moment to derive, and a wrong one is typed again there. Clicks
+// while the dialog is open are ignored (one dialog, not one per click).
+const asking = new Set<string>();
+
 function useShowColumn(columnId: string) {
   const t = useTranslations("editor.childTable.masked");
   const masks = useMasks();
   return async () => {
     if (!secretTextSupported()) return void (await showAlert(t("unsupported")));
-    const sample = masks.values(columnId).find(Boolean);
-    const passphrase = sample
-      ? await showPassphrase(t("enter"), { title: t("enterTitle"), confirmLabel: t("open") })
-      : await showPassphrase(t("choose"), { title: t("chooseTitle"), repeat: true });
-    if (!passphrase) return;
-    const ring = new SecretKeyring(passphrase);
-    if (sample) {
-      try {
-        await ring.open(sample);
-      } catch {
-        // WrongPassphraseError, or a damaged value: either way not this passphrase's.
-        return void (await showAlert(t("wrong")));
-      }
+    if (asking.has(columnId)) return;
+    asking.add(columnId);
+    try {
+      const sample = masks.values(columnId).find(Boolean);
+      let ring: SecretKeyring | null = null;
+      const passphrase = sample
+        ? await showPassphrase(t("enter"), {
+            title: t("enterTitle"),
+            confirmLabel: t("open"),
+            check: async (typed) => {
+              const candidate = new SecretKeyring(typed);
+              try {
+                await candidate.open(sample);
+              } catch {
+                // WrongPassphraseError, or a damaged value: either way not this passphrase's.
+                return t("wrong");
+              }
+              ring = candidate;
+              return null;
+            },
+          })
+        : await showPassphrase(t("choose"), { title: t("chooseTitle"), repeat: true });
+      if (!passphrase) return;
+      masks.set(columnId, ring ?? new SecretKeyring(passphrase));
+    } finally {
+      asking.delete(columnId);
     }
-    masks.set(columnId, ring);
   };
 }
 

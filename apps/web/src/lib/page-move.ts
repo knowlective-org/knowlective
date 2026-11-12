@@ -54,9 +54,11 @@ export async function planMove(
   if (beforeId !== null && typeof beforeId !== "string") return { error: CANNOT_MOVE };
   const [page, parent] = await Promise.all([
     prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, parentId: true, title: true } }),
-    prisma.page.findUnique({ where: { id: parentId }, select: { rootId: true, title: true } }),
+    prisma.page.findUnique({ where: { id: parentId }, select: { rootId: true, title: true, kind: true } }),
   ]);
   if (!page) return { error: CANNOT_MOVE };
+  // A shortcut has no child pages (lib/shortcuts.ts).
+  if (parent?.kind === "SHORTCUT") return { error: t("intoShortcut") };
   if (!page.parentId) return { error: t("rootPage") };
 
   const source = await getTreeWithAccess(prisma, userId, page.rootId);

@@ -34,6 +34,25 @@
 .block[data-fullscreen] .frame {
   flex: 1;
   min-height: 0;
+  /* Zoomed pages scroll; `margin: auto` on the page centres it while it fits
+     without cutting off its left or top when it doesn't (which centring the
+     flex box would). */
+  overflow: auto;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.block[data-fullscreen] .page {
+  max-width: none;
+  margin: auto;
+}
+
+.block[data-zoomed] .frame {
+  cursor: grab;
+}
+
+.block[data-zoomed] .frame:active {
+  cursor: grabbing;
 }
 
 .frame {
@@ -111,6 +130,24 @@
 .pagerButton:disabled {
   color: color-mix(in srgb, var(--color-muted) 55%, transparent);
   cursor: default;
+}
+
+.zoomButton {
+  min-width: 52px;
+  height: 28px;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.zoomButton:hover {
+  background: var(--color-hover);
 }
 
 .count {

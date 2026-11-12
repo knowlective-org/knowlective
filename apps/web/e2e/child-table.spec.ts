@@ -188,6 +188,7 @@ test.describe("Child page table", () => {
     await page.getByTestId("AppDialog.passphraseInput").fill("合言葉 1234");
     await page.getByTestId("AppDialog.passphraseAgainInput").fill("合言葉 1234");
     await page.getByTestId("AppDialog.confirmButton").click();
+    await expect(page.getByTestId("AppDialog")).toHaveCount(0);
     const cell = page.getByTestId("MaskedCell").locator("input");
     await cell.fill("9876-SECRET");
     await page.keyboard.press("Enter");
@@ -199,15 +200,21 @@ test.describe("Child page table", () => {
     await page.getByTestId("MaskedCell.showButton").click();
     await page.getByTestId("AppDialog.passphraseInput").fill("違う");
     await page.getByTestId("AppDialog.confirmButton").click();
-    await expect(page.getByTestId("AppDialog.message")).toHaveText("合言葉が違います。");
-    await page.getByTestId("AppDialog.closeButton").click();
+    // Said in the same dialog, to type again (or cancel).
+    await expect(page.getByTestId("AppDialog.passphraseError")).toHaveText("合言葉が違います。");
+    await page.getByTestId("AppDialog.cancelButton").click();
+    await expect(page.getByTestId("AppDialog")).toHaveCount(0);
 
     // The right one shows it (after a reload too: nothing stays in the browser).
     await page.reload();
     await page.getByTestId("MaskedCell.showButton").click();
     await page.getByTestId("AppDialog.passphraseInput").fill("合言葉 1234");
-    await page.getByTestId("AppDialog.confirmButton").click();
+    // Enter in the field: the dialog closes and gives the focus back to the
+    // show button, which the same key mustn't press again (it once did).
+    await page.keyboard.press("Enter");
     await expect(page.getByTestId("MaskedCell").locator("input")).toHaveValue("9876-SECRET");
+    // The dialog is gone (it once came back, until cancelled).
+    await expect(page.getByTestId("AppDialog")).toHaveCount(0);
     await trashOpenPage(page);
   });
 });

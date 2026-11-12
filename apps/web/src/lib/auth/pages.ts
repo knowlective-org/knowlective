@@ -10,13 +10,15 @@ export async function findAccessiblePage(userId: string | null, pageId: string) 
   if (!result) return null;
   const page = await prisma.page.findUnique({
     where: { id: pageId },
-    select: { id: true, title: true, kind: true, root: { select: { id: true, rootPageId: true, ownerId: true } } },
+    select: { id: true, title: true, kind: true, shortcutTargetId: true, root: { select: { id: true, rootPageId: true, ownerId: true } } },
   });
   if (!page) return null;
   return {
     id: page.id,
     title: page.title,
     kind: page.kind,
+    // For a shortcut: the page it opens (lib/shortcuts.ts).
+    shortcutTargetId: page.shortcutTargetId,
     access: result.access,
     // The lock applying to the page, if it's locked (see canEditPage).
     lock: result.lock,

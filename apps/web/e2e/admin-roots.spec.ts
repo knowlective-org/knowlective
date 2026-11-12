@@ -1,4 +1,4 @@
-import { type Page, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { createKnowledgeRoot } from "shared";
 import { ACCOUNTS, authFile } from "./accounts";
 import { openAdmin } from "./admin-login";
@@ -7,13 +7,6 @@ import { userWhere, withPrisma } from "./db";
 // Knowledge roots in the admin console (/admin/roots): a site admin sees
 // every one (its name) and can delete and restore it, but can't open one
 // without a grant, nor read its pages' titles in the change log.
-
-// Accepts the dialog that asks for the shown code to be typed back.
-async function typeConfirm(page: Page) {
-  const code = (await page.getByTestId("AppDialog.code").textContent())!.trim();
-  await page.getByTestId("AppDialog.codeInput").fill(code);
-  await page.getByTestId("AppDialog.confirmButton").click();
-}
 
 test("site admins see every knowledge root and can delete and restore one, without seeing inside it", async ({ browser }) => {
   const title = `E2E 管理者が開けないルート ${Date.now()}`;
@@ -54,10 +47,16 @@ test("site admins see every knowledge root and can delete and restore one, witho
     await expect(row).toContainText("E2E 編集（管理）");
 
     // Deleted: nobody can open it, its editors included.
+    // (Confirmed with Enter in the code field: the dialog closes and gives
+    // the focus back to the delete button, which the same key once pressed
+    // again, asking a second time.)
     await row.getByTestId("DeleteRootButton.submitButton").click();
-    await typeConfirm(admin);
+    const code = (await admin.getByTestId("AppDialog.code").textContent())!.trim();
+    await admin.getByTestId("AppDialog.codeInput").fill(code);
+    await admin.getByTestId("AppDialog.codeInput").press("Enter");
     const deleted = admin.getByTestId("AdminRootsPage.deletedSection").getByTestId("AdminRootsPage.rootRow").filter({ hasText: title });
     await expect(deleted).toBeVisible();
+    await expect(admin.getByTestId("AppDialog")).toHaveCount(0);
     await expect.poll(async () => (await editor.goto(`pages/${rootPageId}`))?.status()).toBe(404);
     await expect(editor.getByTestId("DocTree.link").filter({ hasText: title })).toHaveCount(0);
 

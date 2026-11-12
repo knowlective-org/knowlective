@@ -12,6 +12,17 @@ import { BLOCK_CONFIGS } from "./block-configs";
 // The tallest a page is drawn, so a portrait page doesn't fill the screen.
 const MAX_PAGE_HEIGHT = 480;
 
+// Full screen zoom, relative to the page fitted to the window.
+const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4];
+// Browsers refuse (or draw blank) canvases much larger than this many pixels
+// (Safari's limit), so a zoomed page is drawn at a lower density instead.
+const MAX_CANVAS_PIXELS = 16_000_000;
+
+function nextZoom(zoom: number, by: 1 | -1): number {
+  if (by > 0) return ZOOM_STEPS.find((z) => z > zoom + 1e-6) ?? zoom;
+  return [...ZOOM_STEPS].reverse().find((z) => z < zoom - 1e-6) ?? zoom;
+}
+
 // PDF: an attached PDF shown one page at a time. The document holds only the
 // file's URL (/api/files/<id>, which checks the viewer's access) and name;
 // the page being looked at is each viewer's own.
@@ -42,6 +53,14 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
   // Full screen: the block fills the window (over the page), on the same
   // page of the PDF; Esc or the button leaves, ← → turn pages.
   const [full, setFull] = useState(false);
+  // Zoom while full screen (1 = the page fits the window). Leaving full
+  // screen goes back to fitting.
+  const [zoom, setZoom] = useState(1);
+  const zoomBy = (by: 1 | -1) => setZoom((z) => nextZoom(z, by));
+  const toggleFull = () => {
+    setFull(!full);
+    setZoom(1);
+  };
 
   useEffect(() => {
     if (!url) return;
@@ -94,9 +113,12 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
         if (stale) return;
         const natural = pdfPage.getViewport({ scale: 1 });
         const fit = full ? Math.max(100, height - 16) : MAX_PAGE_HEIGHT;
-        const scale = Math.min((full ? width - 16 : width) / natural.width, fit / natural.height);
-        // Draw at the screen's pixel density, shown at the CSS size.
-        const ratio = window.devicePixelRatio || 1;
+        const scale =
+          Math.min((full ? width - 16 : width) / natural.width, fit / natural.height) * (full ? zoom : 1);
+        // Draw at the screen's pixel density, shown at the CSS size (lower
+        // when that would be too large a canvas).
+        const area = natural.width * scale * natural.height * scale;
+        const ratio = Math.min(window.devicePixelRatio || 1, Math.sqrt(MAX_CANVAS_PIXELS / area));
         const viewport = pdfPage.getViewport({ scale: scale * ratio });
         el.width = Math.floor(viewport.width);
         el.height = Math.floor(viewport.height);
@@ -116,7 +138,12 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
     };
     // (The height only matters full screen; it follows the drawn page otherwise.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdf, page, width, full, full ? height : 0]);
+  }, [pdf, page, width, full, full ? height : 0, full ? zoom : 1]);
+
+  // A new page (or zoom) starts at its top left.
+  useEffect(() => {
+    frame.current?.scrollTo({ top: 0, left: 0 });
+  }, [page, zoom]);
 
   const pages = pdf?.numPages ?? 0;
   const go = (next: number) => {
@@ -132,7 +159,12 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
       setPage((p) => Math.min(Math.max(p + by, 1), Math.max(pages, 1)));
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFull(false);
+      if (e.key === "Escape") {
+        setFull(false);
+        setZoom(1);
+      } else if (e.key === "+" || e.key === "=") setZoom((z) => nextZoom(z, 1));
+      else if (e.key === "-") setZoom((z) => nextZoom(z, -1));
+      else if (e.key === "0") setZoom(1);
       else if (e.key === "ArrowLeft" || e.key === "PageUp") turn(-1);
       else if (e.key === "ArrowRight" || e.key === "PageDown") turn(1);
       else return;
@@ -143,8 +175,55 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [full, pages]);
 
+  // Full screen: Ctrl/⌘ + wheel (and a trackpad's pinch, which browsers send
+  // as one) zooms; dragging a zoomed page moves it. Listened to on the frame
+  // itself, so the editor doesn't take the drag as a selection.
+  useEffect(() => {
+    const el = frame.current;
+    if (!full || !el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      if (e.deltaY !== 0) setZoom((z) => nextZoom(z, e.deltaY < 0 ? 1 : -1));
+    };
+    let drag: { x: number; y: number; left: number; top: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0 || (el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight)) return;
+      drag = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+      el.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!drag) return;
+      el.scrollLeft = drag.left - (e.clientX - drag.x);
+      el.scrollTop = drag.top - (e.clientY - drag.y);
+    };
+    const onUp = () => {
+      drag = null;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onUp);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onUp);
+    };
+  }, [full]);
+
   return (
-    <div className={styles.block} contentEditable={false} data-ui="PdfBlock" data-fullscreen={full || undefined}>
+    <div
+      className={styles.block}
+      contentEditable={false}
+      data-ui="PdfBlock"
+      data-fullscreen={full || undefined}
+      data-zoomed={(full && zoom > 1) || undefined}
+    >
       <div className={styles.frame} ref={frame}>
         {!url ? (
           <p className={styles.muted}>{t("none")}</p>
@@ -195,10 +274,46 @@ function PdfViewer({ url, name }: { url: string; name: string }) {
             >
               ›
             </button>
+            {full && (
+              <>
+                <button
+                  type="button"
+                  className={styles.pagerButton}
+                  disabled={zoom <= ZOOM_STEPS[0]}
+                  onClick={() => zoomBy(-1)}
+                  aria-label={t("zoomOut")}
+                  title={t("zoomOut")}
+                  data-ui="PdfBlock.zoomOutButton"
+                >
+                  <Icon name="zoomOut" size={18} />
+                </button>
+                <button
+                  type="button"
+                  className={styles.zoomButton}
+                  onClick={() => setZoom(1)}
+                  aria-label={t("zoomReset")}
+                  title={t("zoomReset")}
+                  data-ui="PdfBlock.zoomStatus"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  className={styles.pagerButton}
+                  disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+                  onClick={() => zoomBy(1)}
+                  aria-label={t("zoomIn")}
+                  title={t("zoomIn")}
+                  data-ui="PdfBlock.zoomInButton"
+                >
+                  <Icon name="zoomIn" size={18} />
+                </button>
+              </>
+            )}
             <button
               type="button"
               className={styles.pagerButton}
-              onClick={() => setFull(!full)}
+              onClick={toggleFull}
               aria-label={full ? t("exitFullscreen") : t("fullscreen")}
               title={full ? t("exitFullscreen") : t("fullscreen")}
               aria-pressed={full}
