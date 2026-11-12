@@ -10,6 +10,7 @@ import { getTranslations } from "next-intl/server";
 import { auditTranslator } from "@/i18n/audit";
 import { displayTitleWith, getDisplayTitle } from "@/i18n/display-title";
 import { type AccessChange, MoveConflictError, executeMove, planMove } from "@/lib/page-move";
+import { createShortcut, resolveShortcuts } from "@/lib/shortcuts";
 
 // Page moves and reordering (lib/page-move.ts), from the sidebar's drag and
 // drop and the page menu's "move".
@@ -106,12 +107,19 @@ export type MoveDestinationGroup = { label: string; pages: MoveDestination[] };
 
 // Every page the user can see, per knowledge root in tree order, for the
 // page menu's move dialog. The page and its subtree are left out.
-export async function loadMoveDestinations(pageId: string): Promise<MoveDestinationGroup[] | { error: string }> {
+// For "shortcut" (the page menu's "create a shortcut", the same dialog):
+// where a shortcut to the page can go, in every knowledge root (the user's
+// personal one too: a shortcut takes nothing out of it).
+export async function loadMoveDestinations(
+  pageId: string,
+  purpose: "move" | "shortcut" = "move",
+): Promise<MoveDestinationGroup[] | { error: string }> {
   const user = await requireUser();
+  const shortcut = purpose === "shortcut";
   const page = typeof pageId === "string"
     ? await prisma.page.findUnique({ where: { id: pageId }, select: { parentId: true } })
     : null;
-  const trees = await getVisibleTrees(prisma, user.id);
+  const trees = resolveShortcuts(await getVisibleTrees(prisma, user.id));
   if (!page || !trees.some((t) => t.pages.some((p) => p.id === pageId))) {
     return { error: (await getTranslations("pageMove"))("cannotMove") };
   }
@@ -122,7 +130,7 @@ export async function loadMoveDestinations(pageId: string): Promise<MoveDestinat
   // A page in a personal root can only move within it; others never into one.
   const fromPersonal = trees.find((t) => t.pages.some((p) => p.id === pageId))?.personal ?? false;
   for (const tree of trees) {
-    if (tree.personal !== fromPersonal) continue;
+    if (!shortcut && tree.personal !== fromPersonal) continue;
     const childrenOf = new Map<string, typeof tree.pages>();
     for (const p of tree.pages) {
       if (p.parentId) childrenOf.set(p.parentId, [...(childrenOf.get(p.parentId) ?? []), p]);
@@ -131,13 +139,15 @@ export async function loadMoveDestinations(pageId: string): Promise<MoveDestinat
     const visit = (id: string, depth: number, out: MoveDestination[]) => {
       const p = byId.get(id);
       // Skip the page being moved, with its subtree.
-      if (!p || id === pageId || depth > MAX_PAGE_DEPTH) return;
+      if (!p || (!shortcut && id === pageId) || depth > MAX_PAGE_DEPTH) return;
       out.push({
         id,
-        title: displayTitle(p.title),
+        title: p.shortcut && !p.shortcut.targetId ? t("unavailableShortcut") : displayTitle(p.title),
         depth,
-        selectable: atLeast(p.access, "EDIT"),
-        current: id === page.parentId,
+        // Nothing goes under a shortcut; a new shortcut can't go under a page
+        // locked with its children.
+        selectable: atLeast(p.access, "EDIT") && !p.shortcut && !(shortcut && p.lock?.coversChildren),
+        current: !shortcut && id === page.parentId,
       });
       for (const child of childrenOf.get(id) ?? []) visit(child.id, depth + 1, out);
     };
@@ -153,4 +163,16 @@ export async function loadMoveDestinations(pageId: string): Promise<MoveDestinat
   }
   if (shared.length > 0) groups.push({ label: t("sharedPages"), pages: shared });
   return groups;
+}
+
+// Creates a shortcut to `pageId` under `parentId` (lib/shortcuts.ts). The
+// user must be able to open the page and add a page under the parent.
+export async function createPageShortcut(pageId: string, parentId: string): Promise<{ error?: string }> {
+  const user = await requireUser();
+  const result = await createShortcut(user.id, pageId, parentId);
+  if ("error" in result) {
+    const t = await getTranslations("pageShortcut");
+    return { error: t(result.error) };
+  }
+  return {};
 }

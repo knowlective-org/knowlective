@@ -469,6 +469,9 @@ export default {
       next: "Next page",
       fullscreen: "Full screen",
       exitFullscreen: "Exit full screen (Esc)",
+      zoomIn: "Zoom in (+)",
+      zoomOut: "Zoom out (-)",
+      zoomReset: "Fit to the window (0)",
     },
     video: {
       notPlayable: "This isn't the URL of a video that can be played.",

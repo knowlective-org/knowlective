@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { type DragEvent, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { createChildPage } from "@/app/(app)/actions";
+import { deletePage } from "@/app/(app)/pages/[pageId]/page-actions";
 import { useTranslations } from "next-intl";
 import { useDisplayTitle } from "@/i18n/use-display-title";
-import { showAlert } from "./dialog";
+import { ChildListDialog } from "./child-list-dialog";
+import { showAlert, showConfirm } from "./dialog";
 import { getDraggedPage, setDraggedPage, useConfirmAndMovePage } from "./move-page";
 import styles from "./doc-tree.module.css";
 
@@ -19,6 +21,10 @@ const DRAG_TYPE = "application/x-knowlective-page";
 const ROOT_DRAG_TYPE = "application/x-knowlective-root";
 // Hovering a collapsed page this long while dragging expands it.
 const EXPAND_DELAY_MS = 600;
+// More child pages than this aren't all listed under their parent: only the
+// one on the way to the open page, and a row saying how many others there
+// are, which opens the full list (ChildListDialog).
+export const MANY_CHILDREN = 30;
 
 export type DocTreeNode = {
   id: string;
@@ -32,6 +38,9 @@ export type DocTreeNode = {
   // Child pages can be added under it: EDIT, and no lock covering its
   // child pages.
   canAddChild: boolean;
+  // A shortcut (lib/shortcuts.ts): the page it opens, null when the viewer
+  // can't open it (its title is then not shown either).
+  shortcut?: { targetId: string | null } | null;
 };
 
 // The visible part of one knowledge root's page tree. It starts at the
@@ -77,6 +86,19 @@ export function DocTree({
     }
     return { byId, childrenOf };
   }, [nodes]);
+
+  // The open page and the pages above it: under a page with many children,
+  // the one of them on this path is the one listed.
+  const onPath = useMemo(() => {
+    const path = new Set<string>();
+    for (let id = currentPageId, i = 0; id && byId.has(id) && i <= maxDepth; i++) {
+      path.add(id);
+      id = byId.get(id)?.parentId ?? null;
+    }
+    return path;
+  }, [byId, currentPageId, maxDepth]);
+  // The parent whose full list of child pages is open.
+  const [listOf, setListOf] = useState<{ id: string; title: string } | null>(null);
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     // Only the path to the open page starts expanded (plus the page itself,
@@ -233,11 +255,37 @@ export function DocTree({
   const entries = entryIds.map((id) => byId.get(id)).filter((n): n is DocTreeNode => !!n);
   if (entries.length === 0) return null;
 
+  // Asked before the transition: a dialog opened inside it wouldn't show
+  // until the transition ends, which waits for the dialog.
+  const removeShortcut = async (node: DocTreeNode, title: string) => {
+    const ok = await showConfirm(t("removeShortcutConfirm", { title }), {
+      title: t("removeShortcut"),
+      confirmLabel: t("removeShortcutLabel"),
+      danger: true,
+    });
+    if (!ok) return;
+    startMoving(async () => {
+      const result = await deletePage(node.id);
+      if ("error" in result) await showAlert(result.error, { title: t("removeShortcut") });
+      else router.refresh();
+    });
+  };
+
   const renderNode = (node: DocTreeNode, depth: number, seen: Set<string>) => {
     const children = (childrenOf.get(node.id) ?? []).filter((c) => !seen.has(c.id));
+    // Many: only the one on the path to the open page (if any), and a row
+    // for the rest.
+    const listed = children.length > MANY_CHILDREN ? children.filter((c) => onPath.has(c.id)) : children;
+    const unlisted = children.length - listed.length;
     const isOpen = expanded.has(node.id);
     const isCurrent = node.id === currentPageId;
     const title = isCurrent && currentTitle !== undefined ? currentTitle : node.title;
+    const shortcut = node.shortcut ?? null;
+    // A shortcut opens its target; one the viewer can't open goes nowhere and
+    // says so, without the target's title.
+    const href = shortcut ? (shortcut.targetId ? `/pages/${shortcut.targetId}` : null) : `/pages/${node.id}`;
+    const label =
+      shortcut && !shortcut.targetId ? t("shortcutUnavailable") : `${node.icon ? `${node.icon} ` : ""}${displayTitle(title)}`;
     const dropZone = drop?.id === node.id ? drop.zone : null;
     const rowClass = [
       isCurrent ? styles.rowCurrent : styles.row,
@@ -293,24 +341,48 @@ export function DocTree({
           ) : (
             <span className={styles.toggleSpacer} />
           )}
-          <Link
-            href={`/pages/${node.id}`}
-            className={styles.link}
-            data-ui="DocTree.link"
-            data-id={node.id}
-            aria-current={isCurrent ? "page" : undefined}
-            onKeyDown={(e) => {
-              if (node.parentId !== null || !rootReorder || !e.altKey) return;
-              if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-              e.preventDefault();
-              rootReorder.onKeyMove(e.key === "ArrowUp" ? -1 : 1);
-            }}
-            // The row is dragged, not the link (that would drag its URL).
-            draggable={false}
-          >
-            {node.icon ? `${node.icon} ` : ""}
-            {displayTitle(title)}
-          </Link>
+          {href === null ? (
+            <span className={styles.linkUnavailable} data-ui="DocTree.unavailableShortcut" data-id={node.id}>
+              {label}
+            </span>
+          ) : (
+            <Link
+              href={href}
+              className={styles.link}
+              data-ui={shortcut ? "DocTree.shortcutLink" : "DocTree.link"}
+              data-id={node.id}
+              aria-current={isCurrent ? "page" : undefined}
+              onKeyDown={(e) => {
+                if (node.parentId !== null || !rootReorder || !e.altKey) return;
+                if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                e.preventDefault();
+                rootReorder.onKeyMove(e.key === "ArrowUp" ? -1 : 1);
+              }}
+              // The row is dragged, not the link (that would drag its URL).
+              draggable={false}
+            >
+              {label}
+            </Link>
+          )}
+          {shortcut && (
+            <span className={styles.shortcutMark} title={t("shortcut")} aria-label={t("shortcut")} data-ui="DocTree.shortcutStatus">
+              ↗
+            </span>
+          )}
+          {shortcut && node.canEdit && !node.locked && (
+            <button
+              type="button"
+              className={styles.add}
+              data-ui="DocTree.removeShortcutButton"
+              data-id={node.id}
+              aria-label={t("removeShortcut")}
+              title={t("removeShortcut")}
+              disabled={moving}
+              onClick={() => void removeShortcut(node, shortcut.targetId ? displayTitle(title) : t("shortcutUnavailable"))}
+            >
+              ×
+            </button>
+          )}
           {node.parentId === null && rootBadge && (
             <span className={styles.badge} data-ui="DocTree.rootBadge">
               {rootBadge}
@@ -325,7 +397,21 @@ export function DocTree({
         </div>
         {isOpen && children.length > 0 && depth < maxDepth && (
           <ul className={styles.list}>
-            {children.map((c) => renderNode(c, depth + 1, new Set([...seen, c.id])))}
+            {listed.map((c) => renderNode(c, depth + 1, new Set([...seen, c.id])))}
+            {unlisted > 0 && (
+              <li>
+                <button
+                  type="button"
+                  className={styles.moreRow}
+                  style={{ paddingLeft: 4 + (depth + 1) * 14 + 24 }}
+                  data-ui="DocTree.moreButton"
+                  data-id={node.id}
+                  onClick={() => setListOf({ id: node.id, title: displayTitle(title) })}
+                >
+                  {listed.length > 0 ? t("moreChildren", { count: unlisted }) : t("allChildren", { count: unlisted })}
+                </button>
+              </li>
+            )}
           </ul>
         )}
       </li>
@@ -335,6 +421,7 @@ export function DocTree({
   return (
     <nav aria-label={t("label")} data-ui="DocTree" aria-busy={moving}>
       <ul className={styles.list}>{entries.map((e) => renderNode(e, 0, new Set([e.id])))}</ul>
+      {listOf && <ChildListDialog pageId={listOf.id} title={listOf.title} onClose={() => setListOf(null)} />}
     </nav>
   );
 }

@@ -43,13 +43,16 @@ const notAllowed = async () => (await getTranslations("pageErrors"))("notAllowed
 
 // The caller's visible pages in the tree containing `pageId`, or null if
 // they can't open `pageId` itself. userId null: someone not logged in
-// (public pages).
+// (public pages). Shortcuts (lib/shortcuts.ts) are left out: the child page
+// blocks show pages with content and values, which a shortcut doesn't have.
 async function visibleTreeOf(userId: string | null, pageId: unknown) {
   if (typeof pageId !== "string") return null;
   const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true } });
   if (!page) return null;
   const tree = await getVisibleTree(prisma, userId, page.rootId);
-  return tree?.pages.some((p) => p.id === pageId) ? tree : null;
+  if (!tree) return null;
+  const pages = tree.pages.filter((p) => p.kind !== "SHORTCUT");
+  return pages.some((p) => p.id === pageId) ? { ...tree, pages } : null;
 }
 
 // Every visible page below `pageId` that is reached through visible pages,

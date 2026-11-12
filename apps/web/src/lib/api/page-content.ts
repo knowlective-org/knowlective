@@ -35,7 +35,8 @@ async function visibleChildPages(userId: string, pageId: string): Promise<ChildP
   for (let changed = true; changed; ) {
     changed = false;
     for (const p of tree.pages) {
-      if (p.parentId && below.has(p.parentId) && !below.has(p.id)) {
+      // Not shortcuts, as in the child page blocks (child-pages-actions.ts).
+      if (p.parentId && below.has(p.parentId) && !below.has(p.id) && p.kind !== "SHORTCUT") {
         below.add(p.id);
         result.push({ id: p.id, parentId: p.parentId, title: p.title, icon: p.icon, updatedAt: "" });
         changed = true;

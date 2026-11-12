@@ -36,10 +36,11 @@ export async function PATCH(request: Request, ctx: Context) {
     if (input.title === undefined && input.markdown === undefined) {
       return apiError("invalid_body", "Send \"title\", \"markdown\", or both.");
     }
-    // A whiteboard keeps its canvas outside the body (lib/whiteboard.ts).
-    if (input.markdown !== undefined) {
-      const page = await prisma.page.findUniqueOrThrow({ where: { id: pageId }, select: { kind: true } });
-      if (page.kind !== "DOCUMENT") return apiError("not_document");
+    // A whiteboard keeps its canvas outside the body (lib/whiteboard.ts); a
+    // shortcut has neither content nor a title of its own (lib/shortcuts.ts).
+    const page = await prisma.page.findUniqueOrThrow({ where: { id: pageId }, select: { kind: true } });
+    if (page.kind === "SHORTCUT" || (input.markdown !== undefined && page.kind !== "DOCUMENT")) {
+      return apiError("not_document");
     }
     try {
       await replacePageContent(pageId, user.id, {

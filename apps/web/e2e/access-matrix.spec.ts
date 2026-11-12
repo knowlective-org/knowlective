@@ -191,6 +191,70 @@ test.describe("Access matrix", () => {
     }
   });
 
+  test("the child page list and shortcut actions, called directly, give each account only what it may", async ({ page, browser, baseURL }) => {
+    test.setTimeout(150_000);
+    // A child page of the page, its title a marker.
+    const childTitle = `E2E 一覧の子ページ ${Date.now()}`;
+    await openPage(page, pageId);
+    await addPageFromTree(page, pageId);
+    await page.waitForURL((url) => !url.pathname.endsWith(`/${pageId}`));
+    const childId = new URL(page.url()).pathname.split("/").pop()!;
+    await withPrisma((prisma) => prisma.page.update({ where: { id: childId }, data: { title: childTitle } }));
+
+    // The actions' ids, from the requests the admin's screen makes: the page
+    // menu's list of child pages, and creating a shortcut to the child under the page.
+    const actions = new Map<string, string>();
+    page.on("request", (request) => {
+      const id = request.headers()["next-action"];
+      const body = request.postData() ?? "";
+      if (id && body === JSON.stringify([childId, pageId])) actions.set("shortcut", id);
+    });
+    await openPage(page, pageId);
+    await page.getByTestId("PageMenu.button").click();
+    await expect(page.getByTestId("PageMenu.childPages")).toBeVisible();
+    // (After the menu's page info, loaded with the same argument.)
+    await expect(page.getByTestId("PageMenu.ownerGroups")).toBeVisible();
+    const listRequest = page.waitForRequest((request) => !!request.headers()["next-action"] && request.postData() === JSON.stringify([pageId]));
+    await page.getByTestId("PageMenu.childPages").click();
+    actions.set("list", (await listRequest).headers()["next-action"]);
+    await expect(page.getByTestId("ChildListDialog.pageLink").filter({ hasText: childTitle })).toBeVisible();
+    await page.getByTestId("ChildListDialog.closeButton").click();
+    await openPage(page, childId);
+    await page.getByTestId("PageMenu.button").click();
+    await page.getByTestId("PageMenu.createShortcut").click();
+    await page.getByTestId("MoveDialog.parentSelect").selectOption(pageId);
+    await page.getByTestId("MoveDialog.submitButton").click();
+    await page.waitForURL((url) => url.pathname.endsWith(`/${pageId}`));
+    expect([...actions.keys()].sort()).toEqual(["list", "shortcut"]);
+    const shortcuts = () => withPrisma((prisma) => prisma.page.count({ where: { kind: "SHORTCUT", shortcutTargetId: childId, deletedAt: null } }));
+    expect(await shortcuts()).toBe(1);
+
+    const origin = new URL(baseURL!).origin;
+    const call = async (request: APIRequestContext, action: string, args: unknown[]) => {
+      const response = await request.post(`pages/${pageId}`, {
+        headers: { Origin: origin, "Next-Action": action, Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8" },
+        data: JSON.stringify(args),
+        maxRedirects: 0,
+      });
+      return response.text();
+    };
+    for (const account of ACCOUNTS) {
+      const context = await contextFor(browser, account);
+      // The child pages and their titles: for those who can open the page.
+      const list = await call(context.request, actions.get("list")!, [pageId]);
+      expect(list.includes(childTitle), `${account} list`).toBe(!["guest", "outsider"].includes(account));
+      // A shortcut: only where the account can add a page.
+      if (account !== "admin" && account !== "editor") {
+        await call(context.request, actions.get("shortcut")!, [childId, pageId]);
+        expect(await shortcuts(), `${account} shortcut`).toBe(1);
+      }
+      await context.close();
+    }
+    // …and the very same request works for the admin.
+    await call(page.request, actions.get("shortcut")!, [childId, pageId]);
+    expect(await shortcuts()).toBe(2);
+  });
+
   test("copying another page's attachment, called directly, needs the page's Edit and the file's page", async ({ page, browser, baseURL }) => {
     // The action's id, from the request the admin's editor makes for the
     // page's own attachment when the page opens.

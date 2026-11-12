@@ -236,7 +236,23 @@ test.describe("Files", () => {
     await expect(block.getByTestId("PdfBlock.status")).toHaveText("2 / 2");
     await page.keyboard.press("ArrowLeft");
     await expect(block.getByTestId("PdfBlock.status")).toHaveText("1 / 2");
+    // Zoomed in (button, then +): the page is drawn larger than the window,
+    // and scrolls; 0 fits it again.
+    const canvas = block.getByTestId("PdfBlock.page");
+    const fitted = (await canvas.boundingBox())!.height;
+    await block.getByTestId("PdfBlock.zoomInButton").click();
+    await expect(block.getByTestId("PdfBlock.zoomStatus")).toHaveText("125%");
+    await page.keyboard.press("+");
+    await expect(block.getByTestId("PdfBlock.zoomStatus")).toHaveText("150%");
+    await expect.poll(async () => (await canvas.boundingBox())!.height).toBeGreaterThan(fitted * 1.4);
+    await expect(block).toHaveAttribute("data-zoomed", "true");
+    await page.keyboard.press("0");
+    await expect(block.getByTestId("PdfBlock.zoomStatus")).toHaveText("100%");
+    await expect.poll(async () => Math.round((await canvas.boundingBox())!.height)).toBe(Math.round(fitted));
+    await block.getByTestId("PdfBlock.zoomInButton").click();
     await page.keyboard.press("Escape");
+    // Out of full screen: fitted to the block again, without the zoom.
+    await expect(block.getByTestId("PdfBlock.zoomStatus")).toHaveCount(0);
     await expect(block).not.toHaveAttribute("data-fullscreen");
     await expect(block.getByTestId("PdfBlock.status")).toHaveText("1 / 2");
     await block.getByTestId("PdfBlock.nextButton").click();

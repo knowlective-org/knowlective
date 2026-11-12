@@ -14,17 +14,24 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Shortcuts to a page ("ショートカットを作成" in the page menu, below "移動"): an entry in the page list, under any page one can edit (one's own root too), that opens the page. It's placed with the same dialog as a move, and is moved, reordered and removed (with the "×" on its row, to the trash) like a page; the page itself stays where it is. What it shows depends on each viewer's own access to the page: those who can't open it see "(開けないページ)", without its title, and its address is "not found" for them. Nothing can be added under a shortcut, and the child page blocks, the API's Markdown and the sitemap leave shortcuts out
+- A list of a page's child pages ("子ページの一覧" in the page menu, when it has child pages one can open), filtered by title
+- In a PDF block's full screen, the page can be zoomed (50–400%, with the buttons beside the page number, +, - and 0, or Ctrl/⌘ + the wheel) and dragged around when it's larger than the window
+- The move dialog filters the pages by title, each match shown after the titles of the pages above it
 - Knowledge roots in the admin console ("ナレッジルート", site admins; auditors view it): every knowledge root but the users' own, with its name, number of pages, the groups with access and when it was made, and nothing of what's in it. A knowledge root can be deleted there (typing back a code to confirm): nobody can open any of its pages any more, nor find them in search, and pages open in it are closed. Nothing is removed, and it can be restored on the same screen, with the same access. Both are recorded in the audit log
 - Copy, cut and paste on a whiteboard (Ctrl/⌘+C, X, V): the selected items, with the connectors between them, paste under the pointer (or in the middle of the screen), also on another whiteboard; pasting again there puts each copy a little further down and to the right, and one undo takes a paste back. Images pasted on another page become that page's own attachments, as for blocks. Other apps get the items' text. Items copied in Miro paste as the board's own: sticky notes (their color matched to the nearest of the board's), rectangles, ellipses, diamonds, text, connectors with their labels and the sides they're attached by, lines, and frames (a rectangle with the title above); Miro's images, drawings and other kinds are left out, with a note saying how many. Text from elsewhere becomes a text box
 - CSV files (and TSV) dropped or pasted into a page can be attached or expanded into a table, its first row the header row (UTF-8 or Shift_JIS; quoted fields may hold commas and line breaks; up to 1,000 rows and 50 columns, more is cut off with a note). Like Markdown and text files, they can be expanded with adding files turned off
 
 ### Changed
 
+- A page with more than 30 child pages doesn't list them all in the page list on the left any more: only the one on the way to the open page, with "ほか N ページ" (or "N ページ", when none of them is open) for the rest, which opens the list of its child pages
+- A wrong passphrase for a masked column is said in the passphrase dialog, to type again, instead of a second dialog; the dialog stays open, saying it's checking, while the passphrase is checked
 - A whiteboard's two boxes can be joined by more than one connector, through different sides: a connector is refused only where one already joins them by the same sides (a connector drawn without choosing a side matches any side)
 - Code blocks have a little room above and below them
 
 ### Fixed
 
+- Confirming a dialog with Enter in its text field (the code typed back to delete a knowledge root or unlock a page, a passphrase) also pressed the button that had opened it, so the same dialog came straight back (the first one had already done its work) until cancelled
 - A page showed its parent's columns (such as the date a calendar block made) under its title even when the parent no longer had a child page table, board or calendar (or had only the plain child page list). They now show only while the parent has one of those blocks; the columns and their values are kept
 - The change log in the admin console showed site admins the titles of pages they can't open (pages moved, locked, their permissions changed, published, masked in the history, or chosen as the landing page). Such titles are now hidden ("閲覧できないページ") from those who can't open the page; an entry recorded before this one, naming such a page, is shown only as hidden. Knowledge roots' names still show
 - A PDF block's full screen took only the window's width, staying where the block was, when the block was selected (as clicking it does): the editor's style for a selected block won over it
@@ -35,6 +42,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Upgrade notes
 
+- A database migration adds the page kind `SHORTCUT` and `Page.shortcutTargetId` (applied on start)
 - Database migrations add `User.emailUnconfirmed` and empty the search index, which is rebuilt in the background on start: until it's done, search finds fewer pages than usual. The semantic search index is rebuilt too
 - A database migration adds `KnowledgeRoot.deletedAt` and `deletedById` (applied on start)
 - A database migration adds `FileObject.copiedFromId` (applied on start)

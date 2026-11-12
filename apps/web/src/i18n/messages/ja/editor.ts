@@ -467,6 +467,9 @@ const ja: MessageShape<typeof en> = {
       next: "次のページ",
       fullscreen: "全画面",
       exitFullscreen: "全画面を終了（Esc）",
+      zoomIn: "拡大（+）",
+      zoomOut: "縮小（-）",
+      zoomReset: "ウィンドウに合わせる（0）",
     },
     video: {
       notPlayable: "再生できる動画の URL ではありません。",

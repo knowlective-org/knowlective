@@ -27,7 +27,8 @@ export async function sitemapPages(): Promise<{ id: string; updatedAt: Date }[]>
   if (!(await searchEnginesAllowed())) return [];
   // Someone not logged in: the public pages (none unless public pages are allowed).
   const trees = await getVisibleTrees(prisma, null);
-  const ids = trees.flatMap((t) => t.pages.map((p) => p.id));
+  // Not shortcuts (lib/shortcuts.ts): they only open another page.
+  const ids = trees.flatMap((t) => t.pages.filter((p) => p.kind !== "SHORTCUT").map((p) => p.id));
   if (ids.length === 0) return [];
   return prisma.page.findMany({
     where: { id: { in: ids }, deletedAt: null },

@@ -129,6 +129,7 @@ export function PageView({
             canManage={canManage}
             isRootPage={isRootPage}
             personal={personal}
+            hasChildren={sidebar.trees.some((tree) => tree.pages.some((p) => p.parentId === pageId))}
           />
           )}
         </div>

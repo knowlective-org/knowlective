@@ -27,7 +27,13 @@ type Request =
     })
   | (Base & { kind: "copy"; value: string; resolve: () => void })
   | (Base & { kind: "choice"; choices: Choice[]; resolve: (value: string | null) => void })
-  | (Base & { kind: "passphrase"; confirmLabel: string; repeat: boolean; resolve: (value: string | null) => void });
+  | (Base & {
+      kind: "passphrase";
+      confirmLabel: string;
+      repeat: boolean;
+      check?: (passphrase: string) => Promise<string | null>;
+      resolve: (value: string | null) => void;
+    });
 
 type Choice = { value: string; label: string };
 
@@ -115,10 +121,19 @@ export function showChoice<T extends string>(
 
 // A passphrase, typed into a password field (and again, when `repeat`, for
 // choosing a new one), or null for cancel. It's only handed back: the caller
-// keeps it in memory, and never sends it anywhere.
+// keeps it in memory, and never sends it anywhere. `check` runs with the
+// dialog still open (the button shows it's busy): an error message keeps it
+// open to try again, null closes it with the passphrase. A slow check (a key
+// derived from it) otherwise left nothing on screen, and the button that
+// opened the dialog was pressed again.
 export function showPassphrase(
   message: string,
-  options: { title?: string; confirmLabel?: string; repeat?: boolean } = {},
+  options: {
+    title?: string;
+    confirmLabel?: string;
+    repeat?: boolean;
+    check?: (passphrase: string) => Promise<string | null>;
+  } = {},
 ): Promise<string | null> {
   return new Promise((resolve) =>
     enqueue({
@@ -127,6 +142,7 @@ export function showPassphrase(
       title: options.title,
       confirmLabel: options.confirmLabel ?? "OK",
       repeat: options.repeat ?? false,
+      check: options.check,
       resolve,
     }),
   );
@@ -182,8 +198,12 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
   const [copied, setCopied] = useState<boolean | null>(null);
   // For a passphrase: the field(s).
   const [secret, setSecret] = useState({ value: "", again: "" });
+  // For a passphrase with a check: running it / what it said was wrong.
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState("");
   const secretReady =
-    request.kind !== "passphrase" || (secret.value !== "" && (!request.repeat || secret.value === secret.again));
+    request.kind !== "passphrase" ||
+    (!checking && secret.value !== "" && (!request.repeat || secret.value === secret.again));
   const t = useTranslations();
   const copy = async (input: HTMLInputElement | null) => {
     if (request.kind !== "copy") return;
@@ -205,8 +225,20 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
     if (dialog && !dialog.open) dialog.showModal();
   }, []);
 
-  const finish = (ok: boolean, choice: string | null = null) => {
+  const finish = async (ok: boolean, choice: string | null = null) => {
     if (done.current) return;
+    if (ok && request.kind === "passphrase" && request.check) {
+      if (checking) return;
+      setChecking(true);
+      setCheckError("");
+      const error = await request.check(secret.value).catch(() => "");
+      setChecking(false);
+      if (error !== null) {
+        setCheckError(error);
+        return;
+      }
+      if (done.current) return;
+    }
     done.current = true;
     ref.current?.close();
     if (request.kind === "confirm") request.resolve(ok);
@@ -230,11 +262,11 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
       // Esc: the same as cancel / close.
       onCancel={(e) => {
         e.preventDefault();
-        finish(false);
+        void finish(false);
       }}
       // A click on the backdrop.
       onClick={(e) => {
-        if (e.target === e.currentTarget) finish(false);
+        if (e.target === e.currentTarget) void finish(false);
       }}
     >
       <div className={styles.body}>
@@ -289,7 +321,14 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.nativeEvent.isComposing && codeMatches) finish(true);
+                if (e.key === "Enter" && !e.nativeEvent.isComposing && codeMatches) {
+                  // The dialog closes on this key down and gives the focus
+                  // back to the button that opened it; without this, the
+                  // key's press then clicks that button again (a second
+                  // dialog, after the first was already confirmed).
+                  e.preventDefault();
+                  void finish(true);
+                }
               }}
               autoFocus
               autoComplete="off"
@@ -308,9 +347,17 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
               aria-label={t("dialog.passphrase")}
               placeholder={t("dialog.passphrase")}
               value={secret.value}
-              onChange={(e) => setSecret({ ...secret, value: e.target.value })}
+              onChange={(e) => {
+                setSecret({ ...secret, value: e.target.value });
+                setCheckError("");
+              }}
+              readOnly={checking}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.nativeEvent.isComposing && secretReady) finish(true);
+                if (e.key === "Enter" && !e.nativeEvent.isComposing && secretReady) {
+                  // (As in the code field above.)
+                  e.preventDefault();
+                  void finish(true);
+                }
               }}
               autoFocus
               autoComplete={request.repeat ? "new-password" : "current-password"}
@@ -325,15 +372,25 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
                 value={secret.again}
                 onChange={(e) => setSecret({ ...secret, again: e.target.value })}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.nativeEvent.isComposing && secretReady) finish(true);
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing && secretReady) {
+                    e.preventDefault();
+                    void finish(true);
+                  }
                 }}
+                readOnly={checking}
                 autoComplete="new-password"
               />
             )}
-            {request.repeat && secret.again !== "" && secret.again !== secret.value && (
+            {request.repeat && secret.again !== "" && secret.again !== secret.value ? (
               <p className={ui.error} role="alert" data-ui="AppDialog.passphraseError">
                 {t("dialog.passphraseMismatch")}
               </p>
+            ) : (
+              checkError && (
+                <p className={ui.error} role="alert" data-ui="AppDialog.passphraseError">
+                  {checkError}
+                </p>
+              )
             )}
           </div>
         )}
@@ -345,7 +402,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
                 className={ui.buttonSecondary}
                 data-ui="AppDialog.cancelButton"
                 autoFocus={request.kind === "confirm" && request.danger}
-                onClick={() => finish(false)}
+                onClick={() => void finish(false)}
               >
                 {t("common.cancel")}
               </button>
@@ -355,9 +412,10 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
                 data-ui="AppDialog.confirmButton"
                 autoFocus={request.kind === "confirm" && !request.danger && code === undefined}
                 disabled={!codeMatches || !secretReady}
-                onClick={() => finish(true)}
+                onClick={() => void finish(true)}
+                aria-busy={checking || undefined}
               >
-                {request.confirmLabel}
+                {checking ? t("dialog.checking") : request.confirmLabel}
               </button>
             </>
           ) : request.kind === "choice" ? (
@@ -366,7 +424,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
                 type="button"
                 className={ui.buttonSecondary}
                 data-ui="AppDialog.cancelButton"
-                onClick={() => finish(false)}
+                onClick={() => void finish(false)}
               >
                 {t("common.cancel")}
               </button>
@@ -380,7 +438,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
                     data-ui="AppDialog.choiceButton"
                     data-id={choice.value}
                     autoFocus={suggested}
-                    onClick={() => finish(true, choice.value)}
+                    onClick={() => void finish(true, choice.value)}
                   >
                     {choice.label}
                   </button>
@@ -393,7 +451,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
               className={ui.button}
               data-ui="AppDialog.closeButton"
               autoFocus={request.kind === "alert"}
-              onClick={() => finish(true)}
+              onClick={() => void finish(true)}
             >
               {t("common.close")}
             </button>

@@ -144,6 +144,9 @@ model KnowledgeRoot {
 enum PageKind {
   DOCUMENT
   WHITEBOARD
+  // A shortcut: an entry in the tree that opens another page
+  // (Page.shortcutTargetId). It has no content of its own.
+  SHORTCUT
 }
 
 model Page {
@@ -153,6 +156,11 @@ model Page {
   // What the page is: a document (BlockNote) or a whiteboard (a canvas in the
   // same Yjs document, lib/whiteboard.ts). Chosen on creation, never changed.
   kind        PageKind  @default(DOCUMENT)
+  // For a SHORTCUT: the page it opens (no foreign key: the target may be
+  // deleted or moved to the trash, and the shortcut then opens nothing).
+  // Whether the viewer may see the target's title or open it is checked
+  // with their own access to the target, never the shortcut's.
+  shortcutTargetId String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   // Set when the page is moved to the trash. Its descendants keep null but
@@ -215,6 +223,7 @@ model Page {
 
   @@index([rootId])
   @@index([parentId, sortOrder])
+  @@index([shortcutTargetId])
 }
 
 // Persisted Yjs document state for a page, written by the collab (Hocuspocus) server.

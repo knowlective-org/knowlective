@@ -1,4 +1,4 @@
-import type { PageAccess, Prisma, PrismaClient } from "@prisma/client";
+import type { PageAccess, PageKind, Prisma, PrismaClient } from "@prisma/client";
 import { loadDataKey } from "./instance";
 import { openEmail } from "./personal-data";
 
@@ -187,7 +187,17 @@ export const PAGE_ORDER = [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "as
 async function loadTree(prisma: PrismaClient, rootId: string) {
   return prisma.page.findMany({
     where: { rootId, deletedAt: null },
-    select: { id: true, parentId: true, title: true, icon: true, createdAt: true, lockedAt: true, lockSubtree: true },
+    select: {
+      id: true,
+      parentId: true,
+      title: true,
+      icon: true,
+      kind: true,
+      shortcutTargetId: true,
+      createdAt: true,
+      lockedAt: true,
+      lockSubtree: true,
+    },
     orderBy: PAGE_ORDER,
   });
 }
@@ -525,8 +535,13 @@ export function restoreDestinations(tree: Awaited<ReturnType<typeof getTreeWithA
 export type VisiblePage = {
   id: string;
   parentId: string | null;
+  // A shortcut's own title is empty: what it shows is its target's title,
+  // for viewers who can open the target (resolved by the app).
   title: string;
   icon: string | null;
+  kind: PageKind;
+  // For a SHORTCUT: the page it opens.
+  shortcutTargetId: string | null;
   access: PageAccess;
   // The lock applying to the page, if it's locked.
   lock: PageLockState | null;
@@ -609,6 +624,8 @@ async function buildVisibleTree(
       parentId: p.parentId,
       title: p.title,
       icon: p.icon,
+      kind: p.kind,
+      shortcutTargetId: p.shortcutTargetId,
       access: access.get(p.id)!,
       lock: locks.get(p.id) ?? null,
     }));
