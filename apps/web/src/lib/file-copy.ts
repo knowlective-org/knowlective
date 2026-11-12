@@ -24,6 +24,11 @@ import { isUploadAllowed } from "@/lib/upload-types";
 // finds, components/editor/adopt-files.ts) or writes it through the API.
 // One copy per page and source (FileObject.copiedFromId), so two editors
 // fixing the same block at once end up with the same URL.
+//
+// A copy shows the file to everyone who can open this page, and the file
+// may have been put here by someone who can't open it themselves: the editor
+// asks first (`copy` false: what would be copied, in `pending`), and copies
+// only once the person whose access it uses says so.
 
 // At most this many files per request.
 export const MAX_ADOPT_FILES = 50;
@@ -33,15 +38,20 @@ export const MAX_ADOPT_FILES = 50;
 // is (no such file, not allowed, too large, the storage failing).
 export type AdoptedFiles = Record<string, string | null>;
 
-export async function adoptFiles(userId: string, pageId: string, fileIds: unknown): Promise<AdoptedFiles> {
-  if (typeof pageId !== "string" || !Array.isArray(fileIds)) return {};
+// `urls`: as above; `pending`: files that would be copied, when not copying
+// (their urls are null meanwhile).
+export type AdoptResult = { urls: AdoptedFiles; pending: { id: string; name: string }[] };
+
+export async function adoptFiles(userId: string, pageId: string, fileIds: unknown, copy = true): Promise<AdoptResult> {
+  const none: AdoptResult = { urls: {}, pending: [] };
+  if (typeof pageId !== "string" || !Array.isArray(fileIds)) return none;
   const ids = [...new Set(fileIds.filter((id): id is string => typeof id === "string" && fileIdOf(fileUrl(id)) === id))].slice(
     0,
     MAX_ADOPT_FILES,
   );
-  if (ids.length === 0) return {};
+  if (ids.length === 0) return none;
   const page = await getPageAccess(prisma, userId, pageId);
-  if (!page || !canEditPage(page)) return {};
+  if (!page || !canEditPage(page)) return none;
 
   const files = await prisma.fileObject.findMany({
     where: { id: { in: ids } },
@@ -53,7 +63,9 @@ export async function adoptFiles(userId: string, pageId: string, fileIds: unknow
     if (file.pageId === pageId) result[file.id] = fileUrl(file.id);
     else if (file.pageId) others.push({ ...file, pageId: file.pageId });
   }
-  if (others.length === 0) return result;
+  const pending: AdoptResult["pending"] = [];
+  const done = () => ({ urls: result, pending });
+  if (others.length === 0) return done();
 
   // Copied already (by someone else, or a block pasted twice).
   const copies = await prisma.fileObject.findMany({
@@ -63,13 +75,13 @@ export async function adoptFiles(userId: string, pageId: string, fileIds: unknow
   for (const copy of copies) if (copy.copiedFromId) result[copy.copiedFromId] = fileUrl(copy.id);
 
   const toCopy = others.filter((f) => !result[f.id]);
-  if (toCopy.length === 0) return result;
+  if (toCopy.length === 0) return done();
   // A copy adds a file to the page: the same rules as an upload
   // (app/api/files/route.ts), and reading the source is a download.
   const caps = await requestNetworkCaps();
-  if (!caps.upload || !caps.download || !(await getUploadsEnabled())) return result;
+  if (!caps.upload || !caps.download || !(await getUploadsEnabled())) return done();
   const config = await getStorageConfig();
-  if (!config) return result;
+  if (!config) return done();
   const allowed = await getAllowedUploadExtensions();
   const maxBytes = (await getMaxUploadSizeMb()) * 1024 * 1024;
 
@@ -77,9 +89,10 @@ export async function adoptFiles(userId: string, pageId: string, fileIds: unknow
     if (source.size > maxBytes || !isUploadAllowed(source.name, allowed)) continue;
     // Only who can open the file can copy it.
     if (!(await getPageAccess(prisma, userId, source.pageId))) continue;
-    result[source.id] = await copyFile(config, userId, { pageId, rootId: page.rootId }, source);
+    if (!copy) pending.push({ id: source.id, name: source.name });
+    else result[source.id] = await copyFile(config, userId, { pageId, rootId: page.rootId }, source);
   }
-  return result;
+  return done();
 }
 
 type StorageConfig = NonNullable<Awaited<ReturnType<typeof getStorageConfig>>>;
@@ -145,7 +158,8 @@ export async function adoptFilesInBody(userId: string, pageId: string, body: Uin
   };
   visit(doc.getXmlFragment("blocknote"));
   if (found.length === 0) return body;
-  const adopted = await adoptFiles(userId, pageId, found.map((f) => f.id));
+  // Put here by the caller themselves: copied without asking.
+  const adopted = (await adoptFiles(userId, pageId, found.map((f) => f.id))).urls;
   doc.transact(() => {
     for (const { node, id } of found) node.setAttribute("url", adopted[id] ?? fileUrl(id));
   });

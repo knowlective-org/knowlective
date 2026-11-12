@@ -623,7 +623,12 @@ function EditorBody({
   }, [editor, readOnly]);
 
   // Attachments of blocks copied from other pages become this page's own.
-  useAdoptFiles(editor, provider, pageId, readOnly);
+  useAdoptFiles(editor, provider, pageId, readOnly, (names) =>
+    showConfirm(text("editor.adoptFilesConfirm", { names: names.join("\n") }), {
+      title: text("editor.adoptFilesTitle"),
+      confirmLabel: text("editor.adoptFilesCopy"),
+    }),
+  );
 
   // A click on a file path in the text copies it (a browser won't open it).
   useFilePaths(editor);

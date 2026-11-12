@@ -55,6 +55,7 @@ const ja: MessageShape<typeof en> = {
     oidcSyncName: "{sync, select, true {表示名をログインのたびに更新} other {表示名はアカウント作成時だけ設定}}",
     oidcGroupsClaim: "グループに使う属性: {claim, select, none {なし（オフ）} other {{claim}}}",
     oidcGroups: "シングルサインオンによるグループ — 参加: {added, select, none {なし} other {{added}}}、離脱: {removed, select, none {なし} other {{removed}}}、作成: {created, select, none {なし} other {{created}}}",
+    oidcLinkUnconfirmed: "メールアドレスを確認していなかった {email} のアカウントにシングルサインオンを結び付け、それまでのパスワード・パスキー・API キー・セッションを無効にした",
     oidcNameChange: "{allowed, select, true {シングルサインオンのアカウントの名前の変更を許可} other {シングルサインオンのアカウントの名前を変更不可に}}",
     oidcEmailChange: "{allowed, select, true {シングルサインオンのアカウントのメールアドレスの確認なしの変更を許可} other {シングルサインオンのアカウントのメールアドレスの変更を確認ありに}}",
     nameChange: "名前を「{from}」から「{to}」に変更",

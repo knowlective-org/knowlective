@@ -71,7 +71,8 @@ export async function register(_prev: InviteState, formData: FormData): Promise<
   try {
     userId = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { ...emailData, name: name.trim(), passwordHash, siteRole },
+        // An invitation without an address: the address is whatever was typed.
+        data: { ...emailData, name: name.trim(), passwordHash, siteRole, emailUnconfirmed: !invitation.email },
       });
       await consumeInvitation(tx, invitation.id, user.id);
       // Every person's account comes with its own personal knowledge root.

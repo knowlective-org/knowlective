@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
+import { withPrisma } from "./db";
 import { attachFile, createPage, editorBody, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
@@ -109,6 +110,53 @@ test.describe("Search", () => {
 
     await page.goto(`pages/${id}`);
     await trashOpenPage(page);
+  });
+
+  test("a page's search covers its own attachments, not files of other pages it links to", async ({ page, browser }) => {
+    test.setTimeout(120_000);
+    const stamp = Date.now();
+    const word = `zqother${stamp}`;
+    // A page the editor can't open (the editors' group taken away), with a file.
+    const admin = await browser.newContext({ storageState: authFile("admin") });
+    let otherId = "";
+    try {
+      const adminPage = await admin.newPage();
+      ({ id: otherId } = await createPage(adminPage, "E2E ほかのページの添付"));
+      await withPrisma(async (prisma) => {
+        const editors = await prisma.group.findFirstOrThrow({ where: { name: "E2E 編集" }, select: { id: true } });
+        await prisma.pageGrant.create({ data: { pageId: otherId, groupId: editors.id, access: "NONE" } });
+      });
+      await attachFile(adminPage, { name: "other.txt", type: "text/plain", base64: Buffer.from(`only in the file ${word}`).toString("base64") });
+      const fileId = await withPrisma(async (prisma) => (await prisma.fileObject.findFirstOrThrow({ where: { pageId: otherId }, select: { id: true } })).id);
+      await expect
+        .poll(() => withPrisma((prisma) => prisma.fileObject.findUnique({ where: { id: fileId }, select: { textExtractedAt: true } }).then((f) => !!f?.textExtractedAt)), { timeout: 60_000 })
+        .toBe(true);
+
+      // The editor's page shows the file's URL (as stored in documents).
+      const { id } = await createPage(page, "E2E ほかのページの添付へのリンク");
+      await editorBody(page).click();
+      await page.evaluate((src) => {
+        const data = new DataTransfer();
+        data.setData("text/html", `<p><img src="${src}"></p>`);
+        document.querySelector(".bn-editor")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+      }, `/api/files/${fileId}`);
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      // Stored and indexed: the page itself is found by its title, the file's words are not.
+      await expect
+        .poll(async () => {
+          await page.goto(`search?q=${encodeURIComponent("ほかのページの添付へのリンク")}&mode=keyword`);
+          return page.locator(`[data-ui="SearchPage.result"][data-id="${id}"]`).count();
+        }, { timeout: 30_000, intervals: [2_000] })
+        .toBe(1);
+      await page.waitForTimeout(3000);
+      await page.goto(`search?q=${word}&mode=keyword`);
+      await expect(page.locator('[data-ui="SearchPage.result"]')).toHaveCount(0);
+      await page.goto(`pages/${id}`);
+      await trashOpenPage(page);
+    } finally {
+      if (otherId) await withPrisma((prisma) => prisma.page.update({ where: { id: otherId }, data: { deletedAt: new Date() } }));
+      await admin.close();
+    }
   });
 
   test("chat messages are found by their words, until taken back", async ({ page }) => {

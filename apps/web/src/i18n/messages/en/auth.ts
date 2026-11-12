@@ -20,6 +20,7 @@ export default {
       missing: "Enter your email address and password.",
       locked: "Too many failed attempts: logging in is locked for now. Please wait about {minutes, number} minutes and try again.",
       wrong: "The email address or password is incorrect.",
+      busy: "Many people are logging in right now. Please wait a moment and try again.",
       usePasskey: "This account logs in with a passkey. Use \"Log in with a passkey\" above.",
       passkeyFailed: "Logging in with the passkey failed. Please try again.",
       passkeyExpired: "The login expired. Please try again.",

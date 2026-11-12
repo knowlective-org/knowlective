@@ -42,6 +42,11 @@ model User {
   legacyEmail  String?
   name         String?
   passwordHash String
+  // The address was typed in by whoever registered (an invitation without
+  // an address), not shown to be theirs. Single sign-on linking to such an
+  // account by its address revokes its earlier credentials
+  // (apps/web lib/auth/oidc.ts). Cleared when the address is confirmed.
+  emailUnconfirmed Boolean @default(false)
   createdAt    DateTime  @default(now())
   // Set when an admin disables the account: no login, sessions ended,
   // collab access refused. Group memberships are kept so re-enabling restores access.

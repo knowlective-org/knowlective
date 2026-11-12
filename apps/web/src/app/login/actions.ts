@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { verifyPassword, verifyPasswordAgainstDummy } from "shared";
+import { passwordCheckLimit } from "@/lib/concurrency-limit";
 import { prisma } from "@/lib/db";
 import { emailWhere } from "@/lib/emails";
 import type { AuthenticationResponseJSON, PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/server";
@@ -42,9 +43,12 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     select: { id: true, passwordHash: true, disabledAt: true, siteRole: true },
   });
   // Same cost whether or not the account exists, so emails can't be probed.
-  const ok = user
-    ? await verifyPassword(password, user.passwordHash)
-    : await verifyPasswordAgainstDummy(password);
+  // Too many being checked at once: refused before the slow part.
+  const checked = await passwordCheckLimit(() =>
+    user ? verifyPassword(password, user.passwordHash) : verifyPasswordAgainstDummy(password),
+  );
+  if (!checked.ok) return { error: t("login.errors.busy"), email };
+  const ok = checked.value;
 
   // The site requires passkeys and this account has one: the password alone
   // doesn't sign in. Counted as a failure, so the answer (which tells that

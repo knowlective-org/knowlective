@@ -177,12 +177,17 @@ test("messages are formatted with Markdown, typed or from the buttons and shortc
   await page.keyboard.press("Shift+Home");
   await page.keyboard.press("Control+b");
   await expect(input).toHaveValue("**大事**");
+  // The selection is put back in the next frame, after the value: wait for it
+  // before typing on (or the keys land on the old selection).
+  const selection = () => input.evaluate((el: HTMLTextAreaElement) => [el.selectionStart, el.selectionEnd]);
+  await expect.poll(selection).toEqual([2, 4]);
   await page.keyboard.press("End");
   await page.keyboard.type(" 資料");
   await page.keyboard.press("Shift+ArrowLeft");
   await page.keyboard.press("Shift+ArrowLeft");
   await page.locator('[data-ui="ChatBlock.formatButton"][data-id="link"]').click();
   await expect(input).toHaveValue("**大事** [資料](https://)");
+  await expect.poll(selection).toEqual([12, 20]);
   // The address is selected: typed over.
   await page.keyboard.type("https://example.com/doc");
   await page.keyboard.press("Enter");

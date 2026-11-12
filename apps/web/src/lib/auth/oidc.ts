@@ -19,6 +19,7 @@ import { getTranslations } from "next-intl/server";
 import { isDomainAllowed } from "@/lib/auth/signup";
 import { getPublicUrl } from "@/lib/site-url";
 import { fetchThroughProxy } from "@/lib/outbound-proxy";
+import { disconnectUsers } from "@/lib/collab-events";
 
 // Sign-in with OpenID Connect (authorization code flow with PKCE, state and
 // nonce; client authenticated with its secret). The protocol work — discovery,
@@ -378,13 +379,47 @@ async function completeLogin(search: string, state: LoginState): Promise<{ userI
   // (first sign-in through the IdP).
   const existing = await prisma.user.findUnique({
     where: await emailWhere(email),
-    select: { id: true, disabledAt: true, oidcIssuer: true, oidcSubject: true },
+    select: { id: true, disabledAt: true, oidcIssuer: true, oidcSubject: true, emailUnconfirmed: true },
   });
   if (existing) {
     if (existing.disabledAt) throw new OidcLoginError("disabled");
     // Already tied to a different IdP account: don't let another one take it
     // over just because it reports the same email.
     if (existing.oidcSubject !== null) throw new OidcLoginError("conflict");
+    if (existing.emailUnconfirmed) {
+      // The address was only typed in (an invitation without one): whoever
+      // did may not be this person. The IdP shows the address is theirs, so
+      // the account becomes theirs alone: every way in set up before goes.
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            oidcIssuer: issuer,
+            oidcSubject: subject,
+            emailUnconfirmed: false,
+            passwordHash: await hashPassword(randomBytes(48).toString("base64url")),
+          },
+        }),
+        prisma.userSession.deleteMany({ where: { userId: existing.id } }),
+        prisma.adminSession.deleteMany({ where: { userId: existing.id } }),
+        prisma.userPasskey.deleteMany({ where: { userId: existing.id } }),
+        prisma.apiKey.deleteMany({ where: { userId: existing.id } }),
+        prisma.passwordResetToken.deleteMany({ where: { userId: existing.id } }),
+        prisma.emailChangeRequest.deleteMany({ where: { userId: existing.id } }),
+        prisma.emailCode.deleteMany({ where: { userId: existing.id } }),
+        prisma.pushSubscription.deleteMany({ where: { userId: existing.id } }),
+      ]);
+      disconnectUsers([existing.id]);
+      const audit = await auditTranslator();
+      await recordAudit(
+        { userId: existing.id, label: email },
+        "user.oidc.link.unconfirmed",
+        audit("audit.oidcLinkUnconfirmed", { email }),
+        { userId: existing.id },
+      );
+      await applyProfile(existing.id, settings, profile);
+      return { userId: existing.id, next: state.next };
+    }
     await prisma.user.update({
       where: { id: existing.id },
       data: { oidcIssuer: issuer, oidcSubject: subject },

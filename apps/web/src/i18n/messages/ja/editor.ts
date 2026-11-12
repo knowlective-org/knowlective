@@ -41,6 +41,10 @@ const ja: MessageShape<typeof en> = {
     embedPages: "ページ送りで表示",
     expandChoice: "「{name}」をファイルとして添付しますか？ それとも、内容をこのページに展開しますか？",
     expandDocxNote: "\n\n展開すると、見出し・リスト・表・画像などの構造だけが入ります。文字の色やレイアウトは再現されません。",
+    adoptFilesTitle: "ほかのページのファイル",
+    adoptFilesConfirm:
+      "このページに、ほかのページに添付されたファイルがあります：\n\n{names}\n\nこのページにコピーして、このページを開ける人全員が開けるようにしますか？ 見せてよいファイルのときだけコピーしてください。",
+    adoptFilesCopy: "このページにコピー",
     expandCsvNote: "\n\n展開すると表になり、1行目が見出しの行になります。",
     expandCsvEmpty: "この CSV ファイルには内容がありません。",
     expandCsvTruncated: "最初の {rows, number} 行・{columns, number} 列だけを取り込みました。",

@@ -197,7 +197,7 @@ test.describe("Access matrix", () => {
     let action: string | undefined;
     page.on("request", (request) => {
       const id = request.headers()["next-action"];
-      if (id && request.postData() === JSON.stringify([pageId, [fileId]])) action = id;
+      if (id && request.postData() === JSON.stringify([pageId, [fileId], false])) action = id;
     });
     await openPage(page, pageId);
     await expect.poll(() => action).toBeTruthy();
@@ -220,7 +220,7 @@ test.describe("Access matrix", () => {
     const call = (request: APIRequestContext) =>
       request.post(`pages/${targetId}`, {
         headers: { Origin: origin, "Next-Action": action!, Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8" },
-        data: JSON.stringify([targetId, [personalFile]]),
+        data: JSON.stringify([targetId, [personalFile], true]),
         maxRedirects: 0,
       });
     // Refused for those who can't edit the page, and for the editor, who can't

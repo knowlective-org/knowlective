@@ -8,6 +8,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Security
+
+- Fixes for several security issues found in a review of the source code. Details will be published as GitHub security advisories once a release with the fixes is out; please update to it
+
 ### Added
 
 - Knowledge roots in the admin console ("ナレッジルート", site admins; auditors view it): every knowledge root but the users' own, with its name, number of pages, the groups with access and when it was made, and nothing of what's in it. A knowledge root can be deleted there (typing back a code to confirm): nobody can open any of its pages any more, nor find them in search, and pages open in it are closed. Nothing is removed, and it can be restored on the same screen, with the same access. Both are recorded in the audit log
@@ -31,6 +35,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Upgrade notes
 
+- Database migrations add `User.emailUnconfirmed` and empty the search index, which is rebuilt in the background on start: until it's done, search finds fewer pages than usual. The semantic search index is rebuilt too
 - A database migration adds `KnowledgeRoot.deletedAt` and `deletedById` (applied on start)
 - A database migration adds `FileObject.copiedFromId` (applied on start)
 

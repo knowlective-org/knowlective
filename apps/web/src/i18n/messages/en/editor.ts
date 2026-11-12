@@ -40,6 +40,10 @@ export default {
     embedPages: "Show page by page",
     expandChoice: "Attach \"{name}\" as a file, or expand its content into this page?",
     expandDocxNote: "\n\nExpanding brings in only the structure: headings, lists, tables, images and so on. Text colors and layout aren't kept.",
+    adoptFilesTitle: "Files from other pages",
+    adoptFilesConfirm:
+      "This page shows files attached to other pages:\n\n{names}\n\nCopy them to this page, so everyone who can open it can open them too? Only do so if they should see them.",
+    adoptFilesCopy: "Copy to this page",
     expandCsvNote: "\n\nExpanding makes it a table, its first row the header row.",
     expandCsvEmpty: "There is nothing in this CSV file.",
     expandCsvTruncated: "Only the first {rows, number} rows and {columns, number} columns were taken in.",

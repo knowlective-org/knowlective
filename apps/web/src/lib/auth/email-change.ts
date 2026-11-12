@@ -90,7 +90,8 @@ export async function changeEmailWithoutConfirmation(
   const columns = await emailColumns(email);
   try {
     await prisma.$transaction([
-      prisma.user.update({ where: { id: user.id }, data: columns }),
+      // Not shown to be theirs (no link was followed).
+      prisma.user.update({ where: { id: user.id }, data: { ...columns, emailUnconfirmed: true } }),
       // A link asked for before stops working.
       prisma.emailChangeRequest.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } }),
     ]);
@@ -153,7 +154,8 @@ export async function completeEmailChange(token: string): Promise<CompleteEmailC
       if (used.count !== 1) throw new Error("used");
       await tx.user.update({
         where: { id: request.userId },
-        data: { emailHash: row.newEmailHash, emailEnc: row.newEmailEnc },
+        // The link reached the address: it's the account's.
+        data: { emailHash: row.newEmailHash, emailEnc: row.newEmailEnc, emailUnconfirmed: false },
       });
     });
   } catch (err) {
