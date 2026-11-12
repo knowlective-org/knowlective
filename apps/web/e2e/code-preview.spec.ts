@@ -42,6 +42,12 @@ test.describe("Code block previews", () => {
     // Drawn again as the code changes.
     // (Ctrl+A in a code block selects its code: replaced by what's typed.)
     await block.locator("code").click();
+    // The editor takes the click's caret a moment later (selectionchange):
+    // keys pressed before that act where the caret was.
+    await expect
+      .poll(() => block.locator("code").evaluate((code) => code.contains(window.getSelection()?.anchorNode ?? null)))
+      .toBe(true);
+    await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 50)));
     await page.keyboard.press("Control+a");
     await page.keyboard.type("<b id=\"more\">more</b>");
     await expect(frame.locator("#more")).toHaveText("more");
