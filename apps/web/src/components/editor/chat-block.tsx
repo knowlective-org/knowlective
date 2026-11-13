@@ -348,11 +348,10 @@ function Log({
       {selection && onReply && (
         <button
           type="button"
-          className={styles.quoteSelectionButton}
+          ref={keepSelection}
+          className={selection.mine ? `${styles.quoteSelectionButton} ${styles.quoteSelectionButtonMine}` : styles.quoteSelectionButton}
           style={{ top: selection.top, left: selection.left }}
           title={t("quoteSelectionTitle")}
-          // Keep the selection until the click.
-          onMouseDown={(e) => e.preventDefault()}
           onClick={quoteSelection}
           data-ui="ChatBlock.quoteSelectionButton"
         >
@@ -388,7 +387,14 @@ const oneLine = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 80);
 // message, the text, and where to show the "Quote" button (over the
 // selection, on the screen).
 function useMessageSelection(ref: { current: HTMLDivElement | null }, enabled: boolean) {
-  const [selection, setSelection] = useState<{ messageId: string; text: string; top: number; left: number } | null>(null);
+  const [selection, setSelection] = useState<{
+    messageId: string;
+    // In one's own message (its bubble has the primary color: the button is inverted).
+    mine: boolean;
+    text: string;
+    top: number;
+    left: number;
+  } | null>(null);
   useEffect(() => {
     if (!enabled) return;
     const update = () => {
@@ -397,19 +403,30 @@ function useMessageSelection(ref: { current: HTMLDivElement | null }, enabled: b
       if (!log || !sel || sel.isCollapsed || sel.rangeCount === 0) return setSelection(null);
       const bubbleOf = (node: Node | null) =>
         (node instanceof Element ? node : node?.parentElement)?.closest<HTMLElement>('[data-ui="ChatBlock.text"]') ?? null;
-      const bubble = bubbleOf(sel.anchorNode);
-      if (!bubble || bubble !== bubbleOf(sel.focusNode) || !log.contains(bubble)) return setSelection(null);
-      const messageId = bubble.closest<HTMLElement>('[data-ui="ChatBlock.messageRow"]')?.dataset.id;
-      const text = sel.toString().trim();
+      const fromAnchor = bubbleOf(sel.anchorNode);
+      const fromFocus = bubbleOf(sel.focusNode);
+      // In one message. A triple click or a drag past the end of the text
+      // ends outside every message: that end is cut to the message's text.
+      // Across two messages: nothing to quote.
+      if (fromAnchor && fromFocus && fromAnchor !== fromFocus) return setSelection(null);
+      const bubble = fromAnchor ?? fromFocus;
+      if (!bubble || !log.contains(bubble)) return setSelection(null);
+      const range = sel.getRangeAt(0).cloneRange();
+      if (!bubble.contains(range.startContainer)) range.setStart(bubble, 0);
+      if (!bubble.contains(range.endContainer)) range.setEnd(bubble, bubble.childNodes.length);
+      const row = bubble.closest<HTMLElement>('[data-ui="ChatBlock.messageRow"]');
+      const messageId = row?.dataset.id;
+      const text = range.toString().trim();
       if (!messageId || !text) return setSelection(null);
-      const rects = sel.getRangeAt(0).getClientRects();
-      const end = rects[rects.length - 1] ?? sel.getRangeAt(0).getBoundingClientRect();
+      const rects = range.getClientRects();
+      const end = rects[rects.length - 1] ?? range.getBoundingClientRect();
       const first = rects[0] ?? end;
       // Fixed on the screen (the log would clip it): above the selection,
       // below it at the top of the window.
       const above = first.top >= 34;
       setSelection({
         messageId,
+        mine: row?.dataset.mine === "true",
         text,
         top: above ? first.top - 30 : end.bottom + 4,
         left: Math.max(4, Math.min(end.right - 40, window.innerWidth - 90)),
@@ -426,6 +443,14 @@ function useMessageSelection(ref: { current: HTMLDivElement | null }, enabled: b
     };
   }, [ref, enabled]);
   return enabled ? selection : null;
+}
+
+// The quote button keeps the selection until its click: pressing it mustn't
+// clear the selection (the button would go with it, and the click be lost).
+// A listener on the button itself: the chat block stops every mousedown at
+// its root (keeping it from the editor), so React's onMouseDown never runs.
+function keepSelection(button: HTMLButtonElement | null) {
+  button?.addEventListener("mousedown", (e) => e.preventDefault());
 }
 
 function excerptOf(m: ChatMessageView): string {

@@ -41,6 +41,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Fixed
 
+- Quoting selected text of a chat message worked only some of the time: pressing the "引用" button could clear the selection (and the button with it), and a triple click didn't offer it at all. Over one's own message the button is now inverted, as it was hard to see on the message's color
 - Tab (or Shift+Tab) in a list item or TODO that couldn't be indented (an empty first item, for one) moved the focus out of the text, to the next control on the page such as a TODO's checkbox. It now does nothing
 - After a wrong passphrase (a masked column, for one), selecting the field's text with the mouse and letting go outside the dialog closed it. The field is now also cleared for the next try
 - A deleted block could come back a few seconds later, multiplied (#41): an editor that had missed someone else's change (seen in tabs left open a long time) wrote its whole, older content back on its next edit, adding the deleted blocks again as new ones, once per such tab. An editor now checks for that before writing, and instead of writing, redraws itself from the shared document (the edit that set it off is lost); it also checks when its tab comes back into view
