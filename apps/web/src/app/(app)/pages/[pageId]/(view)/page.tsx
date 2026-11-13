@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
-import { cache } from "react";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { displayName } from "@/lib/emails";
 import { findAccessiblePage } from "@/lib/auth/pages";
 import { pageOpened } from "@/lib/notifications";
-import { getCurrentUser, requireUser } from "@/lib/auth/session";
 import { atLeast } from "shared";
 import { loadPublicSidebar, loadSidebar } from "@/lib/sidebar-data";
 import { getPublicUrl } from "@/lib/site-url";
@@ -14,19 +12,8 @@ import { publicPageState } from "@/lib/public-page-state";
 import { getBrand } from "@/lib/brand";
 import { jsonLd, pageDescription } from "@/lib/seo";
 import { auditorsSeePersonalRoots, noteAuditorView } from "@/lib/personal-root-audit";
-import { shortcutTarget } from "@/lib/shortcuts";
-import { type PageLockView, PageView } from "./page-view";
-
-// Shared by generateMetadata and the page within one request. Someone not
-// logged in may view a public page; any other page sends them to the login
-// screen, as before (so it doesn't tell which pages exist).
-const loadPage = cache(async (pageId: string) => {
-  const user = await getCurrentUser();
-  if (user) return { user, page: await findAccessiblePage(user.id, pageId) };
-  const page = await findAccessiblePage(null, pageId);
-  if (!page) await requireUser(`/pages/${encodeURIComponent(pageId)}`);
-  return { user: null, page };
-});
+import { type PageLockView, PageView } from "../page-view";
+import { loadPage } from "./load-page";
 
 // Someone not logged in sees only public pages; for them (and so for search
 // engines) the page is described: the start of its text, its canonical URL,
@@ -49,14 +36,8 @@ export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">)
 
 export default async function PageEditorRoute({ params }: PageProps<"/pages/[pageId]">) {
   const { user, page } = await loadPage((await params).pageId);
-  if (!page) notFound();
-  // A shortcut opens its target, if the viewer can open that (their own
-  // access to it, not the shortcut's); otherwise there's nothing here.
-  if (page.kind === "SHORTCUT") {
-    const target = await shortcutTarget(user?.id ?? null, page.shortcutTargetId);
-    if (!target) notFound();
-    redirect(`/pages/${target}`);
-  }
+  // Checked by the layout already (404, the login screen, a shortcut's target).
+  if (!page || page.kind === "SHORTCUT") notFound();
 
   // Someone else's personal root (an auditor): recorded, and said so. The
   // owner's root page says auditors may look, while they may.

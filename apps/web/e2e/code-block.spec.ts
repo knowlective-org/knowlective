@@ -161,9 +161,14 @@ test.describe("Code blocks", () => {
     // Code indented by 2 (and a tab): each line keeps its level, in 4 spaces.
     await pasteText(page, "def f(x):\n  if x:\n    return 1\n\treturn 0");
     await expect(block.locator("code")).toHaveText("def f(x):\n    if x:\n        return 1\n    return 0");
-    // One line is pasted as it is.
+    // One line is pasted as it is (where the caret is: pasteText would click
+    // into the code first, which can move the caret).
     await page.keyboard.press("Enter");
-    await pasteText(page, "  x = 1");
+    await page.evaluate(() => {
+      const data = new DataTransfer();
+      data.setData("text/plain", "  x = 1");
+      document.querySelector(".bn-editor")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    });
     await expect(block.locator("code")).toContainText("return 0\n      x = 1");
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
     await trashOpenPage(page);
