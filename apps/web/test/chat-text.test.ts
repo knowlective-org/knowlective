@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { EVERYONE, chatMentionIds, chatMentionsEveryone, chatPlainText, chatSegments } from "../src/lib/chat-text";
+import { EVERYONE, chatMentionIds, chatMentionsEveryone, chatPlainText, chatSegments, chatTextFromDisplay, mentionQueries } from "../src/lib/chat-text";
 
 // A chat message's links and mentions (lib/chat-text.ts). The text comes
 // from whoever posted it, so only http(s) URLs become links.
@@ -41,5 +41,34 @@ describe("chat message text", () => {
     assert.deepEqual(chatMentionIds(text), ["u1"]);
     assert.deepEqual(chatSegments(text)[0], { type: "mention", userId: EVERYONE });
     assert.equal(chatPlainText(text, () => "Ann", "someone", "everyone"), "@everyone please read, @Ann");
+  });
+});
+
+describe("mentions typed in the message box", () => {
+  const ann = { id: "ann", name: "Ann" };
+  const sales = { id: "sales", name: "山田@営業部" };
+  const dept = { id: "dept", name: "営業部" };
+
+  test("a name with an \"@\" in it becomes one mention", () => {
+    assert.equal(chatTextFromDisplay("@山田@営業部 さん", [dept, sales]), "<@sales> さん");
+    assert.equal(chatTextFromDisplay("これは@Ann です", [ann]), "これは<@ann> です");
+  });
+
+  test("an email address isn't taken for a mention", () => {
+    assert.equal(chatTextFromDisplay("mail ann@Ann.example", [ann]), "mail ann@Ann.example");
+    assert.equal(chatTextFromDisplay("x@営業部", [dept]), "x@営業部");
+  });
+
+  test("the menu searches from the farthest \"@\", including names with \"@\"", () => {
+    assert.deepEqual(
+      mentionQueries("@山田@営", 5).map((c) => c.query),
+      ["山田@営", "営"],
+    );
+    assert.deepEqual(
+      mentionQueries("hi @Ann@Sa", 10).map((c) => c.query),
+      ["Ann@Sa"],
+    );
+    assert.deepEqual(mentionQueries("ann@ex", 6), []);
+    assert.deepEqual(mentionQueries("@a\n@b", 5).map((c) => c.query), ["b"]);
   });
 });

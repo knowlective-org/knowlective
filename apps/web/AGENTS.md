@@ -1,5 +1,5 @@
 <!-- BEGIN:local-rules -->
-DO NOT include Co-Authored-By in commit message.
+
 <!-- END:local-rules -->
 
 <!-- BEGIN:nextjs-agent-rules -->

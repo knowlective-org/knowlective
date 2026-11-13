@@ -48,6 +48,8 @@ services:
       SEAWEEDFS_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:-}
       KNOWLECTIVE_BUNDLED_S3_ENDPOINT: http://seaweedfs:8333
       KNOWLECTIVE_TRUSTED_PROXY_HOPS: ${KNOWLECTIVE_TRUSTED_PROXY_HOPS:-1}
+      # One line per request in the container's log (0 = off).
+      KNOWLECTIVE_ACCESS_LOG: ${KNOWLECTIVE_ACCESS_LOG:-1}
       # Sub-path the app is served under, e.g. /knowlective ("" = the root).
       KNOWLECTIVE_BASE_PATH: ${KNOWLECTIVE_BASE_PATH:-}
       KNOWLECTIVE_SOURCE_URL: ${KNOWLECTIVE_SOURCE_URL:-}
@@ -68,6 +70,14 @@ services:
     restart: unless-stopped
     user: "0"
     entrypoint: ["bash", "/knowlective/tde-entrypoint.sh"]
+    # Memory for the database (.env.production; PostgreSQL's defaults if
+    # unset). pg_tde decrypts each page read from disk, so pages kept in
+    # shared_buffers save that work: about a quarter of the server's memory.
+    command:
+      - "-c"
+      - "shared_buffers=${POSTGRES_SHARED_BUFFERS:-128MB}"
+      - "-c"
+      - "effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-4GB}"
     environment:
       POSTGRES_USER: knowlective
       # Not ":?": compose checks variables of disabled services too. The image
@@ -96,6 +106,7 @@ services:
     restart: unless-stopped
     user: "0"
     entrypoint: ["bash", "/knowlective/tde-entrypoint.sh"]
+    command: ["-c", "shared_buffers=${VECTORDB_SHARED_BUFFERS:-128MB}"]
     environment:
       POSTGRES_USER: knowlective
       POSTGRES_PASSWORD: ${VECTORDB_PASSWORD:-}

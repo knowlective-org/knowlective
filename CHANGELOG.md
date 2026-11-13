@@ -14,6 +14,9 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Memory settings for the bundled PostgreSQL and vector database in `.env.production` (`POSTGRES_SHARED_BUFFERS`, `POSTGRES_EFFECTIVE_CACHE_SIZE`, `VECTORDB_SHARED_BUFFERS`; PostgreSQL's defaults if unset). Raising `shared_buffers` (about a quarter of the memory) makes reading faster, since the encrypted database decrypts each page it reads from disk
+- An access log: one line per request on standard output (the container's log) with the time, client IP, method, path (without the query string; tokens in invitation, password reset and email change links left out), status, milliseconds and the X-Forwarded-For header as received. On by default in production; `KNOWLECTIVE_ACCESS_LOG=0` turns it off
+- More reactions in chats: 👌 🙆 (got it), 🙇 (thanks) and 💯, in two rows
 - Shortcuts to a page ("ショートカットを作成" in the page menu, below "移動"): an entry in the page list, under any page one can edit (one's own root too), that opens the page. It's placed with the same dialog as a move, and is moved, reordered and removed (with the "×" on its row, to the trash) like a page; the page itself stays where it is. What it shows depends on each viewer's own access to the page: those who can't open it see "(開けないページ)", without its title, and its address is "not found" for them. Nothing can be added under a shortcut, and the child page blocks, the API's Markdown and the sitemap leave shortcuts out
 - A list of a page's child pages ("子ページの一覧" in the page menu, when it has child pages one can open), filtered by title
 - In a PDF block's full screen, the page can be zoomed (50–400%, with the buttons beside the page number, +, - and 0, or Ctrl/⌘ + the wheel) and dragged around when it's larger than the window
@@ -24,6 +27,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- Pages and the page list on the left load faster: a page's permissions are read in fewer steps, and the knowledge roots in the page list are read all at once instead of one after another
 - A page with more than 30 child pages doesn't list them all in the page list on the left any more: only the one on the way to the open page, with "ほか N ページ" (or "N ページ", when none of them is open) for the rest, which opens the list of its child pages
 - A wrong passphrase for a masked column is said in the passphrase dialog, to type again, instead of a second dialog; the dialog stays open, saying it's checking, while the passphrase is checked
 - A whiteboard's two boxes can be joined by more than one connector, through different sides: a connector is refused only where one already joins them by the same sides (a connector drawn without choosing a side matches any side)
@@ -31,6 +35,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Fixed
 
+- In a chat, someone whose name has an "@" in it (such as "山田@営業部") could not be mentioned: the "@" list closed at the second "@". An email address in a message (ann@example.com) could also turn into a mention of someone whose name followed the "@"
 - Confirming a dialog with Enter in its text field (the code typed back to delete a knowledge root or unlock a page, a passphrase) also pressed the button that had opened it, so the same dialog came straight back (the first one had already done its work) until cancelled
 - A page showed its parent's columns (such as the date a calendar block made) under its title even when the parent no longer had a child page table, board or calendar (or had only the plain child page list). They now show only while the parent has one of those blocks; the columns and their values are kept
 - The change log in the admin console showed site admins the titles of pages they can't open (pages moved, locked, their permissions changed, published, masked in the history, or chosen as the landing page). Such titles are now hidden ("閲覧できないページ") from those who can't open the page; an entry recorded before this one, naming such a page, is shown only as hidden. Knowledge roots' names still show
