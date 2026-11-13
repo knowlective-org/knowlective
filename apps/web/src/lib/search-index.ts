@@ -235,19 +235,30 @@ export async function pageSearchText(prisma: PrismaClient, pageId: string, state
     fileIds = referencedFileIds(doc);
     chatIds = chatBlockIds(doc);
   }
+  // Files sent in the page's chats (lib/chat-post.ts; none on messages taken
+  // back): kept from clean-up as long as their message is, the chat's block
+  // in the body or not (it can be restored); searched, as the messages, only
+  // in the chats the body has now.
+  const chatFiles = await prisma.chatMessage.findMany({
+    where: { pageId, deletedAt: null, NOT: { attachmentIds: { isEmpty: true } } },
+    select: { blockId: true, attachmentIds: true },
+  });
+  const shownChatFiles = chatFiles.filter((m) => chatIds.includes(m.blockId)).flatMap((m) => m.attachmentIds);
+  const searched = [...new Set([...fileIds, ...shownChatFiles])];
+  fileIds = [...new Set([...fileIds, ...chatFiles.flatMap((m) => m.attachmentIds)])];
   // Only this page's own files: whoever finds this page could otherwise read
   // a file of a page they can't open, by putting its URL here. A file of
   // another page becomes this page's own when copied (lib/file-copy.ts).
   // (`fileIds`, all the page shows, still keeps the others from clean-up.)
   const rows =
-    fileIds.length === 0
+    searched.length === 0
       ? []
       : await prisma.fileObject.findMany({
-          where: { id: { in: fileIds }, pageId },
+          where: { id: { in: searched }, pageId },
           select: { id: true, name: true, textEnc: true },
         });
   const byId = new Map(rows.map((r) => [r.id, r]));
-  const files = fileIds.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+  const files = searched.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
   return {
     title,
     body,

@@ -23,9 +23,15 @@ import {
   setChatReaction,
   voteChatPoll,
 } from "@/app/(app)/pages/[pageId]/chat-actions";
+import { getUploadPolicy } from "@/app/(app)/actions";
+import { UploadError, postFile } from "@/lib/upload-file";
+import { resolveAppUrl } from "@/lib/base-path";
 import {
+  CHAT_IMAGE_TYPES,
   CHAT_REACTIONS,
+  MAX_CHAT_FILES,
   MAX_CHAT_MESSAGE_LENGTH,
+  type ChatFileView,
   MAX_POLL_OPTION_LENGTH,
   MAX_POLL_OPTIONS,
   MIN_POLL_OPTIONS,
@@ -111,7 +117,12 @@ function saveFolded(blockId: string, folded: boolean) {
 
 type Person = { id: string; name: string };
 type Reply = { id: string; author: string | null; excerpt: string };
-type ComposerApi = { quote: (text: string) => void };
+type ComposerApi = { quote: (text: string) => void; addFiles: (files: File[]) => void };
+
+// A file being sent with the new message: uploaded at once (as the page's
+// attachment), sent with the message by its id. `preview`: an image's
+// object URL, shown until it's sent.
+type PendingFile = { key: string; name: string; id: string | null; preview: string | null };
 
 function Chat({
   blockId,
@@ -149,9 +160,28 @@ function Chat({
       if ((e.target as Element).getAttribute("data-ui") === "ChatBlock.log") e.stopPropagation();
     };
     el.addEventListener("keydown", ownKey);
+    // Files dropped on the chat are sent with the new message (when one can
+    // be written), not put in the page by the editor.
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files") && !!composer.current;
+    const onDragOver = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer!.dropEffect = "copy";
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      composer.current?.addFiles(Array.from(e.dataTransfer!.files));
+    };
+    el.addEventListener("dragover", onDragOver);
+    el.addEventListener("drop", onDrop);
     return () => {
       for (const name of events) el.removeEventListener(name, own);
       el.removeEventListener("keydown", ownKey);
+      el.removeEventListener("dragover", onDragOver);
+      el.removeEventListener("drop", onDrop);
     };
   }, []);
   // Posting stopped (locked, access changed): no reply or change under way;
@@ -399,11 +429,42 @@ function useMessageSelection(ref: { current: HTMLDivElement | null }, enabled: b
 }
 
 function excerptOf(m: ChatMessageView): string {
-  return chatSegments(chatMarkdownPlain(m.text))
+  const text = chatSegments(chatMarkdownPlain(m.text))
     .map((s) => (s.type === "mention" ? `@${m.names[s.userId] ?? ""}` : s.text))
     .join("")
     .replace(/\s+/g, " ")
-    .slice(0, 80);
+    .trim();
+  // A message of files only: their names.
+  return (text || (m.files.length > 0 ? `📎 ${m.files.map((f) => f.name).join(", ")}` : "")).slice(0, 80);
+}
+
+// The files sent with a message: images as pictures (opened full size in a
+// new tab), others as links that download them. Whoever can open the page
+// can open them (they're its attachments).
+function MessageFiles({ files }: { files: ChatFileView[] }) {
+  const format = useFormatter();
+  const size = (bytes: number) =>
+    bytes >= 1024 * 1024
+      ? `${format.number(bytes / (1024 * 1024), { maximumFractionDigits: 1 })} MB`
+      : `${format.number(Math.max(1, Math.round(bytes / 1024)))} KB`;
+  return (
+    <div className={styles.files} data-ui="ChatBlock.files">
+      {files.map((f) =>
+        f.image ? (
+          <a key={f.id} href={resolveAppUrl(f.url)} target="_blank" rel="noopener noreferrer" className={styles.imageLink} data-ui="ChatBlock.imageLink" data-id={f.id}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- an attachment served by /api/files */}
+            <img src={resolveAppUrl(f.url)} alt={f.name} className={styles.image} loading="lazy" />
+          </a>
+        ) : (
+          <a key={f.id} href={resolveAppUrl(f.url)} download={f.name} className={styles.fileLink} data-ui="ChatBlock.fileLink" data-id={f.id}>
+            <Icon name="attach" size={16} className={styles.inlineIcon} />
+            <span className={styles.fileName}>{f.name}</span>
+            <span className={styles.fileSize}>{size(f.size)}</span>
+          </a>
+        ),
+      )}
+    </div>
+  );
 }
 
 // A message's text with its formatting (lib/chat-markdown.ts): React
@@ -604,7 +665,7 @@ function Message({
         <div className={`${styles.bubble} ${styles.unsent}`} data-ui="ChatBlock.unsentStatus">
           {t("unsent")}
         </div>
-      ) : (
+      ) : !m.text && m.files.length > 0 ? null : (
         <div className={styles.bubble} data-ui="ChatBlock.text">
           {m.poll && (
             <span className={styles.pollIcon} aria-label={t("pollLabel")} role="img">
@@ -614,6 +675,7 @@ function Message({
           <MessageText message={m} />
         </div>
       )}
+      {!m.deleted && m.files.length > 0 && <MessageFiles files={m.files} />}
       {m.poll && (
         <Poll
           messageId={m.id}
@@ -1253,6 +1315,55 @@ function Composer({
   const { pageId } = usePageEditor();
   // (Not on every refetch while changing a message: its object is new each time.)
   const isEdit = editing !== null;
+
+  // Files to send with the new message (not when changing one: its files stay
+  // as they are). Only when files can be added on the site.
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [canAttach, setCanAttach] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (isEdit) return;
+    let stale = false;
+    getUploadPolicy()
+      .then((policy) => !stale && setCanAttach(policy.enabled))
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [isEdit]);
+  // Previews let go of when the box goes.
+  const previews = useRef(new Set<string>());
+  useEffect(() => () => previews.current.forEach((url) => URL.revokeObjectURL(url)), []);
+  const dropFile = (file: PendingFile) => {
+    if (file.preview) {
+      URL.revokeObjectURL(file.preview);
+      previews.current.delete(file.preview);
+    }
+    setFiles((list) => list.filter((f) => f.key !== file.key));
+  };
+  const addFiles = (list: File[]) => {
+    if (isEdit || !canAttach || list.length === 0) return;
+    const room = MAX_CHAT_FILES - files.length;
+    if (list.length > room) void showAlert(t("tooManyFiles", { max: MAX_CHAT_FILES }));
+    for (const file of list.slice(0, Math.max(room, 0))) {
+      const preview = (CHAT_IMAGE_TYPES as readonly string[]).includes(file.type) ? URL.createObjectURL(file) : null;
+      if (preview) previews.current.add(preview);
+      const pending: PendingFile = { key: crypto.randomUUID(), name: file.name, id: null, preview };
+      setFiles((current) => [...current, pending]);
+      const done = beginSaving();
+      postFile(pageId, file, failed)
+        .then((url) => {
+          const id = url.slice(url.lastIndexOf("/") + 1);
+          setFiles((current) => current.map((f) => (f.key === pending.key ? { ...f, id } : f)));
+        })
+        .catch(async (err) => {
+          dropFile(pending);
+          await showAlert(err instanceof UploadError ? `${file.name}: ${err.message}` : failed);
+        })
+        .finally(done);
+    }
+  };
+  const uploading = files.some((f) => f.id === null);
   useEffect(() => {
     const el = ref.current;
     if (sending || hidden || !el) return;
@@ -1274,7 +1385,8 @@ function Composer({
         el.setSelectionRange(quoted.length, quoted.length);
       });
     },
-  }), []);
+    addFiles,
+  }));
 
   // A formatting button or shortcut: the selection formatted (Markdown),
   // and selected again.
@@ -1289,15 +1401,18 @@ function Composer({
     });
   };
 
+  // A message with files may have no text (one being changed too, if it has files).
+  const canSend = !sending && !uploading && (!!text.trim() || files.length > 0 || (editing?.files.length ?? 0) > 0);
   const send = async () => {
-    if (!text.trim() || sending) return;
+    if (!canSend) return;
     const stored = chatTextFromDisplay(text, picksRef.current);
     if (editing && stored.trim() === editing.text) return onEndEdit?.();
     setSending(true);
     const done = beginSaving();
     try {
+      const fileIds = files.flatMap((f) => (f.id ? [f.id] : []));
       const result = await (
-        editing ? editChatMessage(editing.id, stored) : postChatMessage(pageId, blockId, stored, replyTo?.id ?? null)
+        editing ? editChatMessage(editing.id, stored) : postChatMessage(pageId, blockId, stored, replyTo?.id ?? null, fileIds)
       ).catch(() => ({ error: failed }));
       if (result.error) {
         await showAlert(result.error);
@@ -1307,6 +1422,8 @@ function Composer({
       else {
         setText("");
         picksRef.current = [];
+        files.forEach((f) => f.preview && URL.revokeObjectURL(f.preview));
+        setFiles([]);
         onCancelReply?.();
       }
       await onPosted();
@@ -1324,6 +1441,13 @@ function Composer({
       onSubmit={(e) => {
         e.preventDefault();
         void send();
+      }}
+      // Files pasted into the box are sent with the message.
+      onPaste={(e) => {
+        const pasted = Array.from(e.clipboardData.files);
+        if (pasted.length === 0 || isEdit || !canAttach) return;
+        e.preventDefault();
+        addFiles(pasted);
       }}
     >
       {editing && (
@@ -1361,6 +1485,32 @@ function Composer({
         </div>
       )}
       <FormatBar onFormat={format} disabled={sending} />
+      {files.length > 0 && (
+        <div className={styles.pendingFiles} role="list" aria-label={t("attachedFiles")} data-ui="ChatBlock.pendingFiles">
+          {files.map((f) => (
+            <div key={f.key} role="listitem" className={styles.pendingFile} data-ui="ChatBlock.pendingFile" aria-busy={f.id === null}>
+              {f.preview ? (
+                // eslint-disable-next-line @next/next/no-img-element -- a local preview (object URL)
+                <img src={f.preview} alt="" className={styles.pendingThumb} />
+              ) : (
+                <Icon name="attach" size={16} className={styles.inlineIcon} />
+              )}
+              <span className={styles.pendingName}>{f.id === null ? t("uploading", { name: f.name }) : f.name}</span>
+              <button
+                type="button"
+                className={styles.linkButton}
+                onClick={() => dropFile(f)}
+                disabled={sending}
+                aria-label={t("removeFile", { name: f.name })}
+                title={t("removeFile", { name: f.name })}
+                data-ui="ChatBlock.removeFileButton"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className={styles.composer}>
         <ChatInput
           inputRef={ref}
@@ -1376,6 +1526,32 @@ function Composer({
           disabled={sending}
           data-ui={editing ? "ChatBlock.editInput" : "ChatBlock.messageInput"}
         />
+        {canAttach && !editing && (
+          <>
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              hidden
+              data-ui="ChatBlock.fileInput"
+              onChange={(e) => {
+                addFiles(Array.from(e.target.files ?? []));
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className={styles.pollButton}
+              onClick={() => fileInput.current?.click()}
+              disabled={sending || files.length >= MAX_CHAT_FILES}
+              aria-label={t("attach")}
+              title={t("attachTitle", { max: MAX_CHAT_FILES })}
+              data-ui="ChatBlock.attachButton"
+            >
+              <Icon name="attach" size={16} className={styles.inlineIcon} />
+            </button>
+          </>
+        )}
         {onPoll && !editing && (
           <button
             type="button"
@@ -1391,7 +1567,7 @@ function Composer({
         <button
           type="submit"
           className={styles.sendButton}
-          disabled={sending || !text.trim()}
+          disabled={!canSend}
           data-ui={editing ? "ChatBlock.saveButton" : "ChatBlock.sendButton"}
         >
           {editing ? t("save") : t("send")}

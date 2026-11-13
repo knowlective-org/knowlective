@@ -13,6 +13,10 @@ export const BLOCK_CONFIGS = {
       // Shown above the list; empty shows the placeholder title.
       title: { default: "" },
       depth: { default: 1 },
+      // The order for everyone (each level's pages among themselves):
+      // "<key>:asc" / "<key>:desc" (title, createdAt, updatedAt), or "" for
+      // the pages' own order. Each viewer can pick their own over it.
+      sort: { default: "" },
     },
     content: "none",
   },
@@ -44,6 +48,10 @@ export const BLOCK_CONFIGS = {
       // Id of a select or user column splitting the cards into one board per
       // value (sub-groups), each with the same lanes. Empty: one board.
       subGroupBy: { default: "" },
+      // The order of the cards in each lane, for everyone: as the child page
+      // table's `sort`, or "" for the pages' own order. Each viewer can pick
+      // their own over it.
+      sort: { default: "" },
     },
     content: "none",
   },

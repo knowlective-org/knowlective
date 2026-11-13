@@ -360,6 +360,11 @@ model ChatMessage {
   reactions ChatReaction[]
   // Set when the message is a poll (its text is the question).
   poll      ChatPoll?
+  // Files sent with the message (FileObject ids, in order): attachments of
+  // the page, uploaded on it by the author (apps/web/src/lib/chat-post.ts).
+  // Emptied when the message is taken back. They count as shown by the page
+  // (PageFileRefs), so they're not cleaned up while the message has them.
+  attachmentIds String[] @default([])
 
   @@index([pageId, blockId, createdAt])
 }

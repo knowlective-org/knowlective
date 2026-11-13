@@ -14,6 +14,11 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Opening a page shows a loading overlay over the whole screen while its data is read and its content arrives (after a moment, so a quick load doesn't flash). Before, the previous page stayed as it was until the new one appeared
+- Images and files in chats: attach them with the 📎 button, or paste or drop them on the chat (up to 10 per message, with or without text). They're stored as the page's attachments, with the same checks as other uploads (file uploads on, allowed extensions, size limit). Images show in the message, other files are links to download them, and attached files are searchable like messages. Taking a message back takes its files with it
+- The child page list and board can be sorted (list: by title, creation or last change; board: the cards in each lane, by any column). As in the child page table, each person's order is their own and kept on their account; those who can edit the page can make theirs the order for everyone
+- A code block's "Format" lays out code in more languages, code written on one line (minified) included: C, C++, Java, C#, Objective-C (clang-format), Python (Ruff), shell scripts (shfmt), Lua (StyLua), PHP, XML and Pug, with the chosen indent. The formatters run in the browser and load the first time they're used (clang-format is a few MB). Other languages still only have their indentation changed
+- Code pasted into a code block takes the indent chosen in its picker (2 spaces, 4 spaces or a tab), each line keeping its level
 - Memory settings for the bundled PostgreSQL and vector database in `.env.production` (`POSTGRES_SHARED_BUFFERS`, `POSTGRES_EFFECTIVE_CACHE_SIZE`, `VECTORDB_SHARED_BUFFERS`; PostgreSQL's defaults if unset). Raising `shared_buffers` (about a quarter of the memory) makes reading faster, since the encrypted database decrypts each page it reads from disk
 - An access log: one line per request on standard output (the container's log) with the time, client IP, method, path (without the query string; tokens in invitation, password reset and email change links left out), status, milliseconds and the X-Forwarded-For header as received. On by default in production; `KNOWLECTIVE_ACCESS_LOG=0` turns it off
 - More reactions in chats: 👌 🙆 (got it), 🙇 (thanks) and 💯, in two rows
@@ -35,6 +40,9 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Fixed
 
+- Tab (or Shift+Tab) in a list item or TODO that couldn't be indented (an empty first item, for one) moved the focus out of the text, to the next control on the page such as a TODO's checkbox. It now does nothing
+- After a wrong passphrase (a masked column, for one), selecting the field's text with the mouse and letting go outside the dialog closed it. The field is now also cleared for the next try
+- A deleted block could come back a few seconds later, multiplied (#41): an editor that had missed someone else's change (seen in tabs left open a long time) wrote its whole, older content back on its next edit, adding the deleted blocks again as new ones, once per such tab. An editor now checks for that before writing, and instead of writing, redraws itself from the shared document (the edit that set it off is lost); it also checks when its tab comes back into view
 - In a chat, someone whose name has an "@" in it (such as "山田@営業部") could not be mentioned: the "@" list closed at the second "@". An email address in a message (ann@example.com) could also turn into a mention of someone whose name followed the "@"
 - Confirming a dialog with Enter in its text field (the code typed back to delete a knowledge root or unlock a page, a passphrase) also pressed the button that had opened it, so the same dialog came straight back (the first one had already done its work) until cancelled
 - A page showed its parent's columns (such as the date a calendar block made) under its title even when the parent no longer had a child page table, board or calendar (or had only the plain child page list). They now show only while the parent has one of those blocks; the columns and their values are kept
@@ -47,6 +55,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Upgrade notes
 
+- A database migration adds `ChatMessage.attachmentIds` (applied on start)
+- Editors open before the update must be reloaded (the child page list and board blocks have a new setting): until then they show "reload" instead of the page
 - A database migration adds the page kind `SHORTCUT` and `Page.shortcutTargetId` (applied on start)
 - Database migrations add `User.emailUnconfirmed` and empty the search index, which is rebuilt in the background on start: until it's done, search finds fewer pages than usual. The semantic search index is rebuilt too
 - A database migration adds `KnowledgeRoot.deletedAt` and `deletedById` (applied on start)

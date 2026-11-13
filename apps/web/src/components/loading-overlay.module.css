@@ -1,0 +1,58 @@
+/* The whole screen while a page loads (components/loading-overlay.tsx). Above
+   the sidebar, the page's top bar and the editor's menus. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-background) 70%, transparent);
+  /* Shown only if loading takes a moment, so a quick one doesn't flash. */
+  opacity: 0;
+  animation: appear 150ms ease-out 200ms forwards;
+}
+
+.box {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 18px;
+  font-size: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 8%);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes appear {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+@media print {
+  .overlay {
+    display: none;
+  }
+}

@@ -63,7 +63,7 @@ export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | 
   const tree = await visibleTreeOf(user?.id ?? null, pageId);
   if (!tree) return null;
   const below = new Set([pageId]);
-  const result: Omit<ChildPageItem, "updatedAt">[] = [];
+  const result: Omit<ChildPageItem, "updatedAt" | "createdAt">[] = [];
   // Creation order puts parents first except after moves; loop until stable.
   for (let changed = true; changed; ) {
     changed = false;
@@ -77,10 +77,14 @@ export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | 
   }
   const times = await prisma.page.findMany({
     where: { id: { in: result.map((p) => p.id) } },
-    select: { id: true, updatedAt: true },
+    select: { id: true, updatedAt: true, createdAt: true },
   });
-  const updatedAt = new Map(times.map((t) => [t.id, t.updatedAt.toISOString()]));
-  return result.map((p) => ({ ...p, updatedAt: updatedAt.get(p.id) ?? "" }));
+  const time = new Map(times.map((t) => [t.id, t]));
+  return result.map((p) => ({
+    ...p,
+    updatedAt: time.get(p.id)?.updatedAt.toISOString() ?? "",
+    createdAt: time.get(p.id)?.createdAt.toISOString() ?? "",
+  }));
 }
 
 const nameOf = (u: { name: string | null; email: string }) => u.name || u.email;

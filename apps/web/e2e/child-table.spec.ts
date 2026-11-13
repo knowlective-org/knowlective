@@ -202,6 +202,20 @@ test.describe("Child page table", () => {
     await page.getByTestId("AppDialog.confirmButton").click();
     // Said in the same dialog, to type again (or cancel).
     await expect(page.getByTestId("AppDialog.passphraseError")).toHaveText("合言葉が違います。");
+    // Cleared for the next try, with the focus in it.
+    const passphrase = page.getByTestId("AppDialog.passphraseInput");
+    await expect(passphrase).toHaveValue("");
+    await expect(passphrase).toBeFocused();
+    // Selecting what's typed with the mouse and letting go outside the box
+    // keeps the dialog open (it once closed, as for a click on the backdrop).
+    await passphrase.fill("また違う");
+    const box = (await passphrase.boundingBox())!;
+    await page.mouse.move(box.x + box.width - 4, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(4, 4, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.getByTestId("AppDialog")).toBeVisible();
+    await expect(passphrase).toHaveValue("また違う");
     await page.getByTestId("AppDialog.cancelButton").click();
     await expect(page.getByTestId("AppDialog")).toHaveCount(0);
 

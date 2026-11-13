@@ -12,8 +12,10 @@ import { cursorColorFor } from "@/lib/cursor-color";
 import { createRateLimiter } from "@/lib/rate-limit";
 import {
   CHAT_HISTORY,
+  CHAT_IMAGE_TYPES,
   CHAT_REACTIONS,
   REPLY_EXCERPT_LENGTH,
+  type ChatFileView,
   isBlockId,
   isChatReaction,
   MAX_POLL_OPTION_LENGTH,
@@ -80,7 +82,8 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
         createdAt: true,
         editedAt: true,
         deletedAt: true,
-        replyTo: { select: { id: true, bodyEnc: true, authorId: true, deletedAt: true } },
+        attachmentIds: true,
+        replyTo: { select: { id: true, bodyEnc: true, authorId: true, deletedAt: true, attachmentIds: true } },
         reactions: { select: { userId: true, emoji: true }, orderBy: { createdAt: "asc" } },
         poll: {
           select: {
@@ -96,6 +99,19 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
     prisma.chatLock.findUnique({ where: { pageId_blockId: { pageId, blockId } }, select: { lockedAt: true } }),
   ]);
   rows.reverse();
+  // The files sent with the messages (the page's own attachments: whoever can
+  // open the page can open them). One cleaned up since isn't shown.
+  const fileRows = await prisma.fileObject.findMany({
+    where: { id: { in: rows.flatMap((r) => (r.deletedAt ? [] : r.attachmentIds)) }, pageId },
+    select: { id: true, name: true, size: true, mimeType: true },
+  });
+  const fileById = new Map(fileRows.map((f) => [f.id, f]));
+  const filesOf = (ids: string[]): ChatFileView[] =>
+    ids.flatMap((id) => {
+      const f = fileById.get(id);
+      if (!f) return [];
+      return [{ id, url: `/api/files/${id}`, name: f.name, size: f.size, image: (CHAT_IMAGE_TYPES as readonly string[]).includes(f.mimeType) }];
+    });
   const key = await loadDataKey(prisma);
   const open = (r: { id: string; bodyEnc: Uint8Array; deletedAt: Date | null }) => (r.deletedAt ? "" : openChatMessage(key, r));
   const texts = new Map(rows.map((r) => [r.id, open(r)]));
@@ -161,7 +177,11 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
           ? {
               id: reply.id,
               author: authorName(reply.authorId),
-              excerpt: chatPlainText(chatMarkdownPlain(quoted.get(reply.id)!), (id) => names.get(id) ?? null, unknown, everyone).slice(0, REPLY_EXCERPT_LENGTH),
+              // A message of files only: their names.
+              excerpt: (
+                chatPlainText(chatMarkdownPlain(quoted.get(reply.id)!), (id) => names.get(id) ?? null, unknown, everyone) ||
+                (reply.deletedAt || reply.attachmentIds.length === 0 ? "" : `📎 ${tChat("filesCount", { count: reply.attachmentIds.length })}`)
+              ).slice(0, REPLY_EXCERPT_LENGTH),
               deleted: reply.deletedAt !== null,
             }
           : null,
@@ -171,6 +191,7 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
         },
         reactions: r.deletedAt ? [] : reactionsOf(r.reactions),
         poll: r.poll && !r.deletedAt ? pollOf(r.poll) : null,
+        files: r.deletedAt ? [] : filesOf(r.attachmentIds),
       };
     }),
     canPost: canEdit && !lock,
@@ -181,14 +202,17 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
 
 
 // `replyToId`: the message it replies to, in the same chat (or null).
+// `fileIds`: files sent with it, uploaded on the page by the viewer first
+// (POST /api/files); the text may then be empty.
 export async function postChatMessage(
   pageId: string,
   blockId: string,
   raw: string,
   replyToId: string | null = null,
+  fileIds: string[] = [],
 ): Promise<{ error?: string }> {
   const user = await requireUser();
-  return post(user.id, pageId, blockId, raw, replyToId, null);
+  return post(user.id, pageId, blockId, raw, replyToId, null, fileIds);
 }
 
 // A poll: `question` is its message's text, `options` its choices (fixed
@@ -216,9 +240,10 @@ async function post(
   raw: string,
   replyToId: string | null,
   poll: { options: string[]; multiple: boolean } | null,
+  fileIds: unknown = [],
 ): Promise<{ error?: string }> {
   const t = await getTranslations("editor.chat");
-  const result = await postChat(userId, pageId, blockId, raw, replyToId, poll, { unknownUser: t("unknownUser"), everyone: t("everyone") });
+  const result = await postChat(userId, pageId, blockId, raw, replyToId, poll, { unknownUser: t("unknownUser"), everyone: t("everyone") }, fileIds);
   if (!("error" in result)) return {};
   const e = result.error;
   switch (e.code) {
@@ -342,8 +367,9 @@ export async function editChatMessage(messageId: string, raw: string): Promise<{
   const message = await ownMessage(user.id, messageId);
   // A poll's question and choices are fixed.
   if (!message || message.poll) return { error: t("notAllowed") };
-  const text = normalizeChatMessage(raw);
-  if (!text) return { error: t("invalid") };
+  // With files the text may be left empty (the files themselves stay).
+  const text = normalizeChatMessage(raw) ?? (message.attachmentIds.length > 0 && typeof raw === "string" && raw.trim() === "" ? "" : null);
+  if (text === null) return { error: t("invalid") };
   if (postLimit(user.id) !== null) return { error: t("tooMany") };
   const key = await loadDataKey(prisma);
   await prisma.chatMessage.update({
@@ -367,7 +393,8 @@ export async function deleteChatMessage(messageId: string): Promise<{ error?: st
   await prisma.$transaction([
     prisma.chatMessage.update({
       where: { id: messageId },
-      data: { bodyEnc: sealChatMessage(key, messageId, ""), deletedAt: new Date() },
+      // Its files go with it (no longer shown, they're cleaned up later).
+      data: { bodyEnc: sealChatMessage(key, messageId, ""), deletedAt: new Date(), attachmentIds: [] },
     }),
     prisma.chatReaction.deleteMany({ where: { messageId } }),
     prisma.chatPoll.deleteMany({ where: { messageId } }),
@@ -384,7 +411,7 @@ async function ownMessage(userId: string, messageId: unknown) {
   if (typeof messageId !== "string") return null;
   const message = await prisma.chatMessage.findUnique({
     where: { id: messageId },
-    select: { pageId: true, blockId: true, authorId: true, deletedAt: true, poll: { select: { messageId: true } } },
+    select: { pageId: true, blockId: true, authorId: true, deletedAt: true, attachmentIds: true, poll: { select: { messageId: true } } },
   });
   if (!message || message.authorId !== userId || message.deletedAt) return null;
   if (await chatLocked(message.pageId, message.blockId)) return null;

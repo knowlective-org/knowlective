@@ -30,6 +30,9 @@ import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 import { EditorFormattingToolbar, EditorSideMenu } from "./editor/block-type-menu";
 import { useAdoptFiles } from "./editor/adopt-files";
 import { dragCopyExtension } from "./editor/drag-copy";
+import { syncGuardExtension } from "./editor/sync-guard";
+import { keepTabInEditor } from "./editor/tab-stays";
+import { pasteIntoCode } from "./editor/code-block";
 import { docxToHtml } from "./editor/docx-import";
 import { MAX_PDF_IMPORT_PAGES, PdfPasswordError, readPdfBlocks } from "./editor/pdf-import";
 import { type PdfBlock, pdfTitle } from "./editor/pdf-text";
@@ -530,6 +533,8 @@ function EditorBody({
       extensions: [
         // Ctrl-dragging a block copies it, dropped in the margins too.
         dragCopyExtension(),
+        // An editor that missed a remote change doesn't write deleted blocks back.
+        syncGuardExtension(),
         blockLockExtension(provider.document, {
           // Labels are drawn as the editor is made, before `text` is set.
           label: (lock) => t(lock === "edit" ? "editor.blockLock.editLabel" : "editor.blockLock.deleteLabel"),
@@ -545,6 +550,8 @@ function EditorBody({
       // keeps the levels as they are.
       pasteHandler: ({ event, editor, defaultPasteHandler }) => {
         const types = event.clipboardData?.types ?? [];
+        // Into a code block: its text, in the block's indent.
+        if (!types.includes("Files") && pasteIntoCode(editor.prosemirrorView, event.clipboardData?.getData("text/plain") ?? "")) return true;
         if (types.includes("blocknote/html")) return defaultPasteHandler();
         const blockEditor = editor as unknown as BlockEditor;
         // Mermaid source on its own becomes a diagram (not inside a code
@@ -832,6 +839,7 @@ function EditorBody({
           slashMenu={false}
           sideMenu={false}
           formattingToolbar={false}
+          onKeyDown={keepTabInEditor}
           data-ui="EditorBody.editor"
         >
           <EditorFormattingToolbar />

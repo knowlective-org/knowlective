@@ -57,7 +57,7 @@ import { beginSaving } from "@/lib/saving-status";
 // extension treats any <td>/<th> under the mouse as part of a BlockNote
 // table block and throws on ours.
 
-type Sort = { key: string; dir: "asc" | "desc" } | null;
+export type Sort = { key: string; dir: "asc" | "desc" } | null;
 
 export const childTableBlock = createReactBlockSpec(
   BLOCK_CONFIGS.childTable,
@@ -85,7 +85,7 @@ function parseKeys(raw: string): string[] {
   }
 }
 
-function parseSort(raw: string): Sort {
+export function parseSort(raw: string): Sort {
   const [key, dir] = raw.split(":");
   return key && (dir === "asc" || dir === "desc") ? { key, dir } : null;
 }
@@ -717,7 +717,7 @@ function sortValue(row: ChildTableRow, key: string, data: ChildTableData, format
   return value;
 }
 
-function sortRows(data: ChildTableData, sort: Sort, format: Format): ChildTableRow[] {
+export function sortRows(data: ChildTableData, sort: Sort, format: Format): ChildTableRow[] {
   if (!sort) return data.rows;
   const { collator } = format;
   const sign = sort.dir === "asc" ? 1 : -1;

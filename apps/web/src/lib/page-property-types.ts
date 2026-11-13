@@ -36,6 +36,8 @@ export type ChildPageItem = {
   icon: string | null;
   // ISO time of the last stored edit (body, title or a property value).
   updatedAt: string;
+  // ISO time the page was made.
+  createdAt: string;
 };
 
 export type ChildTableRow = {

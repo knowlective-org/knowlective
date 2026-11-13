@@ -1,6 +1,7 @@
 import type { ChildPageItem } from "@/lib/page-property-types";
 // Relative: also loaded by the custom server (server/page-markdown.ts).
 import { displayTitle } from "../../lib/page-title";
+import { sortChildPages } from "../../lib/child-sort";
 import { type TocHeading, tocHeadings } from "./toc";
 import { parseSummary, roundSummary, summaryValue } from "./grid-summary";
 
@@ -154,9 +155,16 @@ export function prepareBlocksForExport(
       case "childCalendar": {
         const levels = b.type === "childPages" ? Number(b.props?.depth ?? 1) : 1;
         const title = String(b.props?.title ?? "");
+        // In the block's order for everyone (by title or time; a column keeps the pages' own).
+        const pages = sortChildPages(
+          childPages ?? [],
+          String(b.props?.sort ?? ""),
+          (t) => displayTitle(t, untitled),
+          (x, y) => x.localeCompare(y),
+        );
         return [
           ...(title ? [block("paragraph", [text(title, { bold: true })])] : []),
-          ...childPageList(childPages ?? [], pageId, levels, origin, untitled),
+          ...childPageList(pages, pageId, levels, origin, untitled),
           ...children,
         ];
       }

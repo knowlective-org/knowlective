@@ -38,10 +38,20 @@ async function visibleChildPages(userId: string, pageId: string): Promise<ChildP
       // Not shortcuts, as in the child page blocks (child-pages-actions.ts).
       if (p.parentId && below.has(p.parentId) && !below.has(p.id) && p.kind !== "SHORTCUT") {
         below.add(p.id);
-        result.push({ id: p.id, parentId: p.parentId, title: p.title, icon: p.icon, updatedAt: "" });
+        result.push({ id: p.id, parentId: p.parentId, title: p.title, icon: p.icon, updatedAt: "", createdAt: "" });
         changed = true;
       }
     }
+  }
+  // The times, for a list sorted by them.
+  const times = await prisma.page.findMany({
+    where: { id: { in: result.map((p) => p.id) } },
+    select: { id: true, updatedAt: true, createdAt: true },
+  });
+  const time = new Map(times.map((t) => [t.id, t]));
+  for (const p of result) {
+    p.updatedAt = time.get(p.id)?.updatedAt.toISOString() ?? "";
+    p.createdAt = time.get(p.id)?.createdAt.toISOString() ?? "";
   }
   return result;
 }

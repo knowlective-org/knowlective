@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
-import { createPage, editorBody, trashOpenPage, typeInBody } from "./helpers";
+import { createPage, editorBody, pasteText, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
@@ -106,6 +106,65 @@ test.describe("Code blocks", () => {
     await block.getByTestId("CodeBlock.indentSelect").selectOption("2");
     await block.getByTestId("CodeBlock.formatButton").click();
     await expect(block.locator("code")).toHaveText("function f() {\n  return { a: 1 };\n}");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("Format lays out code written on one line, in more languages (WebAssembly formatters, Prettier plugins)", async ({ page }) => {
+    await createPage(page, "E2E コードの展開");
+    const cases: { language: string; code: string; formatted: string }[] = [
+      {
+        language: "java",
+        code: "class A{int f(int x){if(x>0){return 1;}return 0;}}",
+        formatted: "class A {\n    int f(int x) {\n        if (x > 0) {\n            return 1;\n        }\n        return 0;\n    }\n}",
+      },
+      { language: "c", code: "int main(){int a=1;if(a){a++;}return a;}", formatted: "int main() {\n    int a = 1;\n    if (a) {\n        a++;\n    }\n    return a;\n}" },
+      { language: "python", code: "import os;a=1;b=2", formatted: "import os\n\na = 1\nb = 2" },
+      {
+        language: "lua",
+        code: "local function f(x) if x then return 1 end return 0 end",
+        formatted: "local function f(x)\n    if x then\n        return 1\n    end\n    return 0\nend",
+      },
+      { language: "xml", code: '<a><b x="1"><c>t</c></b><d/></a>', formatted: '<a>\n    <b x="1">\n        <c>t</c>\n    </b>\n    <d />\n</a>' },
+      {
+        language: "php",
+        code: "<?php function f($x){if($x){return 1;}return 0;}",
+        formatted: "<?php function f($x)\n{\n    if ($x) {\n        return 1;\n    }\n    return 0;\n}",
+      },
+      { language: "shellscript", code: "a=1; b=2", formatted: "a=1\nb=2" },
+    ];
+    // One code block, its code replaced for each language.
+    await typeInBody(page, "``` ");
+    const block = editorBody(page).locator('[data-content-type="codeBlock"]');
+    for (const c of cases) {
+      // The caret in the code: Ctrl+A selects the code only, replaced by the next.
+      if (await block.locator("code").textContent()) {
+        await block.locator("code").click();
+        await page.keyboard.press("Control+A");
+      }
+      await page.keyboard.insertText(c.code);
+      await expect(block.locator("code")).toHaveText(c.code);
+      await block.locator("> div > select").selectOption(c.language);
+      await block.getByTestId("CodeBlock.indentSelect").selectOption("4");
+      await block.getByTestId("CodeBlock.formatButton").click();
+      await expect(block.locator("code")).toHaveText(c.formatted);
+    }
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("pasted code takes the indent chosen for the block", async ({ page }) => {
+    await createPage(page, "E2E コードの貼り付け");
+    await typeInBody(page, "```python ");
+    const block = editorBody(page).locator('[data-content-type="codeBlock"]');
+    await block.getByTestId("CodeBlock.indentSelect").selectOption("4");
+    // Code indented by 2 (and a tab): each line keeps its level, in 4 spaces.
+    await pasteText(page, "def f(x):\n  if x:\n    return 1\n\treturn 0");
+    await expect(block.locator("code")).toHaveText("def f(x):\n    if x:\n        return 1\n    return 0");
+    // One line is pasted as it is.
+    await page.keyboard.press("Enter");
+    await pasteText(page, "  x = 1");
+    await expect(block.locator("code")).toContainText("return 0\n      x = 1");
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
     await trashOpenPage(page);
   });

@@ -449,6 +449,96 @@ button.reaction:hover {
 }
 
 /* Printing: the whole log, no form. */
+/* Files sent with a message, under its text. */
+.files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.mine .files {
+  justify-content: flex-end;
+}
+
+.imageLink {
+  display: block;
+  line-height: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.image {
+  max-width: min(240px, 100%);
+  max-height: 180px;
+  object-fit: contain;
+  background: var(--color-hover);
+}
+
+.fileLink {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+  padding: 6px 10px;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.fileLink:hover {
+  background: var(--color-hover);
+}
+
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileSize {
+  flex: none;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+/* Files waiting to be sent with the new message. */
+.pendingFiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pendingFile {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 4px 2px 6px;
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.pendingFile[aria-busy="true"] {
+  color: var(--color-muted);
+}
+
+.pendingThumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.pendingName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media print {
   .log {
     max-height: none;

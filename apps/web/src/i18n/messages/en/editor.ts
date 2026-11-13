@@ -201,6 +201,13 @@ export default {
       ownReaction: "You can't react to your own message.",
       pollButton: "Poll",
       pollButtonTitle: "Ask a question with choices to vote on",
+      attach: "Attach files",
+      attachTitle: "Send images or files with the message (up to {max, number}; you can also paste or drop them here)",
+      attachedFiles: "Files to send",
+      uploading: "Uploading {name}…",
+      removeFile: "Don't send {name}",
+      tooManyFiles: "A message can have up to {max, number} files.",
+      filesCount: "{count, plural, one {# file} other {# files}}",
       pollFormLabel: "New poll",
       pollQuestion: "Question",
       pollOption: "Choice {n, number}",
@@ -330,6 +337,14 @@ export default {
       level: "{count, plural, one {# level} other {# levels}}",
       none: "No child pages.",
       updatedAt: "Last updated",
+    },
+    // Sorting the child page list and board.
+    childSort: {
+      label: "Sort",
+      pageOrder: "Page order",
+      option: "{name}: {dir, select, asc {ascending} other {descending}}",
+      makeDefault: "Make this the order for everyone",
+      reset: "Back to the block's order",
     },
     childTable: {
       placeholder: "Child page table",

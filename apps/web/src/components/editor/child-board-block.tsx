@@ -25,7 +25,8 @@ import {
 } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
 import { matchesFilters } from "@/lib/table-view";
-import { type ColumnView, type Format, FilterPanel, Popover, cellReader, usePersonalView } from "./child-table-block";
+import { type ColumnView, type Format, FilterPanel, Popover, cellReader, parseSort, sortRows, usePersonalView } from "./child-table-block";
+import { SortPicker } from "./child-sort";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-board-block.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
@@ -37,7 +38,8 @@ import { BLOCK_CONFIGS } from "./block-configs";
 // shown: its title and which column to group by.
 //
 // The order of the cards in a column is the child pages' own order (the one
-// the sidebar shows).
+// the sidebar shows), or a sort (child-sort.tsx): each viewer's own, over the
+// block's `sort`.
 //
 // Sub-groups: a second column (select or user) can split the cards into one
 // board per value, one under another, each with the same lanes. A card moves
@@ -57,6 +59,7 @@ export const childBoardBlock = createReactBlockSpec(
         title={block.props.title}
         groupBy={block.props.groupBy}
         subGroupBy={block.props.subGroupBy}
+        sort={block.props.sort}
         editable={editor.isEditable}
         onChange={(props) => editor.updateBlock(block, { props })}
       />
@@ -82,6 +85,7 @@ function ChildBoard({
   title,
   groupBy,
   subGroupBy,
+  sort,
   editable,
   onChange,
 }: {
@@ -89,8 +93,9 @@ function ChildBoard({
   title: string;
   groupBy: string;
   subGroupBy: string;
+  sort: string;
   editable: boolean;
-  onChange: (props: { title?: string; groupBy?: string; subGroupBy?: string }) => void;
+  onChange: (props: { title?: string; groupBy?: string; subGroupBy?: string; sort?: string }) => void;
 }) {
   const { pageId } = usePageEditor();
   const router = useRouter();
@@ -128,10 +133,12 @@ function ChildBoard({
   const filterCount = Object.keys(view.filters).length;
   const rows = useMemo(() => {
     if (!data) return [];
-    if (filterCount === 0) return data.rows;
+    // Sorted first: each lane keeps this order.
+    const sorted = sortRows(data, parseSort(view.sort ?? sort), format);
+    if (filterCount === 0) return sorted;
     const known = new Set(filterColumns.map((c) => c.key));
-    return data.rows.filter((row) => matchesFilters(view.filters, known, cellReader(row, data, format)));
-  }, [data, view.filters, filterCount, filterColumns, format]);
+    return sorted.filter((row) => matchesFilters(view.filters, known, cellReader(row, data, format)));
+  }, [data, view.filters, view.sort, sort, filterCount, filterColumns, format]);
 
   // A move is shown at once and saved after: "saving" until the server has it.
   const saving = Object.keys(moved).length > 0;
@@ -160,6 +167,17 @@ function ChildBoard({
         >
           <FilterPanel columns={filterColumns} data={data} filters={view.filters} onChange={(filters) => setView({ ...view, filters })} />
         </Popover>
+      )}
+      {data && column && (
+        <SortPicker
+          uiName="ChildBoardBlock"
+          keys={filterColumns}
+          blockSort={sort}
+          personalSort={view.sort}
+          editable={editable}
+          onPersonal={(next) => setView({ ...view, sort: next })}
+          onBlock={(next) => onChange({ sort: next })}
+        />
       )}
       {editable && selects.length > 1 && column && (
         <select

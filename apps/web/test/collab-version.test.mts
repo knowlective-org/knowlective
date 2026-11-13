@@ -10,7 +10,7 @@ import { COLLAB_CLIENT_VERSION } from "../src/lib/collab-version";
 // record the new outline and version below.
 //   pnpm --filter web test:unit
 
-const RECORDED_VERSION = 8;
+const RECORDED_VERSION = 9;
 const RECORDED = [
   "mark backgroundColor(stringValue)",
   "mark bold()",
@@ -26,9 +26,9 @@ const RECORDED = [
   "node bulletListItem(backgroundColor,textAlignment,textColor)",
   "node chat(title)",
   "node checkListItem(backgroundColor,checked,textAlignment,textColor)",
-  "node childBoard(groupBy,subGroupBy,title)",
+  "node childBoard(groupBy,sort,subGroupBy,title)",
   "node childCalendar(dateBy,title)",
-  "node childPages(depth,title)",
+  "node childPages(depth,sort,title)",
   "node childTable(hidden,order,sort,title)",
   "node codeBlock(language,preview)",
   "node column(id,width)",
