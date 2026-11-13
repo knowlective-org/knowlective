@@ -10,7 +10,9 @@ export const CHAT_HISTORY = 300;
 export type ChatReplyView = { id: string; author: string | null; excerpt: string; deleted: boolean };
 
 // The emoji a message can be reacted with (the server takes no others).
-export const CHAT_REACTIONS = ["👍", "❤️", "😂", "🎉", "😮", "🙏", "👀", "✅"] as const;
+// "了解" (👌 🙆) and "ありがとう" (🙏 🙇) first. Removing one hides what was
+// given with it (the rows stay); adding one needs no migration.
+export const CHAT_REACTIONS = ["👍", "👌", "🙆", "🙏", "🙇", "✅", "❤️", "😂", "🎉", "😮", "👀", "💯"] as const;
 export type ChatReactionEmoji = (typeof CHAT_REACTIONS)[number];
 
 export function isChatReaction(value: unknown): value is ChatReactionEmoji {

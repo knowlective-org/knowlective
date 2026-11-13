@@ -3,6 +3,7 @@ import { appDir, dev } from "./env";
 import { createServer, type IncomingMessage } from "node:http";
 import next from "next";
 import { BASE_PATH } from "../src/lib/base-path";
+import { accessLogEnabled, logRequest, logUpgrade } from "./access-log";
 import { COLLAB_PATH, createCollab } from "./collab";
 import { startMarkdownBridge } from "./page-markdown";
 import { createRobots } from "./robots";
@@ -44,6 +45,7 @@ async function main() {
   startMarkdownBridge();
   const collab = await createCollab();
   const robots = createRobots();
+  const accessLog = accessLogEnabled(dev);
   await app.prepare();
 
   httpServer.on("request", (req, res) => {
@@ -51,6 +53,7 @@ async function main() {
       // For anything that answers, the refusal below included.
       applySecurityHeaders(res);
       const pathname = pathnameOf(req);
+      if (accessLog) logRequest(req, res, pathname);
       // A network that may not use the site at all (lib/network-policy.ts):
       // refused before the app.
       if (!exemptFromNetworkPolicy(pathname) && !(await collab.networkCaps(req)).access) {
@@ -90,9 +93,11 @@ async function main() {
     void (async () => {
       // Refused like any request from a network that may not use the site.
       if (!(await collab.networkCaps(req)).access) {
+        if (accessLog) logUpgrade(req, pathname, 403);
         socket.destroy();
         return;
       }
+      if (accessLog) logUpgrade(req, pathname, 101);
       await collab.handleUpgrade(req, socket, head);
     })().catch((err) => {
       console.error("[collab] upgrade failed", err);

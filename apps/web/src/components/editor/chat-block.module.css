@@ -416,7 +416,9 @@ button.reaction:hover {
   bottom: 100%;
   left: 0;
   z-index: 10;
-  display: flex;
+  display: grid;
+  /* Two rows, so the menu stays narrow on a phone. */
+  grid-template-columns: repeat(6, 30px);
   gap: 2px;
   margin-bottom: 4px;
   padding: 4px;

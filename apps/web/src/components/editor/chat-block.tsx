@@ -34,7 +34,7 @@ import {
   type ChatPollView,
   type ChatReactionEmoji,
 } from "@/lib/chat-types";
-import { EVERYONE, chatMention, chatSegments } from "@/lib/chat-text";
+import { EVERYONE, chatSegments, chatTextFromDisplay, mentionQueries } from "@/lib/chat-text";
 import { type ChatBlockNode, type ChatFormat, type ChatInline, applyChatFormat, chatBlocks, chatMarkdownPlain } from "@/lib/chat-markdown";
 import { beginSaving } from "@/lib/saving-status";
 import { insideCodeFence, lineIndent } from "@/lib/auto-indent";
@@ -1008,28 +1008,10 @@ function PollComposer({ blockId, onDone, onPosted }: { blockId: string; onDone: 
   );
 }
 
-// The box shows mentions as "@name"; picks are the people chosen from the
-// menu, whose "@name" becomes `<@id>` when sent (longer names first, so
-// "@Ann Lee" isn't taken for "@Ann").
-function toStored(display: string, picks: Person[]): string {
-  let text = display;
-  for (const p of [...picks].sort((a, b) => b.name.length - a.name.length)) {
-    text = text.split(`@${p.name}`).join(chatMention(p.id));
-  }
-  return text;
-}
-
 function toDisplay(text: string, names: Record<string, string>, someone: string): string {
   return chatSegments(text)
     .map((s) => (s.type === "mention" ? `@${names[s.userId] ?? someone}` : s.text))
     .join("");
-}
-
-// The "@" being typed before the caret: what follows it so far, and where it
-// is. Spaces count (names have them); the menu shows only while a name matches.
-function mentionQuery(value: string, caret: number): { query: string; start: number } | null {
-  const m = /(^|\s)@((?:[^\s@][^@\n]{0,29})?)$/.exec(value.slice(0, caret));
-  return m ? { query: m[2], start: caret - m[2].length - 1 } : null;
 }
 
 const FORMAT_KEYS: Record<string, ChatFormat> = { b: "bold", i: "italic", e: "code" };
@@ -1103,15 +1085,28 @@ function ChatInput({
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState<number | null>(null);
 
-  const at = mentionQuery(value, caret);
-  const q = at?.query.normalize("NFKC").toLowerCase() ?? "";
   // Everyone who can open the page, first (also found by "all").
   const everyone: Person = { id: EVERYONE, name: t("everyone") };
-  const matches = (name: string) => name.normalize("NFKC").toLowerCase().includes(q);
-  const options =
-    at && people && dismissed !== at.start
-      ? [...(matches(everyone.name) || EVERYONE.startsWith(q) ? [everyone] : []), ...people.filter((p) => matches(p.name))].slice(0, 8)
-      : [];
+  const optionsFor = (query: string) => {
+    const q = query.normalize("NFKC").toLowerCase();
+    const matches = (name: string) => name.normalize("NFKC").toLowerCase().includes(q);
+    return [...(matches(everyone.name) || EVERYONE.startsWith(q) ? [everyone] : []), ...(people ?? []).filter((p) => matches(p.name))].slice(0, 8);
+  };
+  // The farthest "@" whose text so far matches someone (a name may have an
+  // "@" or a space in it); the menu shows only then.
+  let at: { query: string; start: number } | null = null;
+  let options: Person[] = [];
+  if (people) {
+    for (const c of mentionQueries(value, caret)) {
+      if (c.start === dismissed) continue;
+      const found = optionsFor(c.query);
+      if (found.length > 0) {
+        at = c;
+        options = found;
+        break;
+      }
+    }
+  }
   const selected = Math.min(active, Math.max(0, options.length - 1));
 
   // The caret after a chosen name, as soon as the new text is in the box: a
@@ -1296,7 +1291,7 @@ function Composer({
 
   const send = async () => {
     if (!text.trim() || sending) return;
-    const stored = toStored(text, picksRef.current);
+    const stored = chatTextFromDisplay(text, picksRef.current);
     if (editing && stored.trim() === editing.text) return onEndEdit?.();
     setSending(true);
     const done = beginSaving();

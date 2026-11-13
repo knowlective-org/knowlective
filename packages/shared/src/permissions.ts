@@ -265,15 +265,16 @@ export async function getPageAccess(
   userId: string | null,
   pageId: string,
 ): Promise<{ access: PageAccess; rootId: string; lock: PageLockState | null } | null> {
-  const [page, user] = await Promise.all([
+  // Each step's queries together (this runs on every page and request).
+  const [page, user, groupIds] = await Promise.all([
     prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, deletedAt: true } }),
     userId === null ? null : prisma.user.findUnique({ where: { id: userId }, select: { disabledAt: true } }),
+    userGroupIds(prisma, userId),
   ]);
   if (!page || page.deletedAt) return null;
   if (userId !== null && (!user || user.disabledAt)) return null;
-  const rules = await accessRules(prisma, page.rootId, userId, await userGroupIds(prisma, userId));
+  const [rules, tree] = await Promise.all([accessRules(prisma, page.rootId, userId, groupIds), loadTree(prisma, page.rootId)]);
   if (rules.grants.length === 0) return null;
-  const tree = await loadTree(prisma, page.rootId);
   const access = computeTreeAccess(tree, rules.grants, rules.groupIds, MAX_PAGE_DEPTH).get(pageId);
   return access ? { access, rootId: page.rootId, lock: computeLocks(tree).get(pageId) ?? null } : null;
 }
@@ -586,12 +587,10 @@ export async function getVisibleTrees(prisma: PrismaClient, userId: string | nul
     orderBy: { createdAt: "asc" },
   });
 
-  const trees: VisibleTree[] = [];
-  for (const root of roots) {
-    const tree = await buildVisibleTree(prisma, root, userId, groupIds);
-    if (tree) trees.push(tree);
-  }
-  return trees;
+  // All at once: one at a time, each root's queries waited for the last
+  // root's (slow for someone with many roots, and for auditors).
+  const trees = await Promise.all(roots.map((root) => buildVisibleTree(prisma, root, userId, groupIds)));
+  return trees.filter((t): t is VisibleTree => t !== null);
 }
 
 // The user's visible part of one knowledge root (for the page sidebar).

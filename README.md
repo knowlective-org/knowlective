@@ -476,6 +476,47 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d --bui
 - **Updating from before the bundled PostgreSQL was encrypted**: after `git pull`, move the old bundled database (PostgreSQL 16, volume `knowlective-prod_postgres_data`) into the encrypted one with `bash docker/postgres/move-to-tde.sh prod` (the data flows straight from `pg_dump` into `pg_restore`, leaving no unencrypted dump file). Once it works, delete the old volume with `docker volume rm knowlective-prod_postgres_data`
 - Redis is only needed to relay collaborative editing between several app containers, so it isn't bundled (not needed for one). To use it, set `REDIS_URL`
 
+#### Database memory
+
+The bundled PostgreSQL starts with PostgreSQL's default memory settings (`shared_buffers` 128MB), which are meant for a small machine. Because the whole database is encrypted (pg_tde), each page read from disk is decrypted, and pages kept in `shared_buffers` save that work. Set the following in `.env.production`. These values are for a 4 GB server that also runs the app, the vector database and SeaweedFS:
+
+```bash
+POSTGRES_SHARED_BUFFERS="1GB"          # about 1/4 of the memory
+POSTGRES_EFFECTIVE_CACHE_SIZE="2GB"    # about 1/2: a hint for the query planner, not memory it takes
+VECTORDB_SHARED_BUFFERS="256MB"        # the vector database (only with bundled-vectordb)
+```
+
+Then run `docker compose -f docker-compose.prod.yml --env-file .env.production up -d`, which recreates the database containers with the new values. The database restarts, so the site is unavailable for a few seconds. To check the value in use: `docker compose -f docker-compose.prod.yml --env-file .env.production exec postgres psql -U knowlective -c "SHOW shared_buffers"`. With your own PostgreSQL, set these in its own configuration.
+
+#### Access log
+
+The app writes one line per request to standard output, which is the container's log:
+
+```
+2026-11-13T01:02:03.456Z 203.0.113.5 GET /pages/abc 200 12 xff=198.51.100.7,10.0.0.1
+```
+
+Each line has the time (UTC), the client IP (taken from `X-Forwarded-For` as set by `KNOWLECTIVE_TRUSTED_PROXY_HOPS`), method, path (without the query string), status (`-` if the connection closed first), milliseconds, and `X-Forwarded-For` as received (`-` if there was none). Tokens in invitation, password reset and email change links are logged as `*`. Next.js's own files (`/_next/`) and `/api/health` aren't logged. A collaborative-editing connection is logged once, as `WS …/collab 101`. The log is on by default; set `KNOWLECTIVE_ACCESS_LOG=0` in `.env.production` to turn it off.
+
+To follow the log (`podman compose` works the same way):
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production logs -f --tail 100 app
+# Only the access log lines, without the app's other messages:
+docker compose -f docker-compose.prod.yml --env-file .env.production logs -f --no-log-prefix app | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+```
+
+**Limiting disk use**: Docker keeps a container's log until the container is removed, and by default it never rotates the file, so it keeps growing. To cap its size, set rotation for the Docker daemon in `/etc/docker/daemon.json`. In this example, each container keeps at most 3 files of 10 MB:
+
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "10m", "max-file": "3" }
+}
+```
+
+Then run `sudo systemctl restart docker` and recreate the containers (`docker compose … up -d --force-recreate`): the setting applies only to containers created after the change. Rootless Podman logs to journald by default, and journald limits its own size (`SystemMaxUse=` in `/etc/systemd/journald.conf`). To keep the log for longer than that, send it to your log collector, for example with Docker's `syslog` or `fluentd` log driver.
+
 To build just the image: `docker build -t knowlective .`. The environment variables needed are `DATABASE_URL`, `KNOWLECTIVE_SERVER_KEY` and (for the bundled SeaweedFS) `SEAWEEDFS_ACCESS_KEY`, `SEAWEEDFS_SECRET_KEY` and `KNOWLECTIVE_BUNDLED_S3_ENDPOINT`.
 
 ### Without Docker
