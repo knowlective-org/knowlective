@@ -14,6 +14,7 @@ import { BUILTIN_COLUMNS, type ChildTableData, type ChildTableRow } from "@/lib/
 import { BlockTitle } from "./block-title";
 import { PageLink } from "./page-link";
 import { useChildrenData, usePageEditor } from "./page-context";
+import { LinkedSource, LinkedUnsetNote, useLinkedPlaceholder, useLinkedView } from "./linked-view";
 import { type ColumnView, type Format, FilterPanel, Popover, cellReader, usePersonalView } from "./child-table-block";
 import { type Month, addMonths, localDay, monthOf, monthWeeks, todayKey } from "./calendar";
 import { BLOCK_CONFIGS } from "./block-configs";
@@ -38,6 +39,7 @@ export const childCalendarBlock = createReactBlockSpec(BLOCK_CONFIGS.childCalend
       blockId={block.id}
       title={block.props.title}
       dateBy={block.props.dateBy}
+      source={block.props.source}
       editable={editor.isEditable}
       onChange={(props) => editor.updateBlock(block, { props })}
     />
@@ -48,18 +50,25 @@ function ChildCalendar({
   blockId,
   title,
   dateBy,
+  source,
   editable,
   onChange,
 }: {
   blockId: string;
   title: string;
   dateBy: string;
+  source: string;
   editable: boolean;
-  onChange: (props: { title?: string; dateBy?: string }) => void;
+  onChange: (props: { title?: string; dateBy?: string; source?: string }) => void;
 }) {
   const { pageId } = usePageEditor();
   const router = useRouter();
-  const { data, reload } = useChildrenData(loadChildTable);
+  // A linked view (lib/linked-views.ts) shows another page's child pages and
+  // leaves its columns alone.
+  const { linked, sourceId } = useLinkedView(source);
+  const parentId = sourceId || pageId;
+  const { data, reload } = useChildrenData(loadChildTable, sourceId);
+  const linkedPlaceholder = useLinkedPlaceholder("childCalendar", data?.page);
   const t = useTranslations("editor");
   const failed = t("save.failed");
   const formatter = useFormatter();
@@ -131,7 +140,7 @@ function ChildCalendar({
   };
   const addPage = async (date: string, pageTitle: string) => {
     if (!column) return;
-    const result = await createChildPageInPlace(pageId, pageTitle).catch(() => ({ error: t("save.createFailed") }));
+    const result = await createChildPageInPlace(parentId, pageTitle).catch(() => ({ error: t("save.createFailed") }));
     if ("error" in result) {
       await showAlert(result.error);
       return;
@@ -152,7 +161,16 @@ function ChildCalendar({
 
   const header = (
     <div className={styles.header}>
-      <BlockTitle value={title} placeholder={t("childCalendar.placeholder")} editable={editable} onSave={(next) => onChange({ title: next })} uiName="ChildCalendarBlock" />
+      <BlockTitle
+        value={title}
+        placeholder={linked ? linkedPlaceholder : t("childCalendar.placeholder")}
+        editable={editable}
+        onSave={(next) => onChange({ title: next })}
+        uiName="ChildCalendarBlock"
+      />
+      {linked && (
+        <LinkedSource blockId={blockId} source={source} page={data?.page} editable={editable} onChoose={(next) => onChange({ source: next })} />
+      )}
       {data && (column || builtin) && (
         <Popover
           open={filterOpen}
@@ -185,17 +203,21 @@ function ChildCalendar({
     return (
       <div className={styles.block} contentEditable={false} data-ui="ChildCalendarBlock">
         {header}
-        {data === undefined ? (
+        {sourceId === "" ? (
+          <LinkedUnsetNote />
+        ) : data === undefined ? (
           <p className={styles.muted}>{t("loading")}</p>
         ) : data === null ? (
-          <p className={styles.muted}>{t("childCalendar.cannotShow")}</p>
+          <p className={styles.muted} data-ui="ChildCalendarBlock.status">
+            {linked ? t("linkedView.cannotShow") : t("childCalendar.cannotShow")}
+          </p>
         ) : (
           <div className={styles.empty}>
             <p className={styles.muted}>
               {t("childCalendar.noDateColumn")}
-              {!data.canEditColumns && t("childCalendar.noDateColumnViewer")}
+              {linked ? t("linkedView.columnsOnSource") : !data.canEditColumns && t("childCalendar.noDateColumnViewer")}
             </p>
-            {editable && data.canEditColumns && (
+            {editable && data.canEditColumns && !linked && (
               <button
                 type="button"
                 className={styles.primaryButton}
@@ -238,7 +260,9 @@ function ChildCalendar({
         data={data}
         saving={saving}
         settable={settable}
-        canAdd={settable}
+        // New pages go under the page whose child pages these are (for a
+        // linked view, with EDIT there).
+        canAdd={settable && (!linked || data.canEditColumns)}
         onMove={setDate}
         onAdd={addPage}
       />

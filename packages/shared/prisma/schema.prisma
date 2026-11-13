@@ -212,6 +212,8 @@ model Page {
   versions       PageVersion[]
   searchIndex    PageSearchIndex?
   fileRefs       PageFileRefs?
+  // The pages this page's linked views show the child pages of.
+  linkedViews    PageLinkedView[]
   chatMessages   ChatMessage[]
   chatLocks      ChatLock[]
   tableViews     TableViewPref[]
@@ -334,6 +336,22 @@ model PageFileRefs {
   updatedAt DateTime @updatedAt
 }
 
+// A linked view (a child page table, board or calendar showing another
+// page's child pages, apps/web/src/lib/linked-views.ts) in a page's current
+// body, kept up to date by reindexPage(). Read by `sourceId`: a change to
+// the source's child pages is also sent to the pages showing them
+// (notifyChildrenChanged), and its child pages show their values under
+// their titles (loadPageProperties). No foreign key to the source: the
+// block keeps its id after the page goes.
+model PageLinkedView {
+  pageId   String
+  page     Page   @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  sourceId String
+
+  @@id([pageId, sourceId])
+  @@index([sourceId])
+}
+
 // A message in a chat block (apps/web/src/lib/chat.ts). Kept here, not in the
 // page document: anyone who can edit the page can change the document, and a
 // message must stay as its author wrote it. The block's id (in the document)
@@ -360,6 +378,11 @@ model ChatMessage {
   reactions ChatReaction[]
   // Set when the message is a poll (its text is the question).
   poll      ChatPoll?
+  // Files sent with the message (FileObject ids, in order): attachments of
+  // the page, uploaded on it by the author (apps/web/src/lib/chat-post.ts).
+  // Emptied when the message is taken back. They count as shown by the page
+  // (PageFileRefs), so they're not cleaned up while the message has them.
+  attachmentIds String[] @default([])
 
   @@index([pageId, blockId, createdAt])
 }

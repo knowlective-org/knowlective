@@ -63,7 +63,7 @@ export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | 
   const tree = await visibleTreeOf(user?.id ?? null, pageId);
   if (!tree) return null;
   const below = new Set([pageId]);
-  const result: Omit<ChildPageItem, "updatedAt">[] = [];
+  const result: Omit<ChildPageItem, "updatedAt" | "createdAt">[] = [];
   // Creation order puts parents first except after moves; loop until stable.
   for (let changed = true; changed; ) {
     changed = false;
@@ -77,10 +77,14 @@ export async function loadChildPages(pageId: string): Promise<ChildPageItem[] | 
   }
   const times = await prisma.page.findMany({
     where: { id: { in: result.map((p) => p.id) } },
-    select: { id: true, updatedAt: true },
+    select: { id: true, updatedAt: true, createdAt: true },
   });
-  const updatedAt = new Map(times.map((t) => [t.id, t.updatedAt.toISOString()]));
-  return result.map((p) => ({ ...p, updatedAt: updatedAt.get(p.id) ?? "" }));
+  const time = new Map(times.map((t) => [t.id, t]));
+  return result.map((p) => ({
+    ...p,
+    updatedAt: time.get(p.id)?.updatedAt.toISOString() ?? "",
+    createdAt: time.get(p.id)?.createdAt.toISOString() ?? "",
+  }));
 }
 
 const nameOf = (u: { name: string | null; email: string }) => u.name || u.email;
@@ -154,7 +158,9 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
     for (const u of others) userNames[u.id] = await displayName(u);
   }
 
+  const self = tree.pages.find((p) => p.id === pageId);
   return {
+    page: { title: self?.title ?? "", icon: self?.icon ?? null },
     canEditColumns: atLeast(access.get(pageId) ?? null, "EDIT") && !locked.has(pageId),
     columns,
     rows,
@@ -175,9 +181,16 @@ export async function loadPageProperties(pageId: string): Promise<PageProperties
   const row = data?.rows.find((r) => r.id === pageId);
   if (!data || !row || data.columns.length === 0) return null;
   // Only while the parent shows its child pages with their columns (a table,
-  // board or calendar block): not for columns left from one taken away.
-  const parentState = await currentPageState(page.parentId);
-  if (!parentState || !hasChildViewBlock(parentState)) return null;
+  // board or calendar block), or a page's linked view does
+  // (lib/linked-views.ts): not for columns left from one taken away.
+  const linked = await prisma.pageLinkedView.findFirst({
+    where: { sourceId: page.parentId, page: { deletedAt: null } },
+    select: { pageId: true },
+  });
+  if (!linked) {
+    const parentState = await currentPageState(page.parentId);
+    if (!parentState || !hasChildViewBlock(parentState)) return null;
+  }
   return { columns: data.columns, row, assignees: data.assignees, userNames: data.userNames };
 }
 

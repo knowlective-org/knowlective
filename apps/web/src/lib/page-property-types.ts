@@ -36,6 +36,8 @@ export type ChildPageItem = {
   icon: string | null;
   // ISO time of the last stored edit (body, title or a property value).
   updatedAt: string;
+  // ISO time the page was made.
+  createdAt: string;
 };
 
 export type ChildTableRow = {
@@ -54,6 +56,8 @@ export type ChildTableRow = {
 export type PageProperties = Pick<ChildTableData, "columns" | "assignees" | "userNames"> & { row: ChildTableRow };
 
 export type ChildTableData = {
+  // The page whose child pages these are (shown by linked views).
+  page: { title: string; icon: string | null };
   canEditColumns: boolean;
   columns: PropertyColumn[];
   rows: ChildTableRow[];

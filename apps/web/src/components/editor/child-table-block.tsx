@@ -46,6 +46,7 @@ import styles from "./child-blocks.module.css";
 import { showAlert, showConfirm } from "@/components/dialog";
 import { BLOCK_CONFIGS } from "./block-configs";
 import { beginSaving } from "@/lib/saving-status";
+import { LinkedSource, LinkedUnsetNote, useLinkedPlaceholder, useLinkedView } from "./linked-view";
 
 // Child page table: one row per child page. Columns (and their values) live
 // in the database, shared by every table on the same page; this block only
@@ -57,7 +58,7 @@ import { beginSaving } from "@/lib/saving-status";
 // extension treats any <td>/<th> under the mouse as part of a BlockNote
 // table block and throws on ours.
 
-type Sort = { key: string; dir: "asc" | "desc" } | null;
+export type Sort = { key: string; dir: "asc" | "desc" } | null;
 
 export const childTableBlock = createReactBlockSpec(
   BLOCK_CONFIGS.childTable,
@@ -69,6 +70,7 @@ export const childTableBlock = createReactBlockSpec(
         order={parseKeys(block.props.order)}
         hidden={parseKeys(block.props.hidden)}
         sort={parseSort(block.props.sort)}
+        source={block.props.source}
         editable={editor.isEditable}
         onChange={(props) => editor.updateBlock(block, { props })}
       />
@@ -85,7 +87,7 @@ function parseKeys(raw: string): string[] {
   }
 }
 
-function parseSort(raw: string): Sort {
+export function parseSort(raw: string): Sort {
   const [key, dir] = raw.split(":");
   return key && (dir === "asc" || dir === "desc") ? { key, dir } : null;
 }
@@ -122,6 +124,7 @@ function ChildTable({
   order,
   hidden,
   sort: savedSort,
+  source,
   editable,
   onChange,
 }: {
@@ -130,12 +133,18 @@ function ChildTable({
   order: string[];
   hidden: string[];
   sort: Sort;
+  source: string;
   editable: boolean;
-  onChange: (props: { title?: string; order?: string; hidden?: string; sort?: string }) => void;
+  onChange: (props: { title?: string; order?: string; hidden?: string; sort?: string; source?: string }) => void;
 }) {
   const router = useRouter();
   const { pageId } = usePageEditor();
-  const { data, reload } = useChildrenData(loadChildTable);
+  // A linked view (lib/linked-views.ts) shows another page's child pages and
+  // leaves its columns alone.
+  const { linked, sourceId } = useLinkedView(source);
+  const parentId = sourceId || pageId;
+  const { data, reload } = useChildrenData(loadChildTable, sourceId);
+  const linkedPlaceholder = useLinkedPlaceholder("childTable", data?.page);
   // The viewer's own filters and sort, over the table's. Sorting by a header
   // is always their own; an editor can then make it the table's sort.
   const { view, setView, personal } = usePersonalView(pageId, blockId);
@@ -147,6 +156,7 @@ function ChildTable({
   const [drag, setDrag] = useState<{ key: string; dropIndex: number } | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("editor");
+  const placeholder = linked ? linkedPlaceholder : t("childTable.placeholder");
   const run = useRun();
   const formatter = useFormatter();
   const locale = useLocale();
@@ -180,11 +190,37 @@ function ChildTable({
     return sorted.filter((row) => matchesFilters(view.filters, known, cellReader(row, data, format)));
   }, [sorted, data, view.filters, filterCount, allColumns, format]);
 
+  const linkedSource = linked && (
+    <LinkedSource
+      blockId={blockId}
+      source={source}
+      page={data?.page}
+      editable={editable}
+      onChoose={(next) => onChange({ source: next })}
+    />
+  );
+  if (sourceId === "") {
+    return (
+      <Frame title={title} placeholder={placeholder} header={linkedSource}>
+        <LinkedUnsetNote />
+      </Frame>
+    );
+  }
   if (data === undefined) {
-    return <Frame title={title}>{t("loading")}</Frame>;
+    return (
+      <Frame title={title} placeholder={placeholder} header={linkedSource}>
+        <p className={styles.muted}>{t("loading")}</p>
+      </Frame>
+    );
   }
   if (data === null) {
-    return <Frame title={title}>{t("childTable.cannotShow")}</Frame>;
+    return (
+      <Frame title={title} placeholder={placeholder} header={linkedSource}>
+        <p className={styles.muted} data-ui="ChildTableBlock.status">
+          {linked ? t("linkedView.cannotShow") : t("childTable.cannotShow")}
+        </p>
+      </Frame>
+    );
   }
 
   const toggleHidden = (key: string) => {
@@ -198,8 +234,10 @@ function ChildTable({
     if (ok) void reload();
     return ok;
   };
-  // EDIT on this page: may add child pages (and columns).
+  // EDIT on the page whose child pages these are: may add child pages, and
+  // columns unless this is a linked view (they're changed on that page).
   const canCreate = editable && data.canEditColumns;
+  const canEditColumns = data.canEditColumns && !linked;
 
   // Moves a visible column to `toIndex` among the visible ones; hidden
   // columns keep their place in the saved order.
@@ -249,11 +287,12 @@ function ChildTable({
         <div className={styles.header}>
           <BlockTitle
             value={title}
-            placeholder={t("childTable.placeholder")}
+            placeholder={placeholder}
             editable={editable}
             onSave={(next) => onChange({ title: next })}
             uiName="ChildTableBlock"
           />
+          {linkedSource}
           <Popover
             open={menu === "filter"}
             onOpenChange={(o) => setMenu(o ? "filter" : null)}
@@ -282,7 +321,7 @@ function ChildTable({
               ))}
             </Popover>
           )}
-          {editable && data.canEditColumns && (
+          {editable && canEditColumns && (
             <Popover
               open={menu === "add"}
               onOpenChange={(o) => setMenu(o ? "add" : null)}
@@ -291,7 +330,7 @@ function ChildTable({
             >
               <AddColumnForm
                 onSubmit={async (name, type) => {
-                  if (await run(addColumn(pageId, name, type))) {
+                  if (await run(addColumn(parentId, name, type))) {
                     setMenu(null);
                     void reload();
                   }
@@ -356,7 +395,7 @@ function ChildTable({
                     <ColumnMenu
                       column={c.custom}
                       label={c.label}
-                      canEditColumn={data.canEditColumns}
+                      canEditColumn={canEditColumns}
                       first={i === 0}
                       last={i === visible.length - 1}
                       onRename={(name) => c.custom && after(renameColumn(c.custom.id, name))}
@@ -418,7 +457,7 @@ function ChildTable({
               <div className={styles.newRow}>
                 <NewPageRow
                   onCreate={async (pageTitle) => {
-                    const result = await createChildPageInPlace(pageId, pageTitle).catch(() => ({
+                    const result = await createChildPageInPlace(parentId, pageTitle).catch(() => ({
                       error: t("childTable.createFailed"),
                     }));
                     if ("error" in result) {
@@ -440,14 +479,14 @@ function ChildTable({
   );
 }
 
-function Frame({ title, children }: { title: string; children: ReactNode }) {
-  const t = useTranslations("editor.childTable");
+function Frame({ title, placeholder, header, children }: { title: string; placeholder: string; header: ReactNode; children: ReactNode }) {
   return (
     <div className={styles.block} contentEditable={false} data-ui="ChildTableBlock">
       <div className={styles.header}>
-        <BlockTitle value={title} placeholder={t("placeholder")} editable={false} onSave={() => {}} uiName="ChildTableBlock" />
+        <BlockTitle value={title} placeholder={placeholder} editable={false} onSave={() => {}} uiName="ChildTableBlock" />
+        {header}
       </div>
-      <p className={styles.muted}>{children}</p>
+      {children}
     </div>
   );
 }
@@ -717,7 +756,7 @@ function sortValue(row: ChildTableRow, key: string, data: ChildTableData, format
   return value;
 }
 
-function sortRows(data: ChildTableData, sort: Sort, format: Format): ChildTableRow[] {
+export function sortRows(data: ChildTableData, sort: Sort, format: Format): ChildTableRow[] {
   if (!sort) return data.rows;
   const { collator } = format;
   const sign = sort.dir === "asc" ? 1 : -1;

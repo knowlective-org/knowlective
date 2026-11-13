@@ -13,6 +13,10 @@ export const BLOCK_CONFIGS = {
       // Shown above the list; empty shows the placeholder title.
       title: { default: "" },
       depth: { default: 1 },
+      // The order for everyone (each level's pages among themselves):
+      // "<key>:asc" / "<key>:desc" (title, createdAt, updatedAt), or "" for
+      // the pages' own order. Each viewer can pick their own over it.
+      sort: { default: "" },
     },
     content: "none",
   },
@@ -30,6 +34,9 @@ export const BLOCK_CONFIGS = {
       hidden: { default: JSON.stringify(["createdAt", "createdBy"]) },
       // "<key>:asc" / "<key>:desc", or "" for creation order.
       sort: { default: "" },
+      // A linked view's page (lib/linked-views.ts): "" shows this page's own
+      // child pages, LINKED_UNSET one not chosen yet, a page id that page's.
+      source: { default: "" },
     },
     content: "none",
   },
@@ -44,6 +51,13 @@ export const BLOCK_CONFIGS = {
       // Id of a select or user column splitting the cards into one board per
       // value (sub-groups), each with the same lanes. Empty: one board.
       subGroupBy: { default: "" },
+      // The order of the cards in each lane, for everyone: as the child page
+      // table's `sort`, or "" for the pages' own order. Each viewer can pick
+      // their own over it.
+      sort: { default: "" },
+      // A linked view's page (lib/linked-views.ts): "" shows this page's own
+      // child pages, LINKED_UNSET one not chosen yet, a page id that page's.
+      source: { default: "" },
     },
     content: "none",
   },
@@ -56,6 +70,9 @@ export const BLOCK_CONFIGS = {
       // / "updatedAt". Empty (or a column that no longer exists) uses the
       // page's first date column.
       dateBy: { default: "" },
+      // A linked view's page (lib/linked-views.ts): "" shows this page's own
+      // child pages, LINKED_UNSET one not chosen yet, a page id that page's.
+      source: { default: "" },
     },
     content: "none",
   },

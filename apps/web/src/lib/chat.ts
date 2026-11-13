@@ -9,8 +9,12 @@ import { decrypt, encrypt } from "shared";
 
 export {
   CHAT_HISTORY,
+  CHAT_IMAGE_TYPES,
   CHAT_REACTIONS,
   isChatReaction,
+  MAX_CHAT_FILES,
+  normalizeChatFileIds,
+  type ChatFileView,
   MAX_CHAT_MESSAGE_LENGTH,
   MAX_POLL_OPTION_LENGTH,
   MAX_POLL_OPTIONS,

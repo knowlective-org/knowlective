@@ -10,7 +10,8 @@ import {
   parsePreCodeContent,
 } from "@blocknote/core";
 import { codeBlockOptions } from "@blocknote/code-block";
-import { type IndentUnit, INDENT_UNITS } from "@/lib/reindent";
+import type { EditorView } from "@tiptap/pm/view";
+import { type IndentUnit, INDENT_UNITS, reindent } from "@/lib/reindent";
 import { lineIndent } from "@/lib/auto-indent";
 import { showNotice } from "../notice";
 import { CODE_BLOCK_EXTRA_PROPS } from "./block-configs";
@@ -107,6 +108,18 @@ function savedIndent(): IndentUnit {
   } catch {
     return "2";
   }
+}
+
+// Code pasted into a code block takes the indent chosen in its picker (the
+// same unit "Format" uses): each line keeps its level, in that unit. One
+// line is pasted as it is. True when it was handled (the caret is in a code
+// block's text, and there's text to paste).
+export function pasteIntoCode(view: EditorView, text: string): boolean {
+  const { $from } = view.state.selection;
+  if ($from.parent.type.name !== "codeBlock" || !text) return false;
+  const code = text.replace(/\r\n?/g, "\n");
+  view.dispatch(view.state.tr.insertText(code.includes("\n") ? reindent(code, savedIndent()) : code).scrollIntoView());
+  return true;
 }
 
 type CodeText = {

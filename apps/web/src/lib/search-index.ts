@@ -9,6 +9,7 @@ import { isLocale, FALLBACK_LOCALE } from "../i18n/locales";
 import { translatorFor } from "../i18n/translator";
 import { pagePeopleNames } from "./page-people";
 import { whiteboardFileIds, whiteboardText } from "./whiteboard";
+import { linkedViewSources } from "./child-view-blocks";
 
 // Encrypted full-text search index. Used by the collab server (reindexing on
 // every store) and the app (queries, reindexing on uploads / new pages).
@@ -202,7 +203,8 @@ async function everyoneLabel(prisma: PrismaClient): Promise<string> {
 // `files`: the names of the attachments the page shows; `fileTexts`: the
 // text of those that have some (lib/file-text.ts); `fileIds`: every
 // attachment the body shows, other knowledge roots' included (PageFileRefs);
-// `chat`: the messages of the chat blocks in the body (chatText()).
+// `chat`: the messages of the chat blocks in the body (chatText());
+// `linkedSources`: the pages its linked views show (PageLinkedView).
 export type PageSearchText = {
   title: string;
   body: string;
@@ -210,6 +212,7 @@ export type PageSearchText = {
   fileTexts: { id: string; name: string; text: string }[];
   fileIds: string[];
   chat: string;
+  linkedSources: string[];
 };
 
 // Title, body and attachments of a page. `state` is the document's Yjs
@@ -224,6 +227,7 @@ export async function pageSearchText(prisma: PrismaClient, pageId: string, state
   let title = page.title;
   let fileIds: string[] = [];
   let chatIds: string[] = [];
+  let linkedSources: string[] = [];
   const dataKey = await loadDataKey(prisma);
   const update = state ?? (stored ? decrypt(dataKey, stored.state, pageId) : null);
   if (update) {
@@ -234,20 +238,32 @@ export async function pageSearchText(prisma: PrismaClient, pageId: string, state
     title = normalizeTitle(doc.getText("title").toString()) || title;
     fileIds = referencedFileIds(doc);
     chatIds = chatBlockIds(doc);
+    linkedSources = linkedViewSources(doc);
   }
+  // Files sent in the page's chats (lib/chat-post.ts; none on messages taken
+  // back): kept from clean-up as long as their message is, the chat's block
+  // in the body or not (it can be restored); searched, as the messages, only
+  // in the chats the body has now.
+  const chatFiles = await prisma.chatMessage.findMany({
+    where: { pageId, deletedAt: null, NOT: { attachmentIds: { isEmpty: true } } },
+    select: { blockId: true, attachmentIds: true },
+  });
+  const shownChatFiles = chatFiles.filter((m) => chatIds.includes(m.blockId)).flatMap((m) => m.attachmentIds);
+  const searched = [...new Set([...fileIds, ...shownChatFiles])];
+  fileIds = [...new Set([...fileIds, ...chatFiles.flatMap((m) => m.attachmentIds)])];
   // Only this page's own files: whoever finds this page could otherwise read
   // a file of a page they can't open, by putting its URL here. A file of
   // another page becomes this page's own when copied (lib/file-copy.ts).
   // (`fileIds`, all the page shows, still keeps the others from clean-up.)
   const rows =
-    fileIds.length === 0
+    searched.length === 0
       ? []
       : await prisma.fileObject.findMany({
-          where: { id: { in: fileIds }, pageId },
+          where: { id: { in: searched }, pageId },
           select: { id: true, name: true, textEnc: true },
         });
   const byId = new Map(rows.map((r) => [r.id, r]));
-  const files = fileIds.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+  const files = searched.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
   return {
     title,
     body,
@@ -257,6 +273,7 @@ export async function pageSearchText(prisma: PrismaClient, pageId: string, state
     ),
     fileIds,
     chat: await chatText(prisma, dataKey, pageId, chatIds),
+    linkedSources,
   };
 }
 
@@ -274,6 +291,7 @@ export async function reindexPage(prisma: PrismaClient, pageId: string, state?: 
       update: { tokens, indexedAt: new Date() },
     });
     await saveFileRefs(prisma, pageId, text.fileIds);
+    await saveLinkedViews(prisma, pageId, text.linkedSources);
   } catch (err) {
     console.error("[search] indexing failed for a page", err);
   }
@@ -283,6 +301,16 @@ export async function reindexPage(prisma: PrismaClient, pageId: string, state?: 
 // shows (lib/file-cleanup.ts).
 async function saveFileRefs(prisma: PrismaClient, pageId: string, fileIds: string[]): Promise<void> {
   await prisma.pageFileRefs.upsert({ where: { pageId }, create: { pageId, fileIds }, update: { fileIds } });
+}
+
+// The pages the body's linked views show (lib/linked-views.ts), for sending
+// their child pages' changes here too (notifyChildrenChanged).
+async function saveLinkedViews(prisma: PrismaClient, pageId: string, sourceIds: string[]): Promise<void> {
+  const kept = sourceIds.filter((id) => id !== pageId);
+  await prisma.$transaction([
+    prisma.pageLinkedView.deleteMany({ where: { pageId, sourceId: { notIn: kept } } }),
+    prisma.pageLinkedView.createMany({ data: kept.map((sourceId) => ({ pageId, sourceId })), skipDuplicates: true }),
+  ]);
 }
 
 // Pages whose index is missing or older than their content (e.g. after this

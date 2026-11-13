@@ -18,6 +18,16 @@ const nextConfig: NextConfig = {
   // text (lib/file-text.ts) uses pdf.js's own worker module, which bundling
   // breaks. The browser's PDF viewer is unaffected.
   serverExternalPackages: ["pdfjs-dist"],
+  // In the browser only: the code block's PHP formatter (@prettier/plugin-php's
+  // browser build) imports fs and path, for finding a composer.json, which it
+  // never does there (code-format.ts sets the PHP version). Without these the
+  // bundle can't be built.
+  turbopack: {
+    resolveAlias: {
+      fs: { browser: "./src/lib/empty-module.ts" },
+      path: { browser: "./src/lib/empty-module.ts" },
+    },
+  },
   // The sub-path the app is served under ("" = the root). Fixed when the app
   // is built: Next.js writes it into the browser's code. Our own code reads it
   // from NEXT_PUBLIC_BASE_PATH (src/lib/base-path.ts).

@@ -65,6 +65,26 @@ export type ChatPollView = {
   voters: number;
 };
 
+// Files sent with a message (attachments of the page, uploaded with
+// POST /api/files like a file block's): at most this many.
+export const MAX_CHAT_FILES = 10;
+
+// Images /api/files shows in the page (its INLINE_TYPES): shown as pictures
+// in a message; any other file is a link to download it.
+export const CHAT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"] as const;
+
+// A message's file. `url` is "/api/files/<id>" (without the base path).
+export type ChatFileView = { id: string; url: string; name: string; size: number; image: boolean };
+
+// The file ids a message is sent with: distinct, at most MAX_CHAT_FILES.
+// Null when it isn't such a list (whose files they are is checked by the server).
+export function normalizeChatFileIds(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > MAX_CHAT_FILES) return null;
+  if (!raw.every((id) => typeof id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(id))) return null;
+  return new Set(raw).size === raw.length ? (raw as string[]) : null;
+}
+
 // What one viewer sees of a message. `author` is null for someone not logged
 // in (a public page): people's names aren't public. Mentions are `<@id>` in
 // `text` (lib/chat-text.ts); `names` has the names of those it mentions
@@ -86,6 +106,8 @@ export type ChatMessageView = {
   reactions: ChatReactionView[];
   // A poll (the text is its question); none on a message taken back.
   poll: ChatPollView | null;
+  // Files sent with it (`text` may then be empty); none on a message taken back.
+  files: ChatFileView[];
 };
 
 // `canPost`: the viewer can edit the page and the chat isn't locked.

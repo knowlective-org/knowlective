@@ -217,6 +217,8 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
     }
   };
   const copyInput = useRef<HTMLInputElement>(null);
+  const passphraseInput = useRef<HTMLInputElement>(null);
+  const pressedOnBackdrop = useRef(false);
   const code = request.kind === "confirm" ? request.code : undefined;
   const codeMatches = code === undefined || normalizeConfirmCode(typed) === code;
 
@@ -234,7 +236,10 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
       const error = await request.check(secret.value).catch(() => "");
       setChecking(false);
       if (error !== null) {
+        // Wrong: cleared for the next try.
         setCheckError(error);
+        setSecret({ value: "", again: "" });
+        requestAnimationFrame(() => passphraseInput.current?.focus());
         return;
       }
       if (done.current) return;
@@ -264,9 +269,16 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
         e.preventDefault();
         void finish(false);
       }}
-      // A click on the backdrop.
+      // A click on the backdrop: pressed there too. Selecting a field's text
+      // with the mouse and letting go outside the box also "clicks" the
+      // dialog element itself, which must not close it.
+      onMouseDown={(e) => {
+        pressedOnBackdrop.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) void finish(false);
+        const backdrop = e.target === e.currentTarget && pressedOnBackdrop.current;
+        pressedOnBackdrop.current = false;
+        if (backdrop) void finish(false);
       }}
     >
       <div className={styles.body}>
@@ -343,6 +355,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
             <input
               type="password"
               className={ui.field}
+              ref={passphraseInput}
               data-ui="AppDialog.passphraseInput"
               aria-label={t("dialog.passphrase")}
               placeholder={t("dialog.passphrase")}

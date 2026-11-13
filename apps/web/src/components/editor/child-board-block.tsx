@@ -25,8 +25,10 @@ import {
 } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
 import { matchesFilters } from "@/lib/table-view";
-import { type ColumnView, type Format, FilterPanel, Popover, cellReader, usePersonalView } from "./child-table-block";
+import { type ColumnView, type Format, FilterPanel, Popover, cellReader, parseSort, sortRows, usePersonalView } from "./child-table-block";
+import { SortPicker } from "./child-sort";
 import { useChildrenData, usePageEditor } from "./page-context";
+import { LinkedSource, LinkedUnsetNote, useLinkedPlaceholder, useLinkedView } from "./linked-view";
 import styles from "./child-board-block.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
 
@@ -37,7 +39,8 @@ import { BLOCK_CONFIGS } from "./block-configs";
 // shown: its title and which column to group by.
 //
 // The order of the cards in a column is the child pages' own order (the one
-// the sidebar shows).
+// the sidebar shows), or a sort (child-sort.tsx): each viewer's own, over the
+// block's `sort`.
 //
 // Sub-groups: a second column (select or user) can split the cards into one
 // board per value, one under another, each with the same lanes. A card moves
@@ -57,6 +60,8 @@ export const childBoardBlock = createReactBlockSpec(
         title={block.props.title}
         groupBy={block.props.groupBy}
         subGroupBy={block.props.subGroupBy}
+        sort={block.props.sort}
+        source={block.props.source}
         editable={editor.isEditable}
         onChange={(props) => editor.updateBlock(block, { props })}
       />
@@ -82,6 +87,8 @@ function ChildBoard({
   title,
   groupBy,
   subGroupBy,
+  sort,
+  source,
   editable,
   onChange,
 }: {
@@ -89,12 +96,20 @@ function ChildBoard({
   title: string;
   groupBy: string;
   subGroupBy: string;
+  sort: string;
+  source: string;
   editable: boolean;
-  onChange: (props: { title?: string; groupBy?: string; subGroupBy?: string }) => void;
+  onChange: (props: { title?: string; groupBy?: string; subGroupBy?: string; sort?: string; source?: string }) => void;
 }) {
   const { pageId } = usePageEditor();
   const router = useRouter();
-  const { data, reload } = useChildrenData(loadChildTable);
+  // A linked view (lib/linked-views.ts) shows another page's child pages and
+  // leaves its columns (the lanes) alone.
+  const { linked, sourceId } = useLinkedView(source);
+  const parentId = sourceId || pageId;
+  const { data, reload } = useChildrenData(loadChildTable, sourceId);
+  const linkedPlaceholder = useLinkedPlaceholder("childBoard", data?.page);
+  const canEditColumns = !!data?.canEditColumns && !linked;
   // Card moves shown before the server has confirmed them: "<page id>:<column
   // id>" → the new value.
   const [moved, setMoved] = useState<Record<string, string>>({});
@@ -128,10 +143,12 @@ function ChildBoard({
   const filterCount = Object.keys(view.filters).length;
   const rows = useMemo(() => {
     if (!data) return [];
-    if (filterCount === 0) return data.rows;
+    // Sorted first: each lane keeps this order.
+    const sorted = sortRows(data, parseSort(view.sort ?? sort), format);
+    if (filterCount === 0) return sorted;
     const known = new Set(filterColumns.map((c) => c.key));
-    return data.rows.filter((row) => matchesFilters(view.filters, known, cellReader(row, data, format)));
-  }, [data, view.filters, filterCount, filterColumns, format]);
+    return sorted.filter((row) => matchesFilters(view.filters, known, cellReader(row, data, format)));
+  }, [data, view.filters, view.sort, sort, filterCount, filterColumns, format]);
 
   // A move is shown at once and saved after: "saving" until the server has it.
   const saving = Object.keys(moved).length > 0;
@@ -146,11 +163,14 @@ function ChildBoard({
     <div className={styles.header}>
       <BlockTitle
         value={title}
-        placeholder={t("childBoard.placeholder")}
+        placeholder={linked ? linkedPlaceholder : t("childBoard.placeholder")}
         editable={editable}
         onSave={(next) => onChange({ title: next })}
         uiName="ChildBoardBlock"
       />
+      {linked && (
+        <LinkedSource blockId={blockId} source={source} page={data?.page} editable={editable} onChoose={(next) => onChange({ source: next })} />
+      )}
       {data && column && (
         <Popover
           open={filterOpen}
@@ -160,6 +180,17 @@ function ChildBoard({
         >
           <FilterPanel columns={filterColumns} data={data} filters={view.filters} onChange={(filters) => setView({ ...view, filters })} />
         </Popover>
+      )}
+      {data && column && (
+        <SortPicker
+          uiName="ChildBoardBlock"
+          keys={filterColumns}
+          blockSort={sort}
+          personalSort={view.sort}
+          editable={editable}
+          onPersonal={(next) => setView({ ...view, sort: next })}
+          onBlock={(next) => onChange({ sort: next })}
+        />
       )}
       {editable && selects.length > 1 && column && (
         <select
@@ -199,17 +230,21 @@ function ChildBoard({
     return (
       <div className={styles.block} contentEditable={false} data-ui="ChildBoardBlock">
         {header}
-        {data === undefined ? (
+        {sourceId === "" ? (
+          <LinkedUnsetNote />
+        ) : data === undefined ? (
           <p className={styles.muted}>{t("loading")}</p>
         ) : data === null ? (
-          <p className={styles.muted}>{t("childBoard.cannotShow")}</p>
+          <p className={styles.muted} data-ui="ChildBoardBlock.status">
+            {linked ? t("linkedView.cannotShow") : t("childBoard.cannotShow")}
+          </p>
         ) : (
           <div className={styles.empty}>
             <p className={styles.muted}>
               {t("childBoard.noSelectColumn")}
-              {!data.canEditColumns && t("childBoard.noSelectColumnViewer")}
+              {linked ? t("linkedView.columnsOnSource") : !data.canEditColumns && t("childBoard.noSelectColumnViewer")}
             </p>
-            {editable && data.canEditColumns && (
+            {editable && canEditColumns && (
               <button
                 type="button"
                 className={styles.primaryButton}
@@ -259,7 +294,7 @@ function ChildBoard({
     await setValues(row.id, { [subColumn.id]: value });
   };
   const addCard = async (optionId: string, subValue: string, cardTitle: string) => {
-    const result = await createChildPageInPlace(pageId, cardTitle).catch(() => ({ error: t("save.createFailed") }));
+    const result = await createChildPageInPlace(parentId, cardTitle).catch(() => ({ error: t("save.createFailed") }));
     if ("error" in result) {
       await showAlert(result.error);
       return false;
@@ -298,9 +333,10 @@ function ChildBoard({
       lanes={lanesOf(rows)}
       column={column}
       saving={saving}
-      // New pages go under this page, so adding a card needs EDIT on it.
-      canAdd={editable}
-      canAddLane={editable && data.canEditColumns}
+      // New pages go under this page (a linked view's: its page), so adding a
+      // card needs EDIT on it.
+      canAdd={editable && (!linked || data.canEditColumns)}
+      canAddLane={editable && canEditColumns}
       onMove={moveCard}
       onAddCard={(optionId, cardTitle) => addCard(optionId, sub?.value ?? NO_VALUE, cardTitle)}
       onAddLane={addOption}

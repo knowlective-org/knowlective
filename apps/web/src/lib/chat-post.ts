@@ -6,7 +6,7 @@ import { notifyChildrenChanged } from "@/lib/collab-events";
 import { reindexPage } from "@/lib/search-index";
 import { notifyChatPosted } from "@/lib/notification-bridge";
 import { createRateLimiter } from "@/lib/rate-limit";
-import { isBlockId, normalizeChatMessage, sealChatMessage, sealPollOptions } from "@/lib/chat";
+import { isBlockId, normalizeChatFileIds, normalizeChatMessage, sealChatMessage, sealPollOptions } from "@/lib/chat";
 import { chatMentionIds, chatMentionsEveryone, chatPlainText } from "@/lib/chat-text";
 import { chatMarkdownPlain } from "@/lib/chat-markdown";
 import { pageAudienceIds, pagePeopleNames } from "@/lib/page-people";
@@ -48,13 +48,24 @@ export async function postChat(
   replyToId: string | null,
   poll: { options: string[]; multiple: boolean } | null,
   words: { unknownUser: string; everyone: string },
+  // Files sent with it: the page's attachments that `userId` uploaded on it
+  // (POST /api/files, which checked the upload itself). With files the text
+  // may be empty; a poll has none.
+  rawFileIds: unknown = [],
 ): Promise<{ id: string } | { error: ChatPostError }> {
   if (typeof pageId !== "string" || !isBlockId(blockId)) return { error: { code: "not_allowed" } };
   const access = await getPageAccess(prisma, userId, pageId);
   if (!access || !canEditPage(access)) return { error: { code: "not_allowed" } };
   if (await chatLocked(pageId, blockId)) return { error: { code: "locked" } };
-  const text = normalizeChatMessage(raw);
-  if (!text) return { error: { code: "invalid" } };
+  const fileIds = normalizeChatFileIds(rawFileIds);
+  if (!fileIds || (poll && fileIds.length > 0)) return { error: { code: "invalid" } };
+  const files =
+    fileIds.length === 0
+      ? []
+      : await prisma.fileObject.findMany({ where: { id: { in: fileIds }, pageId, uploadedById: userId }, select: { id: true, name: true } });
+  if (files.length !== fileIds.length) return { error: { code: "invalid" } };
+  const text = normalizeChatMessage(raw) ?? (fileIds.length > 0 && typeof raw === "string" && raw.trim() === "" ? "" : null);
+  if (text === null) return { error: { code: "invalid" } };
   if (replyToId !== null) {
     const replied =
       typeof replyToId === "string"
@@ -78,10 +89,12 @@ export async function postChat(
       authorId: userId,
       bodyEnc: sealChatMessage(key, id, text),
       replyToId,
+      attachmentIds: fileIds,
       ...(poll && { poll: { create: { multiple: poll.multiple, optionsEnc: sealPollOptions(key, id, poll.options) } } }),
     },
   });
-  // Messages are searched with the page (a poll's choices too).
+  // Messages are searched with the page (a poll's choices and the files too);
+  // this also keeps the files from the clean-up of unused ones.
   await reindexPage(prisma, pageId);
   // Everyone with the page open refetches (with their own access), as for
   // the child page blocks.
@@ -93,7 +106,9 @@ export async function postChat(
   const mentionIds = [
     ...new Set([...chatMentionIds(text).filter((m) => names.has(m)), ...(toEveryone ? await pageAudienceIds(prisma, pageId) : [])]),
   ];
-  const excerpt = chatPlainText(chatMarkdownPlain(text), (mentioned) => names.get(mentioned) ?? null, words.unknownUser, words.everyone);
+  const excerpt =
+    chatPlainText(chatMarkdownPlain(text), (mentioned) => names.get(mentioned) ?? null, words.unknownUser, words.everyone) ||
+    `📎 ${files.map((f) => f.name).join(", ")}`;
   void notifyChatPosted({ pageId, blockId, actorId: userId, text: poll ? `📊 ${excerpt}` : excerpt, mentionIds });
   return { id };
 }

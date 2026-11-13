@@ -7,6 +7,7 @@ import { bodyToMarkdown } from "@/lib/markdown-bridge";
 import type { ChildPageItem } from "@/lib/page-property-types";
 import { TITLE_FIELD, normalizeTitle } from "@/lib/page-title";
 import { getPublicUrl } from "@/lib/site-url";
+import { linkedViewSources } from "@/lib/child-view-blocks";
 
 // A page's content for the public API. The Markdown conversion itself runs in
 // the custom server (lib/markdown-bridge.ts, server/page-markdown.ts).
@@ -38,10 +39,20 @@ async function visibleChildPages(userId: string, pageId: string): Promise<ChildP
       // Not shortcuts, as in the child page blocks (child-pages-actions.ts).
       if (p.parentId && below.has(p.parentId) && !below.has(p.id) && p.kind !== "SHORTCUT") {
         below.add(p.id);
-        result.push({ id: p.id, parentId: p.parentId, title: p.title, icon: p.icon, updatedAt: "" });
+        result.push({ id: p.id, parentId: p.parentId, title: p.title, icon: p.icon, updatedAt: "", createdAt: "" });
         changed = true;
       }
     }
+  }
+  // The times, for a list sorted by them.
+  const times = await prisma.page.findMany({
+    where: { id: { in: result.map((p) => p.id) } },
+    select: { id: true, updatedAt: true, createdAt: true },
+  });
+  const time = new Map(times.map((t) => [t.id, t]));
+  for (const p of result) {
+    p.updatedAt = time.get(p.id)?.updatedAt.toISOString() ?? "";
+    p.createdAt = time.get(p.id)?.createdAt.toISOString() ?? "";
   }
   return result;
 }
@@ -59,10 +70,16 @@ export async function pageContent(
   const doc = new Y.Doc();
   Y.applyUpdate(doc, state);
   const title = normalizeTitle(doc.getText(TITLE_FIELD).toString()) || fallbackTitle;
+  // Linked views (lib/linked-views.ts): their pages' child pages, as the reader sees them.
+  const linkedChildPages: Record<string, ChildPageItem[]> = {};
+  for (const id of linkedViewSources(doc)) {
+    if (id !== pageId) linkedChildPages[id] = await visibleChildPages(userId, id);
+  }
   const markdown = await bodyToMarkdown(state, {
     origin: await getPublicUrl(),
     pageId,
     childPages: await visibleChildPages(userId, pageId),
+    linkedChildPages,
     untitled,
     // Mentions as "@name": the names of those who can open the page.
     people: Object.fromEntries((await getUsersWithPageAccess(prisma, pageId)).map((u) => [u.id, u.name || u.email])),

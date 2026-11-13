@@ -104,6 +104,31 @@
   text-underline-offset: 3px;
 }
 
+/* A linked view's source page (linked-view.tsx), in the block's header. */
+.sourceLink {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+  text-decoration: none;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.sourceLink:hover {
+  background: var(--color-hover);
+}
+
+.sourceLink span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Last-updated time after a page link (plain text, not part of the link). */
 .pageMeta {
   margin-left: 8px;
