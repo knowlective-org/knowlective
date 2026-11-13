@@ -34,6 +34,9 @@ export const BLOCK_CONFIGS = {
       hidden: { default: JSON.stringify(["createdAt", "createdBy"]) },
       // "<key>:asc" / "<key>:desc", or "" for creation order.
       sort: { default: "" },
+      // A linked view's page (lib/linked-views.ts): "" shows this page's own
+      // child pages, LINKED_UNSET one not chosen yet, a page id that page's.
+      source: { default: "" },
     },
     content: "none",
   },
@@ -52,6 +55,9 @@ export const BLOCK_CONFIGS = {
       // table's `sort`, or "" for the pages' own order. Each viewer can pick
       // their own over it.
       sort: { default: "" },
+      // A linked view's page (lib/linked-views.ts): "" shows this page's own
+      // child pages, LINKED_UNSET one not chosen yet, a page id that page's.
+      source: { default: "" },
     },
     content: "none",
   },
@@ -64,6 +70,9 @@ export const BLOCK_CONFIGS = {
       // / "updatedAt". Empty (or a column that no longer exists) uses the
       // page's first date column.
       dateBy: { default: "" },
+      // A linked view's page (lib/linked-views.ts): "" shows this page's own
+      // child pages, LINKED_UNSET one not chosen yet, a page id that page's.
+      source: { default: "" },
     },
     content: "none",
   },

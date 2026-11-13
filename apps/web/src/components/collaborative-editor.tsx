@@ -38,7 +38,8 @@ import { MAX_PDF_IMPORT_PAGES, PdfPasswordError, readPdfBlocks } from "./editor/
 import { type PdfBlock, pdfTitle } from "./editor/pdf-text";
 import { singleUrl } from "./editor/link-preview-block";
 import { parseVideoUrl } from "./editor/video-url";
-import { type ExportBlock, downloadBlob, hasChildPageBlocks, prepareBlocksForExport } from "./editor/markdown-export";
+import { type ExportBlock, downloadBlob, exportLinkedSources, hasChildPageBlocks, prepareBlocksForExport } from "./editor/markdown-export";
+import type { ChildPageItem } from "@/lib/page-property-types";
 import { MAX_CSV_COLUMNS, MAX_CSV_ROWS, csvToTable } from "./editor/csv-import";
 import {
   type ImportKind,
@@ -782,12 +783,16 @@ function EditorBody({
       try {
         const blocks = editor.document as ExportBlock[];
         const childPages = hasChildPageBlocks(blocks) ? await loadChildPages(pageId) : null;
+        // Linked views (lib/linked-views.ts): their pages' child pages, with the viewer's access.
+        const linkedChildPages: Record<string, ChildPageItem[]> = {};
+        for (const id of exportLinkedSources(blocks, pageId)) linkedChildPages[id] = (await loadChildPages(id)) ?? [];
         const title = displayTitle(provider.document.getText(TITLE_FIELD).toString());
         const prepared = prepareBlocksForExport(blocks, {
           // Links in the export are full URLs, base path included.
           origin: window.location.origin + BASE_PATH,
           pageId,
           childPages,
+          linkedChildPages,
           untitled: t("common.untitled"),
           mermaid: format === "pdf" ? "keep" : "code",
           people: Object.fromEntries(((await pagePeople(pageId)) ?? []).map((p) => [p.id, p.name])),

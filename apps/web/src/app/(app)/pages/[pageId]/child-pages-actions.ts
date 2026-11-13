@@ -158,7 +158,9 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
     for (const u of others) userNames[u.id] = await displayName(u);
   }
 
+  const self = tree.pages.find((p) => p.id === pageId);
   return {
+    page: { title: self?.title ?? "", icon: self?.icon ?? null },
     canEditColumns: atLeast(access.get(pageId) ?? null, "EDIT") && !locked.has(pageId),
     columns,
     rows,
@@ -179,9 +181,16 @@ export async function loadPageProperties(pageId: string): Promise<PageProperties
   const row = data?.rows.find((r) => r.id === pageId);
   if (!data || !row || data.columns.length === 0) return null;
   // Only while the parent shows its child pages with their columns (a table,
-  // board or calendar block): not for columns left from one taken away.
-  const parentState = await currentPageState(page.parentId);
-  if (!parentState || !hasChildViewBlock(parentState)) return null;
+  // board or calendar block), or a page's linked view does
+  // (lib/linked-views.ts): not for columns left from one taken away.
+  const linked = await prisma.pageLinkedView.findFirst({
+    where: { sourceId: page.parentId, page: { deletedAt: null } },
+    select: { pageId: true },
+  });
+  if (!linked) {
+    const parentState = await currentPageState(page.parentId);
+    if (!parentState || !hasChildViewBlock(parentState)) return null;
+  }
   return { columns: data.columns, row, assignees: data.assignees, userNames: data.userNames };
 }
 

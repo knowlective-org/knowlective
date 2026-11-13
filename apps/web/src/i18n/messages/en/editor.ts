@@ -76,6 +76,12 @@ export default {
       childBoardSub: "Child pages as cards, in columns such as their status",
       childCalendar: "Child page calendar",
       childCalendarSub: "Child pages on a month's calendar, by a date column",
+      linkedTable: "Linked table",
+      linkedTableSub: "Another page's child pages as a table, with that page's columns",
+      linkedBoard: "Linked board",
+      linkedBoardSub: "Another page's child pages as a board (kanban)",
+      linkedCalendar: "Linked calendar",
+      linkedCalendarSub: "Another page's child pages on a month's calendar",
       mermaid: "Mermaid diagram",
       mermaidSub: "Draw flowcharts and other diagrams from Mermaid source",
       // More words the menu matches, comma-separated (in this language).
@@ -83,6 +89,9 @@ export default {
       childTableAliases: "",
       childBoardAliases: "",
       childCalendarAliases: "",
+      linkedTableAliases: "",
+      linkedBoardAliases: "",
+      linkedCalendarAliases: "",
       mermaidAliases: "",
       whiteboard: "Whiteboard",
       whiteboardSub: "Show a whiteboard page here (read-only)",
@@ -246,6 +255,22 @@ export default {
     toc: {
       label: "Contents",
       empty: "Headings (H2–H6) added to the page are listed here.",
+    },
+    // Linked views (lib/linked-views.ts): a child page table, board or
+    // calendar of another page's child pages.
+    linkedView: {
+      table: "Linked table",
+      board: "Linked board",
+      calendar: "Linked calendar",
+      titleOf: "Child pages of {title}",
+      openSource: "Open the page whose child pages are shown",
+      none: "No page chosen yet.",
+      choose: "Choose a page",
+      change: "Change the page",
+      cannotShow: "These child pages can't be shown (you may not have access to the page, or it's been deleted).",
+      columnsOnSource: " Columns are added on the page itself.",
+      pickTitle: "Show another page's child pages",
+      pickLead: "Choose the page whose child pages to show here, with its columns. Others see them with their own access: those who can't open the page see only that they can't be shown. Columns are added and changed on that page.",
     },
     whiteboardEmbed: {
       label: "Whiteboard",

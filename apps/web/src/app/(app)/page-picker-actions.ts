@@ -8,7 +8,8 @@ import { getTranslations } from "next-intl/server";
 import { getDisplayTitle } from "@/i18n/display-title";
 
 // The pages someone can choose from (components/page-picker-dialog.tsx): to
-// link a whiteboard's item to, or to show in a document's whiteboard block.
+// link a whiteboard's item to, to show in a document's whiteboard block, or
+// whose child pages a linked view shows.
 // Only pages they can see, per knowledge root in tree order, with only the
 // titles they can see.
 
@@ -22,9 +23,12 @@ export type PickablePage = {
 
 export type PickableGroup = { label: string; pages: PickablePage[] };
 
-// `kind`: any page, or whiteboards only. `exclude`: a page not to offer
-// (the one being edited).
-export async function loadPickablePages(kind: "any" | "whiteboard", exclude: string | null = null): Promise<PickableGroup[]> {
+// `kind`: any page, whiteboards only, or pages that can have child pages
+// (not shortcuts, lib/shortcuts.ts). `exclude`: a page not to offer (the one
+// being edited).
+export type PickableKind = "any" | "whiteboard" | "parent";
+
+export async function loadPickablePages(kind: PickableKind, exclude: string | null = null): Promise<PickableGroup[]> {
   const user = await requireUser();
   const trees = await getVisibleTrees(prisma, user.id);
   const ids = trees.flatMap((t) => t.pages.map((p) => p.id));
@@ -46,7 +50,8 @@ export async function loadPickablePages(kind: "any" | "whiteboard", exclude: str
     const visit = (id: string, depth: number, out: PickablePage[]) => {
       const p = byId.get(id);
       if (!p || depth > MAX_PAGE_DEPTH) return;
-      out.push({ id, title: displayTitle(p.title), depth, selectable: id !== exclude && (!whiteboards || whiteboards.has(id)) });
+      const ofKind = whiteboards ? whiteboards.has(id) : kind === "parent" ? p.kind !== "SHORTCUT" : true;
+      out.push({ id, title: displayTitle(p.title), depth, selectable: id !== exclude && ofKind });
       for (const child of childrenOf.get(id) ?? []) visit(child.id, depth + 1, out);
     };
     for (const entryId of tree.entryIds) {

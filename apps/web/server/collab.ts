@@ -279,23 +279,32 @@ export async function createCollab() {
   // Server Actions reach the running instance through this bridge
   // (src/lib/collab-events.ts). The message carries no data: clients refetch.
   registerCollabBridge({
+    // Also sent to the pages whose linked views show `parentPageId`'s child
+    // pages (PageLinkedView, lib/linked-views.ts).
     notifyChildrenChanged(parentPageId) {
       const payload = JSON.stringify({ type: CHILDREN_CHANGED });
-      const document = hocuspocus.documents.get(parentPageId);
-      if (document) {
-        // With Redis, the beforeBroadcastStateless hook relays it to other instances.
-        document.broadcastStateless(payload);
-        return;
-      }
-      // Not open here, but may be open on another instance.
-      if (!process.env.REDIS_URL) return;
-      void hocuspocus
-        .openDirectConnection(parentPageId)
-        .then(async (connection) => {
-          connection.document?.broadcastStateless(payload);
-          await connection.disconnect();
-        })
-        .catch((err) => console.error("[collab] notify failed", err));
+      const send = (pageId: string) => {
+        const document = hocuspocus.documents.get(pageId);
+        if (document) {
+          // With Redis, the beforeBroadcastStateless hook relays it to other instances.
+          document.broadcastStateless(payload);
+          return;
+        }
+        // Not open here, but may be open on another instance.
+        if (!process.env.REDIS_URL) return;
+        void hocuspocus
+          .openDirectConnection(pageId)
+          .then(async (connection) => {
+            connection.document?.broadcastStateless(payload);
+            await connection.disconnect();
+          })
+          .catch((err) => console.error("[collab] notify failed", err));
+      };
+      send(parentPageId);
+      void prisma.pageLinkedView
+        .findMany({ where: { sourceId: parentPageId }, select: { pageId: true } })
+        .then((rows) => rows.forEach((r) => send(r.pageId)))
+        .catch((err) => console.error("[collab] notifying linked views failed", err));
     },
     // Only this instance's connections; with Redis, other instances keep
     // theirs until they reconnect (access is re-checked then).

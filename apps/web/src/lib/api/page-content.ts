@@ -7,6 +7,7 @@ import { bodyToMarkdown } from "@/lib/markdown-bridge";
 import type { ChildPageItem } from "@/lib/page-property-types";
 import { TITLE_FIELD, normalizeTitle } from "@/lib/page-title";
 import { getPublicUrl } from "@/lib/site-url";
+import { linkedViewSources } from "@/lib/child-view-blocks";
 
 // A page's content for the public API. The Markdown conversion itself runs in
 // the custom server (lib/markdown-bridge.ts, server/page-markdown.ts).
@@ -69,10 +70,16 @@ export async function pageContent(
   const doc = new Y.Doc();
   Y.applyUpdate(doc, state);
   const title = normalizeTitle(doc.getText(TITLE_FIELD).toString()) || fallbackTitle;
+  // Linked views (lib/linked-views.ts): their pages' child pages, as the reader sees them.
+  const linkedChildPages: Record<string, ChildPageItem[]> = {};
+  for (const id of linkedViewSources(doc)) {
+    if (id !== pageId) linkedChildPages[id] = await visibleChildPages(userId, id);
+  }
   const markdown = await bodyToMarkdown(state, {
     origin: await getPublicUrl(),
     pageId,
     childPages: await visibleChildPages(userId, pageId),
+    linkedChildPages,
     untitled,
     // Mentions as "@name": the names of those who can open the page.
     people: Object.fromEntries((await getUsersWithPageAccess(prisma, pageId)).map((u) => [u.id, u.name || u.email])),

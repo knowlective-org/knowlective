@@ -30,6 +30,8 @@ import { toggleEnter } from "./toggle-enter";
 import { backspaceOutdent } from "./backspace-outdent";
 import { gridCellBlock, gridRowBlock, gridTableBlock, newGridTable } from "./grid-table-block";
 import { HEADING_LEVELS } from "./block-configs";
+import { pickWhenShown } from "./linked-view";
+import { LINKED_UNSET } from "@/lib/linked-views";
 
 // The editor's block types: BlockNote's defaults plus knowlective's own. Block
 // types are saved in page documents, so a custom type must never be removed
@@ -141,6 +143,12 @@ export function customSlashMenuItems(
     ...english,
     ...t(`editor.slash.${key}`).split(",").filter(Boolean),
   ];
+  // A linked view (lib/linked-views.ts): inserted without a page, and the
+  // page picker opens as it shows.
+  const insertLinked = (type: "childTable" | "childBoard" | "childCalendar") => {
+    const block = insertOrUpdateBlockForSlashMenu(editor, { type, props: { source: LINKED_UNSET } });
+    pickWhenShown(block.id);
+  };
   return [
     {
       title: t("editor.slash.childPages"),
@@ -173,6 +181,30 @@ export function customSlashMenuItems(
       group,
       icon: <span aria-hidden>📅</span>,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "childCalendar" }),
+    },
+    {
+      title: t("editor.slash.linkedTable"),
+      subtext: t("editor.slash.linkedTableSub"),
+      aliases: aliases("linkedTableAliases", ["linked", "link", "view", "table", "database", "other page"]),
+      group,
+      icon: <span aria-hidden>🔗</span>,
+      onItemClick: () => insertLinked("childTable"),
+    },
+    {
+      title: t("editor.slash.linkedBoard"),
+      subtext: t("editor.slash.linkedBoardSub"),
+      aliases: aliases("linkedBoardAliases", ["linked", "link", "view", "board", "kanban", "other page"]),
+      group,
+      icon: <span aria-hidden>🔗</span>,
+      onItemClick: () => insertLinked("childBoard"),
+    },
+    {
+      title: t("editor.slash.linkedCalendar"),
+      subtext: t("editor.slash.linkedCalendarSub"),
+      aliases: aliases("linkedCalendarAliases", ["linked", "link", "view", "calendar", "schedule", "other page"]),
+      group,
+      icon: <span aria-hidden>🔗</span>,
+      onItemClick: () => insertLinked("childCalendar"),
     },
     {
       title: t("editor.slash.mermaid"),

@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-import { type PickableGroup, loadPickablePages } from "@/app/(app)/page-picker-actions";
+import { type PickableGroup, type PickableKind, loadPickablePages } from "@/app/(app)/page-picker-actions";
 import ui from "@/styles/ui.module.css";
 import styles from "./dialog.module.css";
 
@@ -19,7 +19,7 @@ export function PagePickerDialog({
 }: {
   title: string;
   lead: string;
-  kind: "any" | "whiteboard";
+  kind: PickableKind;
   exclude?: string | null;
   onPick: (pageId: string) => void;
   onClose: () => void;

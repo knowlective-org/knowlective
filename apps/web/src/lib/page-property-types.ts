@@ -56,6 +56,8 @@ export type ChildTableRow = {
 export type PageProperties = Pick<ChildTableData, "columns" | "assignees" | "userNames"> & { row: ChildTableRow };
 
 export type ChildTableData = {
+  // The page whose child pages these are (shown by linked views).
+  page: { title: string; icon: string | null };
   canEditColumns: boolean;
   columns: PropertyColumn[];
   rows: ChildTableRow[];

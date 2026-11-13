@@ -12,6 +12,8 @@ export type MarkdownExportOptions = {
   pageId: string;
   // The pages below this one that the reader can see (child page blocks).
   childPages: ChildPageItem[];
+  // The same for each linked view's page (lib/linked-views.ts), by its id.
+  linkedChildPages: Record<string, ChildPageItem[]>;
   // Shown for a child page without a title.
   untitled: string;
   // Names for mentions (@name), by user id.

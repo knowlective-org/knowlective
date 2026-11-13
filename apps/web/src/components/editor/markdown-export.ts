@@ -2,6 +2,7 @@ import type { ChildPageItem } from "@/lib/page-property-types";
 // Relative: also loaded by the custom server (server/page-markdown.ts).
 import { displayTitle } from "../../lib/page-title";
 import { sortChildPages } from "../../lib/child-sort";
+import { isLinkedView, linkedSource } from "../../lib/linked-views";
 import { type TocHeading, tocHeadings } from "./toc";
 import { parseSummary, roundSummary, summaryValue } from "./grid-summary";
 
@@ -38,6 +39,22 @@ export function hasChildPageBlocks(blocks: ExportBlock[]): boolean {
   );
 }
 
+// The pages the blocks' linked views (lib/linked-views.ts) show the child
+// pages of, other than `pageId` itself: their child pages are loaded for the
+// export too (`linkedChildPages`).
+export function exportLinkedSources(blocks: ExportBlock[], pageId: string): string[] {
+  const ids = new Set<string>();
+  const visit = (list: ExportBlock[]) => {
+    for (const b of list) {
+      const id = linkedSource(b.props?.source);
+      if (id && id !== pageId) ids.add(id);
+      visit(b.children ?? []);
+    }
+  };
+  visit(blocks);
+  return [...ids];
+}
+
 function childPageList(
   pages: ChildPageItem[],
   parentId: string,
@@ -63,7 +80,8 @@ function childPageList(
 // - Link preview → a link with the page's title
 // - Video embed → a link to the video
 // - Child page list / table / board → a list of links to the child pages the
-//   exporting user can see (the table's columns and the board's lanes are left out)
+//   exporting user can see (the table's columns and the board's lanes are left out);
+//   a linked view's, those of its page (`linkedChildPages`, by page id)
 // - Columns → their blocks one after another (first column first)
 // - Extended table → a table of the cells' text (their blocks' text one after
 //   another; what has no text, such as an image, as a link to it)
@@ -82,6 +100,9 @@ export function prepareBlocksForExport(
     origin: string;
     pageId: string;
     childPages: ChildPageItem[] | null;
+    // The pages below each linked view's page that the reader can see
+    // (exportLinkedSources()); missing: none shown.
+    linkedChildPages?: Record<string, ChildPageItem[]>;
     // Shown for a child page without a title, in the viewer's language.
     untitled: string;
     mermaid?: "code" | "keep";
@@ -155,16 +176,21 @@ export function prepareBlocksForExport(
       case "childCalendar": {
         const levels = b.type === "childPages" ? Number(b.props?.depth ?? 1) : 1;
         const title = String(b.props?.title ?? "");
+        // A linked view: its page's child pages (none while no page is chosen).
+        const source = linkedSource(b.props?.source);
+        const linked = b.type !== "childPages" && isLinkedView(b.props?.source) && source !== pageId;
+        const parentId = linked ? (source ?? "") : pageId;
+        const shown = linked ? (source ? (options.linkedChildPages?.[source] ?? []) : []) : (childPages ?? []);
         // In the block's order for everyone (by title or time; a column keeps the pages' own).
         const pages = sortChildPages(
-          childPages ?? [],
+          shown,
           String(b.props?.sort ?? ""),
           (t) => displayTitle(t, untitled),
           (x, y) => x.localeCompare(y),
         );
         return [
           ...(title ? [block("paragraph", [text(title, { bold: true })])] : []),
-          ...childPageList(pages, pageId, levels, origin, untitled),
+          ...childPageList(pages, parentId, levels, origin, untitled),
           ...children,
         ];
       }
