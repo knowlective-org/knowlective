@@ -150,6 +150,47 @@ test.describe("Extended table", () => {
     await trashOpenPage(page);
   });
 
+  test("Tab in an empty cell goes to the cell to the right, else below; in a cell with text it's the block's", async ({ page }) => {
+    await createPage(page, "E2E 拡張テーブルの Tab");
+    await insertGridTable(page);
+    // (cells: 0 1 2 / 3 4 5 / 6 7 8)
+    await cellText(page, 0).click();
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("右");
+    await expect(cellText(page, 1)).toHaveText("右");
+    await expect(cellText(page, 0)).toHaveText("");
+    // The last column: the cell below.
+    await cellText(page, 2).click();
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("下");
+    await expect(cellText(page, 5)).toHaveText("下");
+    // The last cell: nowhere to go, it stays (and the focus stays in the editor).
+    await cellText(page, 8).click();
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("端");
+    await expect(cellText(page, 8)).toHaveText("端");
+    // With text: the block's own Tab — a second line nests under the first;
+    // a single line has nothing to nest under, and stays.
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("!");
+    await expect(cellText(page, 8)).toHaveText("端!");
+    await cellText(page, 4).click();
+    await page.keyboard.type("一");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("二");
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Tab");
+    const nested = cells(page).nth(4).locator('.bn-block-group [data-content-type="paragraph"]');
+    await expect(nested).toHaveText("二");
+    await expect(cellText(page, 5)).toHaveText("下");
+    // Shift+Tab takes it back out, still in the cell.
+    await page.keyboard.press("Shift+Tab");
+    await expect(nested).toHaveCount(0);
+    await expect(cells(page).nth(4).locator('[data-content-type="paragraph"]')).toHaveText(["一", "二"]);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
   test("table data pasted into a cell fills the cells from there, adding the columns it needs", async ({ page }) => {
     await createPage(page, "E2E 拡張テーブルへの貼り付け");
     await insertGridTable(page);

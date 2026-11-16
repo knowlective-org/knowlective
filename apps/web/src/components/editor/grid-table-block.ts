@@ -1,7 +1,8 @@
 import { UniqueID, createBlockSpecFromTiptapNode, createExtension, type BlockNoteEditor } from "@blocknote/core";
 import { SideMenuExtension } from "@blocknote/core/extensions";
 import { Node } from "@tiptap/core";
-import type { Node as PMNode, Schema } from "@tiptap/pm/model";
+import { Fragment, type Node as PMNode, type Schema, Slice } from "@tiptap/pm/model";
+import { ReplaceAroundStep } from "@tiptap/pm/transform";
 import { type EditorState, Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { EditorView, NodeView, ViewMutationRecord } from "@tiptap/pm/view";
 import { showConfirm } from "../dialog";
@@ -465,11 +466,78 @@ function moveVertically(view: EditorView | undefined, dir: "up" | "down"): boole
   return true;
 }
 
+// Tab in an empty cell (one empty paragraph, nothing else) goes to the next
+// cell: the one to the right, else the one below (same column). With
+// neither, it does nothing. In a cell with anything in it, Tab is the
+// block's own (nesting it under the block above).
+function tabToNextCell(view: EditorView | undefined): boolean {
+  if (!view) return false;
+  const { state } = view;
+  const { $from } = state.selection;
+  let cellDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type.name === "gridCell") {
+      cellDepth = d;
+      break;
+    }
+  }
+  if (cellDepth < 2) return false;
+  const cell = $from.node(cellDepth);
+  const only = cell.childCount === 1 ? cell.child(0) : null;
+  const empty =
+    only?.type.name === "blockContainer" &&
+    only.childCount === 1 &&
+    only.child(0).type.name === "paragraph" &&
+    only.child(0).content.size === 0;
+  if (!empty) return nestInCell(view);
+
+  const table = $from.node(cellDepth - 2);
+  const rowIndex = $from.index(cellDepth - 2);
+  const column = $from.index(cellDepth - 1);
+  const row = table.child(rowIndex);
+  let target: { row: number; col: number } | null = null;
+  if (column + 1 < row.childCount) target = { row: rowIndex, col: column + 1 };
+  else if (rowIndex + 1 < table.childCount && column < table.child(rowIndex + 1).childCount) target = { row: rowIndex + 1, col: column };
+  if (!target) return true;
+
+  let pos = $from.start(cellDepth - 2);
+  for (let r = 0; r < target.row; r++) pos += table.child(r).nodeSize;
+  pos += 1;
+  const targetRow = table.child(target.row);
+  for (let c = 0; c < target.col; c++) pos += targetRow.child(c).nodeSize;
+  view.dispatch(state.tr.setSelection(TextSelection.near(state.doc.resolve(pos + 1), 1)).scrollIntoView());
+  return true;
+}
+
+// Tab on a block right in a cell nests it under the block above, as
+// BlockNote does in the page and in columns (its nestBlock only looks for a
+// blockGroup or a column around the block, not a cell). Deeper blocks, code
+// blocks and the first block in a cell are left to BlockNote (which does
+// nothing with them, or what it does elsewhere).
+function nestInCell(view: EditorView): boolean {
+  const { state } = view;
+  const { $from, $to } = state.selection;
+  if (!directlyInCell(state)) return false;
+  const range = $from.blockRange($to, (node) => node.type.name === "gridCell");
+  if (!range || range.startIndex === 0) return false;
+  const { blockContainer, blockGroup } = state.schema.nodes;
+  const before = range.parent.child(range.startIndex - 1);
+  if (before.type !== blockContainer) return false;
+  // Into the block above's children (its blockGroup, made when it has none).
+  const hasGroup = before.lastChild?.type === blockGroup;
+  const inner = Fragment.from(hasGroup ? blockContainer.create() : null);
+  const slice = new Slice(Fragment.from(blockContainer.create(null, Fragment.from(blockGroup.create(null, inner)))), hasGroup ? 3 : 1, 0);
+  const { start, end } = range;
+  view.dispatch(state.tr.step(new ReplaceAroundStep(start - (hasGroup ? 3 : 1), end, start, end, slice, 1, true)).scrollIntoView());
+  return true;
+}
+
 const gridExtension = createExtension({
   key: "knowlective-grid-table",
   keyboardShortcuts: {
     Backspace: ({ editor }) => atCellEdge(editor.prosemirrorState, "start"),
     Delete: ({ editor }) => atCellEdge(editor.prosemirrorState, "end"),
+    Tab: ({ editor }) => tabToNextCell(editor.prosemirrorView),
     "Shift-Tab": ({ editor }) => directlyInCell(editor.prosemirrorState),
     ArrowDown: ({ editor }) => moveVertically(editor.prosemirrorView, "down"),
     ArrowUp: ({ editor }) => moveVertically(editor.prosemirrorView, "up"),
