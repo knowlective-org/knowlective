@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-16
+
 ### Security
 
 - Fixes for several security issues found in a review of the source code. Details will be published as GitHub security advisories once a release with the fixes is out; please update to it
