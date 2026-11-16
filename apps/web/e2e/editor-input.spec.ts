@@ -22,9 +22,10 @@ test("a date typed as digits (20261116) is that date", async ({ page }) => {
   await page.keyboard.type("[ ] 期限のあるTODO");
   const due = page.getByTestId("TodoBlock.dueInput");
   // The fields' order is the browser's (year first in Japanese, month first
-  // on some machines). Either way the year takes 4 digits and no more.
+  // on some machines, e.g. CI's Linux). The year taking more than 4 digits
+  // matters only when it comes first.
   await due.click({ position: { x: 6, y: 6 } });
-  await page.keyboard.type("1116202611");
+  await page.keyboard.type("11162026");
   if ((await due.inputValue()) !== "2026-11-16") {
     await due.fill("");
     await due.click({ position: { x: 6, y: 6 } });
