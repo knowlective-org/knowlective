@@ -51,8 +51,10 @@ test("a URL of a page pasted into text reads as that page's title", async ({ pag
   await page.keyboard.press("Enter");
   await page.keyboard.type("ここ");
   await page.keyboard.press("Shift+Home");
-  // (Selected before the paste: on a busy machine the key's selection comes a moment later.)
+  // (Selected in the editor before the paste: on a busy machine the key's
+  // selection comes a moment later. The formatting toolbar shows it has.)
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("ここ");
+  await expect(page.locator(".bn-formatting-toolbar")).toBeVisible();
   await pasteHere(page, targetUrl);
   await expect(editorBody(page).locator(`a[href="${targetUrl}"]`).filter({ hasText: "ここ" })).toHaveCount(1);
   await expect(page.getByTestId("PageView.status")).toHaveCount(0);

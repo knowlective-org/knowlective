@@ -158,6 +158,11 @@ test.describe("Extended table", () => {
     await page.waitForTimeout(800);
     // From the middle cell (row 2, column 2): 2 rows × 3 columns, so a 4th column.
     await cellText(page, 4).click();
+    // (The caret in that cell before the paste: a key typed there lands there.)
+    await page.keyboard.type("x");
+    await expect(cellContent(page, 4)).toHaveText("x");
+    await page.keyboard.press("Backspace");
+    await expect(cellContent(page, 4)).toHaveText("");
     await page.evaluate(() => {
       const data = new DataTransfer();
       data.setData("text/html", "<table><tr><td>A1</td><td>B1</td><td>C1</td></tr><tr><td>A2</td><td>B2<br>二行目</td><td>C2</td></tr></table>");
