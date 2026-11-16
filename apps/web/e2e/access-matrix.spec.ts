@@ -154,7 +154,9 @@ test.describe("Access matrix", () => {
       const body = request.postData() ?? "";
       if (id && body.startsWith('["whiteboard"')) actions.set("pickable", id);
       if (id && body === JSON.stringify([boardId])) actions.set("embed", id);
+      if (id && body.startsWith('["http') && body.includes(`/pages/${boardId}`)) actions.set("linkTitle", id);
     });
+    const boardUrl = new URL(`pages/${boardId}`, baseURL!.endsWith("/") ? baseURL : `${baseURL}/`).href;
     // (In a new page of its own under the page: an empty body.)
     await openPage(page, pageId);
     await addPageFromTree(page, pageId);
@@ -167,7 +169,16 @@ test.describe("Access matrix", () => {
     await page.getByTestId("PagePickerDialog.pageSelect").selectOption(boardId);
     await page.getByTestId("PagePickerDialog.submitButton").click();
     await expect(page.getByTestId("WhiteboardEmbed.openLink")).toHaveText(boardTitle);
-    expect([...actions.keys()].sort()).toEqual(["embed", "pickable"]);
+    // The board's address pasted into text: a link reading as its title (loadLinkTitle).
+    await editorBody(page).locator('[data-content-type="paragraph"]').last().click();
+    await page.keyboard.type("見る: ");
+    await page.evaluate((url) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", url);
+      document.querySelector(".bn-editor")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    }, boardUrl);
+    await expect(editorBody(page).locator(`a[href="${boardUrl}"]`)).toHaveText(boardTitle);
+    expect([...actions.keys()].sort()).toEqual(["embed", "linkTitle", "pickable"]);
 
     const origin = new URL(baseURL!).origin;
     const call = async (request: APIRequestContext, action: string, args: unknown[]) => {
@@ -187,6 +198,9 @@ test.describe("Access matrix", () => {
       // The pages to choose from: only those the account can see.
       const pickable = await call(context.request, actions.get("pickable")!, ["whiteboard", null]);
       expect(pickable.includes(boardTitle), `${account} pickable`).toBe(sees);
+      // A pasted address's title: only of a page the account can open.
+      const linkTitle = await call(context.request, actions.get("linkTitle")!, [boardUrl]);
+      expect(linkTitle.includes(boardTitle), `${account} linkTitle`).toBe(sees);
       await context.close();
     }
   });

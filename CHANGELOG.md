@@ -14,6 +14,9 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Extended table: a ⋮⋮ handle on its left, as other blocks have, to drag the table elsewhere or duplicate or delete it; table data pasted into a cell (from a spreadsheet or another table) fills the cells from there, adding the rows and columns it needs (up to 200 rows and 20 columns); a column can be selected with its button at the top, then copied, emptied (Delete), given a text color, background or alignment, moved left or right (or dragged), or deleted
+- A URL pasted into text becomes a link reading as its page's title: a page of this site (if the person pasting can open it), or another site's page while link previews are on (the title fetched as for a preview). A URL alone on an empty line still becomes a preview card
+- A linked view's page can also be chosen by pasting its address in the page picker
 - Linked views: "リンクテーブル", "リンクボード" and "リンクカレンダー" in the slash menu show another page's child pages, with that page's columns, as a table, board or calendar. The page is chosen when the block is inserted (and can be changed later). Each viewer sees what their own access allows: those who can't open the page see only that it can't be shown, without its title. Values can be changed and child pages added (under that page, with edit access there) from the linked view; columns are added and changed only on that page. Changes show on pages with linked views as they're made, and a child page shows its values under its title while a linked view shows them, even without a table on its own parent
 - Opening a page shows a loading overlay over the whole screen while its data is read and its content arrives (after a moment, so a quick load doesn't flash). Before, the previous page stayed as it was until the new one appeared
 - Images and files in chats: attach them with the 📎 button, or paste or drop them on the chat (up to 10 per message, with or without text). They're stored as the page's attachments, with the same checks as other uploads (file uploads on, allowed extensions, size limit). Images show in the message, other files are links to download them, and attached files are searchable like messages. Taking a message back takes its files with it
@@ -41,6 +44,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Fixed
 
+- In the extended table, ↓ went to the cell on the right instead of the one below; ↓ and ↑ now move within the column, and out of the table from its last and first row
+- A date typed as digits (20261116) didn't become 2026/11/16: the browser took up to six digits of year
+- A new page under one whose child page table, board or calendar has columns showed those (empty) columns under its title; they now show once the page has a value in one
+- Quoting selected text in a chat no longer makes the message a reply (a reply already started, to any message, stays one)
 - Quoting selected text of a chat message worked only some of the time: pressing the "引用" button could clear the selection (and the button with it), and a triple click didn't offer it at all. Over one's own message the button is now inverted, as it was hard to see on the message's color
 - Tab (or Shift+Tab) in a list item or TODO that couldn't be indented (an empty first item, for one) moved the focus out of the text, to the next control on the page such as a TODO's checkbox. It now does nothing
 - After a wrong passphrase (a masked column, for one), selecting the field's text with the mouse and letting go outside the dialog closed it. The field is now also cleared for the next try

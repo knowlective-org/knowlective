@@ -86,15 +86,37 @@ test("part of a message can be quoted, and code keeps its indentation on a new l
     getSelection()!.removeAllRanges();
     getSelection()!.addRange(range);
   });
+  // A quote in the new message, not a reply.
   await page.getByTestId("ChatBlock.quoteSelectionButton").click();
-  await expect(page.getByTestId("ChatBlock.replyingStatus")).toContainText("10時から");
+  await expect(page.getByTestId("ChatBlock.replyingStatus")).toHaveCount(0);
   await expect(input).toHaveValue("> 10時から\n");
   await page.keyboard.type("了解です");
   await page.keyboard.press("Enter");
-  const reply = page.getByTestId("ChatBlock.messageRow").nth(1);
-  await expect(reply.getByTestId("ChatBlock.replyQuote")).toContainText("明日の会議");
-  await expect(reply.getByTestId("ChatBlock.text")).toContainText("10時から");
-  await expect(reply.getByTestId("ChatBlock.text")).toContainText("了解です");
+  const quoting = page.getByTestId("ChatBlock.messageRow").nth(1);
+  await expect(quoting.getByTestId("ChatBlock.replyQuote")).toHaveCount(0);
+  await expect(quoting.getByTestId("ChatBlock.text")).toContainText("10時から");
+  await expect(quoting.getByTestId("ChatBlock.text")).toContainText("了解です");
+
+  // A reply already started (here to the second message) stays one when quoting from another.
+  await quoting.getByTestId("ChatBlock.replyButton").click();
+  await expect(page.getByTestId("ChatBlock.replyingStatus")).toContainText("了解です");
+  await text.evaluate((el) => {
+    const node = el.querySelector("*:not(:has(*))")?.firstChild ?? el.firstChild!;
+    const start = node.textContent!.indexOf("明日");
+    const range = document.createRange();
+    range.setStart(node, start);
+    range.setEnd(node, start + "明日".length);
+    getSelection()!.removeAllRanges();
+    getSelection()!.addRange(range);
+  });
+  await page.getByTestId("ChatBlock.quoteSelectionButton").click();
+  await expect(page.getByTestId("ChatBlock.replyingStatus")).toContainText("了解です");
+  await expect(input).toHaveValue("> 明日\n");
+  await page.keyboard.type("はい");
+  await page.keyboard.press("Enter");
+  const reply = page.getByTestId("ChatBlock.messageRow").nth(2);
+  await expect(reply.getByTestId("ChatBlock.replyQuote")).toContainText("了解です");
+  await expect(reply.getByTestId("ChatBlock.text")).toContainText("明日");
 
   // In code (``` fences), Shift+Enter keeps the line's indentation.
   await input.click();

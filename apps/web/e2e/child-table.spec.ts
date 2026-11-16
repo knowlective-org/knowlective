@@ -49,6 +49,13 @@ test.describe("Child page table", () => {
     await tableWithColumn(page, "E2E プロパティ", "担当部署", "TEXT");
     const cell = page.getByTestId("ChildTableBlock.row").locator("input").first();
     await expect(cell).toBeVisible();
+    // No value yet: nothing under the child page's title.
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await page.getByTestId("ChildTableBlock.pageLink").click();
+    await expect(page.getByTestId("TitleField")).toHaveValue("子ページ");
+    await expect(page.getByTestId("PageProperties")).toHaveCount(0);
+    await page.goBack();
+    await expect(cell).toBeVisible();
     await cell.fill("営業部");
     await cell.press("Enter");
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);

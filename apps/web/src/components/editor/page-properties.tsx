@@ -13,11 +13,13 @@ import styles from "./page-properties.module.css";
 // Under the title of a page in its parent's child page table: the page's
 // values in the table's columns, changed here as in the table (EDIT on this
 // page, not locked). Nothing when the parent has no columns, or the viewer
-// can't open the parent.
+// can't open the parent, nor while the page has no value in any of them (a
+// new page: the empty fields, e.g. a calendar's date, aren't shown under its
+// title until one is set, here from the parent's table, board or calendar).
 export function PageProperties() {
   const t = useTranslations("editor");
   const { data, reload } = useChildrenData<Data>(loadPageProperties);
-  if (!data) return null;
+  if (!data || !Object.values(data.row.values).some((v) => v)) return null;
   const maskValues = (columnId: string) => [data.row.values[columnId] ?? ""];
   const save = async (defId: string, value: string) => {
     const done = beginSaving();

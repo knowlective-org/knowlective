@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { HocuspocusProvider } from "@hocuspocus/provider";
 import { yUndoPluginKey } from "y-prosemirror";
+import type { Mark } from "@tiptap/pm/model";
+import type { EditorView } from "@tiptap/pm/view";
 import { combineByGroup, filterSuggestionItems } from "@blocknote/core";
 import { getMultiColumnSlashMenuItems, multiColumnDropCursor } from "@blocknote/xl-multi-column";
 import { withCollaboration } from "@blocknote/core/yjs";
@@ -15,7 +17,7 @@ import "@blocknote/mantine/style.css";
 import { getUploadPolicy } from "@/app/(app)/actions";
 import { lockedBlockIds } from "@/lib/block-locks";
 import { saveVersionBeforeReplace } from "@/app/(app)/pages/[pageId]/history/actions";
-import { getLinkPreviewEnabled, loadLinkPreview } from "@/app/(app)/link-preview-actions";
+import { getLinkPreviewEnabled, loadLinkPreview, loadLinkTitle } from "@/app/(app)/link-preview-actions";
 import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { BASE_PATH, resolveAppUrl } from "@/lib/base-path";
 import { sameSitePath } from "@/lib/same-site-link";
@@ -33,6 +35,7 @@ import { dragCopyExtension } from "./editor/drag-copy";
 import { syncGuardExtension } from "./editor/sync-guard";
 import { keepTabInEditor } from "./editor/tab-stays";
 import { pasteIntoCode } from "./editor/code-block";
+import { pasteIntoGrid } from "./editor/grid-table-block";
 import { docxToHtml } from "./editor/docx-import";
 import { MAX_PDF_IMPORT_PAGES, PdfPasswordError, readPdfBlocks } from "./editor/pdf-import";
 import { type PdfBlock, pdfTitle } from "./editor/pdf-text";
@@ -175,6 +178,7 @@ type BlockEditor = {
   updateBlock: (id: string, update: never) => unknown;
   tryParseMarkdownToBlocks: (markdown: string) => unknown;
   tryParseHTMLToBlocks: (html: string) => unknown;
+  prosemirrorView: EditorView | undefined;
 };
 
 // Pasted Markdown with ```mermaid fences arrives as code blocks; turn the
@@ -235,6 +239,38 @@ function insertLinkPreview(editor: BlockEditor, url: string): boolean {
     })
     .catch(() => {
       // The card stays as it is, with the URL.
+    });
+  return true;
+}
+
+// A URL pasted into text (nothing selected): a link, at first reading as
+// the URL, then as the title of the page it leads to, once the server has it
+// (loadLinkTitle(): a page of this site the viewer can open, or another
+// site's page while link previews are on). A link whose text has been
+// changed meanwhile is left as it is. Returns false (the URL is pasted as
+// BlockNote does) when text is selected.
+function pasteTitledLink(editor: BlockEditor, url: string): boolean {
+  const view = editor.prosemirrorView;
+  const link = view?.state.schema.marks.link;
+  if (!view || !link || !view.state.selection.empty) return false;
+  const at = view.state.selection.from;
+  view.dispatch(view.state.tr.replaceSelectionWith(view.state.schema.text(url, [link.create({ href: url })]), false));
+  void loadLinkTitle(url)
+    .then((title) => {
+      const current = editor.prosemirrorView;
+      if (!title || !current || current.isDestroyed) return;
+      // The pasted link: the one with the URL as its text, nearest where it went.
+      const found: { from: number; to: number; marks: readonly Mark[] }[] = [];
+      current.state.doc.descendants((node, pos) => {
+        if (!node.isText || node.text !== url || !node.marks.some((m) => m.type === link && m.attrs.href === url)) return;
+        found.push({ from: pos, to: pos + node.nodeSize, marks: node.marks });
+      });
+      const nearest = found.sort((a, b) => Math.abs(a.from - at) - Math.abs(b.from - at))[0];
+      if (!nearest) return;
+      current.dispatch(current.state.tr.replaceWith(nearest.from, nearest.to, current.state.schema.text(title, nearest.marks)));
+    })
+    .catch(() => {
+      // It stays the URL.
     });
   return true;
 }
@@ -553,6 +589,9 @@ function EditorBody({
         const types = event.clipboardData?.types ?? [];
         // Into a code block: its text, in the block's indent.
         if (!types.includes("Files") && pasteIntoCode(editor.prosemirrorView, event.clipboardData?.getData("text/plain") ?? "")) return true;
+        // Table data into a cell of an extended table: its cells, not a new table
+        // (also with a file on the clipboard: Excel adds a picture of the cells).
+        if (pasteIntoGrid(editor as unknown as Parameters<typeof pasteIntoGrid>[0], event.clipboardData)) return true;
         if (types.includes("blocknote/html")) return defaultPasteHandler();
         const blockEditor = editor as unknown as BlockEditor;
         // Mermaid source on its own becomes a diagram (not inside a code
@@ -568,6 +607,8 @@ function EditorBody({
           // (A video's URL becomes a player instead.)
           const url = singleUrl(text);
           if (url && (insertVideo(blockEditor, url) || insertLinkPreview(blockEditor, url))) return true;
+          // Elsewhere, a link that reads as the page's title, once it has it.
+          if (url && pasteTitledLink(blockEditor, url)) return true;
         }
         const before = blockKinds(editor.document as AnyBlock[]);
         pasting.add(editor);

@@ -117,6 +117,15 @@ export default {
     // blockNoteDictionary(), as knowlective_grid).
     gridTable: {
       toolbar: "Table",
+      pasteCut: "Part of the pasted data was left out: a table has up to 200 rows and 20 columns.",
+      handle: "Drag to move the table; click for its menu",
+      duplicateTable: "Duplicate table",
+      columnMenu: "Select the column (drag to move it)",
+      copyColumn: "Copy column",
+      clearColumn: "Clear column",
+      moveColumnLeft: "Move column left",
+      moveColumnRight: "Move column right",
+      alignment: "Alignment",
       headerRow: "Header row",
       headerColumn: "Row titles",
       addRow: "Row",

@@ -41,8 +41,8 @@ test("quoting a selection with the mouse works, after a triple click too; invert
   await page.mouse.down();
   await page.mouse.up();
   await expect(input).toHaveValue("> 明日の会議は10時からです\n");
-  await expect(page.getByTestId("ChatBlock.replyingStatus")).toContainText("明日の会議");
-  await page.getByTestId("ChatBlock.cancelReplyButton").click();
+  // A quote, not a reply.
+  await expect(page.getByTestId("ChatBlock.replyingStatus")).toHaveCount(0);
   await input.fill("");
 
   // A part, dragged over with the mouse.

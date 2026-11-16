@@ -6,7 +6,16 @@ import { type PickableGroup, type PickableKind, loadPickablePages } from "@/app/
 import ui from "@/styles/ui.module.css";
 import styles from "./dialog.module.css";
 
-// Choosing a page the user can see: a filter by title, then the pages per
+// The page id in a page's address ("https://…/pages/<id>", with or without
+// the site and base path, or a query or hash after it), else null.
+function pageIdInUrl(text: string): string | null {
+  // The last "pages/<id>" in the path (a base path could hold the word too).
+  const path = text.trim().split(/[?#]/)[0];
+  const all = [...path.matchAll(/(?:^|\/)pages\/([A-Za-z0-9_-]+)(?=\/|$)/g)];
+  return all.length > 0 ? all[all.length - 1][1] : null;
+}
+
+// Choosing a page the user can see: a filter by title (or a page's address), then the pages per
 // knowledge root (those not of the kind asked for are shown greyed, for where
 // they are). For a whiteboard item's link and a document's whiteboard block.
 export function PagePickerDialog({
@@ -39,12 +48,20 @@ export function PagePickerDialog({
       .catch(() => setFailed(true));
   }, [kind, exclude]);
 
+  // A page's address pasted in the filter: that page alone (only if it's in
+  // the list, which has only pages the viewer can open).
+  const urlId = pageIdInUrl(query);
+  const pickable = (id: string) => (groups ?? []).some((g) => g.pages.some((p) => p.id === id && p.selectable));
   // Filtered: the matching pages alone, without the tree's indentation.
   const q = query.normalize("NFKC").toLowerCase().trim();
   const shown = (groups ?? [])
     .map((g) => ({
       ...g,
-      pages: q ? g.pages.filter((p) => p.selectable && p.title.normalize("NFKC").toLowerCase().includes(q)) : g.pages,
+      pages: urlId
+        ? g.pages.filter((p) => p.selectable && p.id === urlId)
+        : q
+          ? g.pages.filter((p) => p.selectable && p.title.normalize("NFKC").toLowerCase().includes(q))
+          : g.pages,
     }))
     .filter((g) => g.pages.length > 0);
   const any = groups?.some((g) => g.pages.some((p) => p.selectable)) ?? false;
@@ -96,9 +113,19 @@ export function PagePickerDialog({
               value={query}
               placeholder={t("filter")}
               aria-label={t("filter")}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                // An address: its page chosen at once.
+                const id = pageIdInUrl(e.target.value);
+                if (id && pickable(id)) setChosen(id);
+              }}
               data-ui="PagePickerDialog.filterInput"
             />
+            {urlId && !pickable(urlId) && (
+              <p className={ui.note} data-ui="PagePickerDialog.urlStatus">
+                {t("urlNotPickable")}
+              </p>
+            )}
             <select
               className={ui.field}
               value={chosen}
