@@ -2,8 +2,27 @@
 
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useState, useSyncExternalStore } from "react";
 import styles from "./app-shell.module.css";
+import { SIDEBAR_HIDDEN_KEY as HIDDEN_KEY } from "@/lib/sidebar-hidden";
+
+const isHidden = () => document.documentElement.dataset.sidebar === "hidden";
+function watchHidden(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sidebar"] });
+  return () => observer.disconnect();
+}
+
+function setHidden(hidden: boolean) {
+  if (hidden) document.documentElement.dataset.sidebar = "hidden";
+  else delete document.documentElement.dataset.sidebar;
+  try {
+    if (hidden) localStorage.setItem(HIDDEN_KEY, "1");
+    else localStorage.removeItem(HIDDEN_KEY);
+  } catch {
+    // Private mode and the like: just for this page.
+  }
+}
 
 // Two-pane app layout: sticky sidebar on the left, content on the right.
 //
@@ -12,6 +31,12 @@ import styles from "./app-shell.module.css";
 // again when a link in it is followed, the backdrop is tapped or Esc is
 // pressed. (The switch is in the CSS; the button and backdrop don't show on
 // wider screens.)
+//
+// On wider screens the sidebar can be hidden altogether (its button at its
+// top right) and shown again (a button at the top left). Remembered per
+// browser (localStorage), and set on <html> (data-sidebar="hidden") by a
+// script in the root layout before the page is drawn (lib/sidebar-hidden.ts),
+// so a hidden sidebar doesn't flash in.
 export function AppShell({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
   const pathname = usePathname();
   const t = useTranslations("appShell");
@@ -21,6 +46,9 @@ export function AppShell({ sidebar, children }: { sidebar: ReactNode; children: 
   const open = openedOn === pathname;
   const close = () => setOpenedOn(null);
   const sidebarId = useId();
+  // Hidden on a wide screen (the state is the <html> attribute; this follows it).
+  const hidden = useSyncExternalStore(watchHidden, isHidden, () => false);
+  const hide = setHidden;
 
   useEffect(() => {
     if (!open) return;
@@ -39,6 +67,21 @@ export function AppShell({ sidebar, children }: { sidebar: ReactNode; children: 
 
   return (
     <div className={styles.layout} data-ui="AppShell">
+      <button
+        type="button"
+        className={styles.showButton}
+        data-ui="AppShell.showSidebarButton"
+        aria-label={t("showSidebar")}
+        title={t("showSidebar")}
+        aria-expanded={!hidden}
+        aria-controls={sidebarId}
+        onClick={() => hide(false)}
+      >
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>
+          <rect x="2.5" y="3.5" width="15" height="13" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M7.5 3.5v13M10.5 8l2 2-2 2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
       <button
         type="button"
         className={styles.menuButton}
@@ -63,6 +106,21 @@ export function AppShell({ sidebar, children }: { sidebar: ReactNode; children: 
         >
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>
             <path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={styles.hideButton}
+          data-ui="AppShell.hideSidebarButton"
+          aria-label={t("hideSidebar")}
+          title={t("hideSidebar")}
+          aria-expanded={!hidden}
+          aria-controls={sidebarId}
+          onClick={() => hide(true)}
+        >
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>
+            <rect x="2.5" y="3.5" width="15" height="13" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M7.5 3.5v13M13 8l-2 2 2 2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
         {sidebar}

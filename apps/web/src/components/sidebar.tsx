@@ -27,6 +27,8 @@ export type SidebarTree = {
   rootPageId: string | null;
   // The user's own personal knowledge root.
   personal: boolean;
+  // The root's favicon (lib/root-favicon.ts), by its name; null: none.
+  favicon?: string | null;
   pages: DocTreeNode[];
   entryIds: string[];
 };
@@ -173,6 +175,7 @@ export function Sidebar({
               currentTitle={currentTitle}
               maxDepth={maxDepth}
               rootBadge={t.personal ? tr("personal") : undefined}
+              rootIcon={t.favicon ?? undefined}
               rootReorder={
                 reorderable
                   ? {

@@ -224,3 +224,12 @@
   border: 1px solid var(--color-border-strong);
   border-radius: 8px;
 }
+
+/* A knowledge root's favicon, before its root page's title. */
+.rootIcon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: -3px;
+  object-fit: contain;
+}

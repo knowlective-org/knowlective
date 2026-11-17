@@ -134,6 +134,15 @@ model KnowledgeRoot {
   deletedAt   DateTime?
   deletedById String?
 
+  // Its favicon (apps/web/src/lib/root-favicon.ts): shown in the browser's
+  // tab on its pages and by its name in the sidebar, to those who can open
+  // the root page. Set by those who can manage the root page. The image
+  // (PNG, ICO, or an SVG passing the logo's check) is encrypted with the data
+  // key (AAD: the root's id); the time it was set versions its URL.
+  faviconEnc       Bytes?
+  faviconType      String?
+  faviconUpdatedAt DateTime?
+
   // Every page in the tree, including the root page.
   pages Page[]       @relation("KnowledgeRootPages")
   files FileObject[]

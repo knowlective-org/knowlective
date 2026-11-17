@@ -91,6 +91,12 @@ import styles from "./whiteboard.module.css";
 
 type Tool = "select" | "hand" | WhiteboardItem["type"];
 
+// A drag ends in copies (the items going back where they were) when Alt is
+// held as it ends, or Shift with Ctrl/⌘ (a copy straight across or down).
+const copyHeld = (e: { altKey: boolean; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) =>
+  e.altKey || (e.shiftKey && (e.ctrlKey || e.metaKey));
+const MODIFIER_KEYS = new Set(["Alt", "Shift", "Control", "Meta"]);
+
 // What a pointer drag is doing, kept in a ref (it changes on every move).
 type Gesture =
   | { kind: "pan"; start: Point; camera: Camera }
@@ -106,6 +112,9 @@ type Gesture =
       // Alt held when the drag began: the moving items are copies, each
       // with the item it was copied from.
       copiedFrom?: Map<string, string>;
+      // Shift + press on a selected item: taken out of the selection on a
+      // click, but kept (and moved) when dragged.
+      deselectOnClick?: string;
     }
   | { kind: "resize"; id: string; start: Point; origin: { w: number; h: number } }
   | { kind: "marquee"; start: Point; base: Set<string> }
@@ -1021,8 +1030,7 @@ export function WhiteboardCanvas({
       let next = selection;
       if (e.shiftKey) {
         next = new Set(selection);
-        if (wasSelected) next.delete(hit);
-        else next.add(hit);
+        if (!wasSelected) next.add(hit);
       } else if (!wasSelected) {
         next = new Set([hit]);
       }
@@ -1045,6 +1053,7 @@ export function WhiteboardCanvas({
         clicked: copies?.get(hit) ?? hit,
         wasSelected: wasSelected && !e.shiftKey && !copies,
         copiedFrom: copies ? new Map([...copies].map(([original, copy]) => [copy, original])) : undefined,
+        deselectOnClick: e.shiftKey && wasSelected && !copies ? hit : undefined,
       };
       return;
     }
@@ -1082,8 +1091,8 @@ export function WhiteboardCanvas({
         setCamera({ ...g.camera, x: g.camera.x + point.x - g.start.x, y: g.camera.y + point.y - g.start.y });
         return;
       case "move": {
-        const dx = world.x - g.start.x;
-        const dy = world.y - g.start.y;
+        let dx = world.x - g.start.x;
+        let dy = world.y - g.start.y;
         if (!g.moved && Math.hypot(dx * camera.zoom, dy * camera.zoom) < 3) return;
         if (!g.moved) {
           const ghosts: Rect[] = [];
@@ -1093,11 +1102,16 @@ export function WhiteboardCanvas({
               if (isBox(box)) ghosts.push({ x: o.x, y: o.y, w: box.w, h: box.h });
             }
           }
-          setDrag({ ghosts, moving: new Set([...g.origins.keys(), ...g.lineOrigins.keys()]), alt: e.altKey });
+          setDrag({ ghosts, moving: new Set([...g.origins.keys(), ...g.lineOrigins.keys()]), alt: copyHeld(e) });
         } else {
-          setDrag((d) => (d && d.alt !== e.altKey ? { ...d, alt: e.altKey } : d));
+          setDrag((d) => (d && d.alt !== copyHeld(e) ? { ...d, alt: copyHeld(e) } : d));
         }
         g.moved = true;
+        // Shift: only across or only up and down, whichever way the pointer
+        // went further.
+        const axis = e.shiftKey ? (Math.abs(dx) >= Math.abs(dy) ? "x" : "y") : null;
+        if (axis === "x") dy = 0;
+        if (axis === "y") dx = 0;
         // Snapped: the rectangle around what moves, lined up with the others
         // (or on the dots). Ctrl/⌘ held: just where the pointer is.
         let sx = dx;
@@ -1111,9 +1125,10 @@ export function WhiteboardCanvas({
         const around = boundsOf(rects);
         if (around && !(e.ctrlKey || e.metaKey)) {
           const snap = snapMove(around, snapTargets(new Set(g.origins.keys())), SNAP_PX / camera.zoom, gridSnap);
-          sx += snap.dx;
-          sy += snap.dy;
-          setGuides(snap.guides);
+          // (Along the way it moves only, with Shift.)
+          if (axis !== "y") sx += snap.dx;
+          if (axis !== "x") sy += snap.dy;
+          setGuides(axis ? snap.guides.filter((guide) => guide.axis === axis) : snap.guides);
         } else setGuides([]);
         writeSoon(() =>
           change(() => {
@@ -1256,14 +1271,20 @@ export function WhiteboardCanvas({
     // A click on one of several selected: it becomes the key to line the
     // others up with (the first in the selection), the selection kept.
     if (g.kind === "move" && !g.moved && g.wasSelected) setSelected((s) => new Set([g.clicked, ...s]));
+    // Shift + click on a selected item: out of the selection.
+    if (g.kind === "move" && !g.moved && g.deselectOnClick) {
+      const out = g.deselectOnClick;
+      setSelected((s) => new Set([...s].filter((id) => id !== out)));
+    }
     // Alt + click without a drag: no copies left lying on the originals.
     if (g.kind === "move" && !g.moved && g.copiedFrom) {
       const copiedFrom = g.copiedFrom;
       change(() => deleteWithConnectors(new Set(copiedFrom.keys())));
       setSelected(new Set(copiedFrom.values()));
     }
-    // Alt held when the drag ends decides, whenever it was pressed.
-    if (g.kind === "move" && g.moved && e.altKey && !g.copiedFrom) {
+    // Alt (or Shift + Ctrl/⌘) held when the drag ends decides, whenever it
+    // was pressed.
+    if (g.kind === "move" && g.moved && copyHeld(e) && !g.copiedFrom) {
       // Copies stay where the items were dropped; the items go back.
       const copies = copyBoxes(new Set([...g.origins.keys(), ...g.lineOrigins.keys()]), 0);
       if (copies) {
@@ -1274,7 +1295,7 @@ export function WhiteboardCanvas({
         setSelected(new Set(copies.values()));
       }
     }
-    if (g.kind === "move" && g.moved && !e.altKey && g.copiedFrom) {
+    if (g.kind === "move" && g.moved && !copyHeld(e) && g.copiedFrom) {
       // Alt let go during the drag: no copies after all; the items go where
       // their copies were dropped.
       const copiedFrom = g.copiedFrom;
@@ -1362,11 +1383,9 @@ export function WhiteboardCanvas({
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if ((e.target as Element).closest("textarea")) return;
-    // Alt pressed mid-drag, before the pointer moves again.
-    if (e.key === "Alt") {
-      setDrag((d) => (d && !d.alt ? { ...d, alt: true } : d));
-      return;
-    }
+    // Alt (or Shift + Ctrl/⌘) pressed mid-drag, before the pointer moves again.
+    if (MODIFIER_KEYS.has(e.key)) setDrag((d) => (d && d.alt !== copyHeld(e) ? { ...d, alt: copyHeld(e) } : d));
+    if (e.key === "Alt") return;
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
     if (key === " " && !e.repeat) {
@@ -1559,7 +1578,7 @@ export function WhiteboardCanvas({
         }}
         onKeyUp={(e) => {
           if (e.key === " ") setSpaceHeld(false);
-          if (e.key === "Alt") setDrag((d) => (d?.alt ? { ...d, alt: false } : d));
+          if (MODIFIER_KEYS.has(e.key)) setDrag((d) => (d && d.alt !== copyHeld(e) ? { ...d, alt: copyHeld(e) } : d));
         }}
         onBlur={() => setSpaceHeld(false)}
       >

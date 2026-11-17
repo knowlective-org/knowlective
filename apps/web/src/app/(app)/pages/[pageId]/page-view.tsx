@@ -13,6 +13,7 @@ import { Breadcrumb } from "./breadcrumb";
 import { EditorLoader, StaticDocumentLoader, StaticWhiteboardLoader, WhiteboardLoader } from "./editor-loader";
 import { PageMenu, ShareButton } from "./page-menu";
 import { FollowButton } from "./follow-button";
+import { RootFavicon } from "@/components/root-favicon";
 import styles from "./page-view.module.css";
 
 export type SidebarInfo = {
@@ -53,6 +54,7 @@ export function PageView({
   isRootPage,
   personal,
   personalNotice,
+  favicon,
   shareUrl,
   user,
   guestState,
@@ -77,6 +79,8 @@ export function PageView({
   // Said above the page: an auditor viewing `auditing`'s personal root (it's
   // recorded), or the owner's root page while auditors may view it.
   personalNotice: { auditing: string } | { auditorsMayView: true } | null;
+  // The knowledge root's favicon, shown in the tab (lib/root-favicon.ts).
+  favicon?: string | null;
   // This page's URL on the site's public URL, for the share button.
   shareUrl: string;
   // null: someone not logged in, on a public page.
@@ -98,6 +102,7 @@ export function PageView({
 
   return (
     <AppShell sidebar={<Sidebar {...sidebar} currentPageId={pageId} currentTitle={liveTitle} />}>
+      <RootFavicon href={favicon ?? null} />
       <div data-ui="PageView">
         <div className={styles.toolbar} data-ui="PageView.toolbar">
           <Breadcrumb trees={sidebar.trees} pageId={pageId} currentTitle={liveTitle} />

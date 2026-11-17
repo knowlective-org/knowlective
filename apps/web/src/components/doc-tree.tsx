@@ -11,6 +11,7 @@ import { useDisplayTitle } from "@/i18n/use-display-title";
 import { ChildListDialog } from "./child-list-dialog";
 import { showAlert, showConfirm } from "./dialog";
 import { getDraggedPage, setDraggedPage, useConfirmAndMovePage } from "./move-page";
+import { withBasePath } from "@/lib/base-path";
 import styles from "./doc-tree.module.css";
 
 type DropZone = "before" | "after" | "into";
@@ -24,7 +25,7 @@ const EXPAND_DELAY_MS = 600;
 // More child pages than this aren't all listed under their parent: only the
 // one on the way to the open page, and a row saying how many others there
 // are, which opens the full list (ChildListDialog).
-export const MANY_CHILDREN = 30;
+export const MANY_CHILDREN = 5;
 
 export type DocTreeNode = {
   id: string;
@@ -58,6 +59,7 @@ export function DocTree({
   maxDepth,
   rootReorder,
   rootBadge,
+  rootIcon,
 }: {
   nodes: DocTreeNode[];
   entryIds: string[];
@@ -73,6 +75,8 @@ export function DocTree({
   rootReorder?: { onDragStart: () => void; onDragEnd: () => void; onKeyMove: (by: -1 | 1) => void };
   // A label after the root page's title (e.g. "personal" for a personal root).
   rootBadge?: string;
+  // The knowledge root's favicon, before the root page's title.
+  rootIcon?: string;
 }) {
   const t = useTranslations("docTree");
   const displayTitle = useDisplayTitle();
@@ -361,6 +365,10 @@ export function DocTree({
               // The row is dragged, not the link (that would drag its URL).
               draggable={false}
             >
+              {node.parentId === null && rootIcon && (
+                // eslint-disable-next-line @next/next/no-img-element -- a small icon from our own API
+                <img src={withBasePath(rootIcon)} alt="" width={16} height={16} className={styles.rootIcon} data-ui="DocTree.rootIcon" />
+              )}
               {label}
             </Link>
           )}

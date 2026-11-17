@@ -8,6 +8,7 @@ import { useDisplayTitle } from "@/i18n/use-display-title";
 import { showAlert, showChoice, showConfirm, showCopyText, showTypedConfirm } from "@/components/dialog";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, EXPORT_WHITEBOARD_EVENT } from "@/lib/page-export";
 import { ChildListDialog } from "@/components/child-list-dialog";
+import { FaviconDialog } from "./favicon-dialog";
 import { MoveDialog } from "./move-dialog";
 import { checkDeletePage, deletePage, loadPageInfo, lockPage, type PageInfo, unlockPage } from "./page-actions";
 import styles from "./page-view.module.css";
@@ -93,6 +94,8 @@ export function PageMenu({
   const [moveOpen, setMoveOpen] = useState(false);
   const [shortcutOpen, setShortcutOpen] = useState(false);
   const [childrenOpen, setChildrenOpen] = useState(false);
+  const [faviconOpen, setFaviconOpen] = useState(false);
+  const tf = useTranslations("rootFavicon");
   const [locking, setLocking] = useState(false);
   const [info, setInfo] = useState<PageInfo | null | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
@@ -257,6 +260,21 @@ export function PageMenu({
             ) : (
               <PlannedItem label={t("permissions")} note={personal ? t("personalNoShare") : t("needsManage")} />
             )}
+            {isRootPage && canManage && (
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                data-ui="PageMenu.favicon"
+                onClick={() => {
+                  setOpen(false);
+                  setFaviconOpen(true);
+                }}
+              >
+                <span>{tf("menuItem")}</span>
+                <span className={styles.menuNote}>{tf("menuNote")}</span>
+              </button>
+            )}
             {whiteboard && (
               <>
                 {(["png", "svg"] as const).map((format) => (
@@ -382,6 +400,7 @@ export function PageMenu({
       {moveOpen && <MoveDialog pageId={pageId} title={title} onClose={() => setMoveOpen(false)} />}
       {shortcutOpen && <MoveDialog pageId={pageId} title={title} shortcut onClose={() => setShortcutOpen(false)} />}
       {childrenOpen && <ChildListDialog pageId={pageId} title={displayTitle(title)} onClose={() => setChildrenOpen(false)} />}
+      {faviconOpen && <FaviconDialog pageId={pageId} onClose={() => setFaviconOpen(false)} />}
     </div>
   );
 }

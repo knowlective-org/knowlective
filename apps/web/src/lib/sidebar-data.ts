@@ -7,6 +7,7 @@ import type { CurrentUser } from "@/lib/auth/session";
 import type { SidebarInfo } from "@/app/(app)/pages/[pageId]/page-view";
 import { orderRoots } from "@/lib/root-order";
 import { resolveShortcuts } from "@/lib/shortcuts";
+import { rootFaviconUrls } from "@/lib/root-favicon";
 
 // Everything the sidebar needs for a signed-in user.
 export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
@@ -21,8 +22,9 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
   const unreadNotifications = unread.filter((pageId) => visibleIds.has(pageId)).length;
   const trees = orderRoots(resolveShortcuts(visible), prefs?.rootOrder ?? []);
   const isManager = user.siteRole === "SITE_ADMIN" || user.siteRole === "CONTENT_MANAGER";
+  const favicons = await rootFavicons(trees);
   return {
-    trees: trees.map(sidebarTree),
+    trees: trees.map((t) => sidebarTree(t, favicons)),
     maxDepth: MAX_PAGE_DEPTH,
     userName: user.name ?? user.email,
     canCreateRoot: isManager,
@@ -37,8 +39,9 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
 // the order set in the admin console (InstanceConfig.publicRootOrder).
 export async function loadPublicSidebar(): Promise<SidebarInfo> {
   const [trees, brand] = await Promise.all([publicTrees(), getBrand()]);
+  const favicons = await rootFavicons(trees);
   return {
-    trees: trees.map(sidebarTree),
+    trees: trees.map((t) => sidebarTree(t, favicons)),
     maxDepth: MAX_PAGE_DEPTH,
     userName: "",
     canCreateRoot: false,
@@ -58,10 +61,19 @@ export async function publicTrees() {
   return orderRoots(resolveShortcuts(visible), config?.publicRootOrder ?? []);
 }
 
-function sidebarTree(t: ReturnType<typeof resolveShortcuts>[number]) {
+type VisibleTree = ReturnType<typeof resolveShortcuts>[number];
+
+// The roots' favicons (lib/root-favicon.ts), of the roots whose root page
+// the viewer can open (as for the root's name).
+function rootFavicons(trees: VisibleTree[]) {
+  return rootFaviconUrls(trees.filter((t) => t.rootPageId && t.entryIds.includes(t.rootPageId)).map((t) => t.rootId));
+}
+
+function sidebarTree(t: VisibleTree, favicons: Map<string, string>) {
   return {
     rootId: t.rootId,
     rootPageId: t.rootPageId,
+    favicon: (t.rootPageId && t.entryIds.includes(t.rootPageId) && favicons.get(t.rootId)) || null,
     personal: t.personal,
     entryIds: t.entryIds,
     pages: t.pages.map((p) => ({

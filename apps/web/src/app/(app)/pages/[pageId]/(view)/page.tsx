@@ -14,6 +14,7 @@ import { jsonLd, pageDescription } from "@/lib/seo";
 import { auditorsSeePersonalRoots, noteAuditorView } from "@/lib/personal-root-audit";
 import { type PageLockView, PageView } from "../page-view";
 import { loadPage } from "./load-page";
+import { faviconForViewer } from "@/lib/root-favicon";
 
 // Someone not logged in sees only public pages; for them (and so for search
 // engines) the page is described: the start of its text, its canonical URL,
@@ -44,7 +45,7 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
   const viewingAs = user && page.personal ? await noteAuditorView(user, page, "page") : null;
   const ownerNotice = !!user && page.isRootPage && page.root.ownerId === user.id && (await auditorsSeePersonalRoots());
 
-  const [sidebar, publicUrl, guestState, following] = await Promise.all([
+  const [sidebar, publicUrl, guestState, following, , favicon] = await Promise.all([
     // Its notifications are read now (before the sidebar counts them).
     user ? pageOpened(user.id, page.id).then(() => loadSidebar(user)) : loadPublicSidebar(),
     getPublicUrl(),
@@ -57,6 +58,8 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
         where: { id: user.id, OR: [{ lastPageId: null }, { lastPageId: { not: page.id } }] },
         data: { lastPageId: page.id },
       }),
+    // The knowledge root's favicon in the tab (if the viewer can open the root page).
+    faviconForViewer(user?.id ?? null, page.root.id),
   ]);
 
   // Who locked the page and when; the locking page's title only if it's this
@@ -113,6 +116,7 @@ export default async function PageEditorRoute({ params }: PageProps<"/pages/[pag
         guestState={guestState}
         following={following}
         sidebar={sidebar}
+        favicon={favicon}
       />
     </>
   );

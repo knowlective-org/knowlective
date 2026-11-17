@@ -269,6 +269,78 @@ test.describe("Access matrix", () => {
     expect(await shortcuts()).toBe(2);
   });
 
+  test("a root's favicon: its actions, called directly, only work for a manager; its image only for who can open the root page", async ({ page, browser, baseURL }) => {
+    test.setTimeout(150_000);
+    // The E2E root, which the admin manages.
+    const root = await withPrisma((prisma) =>
+      prisma.page
+        .findUniqueOrThrow({ where: { id: pageId }, select: { root: { select: { id: true, rootPageId: true } } } })
+        .then((p) => ({ id: p.root.id, pageId: p.root.rootPageId! })),
+    );
+    const faviconSet = () =>
+      withPrisma((prisma) => prisma.knowledgeRoot.findUniqueOrThrow({ where: { id: root.id }, select: { faviconUpdatedAt: true } })).then(
+        (r) => r.faviconUpdatedAt !== null,
+      );
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+    const openDialog = async () => {
+      await openPage(page, root.pageId);
+      await page.getByTestId("PageMenu.button").click();
+      // (After the menu's page info, loaded with the same argument.)
+      await expect(page.getByTestId("PageMenu.ownerGroups")).toBeVisible();
+      const load = page.waitForRequest((r) => !!r.headers()["next-action"] && r.postData() === JSON.stringify([root.pageId]));
+      await page.getByTestId("PageMenu.favicon").click();
+      return (await load).headers()["next-action"];
+    };
+    const upload = async () => {
+      await page.getByTestId("FaviconDialog.fileInput").setInputFiles({ name: "icon.png", mimeType: "image/png", buffer: png });
+      await page.getByTestId("FaviconDialog.submitButton").click();
+      await expect(page.getByTestId("FaviconDialog")).toHaveCount(0);
+    };
+    try {
+      // The ids, from the admin's screen: the dialog's load, and removing.
+      const loadAction = await openDialog();
+      await upload();
+      await openDialog();
+      await expect(page.getByTestId("FaviconDialog.preview")).toBeVisible();
+      const iconUrl = (await page.getByTestId("FaviconDialog.preview").getAttribute("src"))!;
+      const removing = page.waitForRequest((r) => !!r.headers()["next-action"] && r.postData() === JSON.stringify([root.pageId]));
+      await page.getByTestId("FaviconDialog.removeButton").click();
+      const removeAction = (await removing).headers()["next-action"];
+      await expect(page.getByTestId("FaviconDialog")).toHaveCount(0);
+      expect(await faviconSet()).toBe(false);
+      await openDialog();
+      await upload();
+      expect(await faviconSet()).toBe(true);
+
+      const origin = new URL(baseURL!).origin;
+      const call = async (request: APIRequestContext, action: string) => {
+        const response = await request.post(`pages/${root.pageId}`, {
+          headers: { Origin: origin, "Next-Action": action, Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8" },
+          data: JSON.stringify([root.pageId]),
+          maxRedirects: 0,
+        });
+        return response.text();
+      };
+      for (const account of ACCOUNTS.filter((a) => a !== "admin")) {
+        const context = await contextFor(browser, account);
+        expect((await call(context.request, loadAction)).includes("/api/roots/"), `${account} load`).toBe(false);
+        await call(context.request, removeAction);
+        expect(await faviconSet(), `${account} remove`).toBe(true);
+        // The image: for those who can open the root page.
+        const image = await context.request.get(new URL(iconUrl, page.url()).toString());
+        expect(image.status(), `${account} image`).toBe(["guest", "outsider"].includes(account) ? 404 : 200);
+        await context.close();
+      }
+      // …and the very same request works for the admin.
+      await call(page.request, removeAction);
+      expect(await faviconSet()).toBe(false);
+    } finally {
+      await withPrisma((prisma) =>
+        prisma.knowledgeRoot.update({ where: { id: root.id }, data: { faviconEnc: null, faviconType: null, faviconUpdatedAt: null } }),
+      );
+    }
+  });
+
   test("copying another page's attachment, called directly, needs the page's Edit and the file's page", async ({ page, browser, baseURL }) => {
     // The action's id, from the request the admin's editor makes for the
     // page's own attachment when the page opens.
