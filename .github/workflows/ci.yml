@@ -1,7 +1,7 @@
 # Continuous integration on GitHub's machines (nothing runs on yours).
 #
 #   push to staging       the quick checks only (types, lint, access checks,
-#                         unit tests, audit, gitleaks)
+#   or feature/**         unit tests, audit, gitleaks)
 #   pull request → master every check, adding the end-to-end tests and the
 #                         image: what reaches production goes through here
 #                         (a pull request from a fork runs with read-only
@@ -16,7 +16,7 @@ name: CI
 
 on:
   push:
-    branches: [staging]
+    branches: [staging, "feature/**"]
   pull_request:
     branches: [master]
   schedule:
