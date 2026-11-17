@@ -12,6 +12,7 @@ import { ChildListDialog } from "./child-list-dialog";
 import { showAlert, showConfirm } from "./dialog";
 import { getDraggedPage, setDraggedPage, useConfirmAndMovePage } from "./move-page";
 import { withBasePath } from "@/lib/base-path";
+import { Icon } from "./icons";
 import styles from "./doc-tree.module.css";
 
 type DropZone = "before" | "after" | "into";
@@ -22,9 +23,10 @@ const DRAG_TYPE = "application/x-knowlective-page";
 const ROOT_DRAG_TYPE = "application/x-knowlective-root";
 // Hovering a collapsed page this long while dragging expands it.
 const EXPAND_DELAY_MS = 600;
-// More child pages than this aren't all listed under their parent: only the
-// one on the way to the open page, and a row saying how many others there
-// are, which opens the full list (ChildListDialog).
+// More child pages than this aren't all listed under their parent: only this
+// many, the most recently changed (newest first), plus the one on the way to
+// the open page, and a row saying how many others there are, which opens the
+// full list (ChildListDialog).
 export const MANY_CHILDREN = 5;
 
 export type DocTreeNode = {
@@ -32,6 +34,10 @@ export type DocTreeNode = {
   title: string;
   icon: string | null;
   parentId: string | null;
+  // Last change, ms since the epoch.
+  updatedAt: number;
+  // Someone not logged in can open it (a globe after the title).
+  isPublic?: boolean;
   // The user has EDIT on this page.
   canEdit: boolean;
   // The page is locked (read-only for everyone until unlocked).
@@ -277,9 +283,9 @@ export function DocTree({
 
   const renderNode = (node: DocTreeNode, depth: number, seen: Set<string>) => {
     const children = (childrenOf.get(node.id) ?? []).filter((c) => !seen.has(c.id));
-    // Many: only the one on the path to the open page (if any), and a row
-    // for the rest.
-    const listed = children.length > MANY_CHILDREN ? children.filter((c) => onPath.has(c.id)) : children;
+    // Many: the most recently changed, the one on the path to the open page
+    // (if not among them), and a row for the rest.
+    const listed = children.length > MANY_CHILDREN ? recentChildren(children, onPath) : children;
     const unlisted = children.length - listed.length;
     const isOpen = expanded.has(node.id);
     const isCurrent = node.id === currentPageId;
@@ -391,6 +397,11 @@ export function DocTree({
               ×
             </button>
           )}
+          {node.isPublic && (
+            <span className={styles.public} title={t("public")} aria-label={t("public")} data-ui="DocTree.publicStatus" data-id={node.id}>
+              <Icon name="globe" size={14} />
+            </span>
+          )}
           {node.parentId === null && rootBadge && (
             <span className={styles.badge} data-ui="DocTree.rootBadge">
               {rootBadge}
@@ -416,7 +427,7 @@ export function DocTree({
                   data-id={node.id}
                   onClick={() => setListOf({ id: node.id, title: displayTitle(title) })}
                 >
-                  {listed.length > 0 ? t("moreChildren", { count: unlisted }) : t("allChildren", { count: unlisted })}
+                  {t("moreChildren", { count: unlisted })}
                 </button>
               </li>
             )}
@@ -432,6 +443,15 @@ export function DocTree({
       {listOf && <ChildListDialog pageId={listOf.id} title={listOf.title} onClose={() => setListOf(null)} />}
     </nav>
   );
+}
+
+// Of many child pages, the ones listed: the MANY_CHILDREN most recently
+// changed, newest first, and the one on the path to the open page.
+function recentChildren(children: DocTreeNode[], onPath: Set<string>): DocTreeNode[] {
+  const recent = [...children].sort((a, b) => b.updatedAt - a.updatedAt);
+  const listed = recent.slice(0, MANY_CHILDREN);
+  const open = recent.slice(MANY_CHILDREN).find((c) => onPath.has(c.id));
+  return open ? [...listed, open] : listed;
 }
 
 // The row's "＋": a menu to add a child page, a document or a whiteboard.

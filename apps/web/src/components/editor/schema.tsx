@@ -258,7 +258,8 @@ export function customSlashMenuItems(
 }
 
 // The "@" menu: the people who can open the page; choosing one puts a
-// mention of them in the text (notifying them, server/notifications.ts).
+// mention of them in the text (notifying them, server/notifications.ts),
+// followed by a line break (a hard break within the block).
 export function mentionMenuItems(
   editor: KnowlectiveEditor,
   people: { id: string; name: string }[],
@@ -270,6 +271,6 @@ export function mentionMenuItems(
     .slice(0, 20)
     .map((p) => ({
       title: p.name,
-      onItemClick: () => editor.insertInlineContent([{ type: "mention", props: { userId: p.id } }, " "]),
+      onItemClick: () => editor.insertInlineContent([{ type: "mention", props: { userId: p.id } }, "\n"]),
     }));
 }

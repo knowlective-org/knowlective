@@ -1219,7 +1219,9 @@ function ChatInput({
 
   const choose = (p: Person) => {
     if (!at) return;
-    const inserted = `@${p.name} `;
+    // A line break after it: the message starts on the next line, as in
+    // "@name<newline>text".
+    const inserted = `@${p.name}\n`;
     const next = value.slice(0, at.start) + inserted + value.slice(caret);
     if (!picksRef.current.some((x) => x.id === p.id)) picksRef.current = [...picksRef.current, p];
     onValueChange(next);

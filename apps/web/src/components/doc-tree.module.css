@@ -214,6 +214,13 @@
   opacity: 0.7;
 }
 
+/* Mark of a page public on the internet, after its title. */
+.public {
+  flex: none;
+  display: inline-flex;
+  color: var(--color-muted);
+}
+
 /* A label after a root's title ("personal"). */
 .badge {
   flex: none;

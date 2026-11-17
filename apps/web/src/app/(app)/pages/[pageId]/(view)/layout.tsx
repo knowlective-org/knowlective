@@ -6,10 +6,11 @@ import { loadPage } from "./load-page";
 // Turns the viewer away before anything of the page is sent: a page they
 // can't open is a 404, the login screen for someone not logged in (unless
 // the page is public), and a shortcut sends them to its page. It's here, not
-// in page.tsx, because loading.tsx (the loading overlay) wraps the page: once
-// it's shown the response has begun, and a 404 or a redirect from the page
-// would come as 200 (the not-found screen, a redirect in the browser). A
-// layout of the same folder is outside it.
+// in page.tsx, so that a loading.tsx in this folder (there's none now: the
+// loading overlay was taken out) wouldn't break it: once that's shown the
+// response has begun, and a 404 or a redirect from the page would come as 200
+// (the not-found screen, a redirect in the browser). A layout of the same
+// folder is outside it.
 export default async function PageGate({ children, params }: LayoutProps<"/pages/[pageId]">) {
   await connection();
   const { user, page } = await loadPage((await params).pageId);

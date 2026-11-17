@@ -195,6 +195,7 @@ async function loadTree(prisma: PrismaClient, rootId: string) {
       kind: true,
       shortcutTargetId: true,
       createdAt: true,
+      updatedAt: true,
       lockedAt: true,
       lockSubtree: true,
     },
@@ -543,6 +544,9 @@ export type VisiblePage = {
   kind: PageKind;
   // For a SHORTCUT: the page it opens.
   shortcutTargetId: string | null;
+  // Last change (collab save, cell values): the sidebar lists the most
+  // recently changed ones under a page with many children.
+  updatedAt: Date;
   access: PageAccess;
   // The lock applying to the page, if it's locked.
   lock: PageLockState | null;
@@ -625,6 +629,7 @@ async function buildVisibleTree(
       icon: p.icon,
       kind: p.kind,
       shortcutTargetId: p.shortcutTargetId,
+      updatedAt: p.updatedAt,
       access: access.get(p.id)!,
       lock: locks.get(p.id) ?? null,
     }));
