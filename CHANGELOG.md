@@ -8,6 +8,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Security
+
+- Next.js updated to 16.4.6 (GHSA-mfr8-8qww-v76h)
+
 ### Changed
 
 - Extended table: Tab in an empty cell goes to the next cell (the one to the right, else the one below; nowhere from the last), and in a cell with text it nests the block under the one above, as elsewhere in the page (Shift+Tab takes it back out)
