@@ -1,4 +1,5 @@
 import type { WhiteboardOps } from "./whiteboard-ops";
+import type { SectionError, SectionTarget } from "./body-edit";
 
 // Shared by the collab server (server/collab.ts), Server Actions and the
 // editor (browser) — keep dependency-free.
@@ -35,6 +36,7 @@ type CollabBridge = {
   saveCurrentVersion(pageId: string): Promise<void>;
   replaceContent(pageId: string, userId: string, content: { title?: string; body?: Uint8Array }): Promise<void>;
   changeWhiteboard(pageId: string, userId: string, ops: WhiteboardOps): Promise<void>;
+  editBody(pageId: string, userId: string, edit: BodyEdit): Promise<SectionError | null>;
   liveState(pageId: string): Uint8Array | null;
 };
 
@@ -113,6 +115,22 @@ export async function changeWhiteboard(pageId: string, userId: string, ops: Whit
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   if (!bridge) throw new Error("The collaboration server is not running");
   await bridge.changeWhiteboard(pageId, userId, ops);
+}
+
+// A partial write to a page's body (lib/body-edit.ts): blocks added at the
+// end, or one section replaced. `body` is a Yjs update of a document holding
+// the BlockNote fragment (markdownToBody).
+export type BodyEdit =
+  | { kind: "append"; body: Uint8Array }
+  | { kind: "section"; target: SectionTarget; body: Uint8Array };
+
+// Makes the edit as `userId` through the live document; null when done, or
+// why the section couldn't be replaced. Access and the page lock are checked
+// by the caller. Throws outside the custom server.
+export async function editPageBody(pageId: string, userId: string, edit: BodyEdit): Promise<SectionError | null> {
+  const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
+  if (!bridge) throw new Error("The collaboration server is not running");
+  return bridge.editBody(pageId, userId, edit);
 }
 
 // The page's document as currently open in the collab server (including

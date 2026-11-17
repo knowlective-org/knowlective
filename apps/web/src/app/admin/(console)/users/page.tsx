@@ -149,9 +149,9 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
       : Promise.resolve(null),
     isSiteAdmin
       ? Promise.all([
-          prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { apiEnabled: true, apiKeyRoles: true } }),
+          prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { apiEnabled: true, mcpEnabled: true, apiKeyRoles: true } }),
           prisma.apiKey.count(),
-        ]).then(([config, keyCount]) => ({ enabled: config.apiEnabled, roles: config.apiKeyRoles, keyCount }))
+        ]).then(([config, keyCount]) => ({ enabled: config.apiEnabled, mcp: config.mcpEnabled, roles: config.apiKeyRoles, keyCount }))
       : Promise.resolve(null),
   ]);
   const error = (await searchParams).error;
@@ -200,6 +200,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
           <h2 className={styles.sectionTitle}>{t("admin.users.api")}</h2>
           <ApiSettingsForm
             enabled={api.enabled}
+            mcp={api.mcp}
             roles={api.roles}
             roleLabels={{ SITE_ADMIN: roleLabel("SITE_ADMIN"), CONTENT_MANAGER: roleLabel("CONTENT_MANAGER"), USER: roleLabel("USER") }}
             keyCount={api.keyCount}

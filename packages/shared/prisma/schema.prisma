@@ -594,6 +594,9 @@ model InstanceConfig {
   // Site roles that may issue themselves API keys. A key stops working when
   // its owner's role is taken off this list.
   apiKeyRoles SiteRole[] @default([SITE_ADMIN, CONTENT_MANAGER, USER])
+  // The MCP server (/api/mcp, lib/mcp/): part of the API, so it works only
+  // while apiEnabled is on too. Its callers are held to apiKeyRoles as well.
+  mcpEnabled  Boolean    @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

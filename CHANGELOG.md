@@ -16,6 +16,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- An MCP server at `/api/mcp`, for AI apps (Claude, ChatGPT, Cursor…) to search, read and write pages as the person who connected them, with their permissions. Part of the API: turned on in the admin console's API settings (off by default), with a personal API key for now. Writes create pages, add to their end or replace one section under a heading — never a whole page, and not a section holding blocks Markdown can't carry back unchanged
 - A knowledge root can have its own favicon (PNG, ICO or SVG), set from its root page's menu by those who manage it: shown in the browser's tab on its pages and by its name in the sidebar, to everyone who can open the root page
 - The sidebar can be hidden (its button at the top right) and shown again (a button at the top left), remembered per browser
 - The sidebar marks pages that are public on the internet (readable without logging in) with a globe

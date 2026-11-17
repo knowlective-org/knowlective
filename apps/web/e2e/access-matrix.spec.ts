@@ -90,6 +90,10 @@ test.describe("Access matrix", () => {
       expect([401, 403], `${account} whiteboard POST`).toContain(
         (await context.request.post(`api/v1/pages/${pageId}/whiteboard`, { data: { remove: ["x"] } })).status(),
       );
+      // The MCP server takes keys only too (404 while it's off).
+      expect([401, 404], `${account} MCP`).toContain(
+        (await context.request.post("api/mcp", { data: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} } })).status(),
+      );
       // For search engines: open to all, and listing no page that isn't public.
       expect((await context.request.get("robots.txt")).status(), `${account} robots.txt`).toBe(200);
       const sitemap = await context.request.get("sitemap.xml");

@@ -11,11 +11,13 @@ const checkRow = { display: "flex", gap: 8, alignItems: "flex-start" } as const;
 
 export function ApiSettingsForm({
   enabled,
+  mcp,
   roles,
   roleLabels,
   keyCount,
 }: {
   enabled: boolean;
+  mcp: boolean;
   roles: SiteRole[];
   // From the server: lib/roles imports the database client.
   roleLabels: Record<SiteRole, string>;
@@ -24,6 +26,7 @@ export function ApiSettingsForm({
   const [state, formAction, pending] = useActionState(saveApiSettings, {} as ApiSettingState);
   const ta = useTranslations("admin");
   const [on, setOn] = useState(enabled);
+  const [mcpOn, setMcpOn] = useState(mcp);
   const [allowed, setAllowed] = useState<SiteRole[]>(roles);
 
   return (
@@ -50,6 +53,21 @@ export function ApiSettingsForm({
           {ta("api.enable")}
           <span className={styles.note} style={{ display: "block" }}>
             {ta("api.enableNote")}
+          </span>
+        </span>
+      </label>
+      <label style={checkRow}>
+        <input
+          type="checkbox"
+          name="mcp"
+          checked={mcpOn}
+          onChange={(e) => setMcpOn(e.target.checked)}
+          data-ui="ApiSettingsForm.mcpCheckbox"
+        />
+        <span>
+          {ta("api.mcp")}
+          <span className={styles.note} style={{ display: "block" }}>
+            {ta("api.mcpNote")}
           </span>
         </span>
       </label>

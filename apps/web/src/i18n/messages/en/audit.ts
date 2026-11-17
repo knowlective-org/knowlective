@@ -83,7 +83,7 @@ export default {
     networkFlags: { access: "access", read: "read", write: "change", download: "download", upload: "attach" },
     brand: "Set the top left to {mode, select, IMAGE {the logo} other {the name}} (\"{name}\"{logo, select, true {, new logo} other {}})",
     apiKeysRevoke: "Revoked {who}'s API keys ({count, number})",
-    apiSettings: "Set the API to {enabled, select, true {on} other {off}} (roles that can issue keys: {roles})",
+    apiSettings: "Set the API to {enabled, select, true {on} other {off}}, the MCP server to {mcp, select, true {on} other {off}} (roles that can issue keys: {roles})",
     passkeyRemove: "Removed the passkey \"{name}\"",
     passkeysReset: "Removed {who}'s passkeys ({count, number})",
     passkeyRequired: "{required, select, true {Required passkeys} other {Made passkeys optional}}",

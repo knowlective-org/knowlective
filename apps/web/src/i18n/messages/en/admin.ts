@@ -278,6 +278,8 @@ export default {
     api: {
       enable: "Turn on the API",
       enableNote: "Programs read and change pages through /api/v1 with personal API keys, each acting as its owner (their permissions, never more). Off: every request is refused and no keys can be issued; existing keys are kept and work again once it's back on.",
+      mcp: "Turn on the MCP server",
+      mcpNote: "AI apps (Claude, ChatGPT, Cursor…) search, read and write pages through /api/mcp, acting as the person who connected them (their permissions, never more). Part of the API: it works only while the API is on, for the roles below. Page content goes to the AI's provider, and text in pages can try to steer the AI: suggest read-only access where that's enough.",
       roles: "Roles that can issue keys",
       rolesNote: "A key stops working when its owner's role is taken off this list. Keys of disabled users never work.",
       keyCount: "{count, plural, =0 {No API keys issued.} one {# API key issued.} other {# API keys issued.}}",
