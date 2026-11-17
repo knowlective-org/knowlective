@@ -8,21 +8,21 @@ test.use({ storageState: authFile("editor") });
 
 test("a loading overlay covers the screen while a page opens, and goes once it's in", async ({ page }) => {
   const { id } = await createPage(page, "E2E 読み込み中");
-  // Elsewhere first, then back to the page through the sidebar, its server
-  // response held back for a moment.
-  await page.goto("pages/e2e-home");
   await expect(editorBody(page)).toBeVisible();
   await expect(page.getByTestId("LoadingOverlay")).toHaveCount(0);
-  await page.route(`**/pages/${id}*`, async (route) => {
+  // To the page above through the sidebar (always listed: it's on the way to
+  // this one), its server response held back for a moment.
+  await page.route("**/pages/e2e-home*", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     // (Some requests end before the delay does, e.g. a prefetch dropped.)
     await route.continue().catch(() => {});
   });
-  await page.locator(`[data-ui="DocTree.link"][data-id="${id}"]`).first().click();
+  await page.locator('[data-ui="DocTree.link"][data-id="e2e-home"]').first().click();
   await expect(page.getByTestId("LoadingOverlay")).toBeVisible();
   await expect(page.getByTestId("LoadingOverlay")).toHaveText("読み込み中…");
   await expect(editorBody(page)).toBeVisible();
   await expect(page.getByTestId("LoadingOverlay")).toHaveCount(0);
   await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.goto(`pages/${id}`);
   await trashOpenPage(page);
 });

@@ -568,6 +568,58 @@ test.describe("Whiteboard", () => {
     }
   });
 
+  test("Shift keeps a drag straight across or down; with Ctrl held as it ends, it copies", async ({ browser }) => {
+    const context = await browser.newContext({ storageState: authFile("editor") });
+    const page = await context.newPage();
+    try {
+      await createWhiteboard(page, "E2E ホワイトボードの Shift");
+      await addSticky(page, 200, 150, "Shift の付箋");
+      const notes = item(page, "Shift の付箋");
+      const start = (await notes.boundingBox())!;
+      const [x0, y0] = [Math.round(start.x), Math.round(start.y)];
+      const positions = async () =>
+        (await notes.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()))).map((r) => [Math.round(r.x), Math.round(r.y)]);
+      const drag = async (from: [number, number], by: [number, number]) => {
+        await page.mouse.move(from[0] + 20, from[1] + 20);
+        await page.mouse.down();
+        await page.mouse.move(from[0] + 20 + by[0], from[1] + 20 + by[1], { steps: 6 });
+        await page.mouse.up();
+      };
+
+      // Mostly across: only across.
+      await page.keyboard.down("Shift");
+      await drag([x0, y0], [200, 40]);
+      await page.keyboard.up("Shift");
+      expect(await positions()).toEqual([[x0 + 200, y0]]);
+      // Mostly down: only down. (Shift pressed on the selected note: kept
+      // selected, as it was dragged.)
+      await page.keyboard.down("Shift");
+      await drag([x0 + 200, y0], [-30, 150]);
+      await page.keyboard.up("Shift");
+      expect(await positions()).toEqual([[x0 + 200, y0 + 150]]);
+      await expect(notes).toHaveAttribute("data-selected", "");
+
+      // Shift + Ctrl as it ends: a copy straight across, the original stays.
+      await page.keyboard.down("Shift");
+      await page.mouse.move(x0 + 220, y0 + 170);
+      await page.mouse.down();
+      await page.mouse.move(x0 + 20, y0 + 190, { steps: 6 });
+      await page.keyboard.down("Control");
+      await expect(page.getByTestId("Whiteboard.copyMark")).toHaveCount(1);
+      await page.mouse.up();
+      await page.keyboard.up("Control");
+      await page.keyboard.up("Shift");
+      await expect(notes).toHaveCount(2);
+      expect(await positions()).toContainEqual([x0 + 200, y0 + 150]);
+      expect(await positions()).toContainEqual([x0, y0 + 150]);
+
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      await trashOpenPage(page);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("plain lines are drawn, moved and reshaped; connectors can turn at right angles", async ({ browser }) => {
     const context = await browser.newContext({ storageState: authFile("editor") });
     const page = await context.newPage();

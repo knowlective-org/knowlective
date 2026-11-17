@@ -15,9 +15,17 @@ async function chatWithMessage(page: Page, text: string) {
   await page.keyboard.type("/チャット");
   await page.getByRole("option", { name: /チャット/ }).first().click();
   await expect(page.getByTestId("ChatBlock.empty")).toBeVisible();
-  await page.getByTestId("ChatBlock.messageInput").fill(text);
+  const input = page.getByTestId("ChatBlock.messageInput");
+  await input.fill(text);
   await page.keyboard.press("Enter");
-  return page.getByTestId("ChatBlock.messageRow").first().getByTestId("ChatBlock.text");
+  const sent = page.getByTestId("ChatBlock.messageRow").first().getByTestId("ChatBlock.text");
+  await expect(sent).toBeVisible();
+  // (Sent through: the box takes the focus back then, which would clear a
+  // selection made a moment before.)
+  await expect(input).toHaveValue("");
+  await expect(input).toBeEnabled();
+  await expect(input).toBeFocused();
+  return sent;
 }
 
 test("quoting a selection with the mouse works, after a triple click too; inverted on one's own message", async ({ page }) => {

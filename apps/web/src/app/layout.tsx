@@ -8,6 +8,7 @@ import { getBrand } from "@/lib/brand";
 import { getPublicUrl } from "@/lib/site-url";
 import { getTheme } from "@/lib/theme";
 import { themeCss } from "@/lib/theme-tokens";
+import { RESTORE_SIDEBAR_SCRIPT } from "@/lib/sidebar-hidden";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -56,10 +57,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   await connection();
   const [theme, locale] = await Promise.all([getTheme(), getLocale()]);
   return (
-    <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`} data-ui="RootLayout">
+    // (suppressHydrationWarning: the sidebar script below may set data-sidebar
+    // on <html> before React hydrates it.)
+    <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`} data-ui="RootLayout" suppressHydrationWarning>
       <head>
         {/* Overrides the defaults in globals.css. Values are validated #rrggbb only. */}
         <style id="knowlective-theme" dangerouslySetInnerHTML={{ __html: themeCss(theme) }} />
+        {/* The sidebar as it was left (hidden or not), before anything is drawn. */}
+        <script dangerouslySetInnerHTML={{ __html: RESTORE_SIDEBAR_SCRIPT }} />
       </head>
       <body>
         {/* Hands the request's language and text to client components. */}

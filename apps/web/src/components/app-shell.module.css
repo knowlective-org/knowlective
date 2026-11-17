@@ -35,7 +35,8 @@
   }
 
   .sidebar {
-    position: static;
+    /* (Positioned for the hide button in it.) */
+    position: relative;
     height: auto;
     max-height: 50vh;
     max-height: 50dvh;
@@ -51,6 +52,60 @@
   }
 }
 
+/* Hiding the sidebar (wider screens): its button at the sidebar's top right,
+   and one at the top left to show it again while it's hidden. */
+.hideButton,
+.showButton {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--color-text-muted, var(--color-primary));
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.hideButton:hover,
+.showButton:hover {
+  color: var(--color-primary);
+  background: var(--color-border);
+}
+
+.hideButton {
+  position: absolute;
+  top: 14px;
+  right: 6px;
+  z-index: 1;
+}
+
+.showButton {
+  display: none;
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 40;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+}
+
+@media (min-width: 600px) {
+  :global(html[data-sidebar="hidden"]) .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :global(html[data-sidebar="hidden"]) .sidebar {
+    display: none;
+  }
+
+  :global(html[data-sidebar="hidden"]) .showButton {
+    display: flex;
+  }
+}
+
 /* The drawer's controls: only on phone-width screens (below). */
 .menuButton,
 .closeButton,
@@ -61,6 +116,11 @@
 /* Phone width: the sidebar is a drawer, slid in over the content by the menu
    button at the top left (app-shell.tsx). */
 @media (max-width: 599.98px) {
+  .hideButton,
+  .showButton {
+    display: none;
+  }
+
   .menuButton {
     position: fixed;
     top: 4px;
@@ -158,6 +218,7 @@
 
   .sidebar,
   .menuButton,
+  .showButton,
   .backdrop {
     display: none;
   }
