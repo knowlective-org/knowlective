@@ -55,6 +55,11 @@ test.describe("Public pages", () => {
       await page.getByTestId("AppDialog.confirmButton").click();
       await expect(page.getByTestId("UnpublishForm.submitButton")).toBeVisible();
 
+      // The signed-in sidebar marks it public; a page that isn't, not.
+      await page.goto(`pages/${id}`);
+      await expect(page.locator(`[data-ui="DocTree.publicStatus"][data-id="${id}"]`)).toHaveAttribute("aria-label", "インターネットに公開中");
+      await expect(page.locator(`[data-ui="DocTree.publicStatus"][data-id="${HOME_PAGE_ID}"]`)).toHaveCount(0);
+
       // Someone not logged in reads it, read-only, without collaborative
       // editing: no connection, so no cursors or names either way. Search
       // engines are told to keep it out (the default).
@@ -78,8 +83,10 @@ test.describe("Public pages", () => {
       await expect(guest.getByTestId("PageMenu.button")).toHaveCount(0);
       await expect(guest.getByTestId("Sidebar.loginLink")).toBeVisible();
       await expect(guest.getByTestId("Sidebar.searchInput")).toHaveCount(0);
-      // Their sidebar lists the public page, and nothing that isn't public.
+      // Their sidebar lists the public page, and nothing that isn't public
+      // (without the mark: every page there is public).
       await expect(guest.locator(`[data-ui="DocTree.link"][data-id="${id}"]`)).toBeVisible();
+      await expect(guest.getByTestId("DocTree.publicStatus")).toHaveCount(0);
       await expect(guest.locator(`[data-ui="DocTree.link"][data-id="${HOME_PAGE_ID}"]`)).toHaveCount(0);
       // A page that isn't public: the login screen, as before.
       await guest.goto(`pages/${HOME_PAGE_ID}`);
@@ -115,6 +122,10 @@ test.describe("Public pages", () => {
       await setPublicPagesAllowed(page, false);
       await guest.goto(`pages/${id}`);
       await expect(guest).toHaveURL(/\/login/);
+      // …nor marked public in the sidebar.
+      await page.goto(`pages/${id}`);
+      await expect(page.locator(`[data-ui="DocTree.link"][data-id="${id}"]`)).toBeVisible();
+      await expect(page.locator(`[data-ui="DocTree.publicStatus"][data-id="${id}"]`)).toHaveCount(0);
       // And "/" asks to log in again, though the landing page is still set.
       await guest.goto("");
       await expect(guest).toHaveURL(/\/login/);

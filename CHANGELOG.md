@@ -12,6 +12,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 - A knowledge root can have its own favicon (PNG, ICO or SVG), set from its root page's menu by those who manage it: shown in the browser's tab on its pages and by its name in the sidebar, to everyone who can open the root page
 - The sidebar can be hidden (its button at the top right) and shown again (a button at the top left), remembered per browser
+- The sidebar marks pages that are public on the internet (readable without logging in) with a globe
 
 ### Security
 
@@ -19,7 +20,9 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
-- The sidebar folds a page's child pages into "N more pages" from 6 of them on (was 31): only the one on the way to the open page stays listed
+- The sidebar folds a page's child pages into "N more pages" from 6 of them on (was 31): the 5 most recently changed stay listed, newest first, with the one on the way to the open page
+- Opening a page no longer covers the screen with a loading overlay (it made pages show more slowly)
+- Choosing someone from the "@" menu (in a page and in a chat) puts a line break after the mention, not a space
 - Whiteboard: Shift held while dragging keeps the drag straight across or straight down (whichever way it went further); with Ctrl/⌘ also held as it ends, the drag leaves a copy there and the original stays, as Alt does
 - Extended table: Tab in an empty cell goes to the next cell (the one to the right, else the one below; nowhere from the last), and in a cell with text it nests the block under the one above, as elsewhere in the page (Shift+Tab takes it back out)
 

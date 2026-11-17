@@ -50,6 +50,7 @@ const ja: MessageShape<typeof en> = {
     collapse: "折りたたむ",
     expand: "展開する",
     locked: "ロック中",
+    public: "インターネットに公開中",
     addChild: "子ページを追加",
     addDocument: "ブロックページ",
     addWhiteboard: "ホワイトボード",
@@ -60,7 +61,6 @@ const ja: MessageShape<typeof en> = {
     removeShortcutConfirm: "「{title}」へのショートカットを削除しますか？ページそのものはそのまま残ります（ショートカットはごみ箱に移ります）。",
     removeShortcutLabel: "削除する",
     moreChildren: "ほか {count, number} ページ",
-    allChildren: "{count, number} ページ",
   },
   dialog: {
     typeToConfirm: "確認のため、次の文字を入力してください：",

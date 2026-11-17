@@ -32,7 +32,7 @@ test("replies quote the message, mentions are by name, and URLs are links", asyn
   await page.keyboard.type("確認お願いします @E2E 管");
   await expect(page.getByTestId("ChatBlock.mentionItem")).toHaveText([ACCOUNTS.admin.name]);
   await page.keyboard.press("Enter");
-  await expect(input).toHaveValue(`確認お願いします @${ACCOUNTS.admin.name} `);
+  await expect(input).toHaveValue(`確認お願いします @${ACCOUNTS.admin.name}\n`);
   await page.keyboard.press("Enter");
 
   const reply = page.getByTestId("ChatBlock.messageRow").nth(1);
@@ -139,7 +139,7 @@ test("@everyone: offered first, shown in the viewer's language, notifying everyo
   await expect(page.getByTestId("ChatBlock.mentionItem").first()).toHaveAttribute("data-id", "all");
   await expect(page.getByTestId("ChatBlock.mentionItem").first()).toContainText("全員");
   await page.keyboard.press("Enter");
-  await expect(input).toHaveValue("@全員 ");
+  await expect(input).toHaveValue("@全員\n");
   await page.keyboard.type("資料を見ておいてください");
   await page.keyboard.press("Enter");
   const mention = page.getByTestId("ChatBlock.messageRow").first().getByTestId("ChatBlock.mention");
@@ -169,7 +169,7 @@ test("@everyone: offered first, shown in the viewer's language, notifying everyo
   await expect(page.getByTestId("AppDialog.message")).toContainText("5分に1回");
   await page.getByTestId("AppDialog.closeButton").click();
   await expect(page.getByTestId("ChatBlock.messageRow")).toHaveCount(1);
-  await expect(input).toHaveValue("@全員 もう一度");
+  await expect(input).toHaveValue("@全員\nもう一度");
   await expect(page.getByTestId("PageView.status")).toHaveCount(0);
   await trashOpenPage(page);
 });

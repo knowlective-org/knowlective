@@ -101,16 +101,25 @@ test.describe("shortcuts", () => {
 test.describe("many child pages", () => {
   test.use({ storageState: authFile("editor") });
 
-  test("the sidebar lists only the open one; the rest are in the list of child pages", async ({ page }) => {
+  test("the sidebar lists the most recently changed and the open one; the rest are in the list of child pages", async ({ page }) => {
     const stamp = Date.now();
     const root = await makeRoot(`E2E 子ページが多い ${stamp}`, [{ title: `E2E 親 ${stamp}` }]);
     const parentId = root.ids[0];
     const children = await withPrisma(async (prisma) => {
       const editor = await prisma.user.findFirstOrThrow({ where: await userWhere(prisma, ACCOUNTS.editor.email), select: { id: true } });
       const ids: string[] = [];
+      // Changed one after another: the last ones are the most recent.
+      const changed = Date.now() - 60 * 60 * 1000;
       for (let i = 0; i < 31; i++) {
         const child = await prisma.page.create({
-          data: { title: `E2E 子 ${String(i).padStart(2, "0")}`, rootId: root.rootId, parentId, createdById: editor.id, sortOrder: i },
+          data: {
+            title: `E2E 子 ${String(i).padStart(2, "0")}`,
+            rootId: root.rootId,
+            parentId,
+            createdById: editor.id,
+            sortOrder: i,
+            updatedAt: new Date(changed + i * 1000),
+          },
           select: { id: true },
         });
         ids.push(child.id);
@@ -118,12 +127,19 @@ test.describe("many child pages", () => {
       return ids;
     });
     try {
-      // On a child page: only it among its 31 siblings, and how many others there are.
+      // On a child page: the 5 most recently changed of its 31 siblings
+      // (newest first), it, and how many others there are.
       await page.goto(`pages/${children[15]}`);
       const tree = page.getByTestId("DocTree").filter({ hasText: `E2E 子ページが多い ${stamp}` });
-      await expect(tree.getByTestId("DocTree.link").filter({ hasText: "E2E 子 15" })).toBeVisible();
-      await expect(tree.getByTestId("DocTree.link").filter({ hasText: /E2E 子 \d\d/ })).toHaveCount(1);
-      await expect(tree.getByTestId("DocTree.moreButton")).toHaveText("ほか 30 ページ");
+      await expect(tree.getByTestId("DocTree.link").filter({ hasText: /E2E 子 \d\d/ })).toHaveText([
+        "E2E 子 30",
+        "E2E 子 29",
+        "E2E 子 28",
+        "E2E 子 27",
+        "E2E 子 26",
+        "E2E 子 15",
+      ]);
+      await expect(tree.getByTestId("DocTree.moreButton")).toHaveText("ほか 25 ページ");
 
       // That row opens them all, filtered by title.
       await tree.getByTestId("DocTree.moreButton").click();
@@ -135,9 +151,10 @@ test.describe("many child pages", () => {
       await page.waitForURL(`**/pages/${children[30]}`);
       await expect(page.getByTestId("ChildListDialog")).toHaveCount(0);
 
-      // On the parent: none of them listed, only their number; the page menu has the list too.
+      // On the parent: the 5 most recent and the number of the others; the page menu has the list too.
       await page.goto(`pages/${parentId}`);
-      await expect(tree.getByTestId("DocTree.moreButton")).toHaveText("31 ページ");
+      await expect(tree.getByTestId("DocTree.link").filter({ hasText: /E2E 子 \d\d/ })).toHaveCount(5);
+      await expect(tree.getByTestId("DocTree.moreButton")).toHaveText("ほか 26 ページ");
       await page.getByTestId("PageMenu.button").click();
       await page.getByTestId("PageMenu.childPages").click();
       await expect(page.getByTestId("ChildListDialog.pageLink")).toHaveCount(31);

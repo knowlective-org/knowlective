@@ -51,6 +51,7 @@ export default {
     collapse: "Collapse",
     expand: "Expand",
     locked: "Locked",
+    public: "Public on the internet",
     addChild: "Add a child page",
     addDocument: "Page",
     addWhiteboard: "Whiteboard",
@@ -61,7 +62,6 @@ export default {
     removeShortcutConfirm: "Remove the shortcut to \"{title}\"? The page itself stays as it is. (The shortcut goes to the trash.)",
     removeShortcutLabel: "Remove",
     moreChildren: "{count, plural, one {# more page} other {# more pages}}",
-    allChildren: "{count, plural, one {# page} other {# pages}}",
   },
   dialog: {
     typeToConfirm: "To confirm, type the following:",
