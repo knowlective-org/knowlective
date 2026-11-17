@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-17
+
 ### Added
 
 - A knowledge root can have its own favicon (PNG, ICO or SVG), set from its root page's menu by those who manage it: shown in the browser's tab on its pages and by its name in the sidebar, to everyone who can open the root page
