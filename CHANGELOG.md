@@ -27,7 +27,13 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Security
 
-- Fixes for several security issues found in a review of the source code. Details will be published as GitHub security advisories once a release with the fixes is out; please update to it
+- Fixes for several security issues found in a review of the source code; please update to it. Published as GitHub security advisories:
+  - GHSA-v98x-r7j4-vmmc (medium): moving a page could make its trashed sub-pages readable to the mover
+  - GHSA-x8h8-c4f7-9cwr (medium): an address registered through an invitation without a recipient could be linked to that person's single sign-on, sharing the account
+  - GHSA-q24v-2p79-6p32 (medium): copying files from another page in someone else's editor could expose files of pages the copier can't open
+  - GHSA-h6fx-j7j8-ch9p (medium): search could show excerpts and names of attachments from pages the searcher can't open
+  - GHSA-f8c6-wgqc-27hr (low): concurrent requests could exceed the limit of 5 tries for a 6-digit confirmation code
+  - GHSA-p95g-7f3q-pw5j (low): many simultaneous sign-ins could slow the whole server (scrypt)
 
 ### Added
 
