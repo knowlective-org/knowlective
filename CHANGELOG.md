@@ -8,6 +8,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Security
+
+- The dependency audit ignores GHSA-fc5q-39xc-vjpf (picomatch, no fixed version yet): it's reached only through next-intl's message extraction, which isn't used
+
 ## [0.3.2] - 2026-11-17
 
 ### Added

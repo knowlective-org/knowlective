@@ -18,3 +18,10 @@ allowBuilds:
   '@swc/core': false
 patchedDependencies:
   '@blocknote/core@0.54.2': patches/@blocknote__core@0.54.2.patch
+auditConfig:
+  ignoreGhsas:
+    # picomatch ReDoS (no patched version yet). Reached only through
+    # next-intl > @parcel/watcher, used by next-intl's message extraction,
+    # which isn't turned on here; its glob patterns aren't user input either.
+    # Remove once picomatch ships a fix.
+    - GHSA-fc5q-39xc-vjpf
