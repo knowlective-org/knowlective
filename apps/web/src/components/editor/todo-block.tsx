@@ -179,6 +179,8 @@ function Todo({
         {editable ? (
           <input
             type="date"
+            // A 4-digit year: typing 20261116 goes on to the month (without a max, Chrome takes up to 6 digits).
+            max="9999-12-31"
             className={`${styles.control} ${due ? "" : styles.empty} ${overdue ? styles.overdue : ""}`}
             value={due}
             aria-label={t("due")}

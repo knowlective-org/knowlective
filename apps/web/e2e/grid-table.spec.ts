@@ -122,6 +122,191 @@ test.describe("Extended table", () => {
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
     await trashOpenPage(page);
   });
+
+  test("↓ and ↑ move to the cell below and above, in the same column; out of the table from its last and first row", async ({ page }) => {
+    await createPage(page, "E2E 拡張テーブルの上下");
+    await insertGridTable(page);
+    // The middle column, its first row (cells: 0 1 2 / 3 4 5 / 6 7 8).
+    await cellText(page, 1).click();
+    await page.keyboard.type("上");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.type("中");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.type("下");
+    await expect(cellText(page, 4)).toHaveText("中");
+    await expect(cellText(page, 7)).toHaveText("下");
+    await expect(cellText(page, 2)).toHaveText("");
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.type("!");
+    await expect(cellText(page, 1)).toHaveText("上!");
+    // From the last row: below the table.
+    await cellText(page, 7).click();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.type("表の下");
+    await expect(editorBody(page).locator('[data-content-type="paragraph"]').filter({ hasText: "表の下" })).toHaveCount(1);
+    await expect(cells(page).filter({ hasText: "表の下" })).toHaveCount(0);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("Tab in an empty cell goes to the cell to the right, else below; in a cell with text it's the block's", async ({ page }) => {
+    await createPage(page, "E2E 拡張テーブルの Tab");
+    await insertGridTable(page);
+    // (cells: 0 1 2 / 3 4 5 / 6 7 8)
+    await cellText(page, 0).click();
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("右");
+    await expect(cellText(page, 1)).toHaveText("右");
+    await expect(cellText(page, 0)).toHaveText("");
+    // The last column: the cell below.
+    await cellText(page, 2).click();
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("下");
+    await expect(cellText(page, 5)).toHaveText("下");
+    // The last cell: nowhere to go, it stays (and the focus stays in the editor).
+    await cellText(page, 8).click();
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("端");
+    await expect(cellText(page, 8)).toHaveText("端");
+    // With text: the block's own Tab — a second line nests under the first;
+    // a single line has nothing to nest under, and stays.
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("!");
+    await expect(cellText(page, 8)).toHaveText("端!");
+    await cellText(page, 4).click();
+    await page.keyboard.type("一");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("二");
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Tab");
+    const nested = cells(page).nth(4).locator('.bn-block-group [data-content-type="paragraph"]');
+    await expect(nested).toHaveText("二");
+    await expect(cellText(page, 5)).toHaveText("下");
+    // Shift+Tab takes it back out, still in the cell.
+    await page.keyboard.press("Shift+Tab");
+    await expect(nested).toHaveCount(0);
+    await expect(cells(page).nth(4).locator('[data-content-type="paragraph"]')).toHaveText(["一", "二"]);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("table data pasted into a cell fills the cells from there, adding the columns it needs", async ({ page }) => {
+    await createPage(page, "E2E 拡張テーブルへの貼り付け");
+    await insertGridTable(page);
+    // (A moment after the table went in: an undo taken within half a second
+    // of another change takes both back.)
+    await page.waitForTimeout(800);
+    // From the middle cell (row 2, column 2): 2 rows × 3 columns, so a 4th column.
+    await cellText(page, 4).click();
+    // (The caret in that cell before the paste: a key typed there lands there.)
+    await page.keyboard.type("x");
+    await expect(cellContent(page, 4)).toHaveText("x");
+    await page.keyboard.press("Backspace");
+    await expect(cellContent(page, 4)).toHaveText("");
+    await page.evaluate(() => {
+      const data = new DataTransfer();
+      data.setData("text/html", "<table><tr><td>A1</td><td>B1</td><td>C1</td></tr><tr><td>A2</td><td>B2<br>二行目</td><td>C2</td></tr></table>");
+      data.setData("text/plain", "A1\tB1\tC1\nA2\tB2\tC2");
+      document.querySelector(".bn-editor")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    });
+    await expect(cells(page)).toHaveCount(12);
+    // Rows of 4: 0-3, 4-7, 8-11.
+    await expect(cellContent(page, 5)).toHaveText("A1");
+    await expect(cellContent(page, 6)).toHaveText("B1");
+    await expect(cellContent(page, 7)).toHaveText("C1");
+    await expect(cellContent(page, 9)).toHaveText("A2");
+    await expect(cells(page).nth(10).locator('[data-content-type="paragraph"]')).toHaveText(["B2", "二行目"]);
+    await expect(cellContent(page, 11)).toHaveText("C2");
+    // Nothing else came in: no BlockNote table.
+    await expect(editorBody(page).locator('[data-content-type="table"]')).toHaveCount(0);
+    // One undo takes it back.
+    await page.keyboard.press("Control+z");
+    await expect(cells(page)).toHaveCount(9);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("the table's ⋮⋮ duplicates and deletes it", async ({ page }) => {
+    await createPage(page, "E2E 拡張テーブルのハンドル");
+    await insertGridTable(page);
+    await cellText(page, 0).click();
+    await page.keyboard.type("元の表");
+    const tables = page.getByTestId("GridTable");
+    await tables.first().hover();
+    await tables.first().getByTestId("GridTable.handle").click();
+    await page.getByTestId("GridTable.duplicateItem").click();
+    await expect(tables).toHaveCount(2);
+    await expect(tables.nth(1)).toContainText("元の表");
+    await tables.nth(1).hover();
+    await tables.nth(1).getByTestId("GridTable.handle").click();
+    await page.getByTestId("GridTable.deleteItem").click();
+    await page.getByTestId("AppDialog.confirmButton").click();
+    await expect(tables).toHaveCount(1);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
+  test("a column is selected with its button: copied, cleared, styled, moved and deleted", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await createPage(page, "E2E 拡張テーブルの列");
+    await insertGridTable(page);
+    // The middle column: 上 / 中 / 下 (cells 1, 4, 7).
+    for (const [i, text] of [[1, "上"], [4, "中"], [7, "下"], [0, "左"]] as const) {
+      await cellText(page, i).click();
+      await page.keyboard.type(text);
+    }
+    const columnButton = (col: number) => cells(page).nth(col).getByTestId("GridTable.columnButton");
+    await cells(page).nth(1).hover();
+    await columnButton(1).click();
+    await expect(page.locator(".kn-grid-col-selected")).toHaveCount(3);
+    // Copy (from the menu): the column's lines.
+    await page.getByTestId("GridTable.copyColumnItem").click();
+    // (Windows' clipboard gives the lines back with CRLF.)
+    await expect.poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, "\n"))).toBe("上\n中\n下");
+
+    // Its text in red.
+    await cells(page).nth(1).hover();
+    await columnButton(1).click();
+    await page.getByTestId("GridTable.columnTextColorItem").click();
+    await page.getByTestId("GridTable.columnColorItem").filter({ hasText: "赤" }).click();
+    for (const i of [1, 4, 7]) await expect(cells(page).nth(i).locator("[data-text-color]")).toHaveAttribute("data-text-color", "red");
+
+    // Moved left (before the first column).
+    await cells(page).nth(1).hover();
+    await columnButton(1).click();
+    await page.getByTestId("GridTable.moveColumnLeftItem").click();
+    await expect(cellContent(page, 0)).toHaveText("上");
+    await expect(cellContent(page, 1)).toHaveText("左");
+    await expect(cellContent(page, 3)).toHaveText("中");
+
+    // Dragged back to the middle.
+    await cells(page).nth(0).hover();
+    const from = (await columnButton(0).boundingBox())!;
+    const to = (await cells(page).nth(1).boundingBox())!;
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, from.y + from.height / 2, { steps: 10 });
+    await page.mouse.up();
+    await expect(cellContent(page, 0)).toHaveText("左");
+    await expect(cellContent(page, 1)).toHaveText("上");
+
+    // Cleared with Delete while selected (the menu closed with Esc).
+    await cells(page).nth(1).hover();
+    await columnButton(1).click();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Delete");
+    for (const i of [1, 4, 7]) await expect(cellContent(page, i)).toHaveText("");
+    await expect(cellContent(page, 0)).toHaveText("左");
+
+    // Deleted.
+    await cells(page).nth(1).hover();
+    await columnButton(1).click();
+    await page.getByTestId("GridTable.deleteColumnItem").click();
+    await expect(cells(page)).toHaveCount(6);
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
 });
 
 test("a summary row adds up its columns: sums, counts and conditions (COUNTIF, SUMIF)", async ({ page }) => {

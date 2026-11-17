@@ -499,6 +499,8 @@ function Grid({
                   // The same as dragging it onto a day, without dragging.
                   <input
                     type="date"
+                    // A 4-digit year: typing 20261116 goes on to the month (without a max, Chrome takes up to 6 digits).
+                    max="9999-12-31"
                     className={styles.dateInput}
                     aria-label={t("setDate", { title: displayTitle(row.title) })}
                     onChange={(e) => e.target.value && void onMove(row, e.target.value)}

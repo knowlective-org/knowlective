@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "license": "AGPL-3.0-only",
   "scripts": {
@@ -27,7 +27,7 @@
     "@hocuspocus/provider": "^4.6.0",
     "@hocuspocus/server": "^4.6.0",
     "@huggingface/transformers": "4.3.1",
-    "@next/env": "16.4.3",
+    "@next/env": "16.4.6",
     "@prettier/plugin-php": "^0.26.0",
     "@prettier/plugin-pug": "^3.6.0",
     "@prettier/plugin-xml": "^3.4.2",
@@ -48,7 +48,7 @@
     "katex": "^0.19.1",
     "mammoth": "^1.13.0",
     "mermaid": "^12.3.0",
-    "next": "16.4.3",
+    "next": "16.4.6",
     "next-intl": "4.14.9",
     "nodemailer": "^10.2.1",
     "openid-client": "^6.8.8",
@@ -75,7 +75,7 @@
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.6",
     "typescript": "^5"
   },
   "packageManager": "pnpm@11.22.0"

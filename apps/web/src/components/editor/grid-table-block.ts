@@ -1,9 +1,14 @@
 import { UniqueID, createBlockSpecFromTiptapNode, createExtension, type BlockNoteEditor } from "@blocknote/core";
+import { SideMenuExtension } from "@blocknote/core/extensions";
 import { Node } from "@tiptap/core";
-import type { Node as PMNode, Schema } from "@tiptap/pm/model";
+import { Fragment, type Node as PMNode, type Schema, Slice } from "@tiptap/pm/model";
+import { ReplaceAroundStep } from "@tiptap/pm/transform";
 import { type EditorState, Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { EditorView, NodeView, ViewMutationRecord } from "@tiptap/pm/view";
 import { showConfirm } from "../dialog";
+import { showNotice } from "../notice";
+import { tableFromTsv, trimTable } from "./grid-paste";
+import { clearColumn, columnPlugin, copyColumn, moveColumn, selectColumn, selectedColumn, styleColumn } from "./grid-columns";
 import {
   GRID_TABLE_NODES,
   GRID_TABLE_PROPS,
@@ -37,6 +42,15 @@ import {
 
 type GridText = {
   toolbar: string;
+  pasteCut: string;
+  handle: string;
+  duplicateTable: string;
+  columnMenu: string;
+  copyColumn: string;
+  clearColumn: string;
+  moveColumnLeft: string;
+  moveColumnRight: string;
+  alignment: string;
   headerRow: string;
   headerColumn: string;
   addRow: string;
@@ -64,7 +78,15 @@ type GridText = {
   summaryApply: string;
 };
 
-type Editor = Pick<BlockNoteEditor, "dictionary" | "isEditable">;
+// The parts of BlockNote's own dictionary the column menu uses (its color and
+// alignment names, as in its toolbar).
+type BlockNoteText = {
+  color_picker: { text_title: string; background_title: string; colors: Record<(typeof BLOCKNOTE_COLORS)[number], string> };
+  formatting_toolbar: Record<"align_left" | "align_center" | "align_right", { tooltip: string }>;
+};
+const BLOCKNOTE_COLORS = ["default", "gray", "brown", "red", "orange", "yellow", "green", "blue", "purple", "pink"] as const;
+
+type Editor = Pick<BlockNoteEditor, "dictionary" | "isEditable"> & { getExtension?: BlockNoteEditor["getExtension"] };
 
 // Our text, put in BlockNote's dictionary by blockNoteDictionary().
 const gridText = (editor: Editor) => (editor.dictionary as unknown as { knowlective_grid: GridText }).knowlective_grid;
@@ -184,6 +206,115 @@ function deleteColumn(view: EditorView, tablePos: number, at: number) {
   view.dispatch(tr);
 }
 
+// The table data on the clipboard, if any: an HTML table (what spreadsheets
+// and other editors put there) or tab-separated text.
+function clipboardTable(data: DataTransfer): string[][] | null {
+  const html = data.getData("text/html");
+  if (html && /<table[\s>]/i.test(html)) {
+    const table = new DOMParser().parseFromString(html, "text/html").querySelector("table");
+    if (table) {
+      const rows = [...table.querySelectorAll("tr")].map((tr) =>
+        [...tr.querySelectorAll("th, td")].map((cell) => {
+          // Line breaks and paragraphs as lines.
+          cell.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+          cell.querySelectorAll("p, div, li").forEach((block) => block.append("\n"));
+          return (cell.textContent ?? "").replace(/\u00a0/g, " ").replace(/\n+$/, "").trim();
+        }),
+      );
+      const trimmed = trimTable(rows);
+      if (trimmed) return trimmed;
+    }
+  }
+  return tableFromTsv(data.getData("text/plain"));
+}
+
+// A cell holding `text`: a paragraph per line (an empty cell: one empty paragraph).
+function cellWithText(schema: Schema, id: string, text: string): PMNode {
+  const lines = text.split("\n");
+  return schema.nodes.gridCell.create(
+    { id },
+    lines.map((line) =>
+      schema.nodes.blockContainer.create({ id: newId() }, schema.nodes.paragraph.create(null, line ? schema.text(line) : null)),
+    ),
+  );
+}
+
+// Table data pasted with the caret in a cell (collaborative-editor.tsx's
+// paste handler): its cells filled from that cell rightward and downward,
+// their contents replaced, with the rows and columns added that it needs, up
+// to the table's limits (what's beyond them is left out, and said so). One
+// change, undone at once. False when the caret isn't in a cell, or there's
+// no table data on the clipboard (the paste goes on as usual).
+export function pasteIntoGrid(editor: Editor & { prosemirrorView: EditorView | undefined }, data: DataTransfer | null): boolean {
+  const view = editor.prosemirrorView;
+  if (!view || !data || !editor.isEditable) return false;
+  const { state } = view;
+  const { $from } = state.selection;
+  let cellDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type.name === "gridCell") {
+      cellDepth = d;
+      break;
+    }
+  }
+  if (cellDepth < 2) return false;
+  const pasted = clipboardTable(data);
+  if (!pasted) return false;
+
+  const tablePos = $from.before(cellDepth - 2);
+  const table = $from.node(cellDepth - 2);
+  const row0 = $from.index(cellDepth - 2);
+  const col0 = $from.index(cellDepth - 1);
+  const columns = columnCount(table);
+  const width = Math.max(...pasted.map((r) => r.length));
+  const newRows = Math.min(MAX_GRID_ROWS, Math.max(table.childCount, row0 + pasted.length));
+  const newColumns = Math.min(MAX_GRID_COLUMNS, Math.max(columns, col0 + width));
+  const cut = row0 + pasted.length > newRows || col0 + width > newColumns;
+
+  const { schema } = state;
+  const rows: PMNode[] = [];
+  for (let r = 0; r < newRows; r++) {
+    const old = r < table.childCount ? table.child(r) : null;
+    const cells: PMNode[] = [];
+    for (let c = 0; c < newColumns; c++) {
+      const oldCell = old && c < old.childCount ? old.child(c) : null;
+      const text = r >= row0 && c >= col0 ? pasted[r - row0]?.[c - col0] : undefined;
+      if (text !== undefined) cells.push(cellWithText(schema, oldCell?.attrs.id ?? newId(), text));
+      else cells.push(oldCell ?? emptyCell(schema));
+    }
+    rows.push(schema.nodes.gridRow.create({ id: old?.attrs.id ?? newId() }, cells));
+  }
+  const widths = gridWidths(table.attrs.widths, columns);
+  const average = widths.reduce((a, b) => a + b, 0) / widths.length;
+  while (widths.length < newColumns) widths.push(average);
+  const next = schema.nodes.gridTable.create(
+    { ...table.attrs, widths: JSON.stringify(widths.map((w) => Math.round(w * 100) / 100)) },
+    rows,
+  );
+  const tr = state.tr.replaceWith(tablePos, tablePos + table.nodeSize, next);
+  // The caret at the end of the last cell filled.
+  const lastRow = Math.min(newRows, row0 + pasted.length) - 1;
+  const lastCol = Math.min(newColumns, col0 + width) - 1;
+  const rowPos = childPositions(next, tablePos)[lastRow];
+  const cellPos = childPositions(next.child(lastRow), rowPos)[lastCol];
+  tr.setSelection(TextSelection.near(tr.doc.resolve(cellPos + next.child(lastRow).child(lastCol).nodeSize - 1), -1));
+  view.dispatch(tr.scrollIntoView());
+  if (cut) showNotice(gridText(editor).pasteCut);
+  return true;
+}
+
+// A copy right after it (its ids made new by the structure plugin and
+// BlockNote's, as for a pasted copy).
+function duplicateTable(view: EditorView, tablePos: number) {
+  const table = tableAt(view.state, tablePos);
+  if (!table) return;
+  const at = tablePos + table.nodeSize;
+  const tr = view.state.tr.insert(at, table);
+  tr.setSelection(TextSelection.near(tr.doc.resolve(at + 1)));
+  view.dispatch(tr.scrollIntoView());
+  view.focus();
+}
+
 // In its place, an empty paragraph (the page keeps a block there).
 function deleteTable(view: EditorView, tablePos: number) {
   const { state } = view;
@@ -273,14 +404,145 @@ function directlyInCell(state: EditorState): boolean {
   return $from.node(depth - 2).type.name === "gridCell";
 }
 
+// ↓ on the last line of a cell goes to the cell below (↑ on the first line,
+// to the cell above), in the same column: the browser would go on to the
+// next cell in the document, the one to the right. From the last row it
+// goes below the table, from the first row above it.
+function moveVertically(view: EditorView | undefined, dir: "up" | "down"): boolean {
+  if (!view) return false;
+  const { state } = view;
+  const { $from, empty } = state.selection;
+  if (!empty) return false;
+  let cellDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type.name === "gridCell") {
+      cellDepth = d;
+      break;
+    }
+  }
+  if (cellDepth < 2 || !view.endOfTextblock(dir)) return false;
+  // Only from the cell's first (↑) or last (↓) textblock.
+  const cell = $from.node(cellDepth);
+  const cellStart = $from.start(cellDepth);
+  let edge = -1;
+  cell.descendants((node, pos) => {
+    if (node.isTextblock && (dir === "down" || edge < 0)) edge = cellStart + pos;
+    return !node.isTextblock;
+  });
+  if (edge !== $from.before($from.depth)) return false;
+
+  const rowDepth = cellDepth - 1;
+  const tableDepth = cellDepth - 2;
+  const table = $from.node(tableDepth);
+  const rowIndex = $from.index(tableDepth);
+  const column = $from.index(rowDepth);
+  const next = rowIndex + (dir === "down" ? 1 : -1);
+  let selection;
+  if (next < 0 || next >= table.childCount) {
+    // Out of the table: the nearest line above or below it; a new empty one
+    // when there's none (the table first or last on the page).
+    const at = dir === "down" ? $from.after(tableDepth) : $from.before(tableDepth);
+    const found = TextSelection.findFrom(state.doc.resolve(at), dir === "down" ? 1 : -1, true);
+    if (found) {
+      view.dispatch(state.tr.setSelection(found).scrollIntoView());
+      return true;
+    }
+    const { schema } = state;
+    const tr = state.tr.insert(at, schema.nodes.blockContainer.create({ id: newId() }, schema.nodes.paragraph.create()));
+    view.dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(at + 2))).scrollIntoView());
+    return true;
+  } else {
+    let pos = $from.start(tableDepth);
+    for (let r = 0; r < next; r++) pos += table.child(r).nodeSize;
+    const row = table.child(next);
+    pos += 1;
+    const target = Math.min(column, row.childCount - 1);
+    for (let c = 0; c < target; c++) pos += row.child(c).nodeSize;
+    // Into the cell: its first line going down, its last going up.
+    const into = dir === "down" ? pos + 1 : pos + row.child(target).nodeSize - 1;
+    selection = TextSelection.near(state.doc.resolve(into), dir === "down" ? 1 : -1);
+  }
+  view.dispatch(state.tr.setSelection(selection).scrollIntoView());
+  return true;
+}
+
+// Tab in an empty cell (one empty paragraph, nothing else) goes to the next
+// cell: the one to the right, else the one below (same column). With
+// neither, it does nothing. In a cell with anything in it, Tab is the
+// block's own (nesting it under the block above).
+function tabToNextCell(view: EditorView | undefined): boolean {
+  if (!view) return false;
+  const { state } = view;
+  const { $from } = state.selection;
+  let cellDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type.name === "gridCell") {
+      cellDepth = d;
+      break;
+    }
+  }
+  if (cellDepth < 2) return false;
+  const cell = $from.node(cellDepth);
+  const only = cell.childCount === 1 ? cell.child(0) : null;
+  const empty =
+    only?.type.name === "blockContainer" &&
+    only.childCount === 1 &&
+    only.child(0).type.name === "paragraph" &&
+    only.child(0).content.size === 0;
+  if (!empty) return nestInCell(view);
+
+  const table = $from.node(cellDepth - 2);
+  const rowIndex = $from.index(cellDepth - 2);
+  const column = $from.index(cellDepth - 1);
+  const row = table.child(rowIndex);
+  let target: { row: number; col: number } | null = null;
+  if (column + 1 < row.childCount) target = { row: rowIndex, col: column + 1 };
+  else if (rowIndex + 1 < table.childCount && column < table.child(rowIndex + 1).childCount) target = { row: rowIndex + 1, col: column };
+  if (!target) return true;
+
+  let pos = $from.start(cellDepth - 2);
+  for (let r = 0; r < target.row; r++) pos += table.child(r).nodeSize;
+  pos += 1;
+  const targetRow = table.child(target.row);
+  for (let c = 0; c < target.col; c++) pos += targetRow.child(c).nodeSize;
+  view.dispatch(state.tr.setSelection(TextSelection.near(state.doc.resolve(pos + 1), 1)).scrollIntoView());
+  return true;
+}
+
+// Tab on a block right in a cell nests it under the block above, as
+// BlockNote does in the page and in columns (its nestBlock only looks for a
+// blockGroup or a column around the block, not a cell). Deeper blocks, code
+// blocks and the first block in a cell are left to BlockNote (which does
+// nothing with them, or what it does elsewhere).
+function nestInCell(view: EditorView): boolean {
+  const { state } = view;
+  const { $from, $to } = state.selection;
+  if (!directlyInCell(state)) return false;
+  const range = $from.blockRange($to, (node) => node.type.name === "gridCell");
+  if (!range || range.startIndex === 0) return false;
+  const { blockContainer, blockGroup } = state.schema.nodes;
+  const before = range.parent.child(range.startIndex - 1);
+  if (before.type !== blockContainer) return false;
+  // Into the block above's children (its blockGroup, made when it has none).
+  const hasGroup = before.lastChild?.type === blockGroup;
+  const inner = Fragment.from(hasGroup ? blockContainer.create() : null);
+  const slice = new Slice(Fragment.from(blockContainer.create(null, Fragment.from(blockGroup.create(null, inner)))), hasGroup ? 3 : 1, 0);
+  const { start, end } = range;
+  view.dispatch(state.tr.step(new ReplaceAroundStep(start - (hasGroup ? 3 : 1), end, start, end, slice, 1, true)).scrollIntoView());
+  return true;
+}
+
 const gridExtension = createExtension({
   key: "knowlective-grid-table",
   keyboardShortcuts: {
     Backspace: ({ editor }) => atCellEdge(editor.prosemirrorState, "start"),
     Delete: ({ editor }) => atCellEdge(editor.prosemirrorState, "end"),
+    Tab: ({ editor }) => tabToNextCell(editor.prosemirrorView),
     "Shift-Tab": ({ editor }) => directlyInCell(editor.prosemirrorState),
+    ArrowDown: ({ editor }) => moveVertically(editor.prosemirrorView, "down"),
+    ArrowUp: ({ editor }) => moveVertically(editor.prosemirrorView, "up"),
   },
-  prosemirrorPlugins: [gridStructurePlugin()],
+  prosemirrorPlugins: [gridStructurePlugin(), columnPlugin(() => newId())],
 });
 
 // --- Controls ---------------------------------------------------------------
@@ -458,6 +720,7 @@ class GridTableView implements NodeView {
   contentDOM: HTMLElement;
   private scroll: HTMLElement;
   private bar: HTMLElement | null = null;
+  private handle: HTMLElement | null = null;
   private headerRow: HTMLInputElement | null = null;
   private headerColumn: HTMLInputElement | null = null;
   private summaryToggle: HTMLInputElement | null = null;
@@ -480,7 +743,7 @@ class GridTableView implements NodeView {
     this.dom.dataset.ui = "GridTable";
     this.text = gridText(editor);
     this.editable = editor.isEditable;
-    if (editor.isEditable) this.dom.append(this.toolbar(this.text));
+    if (editor.isEditable) this.dom.append(this.makeHandle(editor), this.toolbar(this.text));
     this.scroll = document.createElement("div");
     this.scroll.className = "kn-grid-scroll";
     this.contentDOM = document.createElement("div");
@@ -494,6 +757,50 @@ class GridTableView implements NodeView {
     this.scroll.append(this.contentDOM, this.summaryRow);
     this.dom.append(this.scroll);
     this.apply(node);
+  }
+
+  // The table's ⋮⋮, in the margin on its left like other blocks' (BlockNote's
+  // own is only for its block containers): dragged, it moves the table as
+  // BlockNote moves a block (its side menu's drag start); clicked, a menu to
+  // duplicate or delete it.
+  private makeHandle(editor: Editor): HTMLElement {
+    const text = this.text;
+    const handle = document.createElement("button");
+    handle.type = "button";
+    handle.className = "kn-grid-handle";
+    handle.contentEditable = "false";
+    handle.draggable = true;
+    handle.dataset.ui = "GridTable.handle";
+    handle.textContent = "⠿";
+    handle.title = text.handle;
+    handle.setAttribute("aria-label", text.handle);
+    handle.setAttribute("aria-haspopup", "menu");
+    const sideMenu = () => editor.getExtension?.(SideMenuExtension);
+    handle.addEventListener("dragstart", (event) => {
+      const id = this.node.attrs.id;
+      if (!id) return;
+      sideMenu()?.blockDragStart(event, { id } as never);
+    });
+    handle.addEventListener("dragend", () => sideMenu()?.blockDragEnd());
+    handle.addEventListener("click", (event) => {
+      event.preventDefault();
+      const pos = this.getPos();
+      if (pos === undefined) return;
+      showCellMenu(handle, [
+        { label: text.duplicateTable, ui: "GridTable.duplicateItem", run: () => duplicateTable(this.view, pos) },
+        {
+          label: text.deleteTable,
+          ui: "GridTable.deleteItem",
+          run: async () => {
+            if (!(await showConfirm(text.deleteTableConfirm, { danger: true }))) return;
+            const now = this.getPos();
+            if (now !== undefined) deleteTable(this.view, now);
+          },
+        },
+      ]);
+    });
+    this.handle = handle;
+    return handle;
   }
 
   private toolbar(text: GridText): HTMLElement {
@@ -651,12 +958,13 @@ class GridTableView implements NodeView {
 
   stopEvent(event: Event): boolean {
     const target = event.target as globalThis.Node;
-    return !!this.bar?.contains(target) || this.summaryRow.contains(target);
+    return !!this.bar?.contains(target) || !!this.handle?.contains(target) || this.summaryRow.contains(target);
   }
 
   ignoreMutation(mutation: ViewMutationRecord): boolean {
     if (mutation.type === "selection") return false;
     if (this.bar?.contains(mutation.target)) return true;
+    if (this.handle?.contains(mutation.target)) return true;
     if (this.summaryRow.contains(mutation.target)) return true;
     return (
       mutation.type === "attributes" &&
@@ -689,7 +997,7 @@ class GridCellView implements NodeView {
     this.contentDOM = document.createElement("div");
     this.contentDOM.className = "kn-grid-cell-content";
     this.dom.append(this.contentDOM);
-    if (editor.isEditable) this.dom.append(this.makeControls(gridText(editor)));
+    if (editor.isEditable) this.dom.append(this.makeControls(gridText(editor), editor.dictionary as unknown as BlockNoteText));
   }
 
   private place() {
@@ -697,10 +1005,11 @@ class GridCellView implements NodeView {
     return pos === undefined ? null : cellPlace(this.view.state, pos);
   }
 
-  private makeControls(text: GridText): HTMLElement {
+  private makeControls(text: GridText, bn: BlockNoteText): HTMLElement {
     const controls = document.createElement("div");
     controls.className = "kn-grid-cell-controls";
     controls.contentEditable = "false";
+    controls.append(this.makeColumnButton(text, bn));
     const menuButton = button("⋯", "GridTable.cellMenuButton", () => {
       const place = this.place();
       if (!place) return;
@@ -729,6 +1038,106 @@ class GridCellView implements NodeView {
     controls.append(menuButton, handle);
     this.controls = controls;
     return controls;
+  }
+
+  // The column's button, at the top of its first row's cell (shown there
+  // only, by CSS): clicked, it selects the column (grid-columns.ts) and opens
+  // its menu; dragged sideways, it moves the column where it's let go.
+  private makeColumnButton(text: GridText, bn: BlockNoteText): HTMLElement {
+    const colButton = document.createElement("button");
+    colButton.type = "button";
+    colButton.className = "kn-grid-col-button";
+    colButton.dataset.ui = "GridTable.columnButton";
+    colButton.textContent = "⋯";
+    colButton.title = text.columnMenu;
+    colButton.setAttribute("aria-label", text.columnMenu);
+    colButton.setAttribute("aria-haspopup", "menu");
+    colButton.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const place = this.place();
+      if (!place) return;
+      const startX = event.clientX;
+      let target: number | null = null;
+      const body = this.dom.closest(".kn-grid-body");
+      const headCells = () =>
+        Array.from(body?.firstElementChild?.children ?? []).filter((c): c is HTMLElement => c.classList.contains("kn-grid-cell"));
+      const mark = (index: number | null) =>
+        headCells().forEach((cell, i) => {
+          if (i === index && index !== place.col) cell.dataset.colDrop = index < place.col ? "before" : "after";
+          else delete cell.dataset.colDrop;
+        });
+      colButton.setPointerCapture(event.pointerId);
+      const move = (e: PointerEvent) => {
+        if (target === null && Math.abs(e.clientX - startX) < 6) return;
+        // The column the pointer is over.
+        const cells = headCells();
+        const over = cells.findIndex((cell) => {
+          const r = cell.getBoundingClientRect();
+          return e.clientX >= r.left && e.clientX < r.right;
+        });
+        target = over >= 0 ? over : e.clientX < startX ? 0 : cells.length - 1;
+        mark(target);
+      };
+      const up = () => {
+        colButton.removeEventListener("pointermove", move);
+        colButton.removeEventListener("pointerup", up);
+        colButton.removeEventListener("pointercancel", up);
+        mark(null);
+        if (target !== null) {
+          if (target !== place.col) moveColumn(this.view, place.tablePos, place.col, target);
+          return;
+        }
+        this.openColumnMenu(colButton, text, bn);
+      };
+      colButton.addEventListener("pointermove", move);
+      colButton.addEventListener("pointerup", up);
+      colButton.addEventListener("pointercancel", up);
+    });
+    return colButton;
+  }
+
+  private openColumnMenu(anchor: HTMLElement, text: GridText, bn: BlockNoteText) {
+    const place = this.place();
+    const table = place && tableAt(this.view.state, place.tablePos);
+    if (!place || !table) return;
+    const view = this.view;
+    const column = { tablePos: place.tablePos, col: place.col };
+    selectColumn(view, column);
+    // Each runs on the column as it is then (the table may have changed).
+    const current = () => selectedColumn(view.state) ?? column;
+    const colors = (attr: "textColor" | "backgroundColor") => () =>
+      showCellMenu(
+        anchor,
+        BLOCKNOTE_COLORS.map((color) => ({
+          label: bn.color_picker.colors[color],
+          ui: "GridTable.columnColorItem",
+          run: () => styleColumn(view, current(), attr, color),
+        })),
+      );
+    const columns = columnCount(table);
+    showCellMenu(anchor, [
+      { label: text.copyColumn, ui: "GridTable.copyColumnItem", run: () => void copyColumn(view, current()) },
+      { label: text.clearColumn, ui: "GridTable.clearColumnItem", run: () => clearColumn(view, current(), newId) },
+      { label: text.moveColumnLeft, ui: "GridTable.moveColumnLeftItem", run: () => moveColumn(view, current().tablePos, current().col, current().col - 1), disabled: place.col === 0 },
+      { label: text.moveColumnRight, ui: "GridTable.moveColumnRightItem", run: () => moveColumn(view, current().tablePos, current().col, current().col + 1), disabled: place.col >= columns - 1 },
+      { label: `${bn.color_picker.text_title}…`, ui: "GridTable.columnTextColorItem", run: colors("textColor") },
+      { label: `${bn.color_picker.background_title}…`, ui: "GridTable.columnBackgroundItem", run: colors("backgroundColor") },
+      {
+        label: `${text.alignment}…`,
+        ui: "GridTable.columnAlignmentItem",
+        run: () =>
+          showCellMenu(
+            anchor,
+            (["left", "center", "right"] as const).map((align) => ({
+              label: bn.formatting_toolbar[`align_${align}`].tooltip,
+              ui: "GridTable.columnAlignItem",
+              run: () => styleColumn(view, current(), "textAlignment", align),
+            })),
+          ),
+      },
+      { label: text.deleteColumn, ui: "GridTable.deleteColumnItem", run: () => deleteColumn(view, current().tablePos, current().col), disabled: columns <= 1 },
+    ]);
   }
 
   // Dragging the cell's right edge: this column and the next one share

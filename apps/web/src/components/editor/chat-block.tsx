@@ -226,11 +226,21 @@ function Chat({
             }}
             onReply={
               data.canPost
-                ? (reply, quoted) => {
+                ? (reply) => {
                     setEditingId(null);
                     setCreatingPoll(false);
                     setReplyTo(reply);
-                    if (quoted) composer.current?.quote(quoted);
+                  }
+                : undefined
+            }
+            // Selected text, quoted in the new message: not a reply (a reply
+            // already started, to any message, stays as it is).
+            onQuote={
+              data.canPost
+                ? (quoted) => {
+                    setEditingId(null);
+                    setCreatingPoll(false);
+                    composer.current?.quote(quoted);
                   }
                 : undefined
             }
@@ -304,19 +314,21 @@ function Log({
   onEdited,
   onEdit,
   onReply,
+  onQuote,
 }: {
   data: ChatData;
   // The message being changed in the message box.
   editingId: string | null;
   onEdited: () => Promise<void>;
   onEdit: (id: string) => void;
-  // `quoted`: part of the message's text the viewer selected, to quote.
-  onReply?: (reply: Reply, quoted?: string) => void;
+  onReply?: (reply: Reply) => void;
+  // Part of a message's text the viewer selected, to quote in the new message.
+  onQuote?: (quoted: string) => void;
 }) {
   const t = useTranslations("editor.chat");
   const ref = useRef<HTMLDivElement>(null);
   const last = data.messages.at(-1)?.id;
-  const selection = useMessageSelection(ref, !!onReply);
+  const selection = useMessageSelection(ref, !!onQuote);
   // The newest message in view whenever one arrives.
   useLayoutEffect(() => {
     if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
@@ -339,13 +351,13 @@ function Log({
   };
   const quoteSelection = () => {
     const m = selection && data.messages.find((x) => x.id === selection.messageId && !x.deleted);
-    if (!m || !onReply) return;
+    if (!m || !onQuote) return;
     window.getSelection()?.removeAllRanges();
-    onReply({ id: m.id, author: m.author, excerpt: oneLine(selection.text) }, selection.text);
+    onQuote(selection.text);
   };
   return (
     <div className={styles.log} ref={ref} role="log" aria-label={t("label")} tabIndex={-1} data-ui="ChatBlock.log">
-      {selection && onReply && (
+      {selection && onQuote && (
         <button
           type="button"
           ref={keepSelection}
@@ -378,10 +390,6 @@ function Log({
     </div>
   );
 }
-
-// A message's text as one line, without its formatting, mentions by name
-// (for the reply being written).
-const oneLine = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 80);
 
 // Text selected inside one message's bubble in the log (`ref`): which
 // message, the text, and where to show the "Quote" button (over the

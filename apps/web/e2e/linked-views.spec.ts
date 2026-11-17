@@ -28,13 +28,20 @@ async function sourcePage(page: Page) {
 
 // Inserts a linked view from the slash menu and picks `sourceId` in the
 // picker that opens with it.
-async function insertLinked(page: Page, item: string, sourceId: string) {
+// `byUrl`: the page chosen by pasting its address in the filter.
+async function insertLinked(page: Page, item: string, sourceId: string, byUrl = false) {
   await editorBody(page).click();
   await page.keyboard.press("Control+End");
   await page.keyboard.type(`/${item}`);
   await page.getByRole("option", { name: new RegExp(`^${item}`) }).click();
   await expect(page.getByTestId("PagePickerDialog")).toBeVisible();
-  await page.getByTestId("PagePickerDialog.pageSelect").selectOption(sourceId);
+  if (byUrl) {
+    // The page's full address (this page's, with the other page's id).
+    await page.getByTestId("PagePickerDialog.filterInput").fill(page.url().replace(/\/pages\/[^/?#]+.*$/, `/pages/${sourceId}?x=1`));
+    await expect(page.getByTestId("PagePickerDialog.pageSelect")).toHaveValue(sourceId);
+  } else {
+    await page.getByTestId("PagePickerDialog.pageSelect").selectOption(sourceId);
+  }
   await page.getByTestId("PagePickerDialog.submitButton").click();
   await expect(page.locator(`[data-ui="LinkedSource.sourceLink"][data-id="${sourceId}"]`)).toBeVisible();
 }
@@ -107,7 +114,7 @@ test.describe("Linked views", () => {
 
     await createPage(page, "E2E リンクボード");
     const linkingUrl = page.url();
-    await insertLinked(page, "リンクボード", source.id);
+    await insertLinked(page, "リンクボード", source.id, true);
     // No select column on the source: none is made from here.
     await expect(page.getByTestId("ChildBoardBlock")).toContainText("列はそのページで追加します");
     await expect(page.getByTestId("ChildBoardBlock.createStatusButton")).toHaveCount(0);

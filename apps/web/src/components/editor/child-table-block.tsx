@@ -60,6 +60,10 @@ import { LinkedSource, LinkedUnsetNote, useLinkedPlaceholder, useLinkedView } fr
 
 export type Sort = { key: string; dir: "asc" | "desc" } | null;
 
+// The latest date a date field takes: with a 4-digit year, typing 20261116
+// goes on to the month (without a max, Chrome takes up to 6 digits of year).
+const DATE_MAX = "9999-12-31";
+
 export const childTableBlock = createReactBlockSpec(
   BLOCK_CONFIGS.childTable,
   {
@@ -667,6 +671,7 @@ export function FilterPanel({
               <span className={styles.row}>
                 <input
                   type="date"
+                  max={DATE_MAX}
                   className={styles.input}
                   value={range.from}
                   aria-label={t("filterFrom", { name: column.label })}
@@ -677,6 +682,7 @@ export function FilterPanel({
                 〜
                 <input
                   type="date"
+                  max={DATE_MAX}
                   className={styles.input}
                   value={range.to}
                   aria-label={t("filterTo", { name: column.label })}
@@ -1170,7 +1176,7 @@ export function Cell({
 
   if (column.type === "DATE") {
     if (!editable) return <>{value}</>;
-    return <input type="date" className={styles.cellInput} value={value} onChange={(e) => onSave(e.target.value)} />;
+    return <input type="date" max={DATE_MAX} className={styles.cellInput} value={value} onChange={(e) => onSave(e.target.value)} />;
   }
 
   if (column.type === "MASKED") {
