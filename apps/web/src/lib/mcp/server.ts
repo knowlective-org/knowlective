@@ -2,6 +2,7 @@ import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
 import { getBuildInfo } from "@/lib/build-info";
 import { type McpCaller, authenticateMcp } from "./auth";
 import { registerTools } from "./tools";
+import { protectedResourceMetadataUrl } from "@/lib/oauth/metadata";
 
 // The MCP server (Model Context Protocol), served at /api/mcp by a Route
 // Handler: Streamable HTTP without sessions — every request gets a fresh
@@ -35,7 +36,11 @@ export async function handleMcp(request: Request): Promise<Response> {
   const caller = await authenticateMcp(request);
   if ("status" in caller) {
     const headers: Record<string, string> = { "Cache-Control": "no-store" };
-    if (caller.status === 401) headers["WWW-Authenticate"] = `Bearer error="${caller.code === "missing_token" ? "invalid_request" : "invalid_token"}"`;
+    // Where to find how to connect (RFC 9728): the client starts OAuth from it.
+    if (caller.status === 401) {
+      const error = caller.code === "missing_token" ? "" : ', error="invalid_token"';
+      headers["WWW-Authenticate"] = `Bearer resource_metadata="${await protectedResourceMetadataUrl()}", scope="read write"${error}`;
+    }
     if (caller.retryAfter) headers["Retry-After"] = String(caller.retryAfter);
     return Response.json({ error: caller.code, error_description: caller.message }, { status: caller.status, headers });
   }

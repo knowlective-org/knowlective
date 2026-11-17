@@ -16,6 +16,8 @@ import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { LocaleForm } from "./locale-form";
 import { ApiKeySection } from "./api-key-section";
+import { McpSection } from "./mcp-section";
+import { listGrants, oauthAllowedFor } from "@/lib/oauth/tokens";
 import { PasskeySection } from "./passkey-section";
 import { ProfileSection } from "./profile-section";
 import { MAX_NAME_LENGTH, profileRules } from "@/lib/auth/profile";
@@ -42,13 +44,15 @@ export default async function AccountPage() {
     passkeyRequiredSetting(),
     getSessionUser(),
   ]);
-  const [apiKeys, canIssue, apiSettings, method, publicUrl, rules] = await Promise.all([
+  const [apiKeys, canIssue, apiSettings, method, publicUrl, rules, grants, canConnect] = await Promise.all([
     listApiKeys(user.id),
     canIssueApiKeys(user.siteRole),
     getApiSettings(),
     reauthMethod(user.id),
     getPublicUrl(),
     profileRules(user.id),
+    listGrants(user.id),
+    oauthAllowedFor(user.siteRole),
   ]);
   const now = new Date();
 
@@ -112,6 +116,23 @@ export default async function AccountPage() {
               method={method}
               apiUrl={`${publicUrl}/api/v1`}
               canIssue={canIssue && apiSettings.enabled}
+            />
+          </section>
+        )}
+
+        {(canConnect || grants.length > 0) && (
+          <section className={styles.section} data-ui="AccountPage.mcpSection">
+            <h2 className={styles.sectionTitle}>{t("account.mcp.heading")}</h2>
+            <McpSection
+              url={`${publicUrl}/api/mcp`}
+              available={canConnect}
+              apps={grants.map((g) => ({
+                id: g.id,
+                name: g.clientName,
+                scope: g.scope,
+                createdAt: g.createdAt.toISOString(),
+                lastUsedAt: g.lastUsedAt?.toISOString() ?? null,
+              }))}
             />
           </section>
         )}

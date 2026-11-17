@@ -87,5 +87,8 @@ export default {
     passkeyRemove: "Removed the passkey \"{name}\"",
     passkeysReset: "Removed {who}'s passkeys ({count, number})",
     passkeyRequired: "{required, select, true {Required passkeys} other {Made passkeys optional}}",
+    mcpConnect: "Connected the app \"{app}\" over MCP ({write, select, true {read and write} other {read only}})",
+    mcpDisconnect: "Ended the app \"{app}\"'s MCP connection",
+    mcpUnnamedApp: "(no name)",
   },
 } as const;

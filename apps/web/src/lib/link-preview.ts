@@ -7,8 +7,9 @@ import { type OutboundProxy, proxyAgent, proxyForHost } from "./proxy-bypass";
 
 // Title, description and image of a web page, for the link preview block.
 //
-// The server fetches a URL chosen by a user, so this is the one place where
-// the app makes requests on someone's behalf. It must not become a way to
+// The server fetches a URL chosen by a user, so this is where the app makes
+// requests on someone's behalf (also fetchPublicJson(), below, for the
+// documents apps describe themselves with when connecting over OAuth). It must not become a way to
 // reach what only the server can reach (the database, the storage, cloud
 // metadata, the intranet): addresses that aren't allowed are refused — when
 // the name is resolved for the connection itself, so a name can't pass the
@@ -155,7 +156,10 @@ async function resolvesToAllowed(url: URL, allowPrivate: boolean): Promise<boole
   }
 }
 
-function get(url: URL, allowPrivate: boolean, proxyUrl: string | null): Promise<Fetched> {
+type GetOptions = { accept: string; maxBytes: number };
+const HTML: GetOptions = { accept: "text/html,application/xhtml+xml", maxBytes: MAX_BYTES };
+
+function get(url: URL, allowPrivate: boolean, proxyUrl: string | null, options: GetOptions = HTML): Promise<Fetched> {
   const secure = url.protocol === "https:";
   const agent = proxyUrl ? proxyAgent(proxyUrl, secure) : undefined;
   return new Promise((resolve, reject) => {
@@ -168,7 +172,7 @@ function get(url: URL, allowPrivate: boolean, proxyUrl: string | null): Promise<
         lookup: agent ? undefined : checkedLookup(allowPrivate),
         timeout: TIMEOUT_MS,
         headers: {
-          Accept: "text/html,application/xhtml+xml",
+          Accept: options.accept,
           "Accept-Language": "ja,en;q=0.8",
           "User-Agent": "Mozilla/5.0 (compatible; KNOWLECTIVE-link-preview)",
         },
@@ -186,7 +190,7 @@ function get(url: URL, allowPrivate: boolean, proxyUrl: string | null): Promise<
         response.on("data", (chunk: Buffer) => {
           chunks.push(chunk);
           size += chunk.length;
-          if (size >= MAX_BYTES) {
+          if (size >= options.maxBytes) {
             done();
             request.destroy();
           }
@@ -289,4 +293,24 @@ export async function fetchLinkPreview(
     // Unreachable, refused, timed out.
   }
   return null;
+}
+
+// A JSON document at a public https address (a Client ID Metadata Document,
+// lib/oauth/clients.ts), with the same checks as a link preview: public
+// addresses only, through the outbound proxy if any. Redirects aren't
+// followed (the document must be where its URL says). null: unreachable,
+// not 200, not JSON, or larger than `maxBytes` (cut off).
+export async function fetchPublicJson(raw: string, proxy: OutboundProxy | null, maxBytes: number): Promise<unknown> {
+  const url = parsePreviewUrl(raw);
+  if (!url || url.protocol !== "https:") return null;
+  try {
+    const proxyUrl = proxyForHost(proxy, url.hostname);
+    if (proxyUrl && !(await resolvesToAllowed(url, false))) return null;
+    const response = await get(url, false, proxyUrl, { accept: "application/json", maxBytes: maxBytes + 1 });
+    if (response.status !== 200 || response.body.length > maxBytes) return null;
+    if (!/^application\/([\w.+-]*\+)?json\b/i.test(response.contentType)) return null;
+    return JSON.parse(response.body.toString("utf8"));
+  } catch {
+    return null;
+  }
 }

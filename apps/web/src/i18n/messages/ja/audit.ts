@@ -83,6 +83,9 @@ const ja: MessageShape<typeof en> = {
     passkeyRemove: "パスキー「{name}」を削除",
     passkeysReset: "{who} のパスキー（{count, number} 件）を削除",
     passkeyRequired: "{required, select, true {パスキーを必須に変更} other {パスキーを任意に変更}}",
+    mcpConnect: "アプリ「{app}」を MCP で接続（{write, select, true {閲覧と書き込み} other {閲覧のみ}}）",
+    mcpDisconnect: "アプリ「{app}」の MCP の接続を解除",
+    mcpUnnamedApp: "（名前なし）",
   },
 };
 

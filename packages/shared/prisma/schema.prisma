@@ -76,6 +76,7 @@ model User {
   adminSessions     AdminSession[]
   passkeys          UserPasskey[]
   apiKeys           ApiKey[]
+  oauthGrants       OAuthGrant[]
   emailCodes        EmailCode[]
   emailChanges      EmailChangeRequest[]
   chatMessages      ChatMessage[]
@@ -724,6 +725,89 @@ model ApiKey {
   lastUsedAt DateTime?
 
   @@index([userId])
+}
+
+// OAuth 2.1 for the MCP server (lib/oauth/): this site is the authorization
+// server, so AI apps connect by sending the person here to sign in and agree
+// (claude.ai's connectors and the like). Tokens act as the person, like an
+// API key, under the same rules (the API and MCP on, apiKeyRoles, not
+// disabled). Only SHA-256 hashes of codes and tokens are stored.
+
+enum OAuthClientKind {
+  // Registered through the registration endpoint (RFC 7591): the id is ours.
+  REGISTERED
+  // A Client ID Metadata Document: the id is an https URL whose document
+  // names the app and its redirect URIs, fetched and kept for a while.
+  METADATA_URL
+}
+
+// An app that may ask people to connect it. What it says about itself (its
+// name, its site) isn't verified: the consent screen says so, and shows
+// where the person will be sent back to.
+model OAuthClient {
+  id           String          @id
+  kind         OAuthClientKind
+  name         String
+  // Exact URIs the authorization code may be sent to.
+  redirectUris String[]
+  clientUri    String?
+  createdAt    DateTime        @default(now())
+  // METADATA_URL: when the document was last fetched.
+  fetchedAt    DateTime?
+  // A connection was last made or used (unused registrations are removed).
+  lastUsedAt   DateTime?
+  grants       OAuthGrant[]
+
+  @@index([kind, lastUsedAt])
+}
+
+// One person's consent to one app: the scope they agreed to, and the tokens
+// issued under it. Deleting it (revoking, from the account screen) ends them.
+model OAuthGrant {
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId   String
+  client     OAuthClient   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  scope      ApiKeyScope
+  createdAt  DateTime      @default(now())
+  lastUsedAt DateTime?
+  codes      OAuthCode[]
+  tokens     OAuthToken[]
+
+  @@index([userId])
+  @@index([clientId])
+}
+
+// An authorization code: once, within minutes, by the same app, with the
+// PKCE verifier (S256) and redirect URI it was asked for with.
+model OAuthCode {
+  codeHash      String     @id
+  grantId       String
+  grant         OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  redirectUri   String
+  codeChallenge String
+  expiresAt     DateTime
+  usedAt        DateTime?
+}
+
+enum OAuthTokenKind {
+  ACCESS
+  REFRESH
+}
+
+// Access tokens (an hour) and refresh tokens (rotated on every use; a used
+// one presented again ends the whole grant, as it was likely stolen).
+model OAuthToken {
+  tokenHash String         @id
+  grantId   String
+  grant     OAuthGrant     @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  kind      OAuthTokenKind
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([grantId])
+  @@index([expiresAt])
 }
 
 // A one-time code mailed to a user, to confirm it's them (lib/auth/
