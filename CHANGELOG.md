@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-18
+
 ### Upgrade notes
 
 - Behind a reverse proxy with `KNOWLECTIVE_BASE_PATH`, AI apps that connect over OAuth look for `/.well-known/oauth-authorization-server<base path>` at the root of the domain: pass that path on to KNOWLECTIVE as well if you turn the MCP server on
