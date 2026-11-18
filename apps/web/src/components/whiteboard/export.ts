@@ -42,14 +42,15 @@ const html = (x: number, y: number, w: number, h: number, style: string, inner: 
   `</foreignObject>`;
 
 function boxSvg(b: BoxItem, colors: ExportColors, images: Map<string, string>): string {
-  const fill = colors.items[b.color];
+  // "none" rather than the CSS keyword, for SVG viewers outside browsers.
+  const fill = b.color === "transparent" ? "none" : colors.items[b.color];
   const stroke = `stroke="${colors.line}" stroke-width="2"`;
   let shape = "";
   let pad = "0";
   let font = "font-size:14px;line-height:1.4";
   switch (b.type) {
     case "sticky":
-      shape = `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${fill}" filter="url(#wb-shadow)"/>`;
+      shape = `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${fill}"${b.color === "transparent" ? "" : ' filter="url(#wb-shadow)"'}/>`;
       pad = "8px 10px";
       break;
     case "rect":

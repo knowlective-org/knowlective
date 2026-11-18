@@ -16,7 +16,9 @@ export const SHAPE_TYPES = ["sticky", "rect", "ellipse", "diamond", "text"] as c
 export const isShapeType = (type: string): type is (typeof SHAPE_TYPES)[number] => (SHAPE_TYPES as readonly string[]).includes(type);
 
 // Colors are names, shown through CSS variables (--color-wb-<name>).
-export const ITEM_COLORS = ["yellow", "orange", "pink", "purple", "blue", "green", "gray", "white"] as const;
+// "transparent" fills a box with nothing (the board shows through; a shape
+// keeps its outline).
+export const ITEM_COLORS = ["yellow", "orange", "pink", "purple", "blue", "green", "gray", "white", "transparent"] as const;
 export type ItemColor = (typeof ITEM_COLORS)[number];
 
 // Which ends of a connector or line have an arrowhead (a connector's start

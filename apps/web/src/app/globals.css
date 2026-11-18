@@ -29,6 +29,7 @@
   --color-wb-green: #c8efc4;
   --color-wb-gray: #e4e6ea;
   --color-wb-white: #ffffff;
+  --color-wb-transparent: transparent;
 }
 
 html {

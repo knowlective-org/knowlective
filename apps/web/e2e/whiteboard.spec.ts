@@ -764,6 +764,11 @@ test.describe("Whiteboard", () => {
       await page.locator('[data-ui="Whiteboard.shapeButton"][data-id="ellipse"]').click();
       await expect(note).toHaveAttribute("data-type", "ellipse");
 
+      // Its background made transparent: the board shows through it.
+      await page.locator('[data-ui="Whiteboard.colorButton"][data-id="transparent"]').click();
+      await expect(note).toHaveAttribute("data-color", "transparent");
+      await expect(note).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+
       // Typing a list: Enter goes on with it, and an empty item ends it.
       await note.dblclick();
       await page.keyboard.press("Control+End");
