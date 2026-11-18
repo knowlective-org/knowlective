@@ -114,7 +114,8 @@ describe("pasted from Miro", () => {
     );
     assert.equal(shape.type, "diamond");
     assert.equal(shape.text, "A & B");
-    assert.equal(shape.color, "white");
+    // No fill in Miro: transparent here.
+    assert.equal(shape.color, "transparent");
     assert.equal(line.type, "connector");
     if (line.type !== "connector") return;
     assert.equal(line.from, sticky.id);
@@ -141,6 +142,9 @@ describe("pasted from Miro", () => {
     const child = clip.items.find((i) => i.text === "in");
     assert.ok(frame && child && frame.type === "rect" && child.type === "text");
     assert.ok(frame.z < child.z);
+    // A frame without a color is Miro's white; text without a fill is transparent.
+    assert.equal(frame.color, "white");
+    assert.equal(child.color, "transparent");
     assert.equal(frame.textY, -116);
     // The frame's top left is (0, 0); the child's centre (50, 50) from there.
     assert.deepEqual([child.x, child.y], [40, 40]);
@@ -163,5 +167,6 @@ describe("pasted from Miro", () => {
     assert.equal(nearestColor(0xf3f5f7, "yellow"), "white");
     assert.equal(nearestColor(0x151515, "yellow"), "gray");
     assert.equal(nearestColor(-1, "white"), "white");
+    assert.equal(nearestColor(-1, "transparent"), "transparent");
   });
 });

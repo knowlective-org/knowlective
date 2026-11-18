@@ -12,6 +12,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 - Whiteboard boxes can be made transparent (a new color in the selection bar): the board shows through, and shapes keep their outline. Exports draw them without a fill
 
+### Changed
+
+- Shapes and text pasted from Miro without a fill come in transparent instead of white (frames without a color stay white)
+
 ### Upgrade notes
 
 - Pages left open from before the update ask to be reloaded before they can be edited again (the collaborative editor's version changed)

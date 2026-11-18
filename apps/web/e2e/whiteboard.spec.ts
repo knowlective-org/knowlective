@@ -316,6 +316,7 @@ test.describe("Whiteboard", () => {
       await expect(item(page, "Miroの付箋")).toHaveAttribute("data-type", "sticky");
       await expect(item(page, "Miroの付箋")).toHaveAttribute("style", /--color-wb-green/);
       await expect(item(page, "Miroの図形")).toHaveAttribute("data-type", "diamond");
+      await expect(item(page, "Miroの図形")).toHaveAttribute("data-color", "transparent");
       // The connector between them (the one between the copied notes went with the cut).
       await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(1);
       await expect(page.getByTestId("Whiteboard.connectorLabel").filter({ hasText: "つながり" })).toHaveCount(1);
