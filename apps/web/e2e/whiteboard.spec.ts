@@ -316,6 +316,7 @@ test.describe("Whiteboard", () => {
       await expect(item(page, "Miroの付箋")).toHaveAttribute("data-type", "sticky");
       await expect(item(page, "Miroの付箋")).toHaveAttribute("style", /--color-wb-green/);
       await expect(item(page, "Miroの図形")).toHaveAttribute("data-type", "diamond");
+      await expect(item(page, "Miroの図形")).toHaveAttribute("data-color", "transparent");
       // The connector between them (the one between the copied notes went with the cut).
       await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(1);
       await expect(page.getByTestId("Whiteboard.connectorLabel").filter({ hasText: "つながり" })).toHaveCount(1);
@@ -763,6 +764,11 @@ test.describe("Whiteboard", () => {
       await expect(note).toHaveAttribute("data-type", "rect");
       await page.locator('[data-ui="Whiteboard.shapeButton"][data-id="ellipse"]').click();
       await expect(note).toHaveAttribute("data-type", "ellipse");
+
+      // Its background made transparent: the board shows through it.
+      await page.locator('[data-ui="Whiteboard.colorButton"][data-id="transparent"]').click();
+      await expect(note).toHaveAttribute("data-color", "transparent");
+      await expect(note).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
       // Typing a list: Enter goes on with it, and an empty item ends it.
       await note.dblclick();

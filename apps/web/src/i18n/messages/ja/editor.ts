@@ -554,6 +554,7 @@ const ja: MessageShape<typeof en> = {
       green: "緑",
       gray: "グレー",
       white: "白",
+      transparent: "透明",
     },
     empty: "左のツールを選んでボードをクリックします。",
     emptyReadOnly: "このホワイトボードには何もありません。",

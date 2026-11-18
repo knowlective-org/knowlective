@@ -560,6 +560,7 @@ export default {
       green: "Green",
       gray: "Gray",
       white: "White",
+      transparent: "Transparent",
     },
     empty: "Choose a tool on the left and click the board.",
     emptyReadOnly: "This whiteboard is empty.",

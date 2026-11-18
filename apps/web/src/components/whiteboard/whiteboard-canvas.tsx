@@ -2275,6 +2275,7 @@ function Box({
     <div
       className={styles.box}
       data-type={item.type}
+      data-color={item.color}
       data-selected={selected ? "" : undefined}
       style={{
         left: item.x,

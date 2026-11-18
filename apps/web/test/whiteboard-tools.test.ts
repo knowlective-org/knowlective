@@ -168,7 +168,7 @@ describe("whiteboard images and links", () => {
 
 describe("whiteboard export", () => {
   const colors = {
-    items: { yellow: "#ff0", orange: "#fa0", pink: "#f9c", purple: "#ccf", blue: "#9cf", green: "#9f9", gray: "#ddd", white: "#fff" },
+    items: { yellow: "#ff0", orange: "#fa0", pink: "#f9c", purple: "#ccf", blue: "#9cf", green: "#9f9", gray: "#ddd", white: "#fff", transparent: "transparent" },
     board: "#fafafa",
     ink: "#111",
     line: "#555",
@@ -192,6 +192,18 @@ describe("whiteboard export", () => {
     // The items and a margin around them.
     assert.equal(width, 400 + 80);
     assert.equal(height, 100 + 80);
+  });
+
+  test("a transparent box: no fill and no shadow, the outline kept", () => {
+    const doc = board({
+      a: { type: "sticky", x: 0, y: 0, w: 100, h: 100, color: "transparent", z: 1 },
+      b: { type: "rect", x: 200, y: 0, w: 100, h: 60, color: "transparent", z: 2 },
+    });
+    const items = readItems(doc);
+    assert.deepEqual(items.map((i) => i.color), ["transparent", "transparent"]);
+    const { svg } = whiteboardSvg(items, colors);
+    assert.ok(svg.includes('<rect x="0" y="0" width="100" height="100" fill="none"/>'));
+    assert.ok(svg.includes('rx="6" fill="none" stroke="#555" stroke-width="2"/>'));
   });
 
   test("connectors and lines in their strokes; an unknown stroke is a normal line", () => {

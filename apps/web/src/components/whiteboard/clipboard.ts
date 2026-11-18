@@ -294,14 +294,16 @@ function sizeOf(json: Record<string, unknown>): { w: number; h: number } | null 
 
 function boxType(type: string, json: Record<string, unknown>, s: Record<string, unknown>): { type: BoxItem["type"]; color: ItemColor } | null {
   if (type === "sticker") return { type: "sticky", color: nearestColor(num(s.sbc, 0xfff79e), "yellow") };
-  if (type === "text") return { type: "text", color: "white" };
-  if (type === "frame") return { type: "rect", color: nearestColor(num(s.bc, -1), "white") };
+  // Without a fill (-1, or nothing, Miro's default for text and shapes)
+  // they're transparent here too. A frame is white unless it says -1.
+  if (type === "text") return { type: "text", color: nearestColor(num(s.bc, -1), "transparent") };
+  if (type === "frame") return { type: "rect", color: nearestColor(num(s.bc, 0xffffff), "transparent") };
   if (type === "shape") {
     const shape = String(json.shape ?? s.st ?? "");
     // Observed: 3 rectangle, 7 rounded rectangle, 4 ellipse, 8 rhombus;
     // anything else is drawn as a rectangle.
     const kind = shape === "4" ? "ellipse" : shape === "8" ? "diamond" : "rect";
-    return { type: kind, color: nearestColor(num(s.bc, -1), "white") };
+    return { type: kind, color: nearestColor(num(s.bc, -1), "transparent") };
   }
   return null;
 }

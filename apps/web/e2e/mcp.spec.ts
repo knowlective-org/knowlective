@@ -184,4 +184,18 @@ test.describe("MCP server", () => {
     await setMcp(false, true);
     expect((await post({ Authorization: `Bearer ${key}` })).status()).toBe(404);
   });
+
+  test("the account screen copies the MCP server's address in one click", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("account");
+    const section = page.getByTestId("AccountPage.mcpSection");
+    await expect(section.getByRole("heading", { name: "MCP", exact: true })).toBeVisible();
+    const url = (await section.getByTestId("McpSection.url").textContent())!.trim();
+    expect(url).toMatch(/\/api\/mcp$/);
+    await section.getByTestId("McpSection.copyButton").click();
+    await expect(page.getByText("アドレスをコピーしました。")).toBeVisible();
+    // No dialog with a second copy button.
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
+  });
 });
