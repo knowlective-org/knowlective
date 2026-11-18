@@ -29,6 +29,7 @@ import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/li
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 import { copyWhiteboard, hasWhiteboardContent } from "../src/lib/whiteboard";
 import { applyWhiteboardOps } from "../src/lib/whiteboard-ops";
+import { appendBlocks, checkSection, replaceSection } from "../src/lib/body-edit";
 import { startSemanticSearch } from "./semantic-search";
 import { createNotifier } from "./notifications";
 import { FALLBACK_LOCALE, isLocale, negotiateLocale } from "../src/i18n/locales";
@@ -406,6 +407,35 @@ export async function createCollab() {
       const connection = await hocuspocus.openDirectConnection(pageId, { userId });
       try {
         await connection.transact((doc) => applyWhiteboardOps(doc, ops));
+      } finally {
+        await connection.disconnect();
+      }
+    },
+    // A partial write (lib/body-edit.ts), as `userId`, like replaceContent:
+    // edits not yet in a version are saved as one first, so what was there
+    // stays in the history. Checked on the live document, where the blocks
+    // and their locks are now.
+    async editBody(pageId, userId, edit) {
+      const connection = await hocuspocus.openDirectConnection(pageId, { userId });
+      try {
+        const document = connection.document!;
+        if (edit.kind === "section") {
+          const problem = checkSection(document, edit.target);
+          if ("code" in problem) return problem;
+        }
+        const before = pendingEditors.get(pageId);
+        if (before?.size) {
+          pendingEditors.delete(pageId);
+          await saveVersion(pageId, document, "AUTO", [...before]);
+        }
+        const body = new Y.Doc();
+        Y.applyUpdate(body, edit.body);
+        let problem: Awaited<ReturnType<typeof replaceSection>> = null;
+        await connection.transact((doc) => {
+          if (edit.kind === "append") appendBlocks(doc, body);
+          else problem = replaceSection(doc, edit.target, body);
+        });
+        return problem;
       } finally {
         await connection.disconnect();
       }

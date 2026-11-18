@@ -8,6 +8,16 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-18
+
+### Upgrade notes
+
+- Behind a reverse proxy with `KNOWLECTIVE_BASE_PATH`, AI apps that connect over OAuth look for `/.well-known/oauth-authorization-server<base path>` at the root of the domain: pass that path on to KNOWLECTIVE as well if you turn the MCP server on
+
+### Added
+
+- An MCP server at `/api/mcp`, for AI apps (Claude, ChatGPT, Cursor…) to search, read and write pages as the person who connected them, with their permissions. Part of the API: turned on in the admin console's API settings (off by default). Apps connect with OAuth (this site is the authorization server: the person signs in and agrees, choosing read-only or read and write; dynamic registration and client ID metadata documents) or with a personal API key; connected apps are listed, and disconnected, on the account screen. Writes create pages, add to their end or replace one section under a heading — never a whole page, and not a section holding blocks Markdown can't carry back unchanged
+
 ### Security
 
 - The dependency audit ignores GHSA-fc5q-39xc-vjpf (picomatch, no fixed version yet): it's reached only through next-intl's message extraction, which isn't used

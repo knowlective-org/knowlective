@@ -138,6 +138,31 @@ const ja: MessageShape<typeof en> = {
       failed: "セットアップに失敗しました。サーバーの KNOWLECTIVE_SERVER_KEY が設定されているか確認してください。",
     },
   },
+  oauth: {
+    title: "アプリの接続",
+    heading: "{app} を KNOWLECTIVE に接続しますか？",
+    unnamed: "名前のないアプリ",
+    intro: "{app} は、あなた（{user}）として動きます。あなたが開けるページで、あなたができることだけができます。",
+    unverified: "名前はアプリが名乗っているもので、KNOWLECTIVE では確かめられません。自分で接続を始めたときだけ続けてください。",
+    returnsTo: "答えた後の戻り先: {target}",
+    clientSite: "アプリのサイト: {site}",
+    scope: "許可する操作",
+    scopeRead: "ページの検索と閲覧",
+    scopeWrite: "ページの検索と閲覧、書き込み（ページの作成・追記・チャットへの投稿）",
+    readOnlyAsked: "このアプリは閲覧だけを求めています。",
+    caution: "読んだ内容は、アプリの先の AI のサービスに送られます。ページの文が AI の動きを誘導しようとすることもあるので、閲覧だけで足りるならそちらを選んでください。",
+    allowButton: "許可する",
+    denyButton: "許可しない",
+    sending: "アプリに戻ります…",
+    manage: "接続は「アカウント」からいつでも解除できます。",
+    errors: {
+      disabled: "このサイトでは、アプリの接続（MCP）は無効になっています。",
+      notAllowed: "あなたのアカウントでは、アプリを接続できません。サイト管理者に問い合わせてください。",
+      unknownClient: "このサイトが知らないアプリです（またはアプリの説明を読めませんでした）。アプリからもう一度接続してください。",
+      badRedirect: "アプリが、登録していない戻り先を指定しました。何も送っていません。",
+      badRequest: "接続の要求が正しくありません。アプリからもう一度接続してください。",
+    },
+  },
 };
 
 export default ja;

@@ -3,6 +3,7 @@ import { appDir, dev } from "./env";
 import { createServer, type IncomingMessage } from "node:http";
 import next from "next";
 import { BASE_PATH } from "../src/lib/base-path";
+import { wellKnownUnderBasePath } from "../src/lib/oauth/params";
 import { accessLogEnabled, logRequest, logUpgrade } from "./access-log";
 import { COLLAB_PATH, createCollab } from "./collab";
 import { startMarkdownBridge } from "./page-markdown";
@@ -52,8 +53,14 @@ async function main() {
     void (async () => {
       // For anything that answers, the refusal below included.
       applySecurityHeaders(res);
-      const pathname = pathnameOf(req);
+      let pathname = pathnameOf(req);
       if (accessLog) logRequest(req, res, pathname);
+      // OAuth metadata at its standard place outside the base path.
+      const wellKnown = wellKnownUnderBasePath(pathname, BASE_PATH);
+      if (wellKnown) {
+        req.url = wellKnown;
+        pathname = wellKnown;
+      }
       // A network that may not use the site at all (lib/network-policy.ts):
       // refused before the app.
       if (!exemptFromNetworkPolicy(pathname) && !(await collab.networkCaps(req)).access) {

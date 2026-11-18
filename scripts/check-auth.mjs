@@ -29,6 +29,8 @@ const GUARDS = [
   "getAdminSession",
   "withApiKey",
   "authenticateApiKey",
+  // lib/mcp/server.ts: authenticates (lib/mcp/auth.ts) before the SDK runs.
+  "handleMcp",
   "findAccessiblePage",
   "getPageAccess",
 ];

@@ -79,10 +79,13 @@ const ja: MessageShape<typeof en> = {
     networkFlags: { access: "アクセス", read: "読む", write: "変更", download: "ダウンロード", upload: "添付" },
     brand: "左上の表示を{mode, select, IMAGE {ロゴ} other {サイト名}}に設定（「{name}」{logo, select, true {、ロゴを差し替え} other {}}）",
     apiKeysRevoke: "{who} の API キー（{count, number} 件）を失効",
-    apiSettings: "API を{enabled, select, true {有効} other {無効}}に設定（キーを発行できるロール: {roles}）",
+    apiSettings: "API を{enabled, select, true {有効} other {無効}}、MCP サーバーを{mcp, select, true {有効} other {無効}}に設定（キーを発行できるロール: {roles}）",
     passkeyRemove: "パスキー「{name}」を削除",
     passkeysReset: "{who} のパスキー（{count, number} 件）を削除",
     passkeyRequired: "{required, select, true {パスキーを必須に変更} other {パスキーを任意に変更}}",
+    mcpConnect: "アプリ「{app}」を MCP で接続（{write, select, true {閲覧と書き込み} other {閲覧のみ}}）",
+    mcpDisconnect: "アプリ「{app}」の MCP の接続を解除",
+    mcpUnnamedApp: "（名前なし）",
   },
 };
 
