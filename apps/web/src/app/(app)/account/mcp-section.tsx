@@ -4,6 +4,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { showConfirm, showCopyText } from "@/components/dialog";
+import { showNotice } from "@/components/notice";
 import styles from "@/styles/ui.module.css";
 import { disconnectApp } from "./mcp-actions";
 
@@ -32,7 +33,23 @@ export function McpSection({ url, apps, available }: { url: string; apps: Connec
           <code data-ui="McpSection.url" style={{ wordBreak: "break-all" }}>
             {url}
           </code>
-          <button type="button" className={styles.buttonSecondary} data-ui="McpSection.copyButton" onClick={() => void showCopyText(t("urlHint"), url, { title: t("urlTitle") })}>
+          <button
+            type="button"
+            className={styles.buttonSecondary}
+            data-ui="McpSection.copyButton"
+            onClick={() => {
+              // The clipboard API exists only on https (or localhost): on a
+              // plain-http intranet site, show the address to copy by hand.
+              if (!navigator.clipboard) {
+                void showCopyText(t("urlHint"), url, { title: t("urlTitle") });
+                return;
+              }
+              navigator.clipboard
+                .writeText(url)
+                .then(() => showNotice(t("copied")))
+                .catch(() => showCopyText(t("urlHint"), url, { title: t("urlTitle") }));
+            }}
+          >
             {t("copy")}
           </button>
         </div>

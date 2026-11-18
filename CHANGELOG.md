@@ -8,6 +8,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Changed
+
+- On the account screen, the MCP section is titled "MCP", and "Copy the address" copies the MCP server's address straight to the clipboard (a dialog to copy it by hand only where the browser doesn't allow it, such as on plain http)
+
 ## [0.4.0] - 2026-11-18
 
 ### Upgrade notes
