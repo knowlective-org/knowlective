@@ -3,6 +3,7 @@ import { downloadBlob } from "@/components/editor/markdown-export";
 import { resolveAppUrl } from "@/lib/base-path";
 import { exportFileName } from "@/lib/page-export";
 import { ITEM_COLORS, type ItemColor, isBox, readItems } from "@/lib/whiteboard";
+import { TEXT_COLORS, type TextColor } from "@/lib/whiteboard-marks";
 import { type ExportColors, whiteboardSvg } from "./export";
 
 // The page menu's whiteboard export, in the browser: the board as it is now,
@@ -19,6 +20,7 @@ function themeColors(): ExportColors {
   const v = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
   return {
     items: Object.fromEntries(ITEM_COLORS.map((c) => [c, v(`--color-wb-${c}`, "#ffffff")])) as Record<ItemColor, string>,
+    text: Object.fromEntries(TEXT_COLORS.map((c) => [c, v(`--color-wb-text-${c}`, "#1f2328")])) as Record<TextColor, string>,
     board: v("--color-wb-board", "#ffffff"),
     ink: v("--color-wb-ink", "#1f2328"),
     line: v("--color-wb-line", "#5b6470"),

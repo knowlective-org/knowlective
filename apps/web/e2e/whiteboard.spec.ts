@@ -758,10 +758,12 @@ test.describe("Whiteboard", () => {
       await addSticky(page, 150, 150, "買うもの");
       const note = item(page, "買うもの");
 
-      // A sticky note made a rectangle, then an ellipse.
+      // A sticky note made a rectangle, then an ellipse (from the bar's shape menu).
       await note.click();
+      await page.getByTestId("Whiteboard.shapeMenuButton").click();
       await page.locator('[data-ui="Whiteboard.shapeButton"][data-id="rect"]').click();
       await expect(note).toHaveAttribute("data-type", "rect");
+      await page.getByTestId("Whiteboard.shapeMenuButton").click();
       await page.locator('[data-ui="Whiteboard.shapeButton"][data-id="ellipse"]').click();
       await expect(note).toHaveAttribute("data-type", "ellipse");
 
@@ -780,7 +782,7 @@ test.describe("Whiteboard", () => {
       await page.keyboard.press("Enter");
       await page.keyboard.press("Enter");
       await page.keyboard.type("以上");
-      await expect(page.getByTestId("Whiteboard.textInput")).toHaveValue("買うもの\n- 牛乳\n- 卵\n以上");
+      await expect(page.getByTestId("Whiteboard.textInput")).toHaveJSProperty("textContent", "買うもの\n- 牛乳\n- 卵\n以上");
       await page.keyboard.press("Escape");
       await expect(note.locator("ul li")).toHaveText(["牛乳", "卵"]);
 
@@ -840,6 +842,87 @@ test.describe("Whiteboard", () => {
       await expect(board).not.toHaveAttribute("data-fullscreen");
 
       await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      await trashOpenPage(page);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("parts of a text made bold, italic, underlined, struck through or colored, kept after reloading", async ({ browser }) => {
+    const context = await browser.newContext({ storageState: authFile("editor") });
+    const page = await context.newPage();
+    try {
+      await createWhiteboard(page, "E2E ホワイトボードの文字の装飾");
+      await addSticky(page, 300, 200, "太字と赤字と普通");
+      // By its id: its text changes.
+      const noteId = await item(page, "太字と赤字と普通").getAttribute("data-id");
+      const note = page.locator(`[data-ui="Whiteboard.item"][data-id="${noteId}"]`);
+      const input = page.getByTestId("Whiteboard.textInput");
+      const styleButton = (flag: string) => page.locator(`[data-ui="Whiteboard.textStyleButton"][data-id="${flag}"]`);
+      const styled = (code: string) => input.locator(`span[data-s="${code}"]`);
+
+      // The first word selected and made bold with the button (the text stays open).
+      await note.dblclick();
+      await page.keyboard.press("Control+Home");
+      await page.keyboard.press("Shift+ArrowRight");
+      await page.keyboard.press("Shift+ArrowRight");
+      await styleButton("bold").click();
+      await expect(styled("b")).toHaveText("太字");
+      await expect(styleButton("bold")).toHaveAttribute("aria-pressed", "true");
+      await expect(input).toBeFocused();
+
+      // Typing inside the bold word: bold too.
+      await page.keyboard.press("Control+Home");
+      await page.keyboard.press("ArrowRight");
+      await page.keyboard.type("い");
+      await expect(styled("b")).toHaveText("太い字");
+
+      // The second word colored red from the menu, and underlined with Ctrl+U.
+      await page.keyboard.press("Control+Home");
+      for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+      await page.keyboard.press("Shift+ArrowRight");
+      await page.keyboard.press("Shift+ArrowRight");
+      await page.getByTestId("Whiteboard.textColorButton").click();
+      await expect(page.getByTestId("Whiteboard.textColorMenu")).toBeVisible();
+      await page.locator('[data-ui="Whiteboard.textColorItem"][data-id="red"]').click();
+      await expect(page.getByTestId("Whiteboard.textColorMenu")).toHaveCount(0);
+      await page.keyboard.press("Control+u");
+      await expect(styled("u c:red")).toHaveText("赤字");
+
+      // Nothing selected: Ctrl+I and Ctrl+Shift+S for what's typed next.
+      await page.keyboard.press("Control+End");
+      await page.keyboard.press("Control+i");
+      await page.keyboard.press("Control+Shift+s");
+      await expect(styleButton("italic")).toHaveAttribute("aria-pressed", "true");
+      await page.keyboard.type("斜体");
+      await expect(styled("i s")).toHaveText("斜体");
+      await expect(input).toHaveJSProperty("textContent", "太い字と赤字と普通斜体");
+
+      // Undo while typing: the board's undo, the field drawn again.
+      await page.keyboard.press("Control+z");
+      await expect(input).toHaveJSProperty("textContent", "太い字と赤字と普通");
+      await page.keyboard.press("Escape");
+
+      // Shown on the board in the styles.
+      const shown = note.locator("span");
+      await expect(shown.filter({ hasText: "太い字" })).toHaveCSS("font-weight", "700");
+      await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("color", "rgb(166, 27, 27)");
+      await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("text-decoration-line", "underline");
+      await expect(shown.filter({ hasText: "普通" })).toHaveCount(0);
+
+      // The whole note struck through from the bar (selected, not being edited); again takes it away.
+      await expect(note).toHaveAttribute("data-selected", "");
+      await styleButton("strike").click();
+      await expect(styleButton("strike")).toHaveAttribute("aria-pressed", "true");
+      await expect(shown.filter({ hasText: "普通" })).toHaveCSS("text-decoration-line", "line-through");
+      await styleButton("strike").click();
+      await expect(styleButton("strike")).toHaveAttribute("aria-pressed", "false");
+
+      // Kept in the page's document.
+      await page.reload();
+      await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("color", "rgb(166, 27, 27)");
+      await expect(shown.filter({ hasText: "太い字" })).toHaveCSS("font-weight", "700");
+
       await trashOpenPage(page);
     } finally {
       await context.close();

@@ -1,6 +1,7 @@
 import { type BoxItem, type ItemColor, type Stroke, type WhiteboardItem, isBox } from "@/lib/whiteboard";
 import { boundsOf, connectorPoints, endLabelPlace, hopCrossings, lineRect, midpointOf, routePath, spreadEnds } from "./geometry";
-import { parseRichText } from "./rich-text";
+import { type TextColor, type TextMark, styledRuns, textStyleCss } from "@/lib/whiteboard-marks";
+import { parseRichTextAt } from "./rich-text";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 
 // A whiteboard as one SVG file, for the page menu's export (and, drawn onto a
@@ -11,6 +12,8 @@ import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 
 export type ExportColors = {
   items: Record<ItemColor, string>;
+  // The text colors (lib/whiteboard-marks.ts).
+  text: Record<TextColor, string>;
   board: string;
   ink: string;
   line: string;
@@ -22,12 +25,27 @@ const FONT = `-apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "H
 
 const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-// An item's text as XHTML: lines, and lists as lists (rich-text.ts).
-function richHtml(text: string): string {
-  return parseRichText(text)
+const kebab = (name: string) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+// Part of a text as XHTML, in its styles (lib/whiteboard-marks.ts).
+function styledHtml(text: string, marks: TextMark[], span: { from: number; to: number }, colors: ExportColors): string {
+  return styledRuns(text, marks, span.from, span.to)
+    .map((run) => {
+      if (!run.style) return escapeXml(run.text);
+      const css = Object.entries(textStyleCss(run.style, (c) => colors.text[c]))
+        .map(([k, v]) => `${kebab(k)}:${v}`)
+        .join(";");
+      return `<span style="${escapeXml(css)}">${escapeXml(run.text)}</span>`;
+    })
+    .join("");
+}
+
+// An item's text as XHTML: lines, and lists as lists (rich-text.ts), styled.
+function richHtml(text: string, marks: TextMark[], colors: ExportColors): string {
+  return parseRichTextAt(text)
     .map((block) => {
-      if (block.kind === "text") return `<div style="white-space:pre-wrap">${escapeXml(block.text)}</div>`;
-      const items = block.items.map((item) => `<li>${escapeXml(item)}</li>`).join("");
+      if (block.kind === "text") return `<div style="white-space:pre-wrap">${styledHtml(text, marks, block.span, colors)}</div>`;
+      const items = block.items.map((item) => `<li>${styledHtml(text, marks, item, colors)}</li>`).join("");
       return block.kind === "bullet"
         ? `<ul style="margin:0;padding-left:1.3em">${items}</ul>`
         : `<ol start="${block.start}" style="margin:0;padding-left:1.3em">${items}</ol>`;
@@ -89,7 +107,7 @@ function boxSvg(b: BoxItem, colors: ExportColors, images: Map<string, string>): 
         b.w,
         b.h,
         `align-items:safe center;padding:${pad};${font};color:${colors.ink};overflow-wrap:anywhere`,
-        `<div style="width:100%">${richHtml(b.text)}</div>`,
+        `<div style="width:100%">${richHtml(b.text, b.textMarks, colors)}</div>`,
       )
     : "";
   return shape + text;
@@ -161,7 +179,7 @@ export function whiteboardSvg(
   // like the screen's (220px at most), placed by its anchor.
   const LW = 220;
   const LH = 160;
-  const label = (x: number, y: number, justify: string, alignItems: string, text: string, end: boolean) =>
+  const label = (x: number, y: number, justify: string, alignItems: string, text: string, marks: TextMark[], end: boolean) =>
     html(
       x,
       y,
@@ -169,25 +187,25 @@ export function whiteboardSvg(
       LH,
       `justify-content:${justify};align-items:${alignItems}`,
       `<div style="max-width:${LW}px;padding:${end ? "0 2px" : "2px 8px"};font-size:${end ? 12 : 14}px;color:${end ? colors.muted : colors.ink};` +
-        `background:${end ? "transparent" : colors.board};border-radius:4px;overflow-wrap:anywhere">${richHtml(text)}</div>`,
+        `background:${end ? "transparent" : colors.board};border-radius:4px;overflow-wrap:anywhere">${richHtml(text, marks, colors)}</div>`,
     );
   const labels = connectors
     .map(({ item, points }) => {
       let out = "";
       if (item.text.trim()) {
         const mid = midpointOf(points);
-        out += label(mid.x - LW / 2, mid.y - LH / 2, "center", "center", item.text, false);
+        out += label(mid.x - LW / 2, mid.y - LH / 2, "center", "center", item.text, item.textMarks, false);
       }
-      for (const [text, run] of [
-        [item.startText, points],
-        [item.endText, [...points].reverse()],
+      for (const [text, marks, run] of [
+        [item.startText, item.startTextMarks, points],
+        [item.endText, item.endTextMarks, [...points].reverse()],
       ] as const) {
         if (!text.trim()) continue;
         const place = endLabelPlace(run);
         out +=
           place.side === "above"
-            ? label(place.x - LW / 2, place.y - LH, "center", "flex-end", text, true)
-            : label(place.x, place.y - LH / 2, "flex-start", "center", text, true);
+            ? label(place.x - LW / 2, place.y - LH, "center", "flex-end", text, marks, true)
+            : label(place.x, place.y - LH / 2, "flex-start", "center", text, marks, true);
       }
       return out;
     })

@@ -7,6 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type RefObject,
   useEffect,
   useId,
   useLayoutEffect,
@@ -38,15 +39,31 @@ import {
   SHAPE_TYPES,
   SIDES,
   STROKES,
+  TEXT_FIELDS,
   type Side,
   type Stroke,
   type TextField,
   type WhiteboardItem,
   isBox,
   isShapeType,
+  readItem,
   readItems,
   whiteboardMap,
 } from "@/lib/whiteboard";
+import {
+  STYLE_FLAGS,
+  type StyleFlag,
+  TEXT_COLORS,
+  type TextColor,
+  type TextMark,
+  type TextStyle,
+  applyStyle,
+  marksField,
+  remapMarks,
+  styleOf,
+  styledRuns,
+  textStyleCss,
+} from "@/lib/whiteboard-marks";
 import { getUploadPolicy } from "@/app/(app)/actions";
 import { adoptPageFiles } from "@/app/(app)/pages/[pageId]/file-actions";
 import { showAlert } from "@/components/dialog";
@@ -82,7 +99,8 @@ import {
   toWorld,
   zoomAt,
 } from "./geometry";
-import { enterInList, parseRichText, toggleList } from "./rich-text";
+import { parseRichTextAt, toggleList } from "./rich-text";
+import { TextEditor, type TextEditorHandle, textColorVar } from "./text-editor";
 import { Icon, type IconName } from "@/components/icons";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 import { ALIGNMENTS, type Alignment, type Guide, align, distribute, snapMove, snapResize } from "./snap";
@@ -325,11 +343,16 @@ export function WhiteboardCanvas({
   // The box whose link is being chosen (the page picker is open).
   const [linking, setLinking] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [textColorOpen, setTextColorOpen, textColorRef] = useBarMenu();
+  const [shapeOpen, setShapeOpen, shapeRef] = useBarMenu();
   const templatesRef = useRef<HTMLDivElement>(null);
   // The item whose text is being edited, and which text (a connector has three).
   const [editingText, setEditingText] = useState<{ id: string; field: TextField } | null>(null);
   const editing = editingText?.id ?? null;
   const setEditing = (id: string | null, field: TextField = "text") => setEditingText(id ? { id, field } : null);
+  // The open text field, and the style of its selection (for the bar's buttons).
+  const textEditor = useRef<TextEditorHandle | null>(null);
+  const [editorStyle, setEditorStyle] = useState<TextStyle>({});
   const [marquee, setMarquee] = useState<{ a: Point; b: Point } | null>(null);
   const [draft, setDraft] = useState<{ from: string; to: Point } | null>(null);
   const [cursors, setCursors] = useState<RemoteCursor[]>([]);
@@ -869,9 +892,44 @@ export function WhiteboardCanvas({
     change(() =>
       selection.forEach((id) => {
         const box = byId.get(id);
-        if (isBox(box) && box.text.trim()) setField(id, { text: toggleList(box.text, kind) });
+        if (!isBox(box) || !box.text.trim()) return;
+        const text = toggleList(box.text, kind);
+        setField(id, { text, ...(box.textMarks.length > 0 && { textMarks: remapMarks(box.text, text, box.textMarks, true) }) });
       }),
     );
+  // The selected items' texts that have words (boxes but images, and each of
+  // a connector's), for styling them whole when none is being edited.
+  const selectedTexts = () =>
+    [...selection].flatMap((id) => {
+      const item = byId.get(id);
+      if (!item || item.type === "line" || item.type === "image") return [];
+      const fields: readonly TextField[] = item.type === "connector" ? TEXT_FIELDS : ["text"];
+      return fields.flatMap((field) => {
+        const text = (item as unknown as Record<TextField, string>)[field];
+        return text ? [{ id, field, text, marks: marksOf(item, field) }] : [];
+      });
+    });
+  // What all of them have in common.
+  const wholeStyle = (): TextStyle => {
+    const texts = selectedTexts();
+    if (texts.length === 0) return {};
+    const styles = texts.map((x) => styleOf(x.marks, x.text.length, 0, x.text.length));
+    const common: TextStyle = {};
+    for (const flag of STYLE_FLAGS) if (styles.every((st) => st[flag])) common[flag] = true;
+    if (styles[0].color && styles.every((st) => st.color === styles[0].color)) common.color = styles[0].color;
+    return common;
+  };
+  // Bold, italic, underline or strike, or a text color: for the selection in
+  // the text being edited, else for the whole of the selected items' texts.
+  const styleText = (how: { flag: StyleFlag } | { color: TextColor | null }) => {
+    if (editingText) return textEditor.current?.style(how);
+    const texts = selectedTexts();
+    if (texts.length === 0) return;
+    const patch = "flag" in how ? { [how.flag]: !wholeStyle()[how.flag] } : { color: how.color };
+    undo.current?.stopCapturing();
+    change(() => texts.forEach((x) => setField(x.id, { [marksField(x.field)]: applyStyle(x.marks, x.text.length, 0, x.text.length, patch) })));
+    undo.current?.stopCapturing();
+  };
   const setArrows = (arrows: ArrowEnds) =>
     change(() => selection.forEach((id) => hasArrows(byId.get(id)) && setField(id, { arrows })));
   const setRoute = (route: Route) =>
@@ -934,7 +992,7 @@ export function WhiteboardCanvas({
     const target = e.target as Element;
     // Typing into an item, or using the controls: not a drag on the board;
     // nor a box's link (followed on its click).
-    if (target.closest("textarea, button, [data-wb-controls], [data-wb-link]")) return;
+    if (target.closest("textarea, [data-wb-text-editor], button, [data-wb-controls], [data-wb-link]")) return;
     viewportRef.current?.focus({ preventScroll: true });
     e.currentTarget.setPointerCapture(e.pointerId);
     const point = canvasPoint(e);
@@ -1362,7 +1420,7 @@ export function WhiteboardCanvas({
     // What's under the pointer: the board captures the pointer on each
     // press, so the event itself is the board's, not the item's.
     const under = document.elementFromPoint(e.clientX, e.clientY);
-    if (readOnly || tool !== "select" || !under || under.closest("textarea, button, [data-wb-controls]")) return;
+    if (readOnly || tool !== "select" || !under || under.closest("textarea, [data-wb-text-editor], button, [data-wb-controls]")) return;
     // An item's text is edited; the background does nothing.
     const hit = itemAt(under);
     if (!hit) return;
@@ -1382,7 +1440,7 @@ export function WhiteboardCanvas({
   };
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    if ((e.target as Element).closest("textarea")) return;
+    if ((e.target as Element).closest("textarea, [data-wb-text-editor]")) return;
     // Alt (or Shift + Ctrl/⌘) pressed mid-drag, before the pointer moves again.
     if (MODIFIER_KEYS.has(e.key)) setDrag((d) => (d && d.alt !== copyHeld(e) ? { ...d, alt: copyHeld(e) } : d));
     if (e.key === "Alt") return;
@@ -1428,6 +1486,12 @@ export function WhiteboardCanvas({
       duplicate();
       return;
     }
+    const flag: StyleFlag | null = !mod || e.altKey ? null : key === "b" && !e.shiftKey ? "bold" : key === "i" && !e.shiftKey ? "italic" : key === "u" && !e.shiftKey ? "underline" : key === "s" && e.shiftKey ? "strike" : null;
+    if (flag && selection.size > 0) {
+      e.preventDefault();
+      styleText({ flag });
+      return;
+    }
     if (key === "delete" || key === "backspace") {
       e.preventDefault();
       removeItems(selection);
@@ -1448,7 +1512,29 @@ export function WhiteboardCanvas({
     if (!mod && !e.altKey && TOOL_KEYS[key]) setTool(TOOL_KEYS[key]);
   };
 
-  const editText = (id: string, field: TextField, text: string) => change(() => setField(id, { [field]: text.slice(0, MAX_TEXT_LENGTH) }));
+  const editText = (id: string, field: TextField, text: string, marks: TextMark[]) => {
+    const item = map.get(id);
+    const key = marksField(field);
+    // The styles only when they change (they're a list, never the same object).
+    const marksChanged = JSON.stringify(item?.get(key) ?? []) !== JSON.stringify(marks);
+    // A change of style alone is a step of its own to undo (not merged with the typing around it).
+    const styleOnly = marksChanged && item?.get(field) === text;
+    if (styleOnly) undo.current?.stopCapturing();
+    change(() => setField(id, { [field]: text.slice(0, MAX_TEXT_LENGTH), ...(marksChanged && { [key]: marks }) }));
+    if (styleOnly) undo.current?.stopCapturing();
+  };
+  // Undo while typing: the board's (the field is drawn again from the document).
+  const undoInEditor = (redo: boolean) => {
+    if (redo) undo.current?.redo();
+    else undo.current?.undo();
+    const current = editingText && map.get(editingText.id);
+    if (!editingText || !(current instanceof Y.Map)) return setEditing(null);
+    const item = readItem(editingText.id, current);
+    if (!item) return setEditing(null);
+    const text = (item as unknown as Record<TextField, string>)[editingText.field] ?? "";
+    textEditor.current?.reset(text, marksOf(item, editingText.field));
+  };
+  const editorProps = { handleRef: textEditor, onUndo: undoInEditor, onStyle: setEditorStyle };
   const finishEditing = (id: string) => {
     setEditingText((current) => (current?.id === id ? null : current));
     // An empty text item would be invisible.
@@ -1483,6 +1569,9 @@ export function WhiteboardCanvas({
   const singleBox = isBox(single) ? single : null;
   // Selected boxes connectors are attached to: their ends spread or merged.
   const connectedBoxes = selectedBoxes.filter((b) => items.some((i) => i.type === "connector" && (i.from === b.id || i.to === b.id)));
+  // Text that can be styled: being edited, or selected items' with words.
+  const textStylable = !!editingText || selectedTexts().length > 0;
+  const shownStyle = editingText ? editorStyle : textStylable ? wholeStyle() : {};
   const textMoved = [...selection].some((id) => {
     const box = byId.get(id);
     return isBox(box) && (box.textX !== 0 || box.textY !== 0);
@@ -1517,7 +1606,7 @@ export function WhiteboardCanvas({
         // focus change would come after a new item's text field got focus,
         // and close it again.
         onMouseDown={(e) => {
-          if (!(e.target as Element).closest("textarea, button")) e.preventDefault();
+          if (!(e.target as Element).closest("textarea, [data-wb-text-editor], button")) e.preventDefault();
         }}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -1530,22 +1619,22 @@ export function WhiteboardCanvas({
         onDoubleClick={onDoubleClick}
         // The right button pans the board instead.
         onContextMenu={(e) => {
-          if (!(e.target as Element).closest("textarea")) e.preventDefault();
+          if (!(e.target as Element).closest("textarea, [data-wb-text-editor]")) e.preventDefault();
         }}
         onKeyDown={onKeyDown}
         // The selection copied (also from a board one can only view), or cut.
         onCopy={(e) => {
-          if ((e.target as Element).closest("textarea") || !copySelection(e.clipboardData)) return;
+          if ((e.target as Element).closest("textarea, [data-wb-text-editor]") || !copySelection(e.clipboardData)) return;
           e.preventDefault();
         }}
         onCut={(e) => {
-          if (readOnly || (e.target as Element).closest("textarea") || !copySelection(e.clipboardData)) return;
+          if (readOnly || (e.target as Element).closest("textarea, [data-wb-text-editor]") || !copySelection(e.clipboardData)) return;
           e.preventDefault();
           removeItems(selection);
         }}
         // Items copied on a board or in Miro, images, or text, pasted.
         onPaste={(e) => {
-          if (readOnly || (e.target as Element).closest("textarea")) return;
+          if (readOnly || (e.target as Element).closest("textarea, [data-wb-text-editor]")) return;
           const html = e.clipboardData.getData("text/html");
           const clip = html ? readClip(html) : null;
           if (clip) {
@@ -1649,9 +1738,10 @@ export function WhiteboardCanvas({
                 item={item}
                 points={connectorPoints_.get(item.id) ?? []}
                 editing={editingText?.id === item.id && !readOnly ? editingText.field : null}
-                onInput={(field, text) => editText(item.id, field, text)}
+                onInput={(field, text, marks) => editText(item.id, field, text, marks)}
                 onDone={() => finishEditing(item.id)}
                 placeholder={t("labelPlaceholder")}
+                editor={editorProps}
               />
             ) : item.type === "line" ? (
               <LineShape key={item.id} item={item} selected={selection.has(item.id)} markerId={markerId} />
@@ -1665,9 +1755,10 @@ export function WhiteboardCanvas({
                 textMovable={!readOnly && single?.id === item.id && editing !== item.id}
                 moveTextLabel={t("moveText")}
                 copyMark={!!drag?.alt && drag.moving.has(item.id)}
-                onInput={(text) => editText(item.id, "text", text)}
+                onInput={(text, marks) => editText(item.id, "text", text, marks)}
                 onDone={() => finishEditing(item.id)}
                 placeholder={t("textPlaceholder")}
+                editor={editorProps}
                 resizeLabel={t("resize")}
                 linkLabel={t("openLink")}
                 onOpenLink={(id) => router.push(`/pages/${id}`)}
@@ -1840,21 +1931,47 @@ export function WhiteboardCanvas({
           {colorable && <span className={styles.separator} />}
           {shapeSelected && (
             <>
-              {SHAPE_TYPES.map((type) => (
+              {/* One button (the shape now) with the shapes in a menu: the bar stays on one row. */}
+              <div className={styles.barPick} ref={shapeRef}>
                 <button
-                  key={type}
                   type="button"
                   className={styles.barButton}
-                  aria-label={t(`shapes.${type}`)}
-                  title={t(`shapes.${type}`)}
-                  aria-pressed={isBox(single) ? single.type === type : undefined}
-                  data-ui="Whiteboard.shapeButton"
-                  data-id={type}
-                  onClick={() => setShape(type)}
+                  aria-label={t("shapeLabel")}
+                  title={t("shapeLabel")}
+                  aria-expanded={shapeOpen}
+                  aria-haspopup="menu"
+                  data-ui="Whiteboard.shapeMenuButton"
+                  onClick={() => setShapeOpen(!shapeOpen)}
                 >
-                  <Icon name={type} size={18} />
+                  <Icon name={isBox(single) && isShapeType(single.type) ? single.type : "rect"} size={18} />
                 </button>
-              ))}
+                {shapeOpen && (
+                  <div className={styles.barMenu} role="menu" aria-label={t("shapeLabel")} data-ui="Whiteboard.shapeMenu">
+                    {SHAPE_TYPES.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        role="menuitemradio"
+                        className={styles.barButton}
+                        aria-label={t(`shapes.${type}`)}
+                        title={t(`shapes.${type}`)}
+                        aria-checked={isBox(single) ? single.type === type : false}
+                        data-ui="Whiteboard.shapeButton"
+                        data-id={type}
+                        onClick={(e) => {
+                          // Kept off the bar's click (which would focus the board after the menu is gone).
+                          e.stopPropagation();
+                          setShape(type);
+                          setShapeOpen(false);
+                          focusBoard();
+                        }}
+                      >
+                        <Icon name={type} size={18} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <span className={styles.separator} />
               <button
                 type="button"
@@ -1890,6 +2007,74 @@ export function WhiteboardCanvas({
               )}
               <span className={styles.separator} />
             </>
+          )}
+          {textStylable && (
+            // Clicks here keep the text being edited open (and its selection).
+            <div
+              className={styles.barGroup}
+              role="group"
+              aria-label={t("textStyleLabel")}
+              data-ui="Whiteboard.textStyle"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => editingText && e.stopPropagation()}
+            >
+              {STYLE_FLAGS.map((flag) => (
+                <button
+                  key={flag}
+                  type="button"
+                  className={styles.barButton}
+                  aria-label={t(`textStyle.${flag}`)}
+                  title={t(`textStyle.${flag}`)}
+                  aria-pressed={!!shownStyle[flag]}
+                  data-ui="Whiteboard.textStyleButton"
+                  data-id={flag}
+                  onClick={() => styleText({ flag })}
+                >
+                  <Icon name={flag} size={18} />
+                </button>
+              ))}
+              <div className={`${styles.barPick} ${styles.textColorPick}`} ref={textColorRef}>
+                <button
+                  type="button"
+                  className={styles.barButton}
+                  aria-label={t("textColor")}
+                  title={t("textColor")}
+                  aria-expanded={textColorOpen}
+                  aria-haspopup="menu"
+                  data-ui="Whiteboard.textColorButton"
+                  onClick={() => setTextColorOpen(!textColorOpen)}
+                >
+                  <Icon name="textColor" size={18} />
+                  <span
+                    className={styles.textColorBar}
+                    style={{ background: shownStyle.color ? textColorVar(shownStyle.color) : "var(--color-wb-ink)" }}
+                  />
+                </button>
+                {textColorOpen && (
+                  <div className={`${styles.barMenu} ${styles.swatchMenu}`} role="menu" aria-label={t("textColor")} data-ui="Whiteboard.textColorMenu">
+                    {([null, ...TEXT_COLORS] as const).map((color) => (
+                      <button
+                        key={color ?? "default"}
+                        type="button"
+                        role="menuitemradio"
+                        className={styles.swatch}
+                        style={{ background: color ? textColorVar(color) : "var(--color-wb-ink)" }}
+                        aria-label={t(`textColors.${color ?? "default"}`)}
+                        title={t(`textColors.${color ?? "default"}`)}
+                        aria-checked={(shownStyle.color ?? null) === color}
+                        data-ui="Whiteboard.textColorItem"
+                        data-id={color ?? "default"}
+                        onClick={() => {
+                          styleText({ color });
+                          setTextColorOpen(false);
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <span className={styles.separator} />
+            </div>
           )}
           {selectedBoxes.length >= 2 && (
             <>
@@ -2251,6 +2436,7 @@ function Box({
   onInput,
   onDone,
   placeholder,
+  editor,
   resizeLabel,
   linkLabel,
   onOpenLink,
@@ -2264,9 +2450,10 @@ function Box({
   moveTextLabel: string;
   // Being dragged with Alt held: letting go leaves a copy here.
   copyMark: boolean;
-  onInput: (text: string) => void;
+  onInput: (text: string, marks: TextMark[]) => void;
   onDone: () => void;
   placeholder: string;
+  editor: EditorProps;
   resizeLabel: string;
   linkLabel: string;
   onOpenLink: (pageId: string) => void;
@@ -2313,9 +2500,17 @@ function Box({
           style={item.textX || item.textY ? { transform: `translate(${item.textX}px, ${item.textY}px)` } : undefined}
         >
           {editing ? (
-            <TextInput className={styles.boxInput} text={item.text} onInput={onInput} onDone={onDone} placeholder={placeholder} />
+            <TextEditor
+              className={styles.boxInput}
+              text={item.text}
+              marks={item.textMarks}
+              onInput={onInput}
+              onDone={onDone}
+              placeholder={placeholder}
+              {...editor}
+            />
           ) : (
-            <RichText className={styles.boxText} text={item.text} />
+            <RichText className={styles.boxText} text={item.text} marks={item.textMarks} />
           )}
           {textMovable && (
             <span className={styles.textHandle} data-wb-textmove title={moveTextLabel} data-ui="Whiteboard.moveTextHandle" />
@@ -2361,14 +2556,16 @@ function ConnectorLabels({
   onInput,
   onDone,
   placeholder,
+  editor,
 }: {
   item: ConnectorItem;
   points: Point[];
   // Which of its texts is being edited.
   editing: TextField | null;
-  onInput: (field: TextField, text: string) => void;
+  onInput: (field: TextField, text: string, marks: TextMark[]) => void;
   onDone: () => void;
   placeholder: string;
+  editor: EditorProps;
 }) {
   if (points.length === 0) return null;
   // An end's text sits beside the line, not on it (endLabelPlace).
@@ -2396,15 +2593,17 @@ function ConnectorLabels({
             data-id={field}
           >
             {editing === field ? (
-              <TextInput
+              <TextEditor
                 className={styles.labelInput}
                 text={item[field]}
-                onInput={(text) => onInput(field, text)}
+                marks={item[marksField(field)]}
+                onInput={(text, marks) => onInput(field, text, marks)}
                 onDone={onDone}
                 placeholder={placeholder}
+                {...editor}
               />
             ) : (
-              <RichText text={item[field]} />
+              <RichText text={item[field]} marks={item[marksField(field)]} />
             )}
           </div>
         ),
@@ -2413,102 +2612,79 @@ function ConnectorLabels({
   );
 }
 
-// Text with its lists shown as lists (rich-text.ts).
-function RichText({ text, className }: { text: string; className?: string }) {
+// A menu opened from the selection bar: closes on a click elsewhere or Esc.
+function useBarMenu(): [boolean, (open: boolean) => void, RefObject<HTMLDivElement | null>] {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return [open, setOpen, ref];
+}
+
+type EditorProps = {
+  handleRef: RefObject<TextEditorHandle | null>;
+  onUndo: (redo: boolean) => void;
+  onStyle: (style: TextStyle) => void;
+};
+
+// The styles of an item's text field.
+function marksOf(item: WhiteboardItem, field: TextField): TextMark[] {
+  return (item as unknown as Partial<Record<string, TextMark[]>>)[marksField(field)] ?? [];
+}
+
+// Part of a text in its styles (lib/whiteboard-marks.ts).
+function Styled({ text, marks, from, to }: { text: string; marks: TextMark[]; from: number; to: number }) {
+  return styledRuns(text, marks, from, to).map((run, i) =>
+    run.style ? (
+      <span key={i} style={textStyleCss(run.style, textColorVar)}>
+        {run.text}
+      </span>
+    ) : (
+      run.text
+    ),
+  );
+}
+
+// Text with its lists shown as lists (rich-text.ts), and its styles.
+function RichText({ text, marks, className }: { text: string; marks: TextMark[]; className?: string }) {
   return (
     <div className={className}>
-      {parseRichText(text).map((block, i) =>
+      {parseRichTextAt(text).map((block, i) =>
         block.kind === "text" ? (
           <div key={i} className={styles.plainText}>
-            {block.text}
+            <Styled text={text} marks={marks} {...block.span} />
           </div>
         ) : block.kind === "bullet" ? (
           <ul key={i} className={styles.list}>
             {block.items.map((item, j) => (
-              <li key={j}>{item}</li>
+              <li key={j}>
+                <Styled text={text} marks={marks} {...item} />
+              </li>
             ))}
           </ul>
         ) : (
           <ol key={i} className={styles.list} start={block.start}>
             {block.items.map((item, j) => (
-              <li key={j}>{item}</li>
+              <li key={j}>
+                <Styled text={text} marks={marks} {...item} />
+              </li>
             ))}
           </ol>
         ),
       )}
     </div>
-  );
-}
-
-// Uncontrolled while it has focus, so someone else's edit (or an IME)
-// doesn't move the caret; each change is written to the board as typed.
-function TextInput({
-  className,
-  text,
-  onInput,
-  onDone,
-  placeholder,
-}: {
-  className: string;
-  text: string;
-  onInput: (text: string) => void;
-  onDone: () => void;
-  placeholder: string;
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  // As tall as its text (up to the item's height), so it sits where the
-  // text is shown: centered from top to bottom.
-  const fit = (el: HTMLTextAreaElement) => {
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  };
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    fit(el);
-    el.focus({ preventScroll: true });
-    el.setSelectionRange(el.value.length, el.value.length);
-  }, []);
-  return (
-    <textarea
-      ref={ref}
-      className={className}
-      defaultValue={text}
-      maxLength={MAX_TEXT_LENGTH}
-      placeholder={placeholder}
-      spellCheck={false}
-      data-ui="Whiteboard.textInput"
-      rows={1}
-      onChange={(e) => {
-        fit(e.target);
-        onInput(e.target.value);
-      }}
-      onBlur={onDone}
-      onKeyDown={(e) => {
-        // In a list, Enter starts the next item (or ends the list on an empty one).
-        if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !e.nativeEvent.isComposing) {
-          const el = e.currentTarget;
-          const start = el.value.lastIndexOf("\n", el.selectionStart - 1) + 1;
-          const lineEnd = el.value.indexOf("\n", el.selectionStart);
-          const line = el.value.slice(start, lineEnd === -1 ? undefined : lineEnd);
-          const list = el.selectionStart === el.selectionEnd ? enterInList(line) : null;
-          if (list) {
-            e.preventDefault();
-            if ("end" in list) el.setRangeText("", start, start + line.length, "end");
-            else el.setRangeText(`\n${list.continue}`, el.selectionStart, el.selectionEnd, "end");
-            fit(el);
-            onInput(el.value);
-            return;
-          }
-        }
-        // Back to the board (its keys work again).
-        if (e.key === "Escape" || (e.key === "Enter" && (e.ctrlKey || e.metaKey))) {
-          e.preventDefault();
-          const board = e.currentTarget.closest<HTMLElement>("[role=application]");
-          if (board) board.focus({ preventScroll: true });
-          else e.currentTarget.blur();
-        }
-      }}
-    />
   );
 }

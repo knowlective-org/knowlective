@@ -12,6 +12,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 - Whiteboard boxes can be made transparent (a new color in the selection bar): the board shows through, and shapes keep their outline. Exports draw them without a fill
 
+- Parts of a whiteboard's text can be made bold, italic, underlined or struck through, and given a text color (the selection bar's buttons, or Ctrl/⌘+B, I, U and Ctrl/⌘+Shift+S): select words while typing, or select items to style their whole text. The text colors are dark ones that stay readable (a contrast of 4.5:1 or more) on every item color. Exports keep the styles; text written through the API or MCP loses them
+
 - Public pages' link cards (Open Graph and Twitter / X) show an image: the knowledge root's favicon when it's a PNG and the root page is public, otherwise the app icon
 
 - Site admins can change another user's email address from the admin console (the user list's "⋯" menu): a code is mailed to the new address, and the address changes when the user signs in and enters it on their account screen. The user can turn it down, and the admin can cancel it. Needs mail sending to be set up
@@ -19,6 +21,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 ### Changed
 
 - Shapes and text pasted from Miro without a fill come in transparent instead of white (frames without a color stay white)
+
+- The whiteboard's selection bar shows one button for the shape, with the shapes in its menu, so the bar fits on one row with the new text buttons
 
 ### Upgrade notes
 

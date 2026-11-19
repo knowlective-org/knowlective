@@ -30,6 +30,15 @@
   --color-wb-gray: #e4e6ea;
   --color-wb-white: #ffffff;
   --color-wb-transparent: transparent;
+  /* Text colors (lib/whiteboard-marks.ts TEXT_COLORS): dark, each with a
+     contrast of 4.5:1 or more on every item color above (unit test). */
+  --color-wb-text-red: #a61b1b;
+  --color-wb-text-brown: #9a3412;
+  --color-wb-text-green: #166534;
+  --color-wb-text-blue: #1d4ed8;
+  --color-wb-text-purple: #6d28d9;
+  --color-wb-text-pink: #a3195b;
+  --color-wb-text-gray: #4b5563;
 }
 
 html {

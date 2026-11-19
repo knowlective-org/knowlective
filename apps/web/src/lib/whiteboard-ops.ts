@@ -5,10 +5,12 @@ import {
   PAGE_ID,
   type WhiteboardItem,
   isBox,
+  TEXT_FIELDS,
   isShapeType,
   readItem,
   whiteboardMap,
 } from "./whiteboard";
+import { marksField } from "./whiteboard-marks";
 
 // Changes to a whiteboard from outside the board's screen (the public API,
 // /api/v1/pages/<id>/whiteboard): items added, fields of items changed,
@@ -96,6 +98,9 @@ export function planWhiteboardChange(
       }
       fields[key] = value as string | number | null;
     }
+    // A text written here loses the styles of the one before (they're
+    // ranges of it: lib/whiteboard-marks.ts); they can't be written here.
+    for (const field of TEXT_FIELDS) if (field in fields) fields[marksField(field)] = null;
     return { fields };
   };
 
