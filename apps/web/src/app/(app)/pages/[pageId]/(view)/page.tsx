@@ -14,24 +14,31 @@ import { jsonLd, pageDescription } from "@/lib/seo";
 import { auditorsSeePersonalRoots, noteAuditorView } from "@/lib/personal-root-audit";
 import { type PageLockView, PageView } from "../page-view";
 import { loadPage } from "./load-page";
-import { faviconForViewer } from "@/lib/root-favicon";
+import { cardImageForGuest, faviconForViewer } from "@/lib/root-favicon";
 
 // Someone not logged in sees only public pages; for them (and so for search
 // engines) the page is described: the start of its text, its canonical URL,
-// and Open Graph / Twitter card tags (lib/seo.ts).
+// and Open Graph / Twitter card tags (lib/seo.ts) with the root's favicon.
 export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">): Promise<Metadata> {
   const { user, page } = await loadPage((await params).pageId);
   if (!page || page.kind === "SHORTCUT") return {};
   const title = (await getDisplayTitle())(page.title);
   if (user) return { title };
-  const [description, base, brand] = await Promise.all([pageDescription(page.id), getPublicUrl(), getBrand()]);
+  const [description, base, brand, cardImage] = await Promise.all([
+    pageDescription(page.id),
+    getPublicUrl(),
+    getBrand(),
+    cardImageForGuest(page.root.id),
+  ]);
   const url = `${base}/pages/${page.id}`;
+  // The card's image: the knowledge root's favicon, else the app icon.
+  const images = [{ url: `${base}${cardImage}`, alt: brand.name }];
   return {
     title,
     description: description || undefined,
     alternates: { canonical: url },
-    openGraph: { type: "article", title, description: description || undefined, url, siteName: brand.name },
-    twitter: { card: "summary", title, description: description || undefined },
+    openGraph: { type: "article", title, description: description || undefined, url, siteName: brand.name, images },
+    twitter: { card: "summary", title, description: description || undefined, images },
   };
 }
 

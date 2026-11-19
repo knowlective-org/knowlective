@@ -12,6 +12,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 - Whiteboard boxes can be made transparent (a new color in the selection bar): the board shows through, and shapes keep their outline. Exports draw them without a fill
 
+- Public pages' link cards (Open Graph and Twitter / X) show an image: the knowledge root's favicon when it's a PNG and the root page is public, otherwise the app icon
+
 - Site admins can change another user's email address from the admin console (the user list's "⋯" menu): a code is mailed to the new address, and the address changes when the user signs in and enters it on their account screen. The user can turn it down, and the admin can cancel it. Needs mail sending to be set up
 
 ### Changed

@@ -105,6 +105,9 @@ test.describe("Public pages", () => {
       await expect(guest.locator('meta[name="description"]')).toHaveAttribute("content", /誰でも読める文章/);
       await expect(guest.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/pages/${id}$`));
       await expect(guest.locator('meta[property="og:title"]')).toHaveAttribute("content", title);
+      // The card's image: the app icon (the root has no favicon of its own).
+      await expect(guest.locator('meta[name="twitter:image"]')).toHaveAttribute("content", /^https?:\/\/.*\/icons\/icon-512\.png$/);
+      expect((await guest.request.get("icons/icon-512.png")).headers()["content-type"]).toBe("image/png");
       const article = JSON.parse((await guest.locator('script[type="application/ld+json"]').textContent())!);
       expect(article).toMatchObject({ "@type": "Article", headline: title });
       await setPublicSettings(page, { noindex: true });
