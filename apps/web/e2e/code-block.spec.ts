@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
-import { createPage, editorBody, pasteText, trashOpenPage, typeInBody } from "./helpers";
+import { clickInEditor, createPage, editorBody, pasteText, trashOpenPage, typeInBody } from "./helpers";
 
 test.use({ storageState: authFile("editor") });
 
@@ -142,7 +142,7 @@ test.describe("Code blocks", () => {
       // seen on CI right after formatting): selecting all replaces it anyway.
       await expect(async () => {
         if (await block.locator("code").textContent()) {
-          await block.locator("code").click();
+          await clickInEditor(block.locator("code"));
           await page.keyboard.press("Control+A");
         }
         await page.keyboard.insertText(c.code);

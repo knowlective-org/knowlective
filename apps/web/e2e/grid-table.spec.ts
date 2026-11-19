@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
-import { createPage, editorBody, openPage, trashOpenPage } from "./helpers";
+import { clickInEditor, createPage, editorBody, openPage, trashOpenPage } from "./helpers";
 
 // The extended table: cells holding blocks, header row and row titles, rows
 // and columns added and deleted, widths dragged.
@@ -29,9 +29,9 @@ test.describe("Extended table", () => {
     await expect(cells(page).nth(0)).toHaveAttribute("role", "columnheader");
     await expect(cells(page).nth(3)).toHaveAttribute("role", "cell");
 
-    await cellText(page, 0).click();
+    await clickInEditor(cellText(page, 0));
     await page.keyboard.type("項目");
-    await cellText(page, 3).click();
+    await clickInEditor(cellText(page, 3));
     await page.keyboard.type("説明");
     // More blocks in the same cell: a list.
     await page.keyboard.press("Enter");
@@ -43,7 +43,7 @@ test.describe("Extended table", () => {
 
     // Backspace at the start of a cell, and Delete at the end of one, leave
     // the cells as they are.
-    await cellText(page, 4).click();
+    await clickInEditor(cellText(page, 4));
     await page.keyboard.press("Backspace");
     await page.keyboard.press("Backspace");
     // At the end of the text: a click past it, at the right of the line. (A
@@ -127,7 +127,7 @@ test.describe("Extended table", () => {
     await createPage(page, "E2E 拡張テーブルの上下");
     await insertGridTable(page);
     // The middle column, its first row (cells: 0 1 2 / 3 4 5 / 6 7 8).
-    await cellText(page, 1).click();
+    await clickInEditor(cellText(page, 1));
     await page.keyboard.type("上");
     await page.keyboard.press("ArrowDown");
     await page.keyboard.type("中");
@@ -141,7 +141,7 @@ test.describe("Extended table", () => {
     await page.keyboard.type("!");
     await expect(cellText(page, 1)).toHaveText("上!");
     // From the last row: below the table.
-    await cellText(page, 7).click();
+    await clickInEditor(cellText(page, 7));
     await page.keyboard.press("ArrowDown");
     await page.keyboard.type("表の下");
     await expect(editorBody(page).locator('[data-content-type="paragraph"]').filter({ hasText: "表の下" })).toHaveCount(1);
@@ -154,18 +154,18 @@ test.describe("Extended table", () => {
     await createPage(page, "E2E 拡張テーブルの Tab");
     await insertGridTable(page);
     // (cells: 0 1 2 / 3 4 5 / 6 7 8)
-    await cellText(page, 0).click();
+    await clickInEditor(cellText(page, 0));
     await page.keyboard.press("Tab");
     await page.keyboard.type("右");
     await expect(cellText(page, 1)).toHaveText("右");
     await expect(cellText(page, 0)).toHaveText("");
     // The last column: the cell below.
-    await cellText(page, 2).click();
+    await clickInEditor(cellText(page, 2));
     await page.keyboard.press("Tab");
     await page.keyboard.type("下");
     await expect(cellText(page, 5)).toHaveText("下");
     // The last cell: nowhere to go, it stays (and the focus stays in the editor).
-    await cellText(page, 8).click();
+    await clickInEditor(cellText(page, 8));
     await page.keyboard.press("Tab");
     await page.keyboard.type("端");
     await expect(cellText(page, 8)).toHaveText("端");
@@ -174,7 +174,7 @@ test.describe("Extended table", () => {
     await page.keyboard.press("Tab");
     await page.keyboard.type("!");
     await expect(cellText(page, 8)).toHaveText("端!");
-    await cellText(page, 4).click();
+    await clickInEditor(cellText(page, 4));
     await page.keyboard.type("一");
     await page.keyboard.press("Enter");
     await page.keyboard.type("二");
@@ -198,7 +198,7 @@ test.describe("Extended table", () => {
     // of another change takes both back.)
     await page.waitForTimeout(800);
     // From the middle cell (row 2, column 2): 2 rows × 3 columns, so a 4th column.
-    await cellText(page, 4).click();
+    await clickInEditor(cellText(page, 4));
     // (The caret in that cell before the paste: a key typed there lands there.)
     await page.keyboard.type("x");
     await expect(cellContent(page, 4)).toHaveText("x");
@@ -230,7 +230,7 @@ test.describe("Extended table", () => {
   test("the table's ⋮⋮ duplicates and deletes it", async ({ page }) => {
     await createPage(page, "E2E 拡張テーブルのハンドル");
     await insertGridTable(page);
-    await cellText(page, 0).click();
+    await clickInEditor(cellText(page, 0));
     await page.keyboard.type("元の表");
     const tables = page.getByTestId("GridTable");
     await tables.first().hover();
@@ -348,7 +348,7 @@ test("a summary row adds up its columns: sums, counts and conditions (COUNTIF, S
   await expect(summaryCell(1).getByTestId("GridTable.summaryValue")).toHaveText("1,700");
 
   // It follows the cells as they change.
-  await cellText(page, 8).click();
+  await clickInEditor(cellText(page, 8));
   await page.keyboard.press("End");
   await page.keyboard.press("Backspace");
   await page.keyboard.press("Backspace");
