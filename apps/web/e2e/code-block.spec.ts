@@ -138,12 +138,16 @@ test.describe("Code blocks", () => {
     const block = editorBody(page).locator('[data-content-type="codeBlock"]');
     for (const c of cases) {
       // The caret in the code: Ctrl+A selects the code only, replaced by the next.
-      if (await block.locator("code").textContent()) {
-        await block.locator("code").click();
-        await page.keyboard.press("Control+A");
-      }
-      await page.keyboard.insertText(c.code);
-      await expect(block.locator("code")).toHaveText(c.code);
+      // Again if the click didn't put the caret there (the text went nowhere;
+      // seen on CI right after formatting): selecting all replaces it anyway.
+      await expect(async () => {
+        if (await block.locator("code").textContent()) {
+          await block.locator("code").click();
+          await page.keyboard.press("Control+A");
+        }
+        await page.keyboard.insertText(c.code);
+        await expect(block.locator("code")).toHaveText(c.code, { timeout: 2000 });
+      }).toPass({ timeout: 20_000 });
       await block.locator("> div > select").selectOption(c.language);
       await block.getByTestId("CodeBlock.indentSelect").selectOption("4");
       await block.getByTestId("CodeBlock.formatButton").click();
