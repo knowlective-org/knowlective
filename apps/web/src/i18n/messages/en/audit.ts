@@ -5,6 +5,7 @@ export default {
   audit: {
     passwordReset: "{who} reset their password ({via, select, admin {link issued by an administrator} other {emailed link}})",
     oidcUserCreated: "Created the account for {email} with single sign-on ({role})",
+    oidcUserCreatedNoEmail: "Created the account for {name} with single sign-on, without an email address ({role})",
     pageMove:
       "Moved the page \"{title}\"{descendants, plural, =0 {} one { and the # page under it} other { and the # pages under it}}{from} under \"{to}\"{root}. Permissions now come from the new place",
     pageMoveFrom: " from under \"{title}\"",
@@ -69,6 +70,7 @@ export default {
     emailChangeCancel: "Cancelled the email address change of {who} to {to}",
     emailChangeDecline: "Turned down the change of their email address to {to} asked for by an administrator",
     emailChangeUnconfirmed: "Changed their email address from {from} to {to} (without confirmation: single sign-on account)",
+    oidcNoEmail: "{allowed, select, true {allow accounts without an email address} other {require an email address}}",
     oidcTrustEmail: "{trust, select, true {treat email addresses as verified} other {require verified email addresses}}",
     oidcPasswordLogin: "{siteAdminsOnly, select, true {password login for site admins only} other {password login alongside}}",
     groupCreate: "Created the group \"{name}\"",

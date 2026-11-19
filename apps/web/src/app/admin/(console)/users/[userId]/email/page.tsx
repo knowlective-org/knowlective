@@ -27,6 +27,7 @@ export default async function AdminEmailChangePage({ params }: PageProps<"/admin
     getTranslations("admin.emailChange"),
     getFormatter(),
   ]);
+  const tc = await getTranslations("common");
 
   return (
     <>
@@ -39,7 +40,7 @@ export default async function AdminEmailChangePage({ params }: PageProps<"/admin
         <h2 className={styles.sectionTitle}>{t("heading", { user: userLabel(user) })}</h2>
         <p className={styles.note}>{t("current")}</p>
         <p style={{ margin: "4px 0 16px" }} data-ui="AdminEmailChangePage.currentEmail">
-          {user.email}
+          {user.email || tc("noEmail")}
         </p>
         {user.disabledAt ? (
           <p className={styles.note} data-ui="AdminEmailChangePage.disabledNote">

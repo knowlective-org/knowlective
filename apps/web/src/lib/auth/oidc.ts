@@ -12,7 +12,7 @@ import {
 import { withBasePath } from "@/lib/base-path";
 import { prisma } from "@/lib/db";
 import { emailColumns, emailWhere, withEmail } from "@/lib/emails";
-import { type Claims, groupNames, renderDisplayName, syncOidcGroups } from "./oidc-profile";
+import { type Claims, MAX_NAME_LENGTH, groupNames, renderDisplayName, syncOidcGroups } from "./oidc-profile";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { auditTranslator } from "@/i18n/audit";
 import { getTranslations } from "next-intl/server";
@@ -68,6 +68,7 @@ export type OidcSettingsView = {
   trustEmail: boolean;
   allowNameChange: boolean;
   allowEmailChangeUnconfirmed: boolean;
+  allowNoEmail: boolean;
   passwordLogin: PasswordLoginMode;
 };
 
@@ -87,6 +88,7 @@ const DEFAULTS: OidcSettingsView = {
   trustEmail: false,
   allowNameChange: false,
   allowEmailChangeUnconfirmed: false,
+  allowNoEmail: false,
   passwordLogin: "ALLOWED",
 };
 
@@ -108,6 +110,7 @@ export async function getOidcSettings(): Promise<OidcSettingsView> {
     trustEmail: row.trustEmail,
     allowNameChange: row.allowNameChange,
     allowEmailChangeUnconfirmed: row.allowEmailChangeUnconfirmed,
+    allowNoEmail: row.allowNoEmail,
     passwordLogin: row.passwordLogin,
   };
 }
@@ -372,7 +375,11 @@ async function completeLogin(search: string, state: LoginState): Promise<{ userI
   }
 
   if (!email || !emailVerified) {
-    throw new OidcLoginError("no_email");
+    // Allowed without one (OidcSettings.allowNoEmail): an address that isn't
+    // verified isn't kept, nor matched to an account. A new account only
+    // while any domain may have one (the domains are checked by address).
+    if (!settings.allowNoEmail || settings.allowedDomains.length > 0) throw new OidcLoginError("no_email");
+    return { userId: await createOidcUser(settings, profile, issuer, subject, null), next: state.next };
   }
 
   // 2. Existing account with this (verified) email: store the subject on it
@@ -432,7 +439,21 @@ async function completeLogin(search: string, state: LoginState): Promise<{ userI
   if (!isDomainAllowed(email, settings.allowedDomains)) {
     throw new OidcLoginError("domain");
   }
-  const name = renderDisplayName(settings.nameClaim, profile.claims);
+  return { userId: await createOidcUser(settings, profile, issuer, subject, email), next: state.next };
+}
+
+// A new account linked to the IdP's subject, with the address (null: none,
+// OidcSettings.allowNoEmail).
+async function createOidcUser(
+  settings: { nameClaim: string | null; groupsClaim: string | null; newUserRole: string },
+  profile: { claims: Claims; userInfo: boolean | null },
+  issuer: string,
+  subject: string,
+  email: string | null,
+): Promise<string> {
+  // Without an address the name is all that shows who it is: the IdP's
+  // subject when it gives no name.
+  const name = renderDisplayName(settings.nameClaim, profile.claims) ?? (email ? null : subject.slice(0, MAX_NAME_LENGTH));
   const role: OidcRole = isOidcRole(settings.newUserRole)
     ? settings.newUserRole
     : "USER";
@@ -442,7 +463,7 @@ async function completeLogin(search: string, state: LoginState): Promise<{ userI
   );
   const user = await prisma.user.create({
     data: {
-      ...(await emailColumns(email)),
+      ...(email && (await emailColumns(email))),
       name,
       passwordHash,
       siteRole: role,
@@ -455,14 +476,16 @@ async function completeLogin(search: string, state: LoginState): Promise<{ userI
   await prisma.$transaction((tx) => ensurePersonalRoot(tx, user.id, title));
   const audit = await auditTranslator();
   await recordAudit(
-    { userId: user.id, label: userLabel({ name, email }) },
+    { userId: user.id, label: userLabel({ name, email: email ?? "" }) },
     "user.create.oidc",
-    audit("audit.oidcUserCreated", { email, role: audit(`roles.${role}`) }),
-    { userId: user.id, issuer },
+    email
+      ? audit("audit.oidcUserCreated", { email, role: audit(`roles.${role}`) })
+      : audit("audit.oidcUserCreatedNoEmail", { name: name ?? "", role: audit(`roles.${role}`) }),
+    { userId: user.id, issuer, ...(!email && { noEmail: true }) },
   );
   // Its groups (the name is set already).
   await applyProfile(user.id, { ...settings, syncName: false }, profile);
-  return { userId: user.id, next: state.next };
+  return user.id;
 }
 
 // The claims to read the profile from: the ID token's, with the UserInfo

@@ -53,7 +53,8 @@ export default async function AdminPasswordResetPage({ params }: PageProps<"/adm
               userId={user.id}
               email={user.email}
               ttlHours={ADMIN_PASSWORD_RESET_TTL_HOURS}
-              mailConfigured={mailConfigured}
+              // No address (single sign-on without one): shown on screen only.
+              mailConfigured={mailConfigured && !!user.email}
             />
           </>
         )}

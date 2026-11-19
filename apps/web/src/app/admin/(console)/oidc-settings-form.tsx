@@ -24,6 +24,7 @@ type Values = {
   trustEmail: boolean;
   allowNameChange: boolean;
   allowEmailChangeUnconfirmed: boolean;
+  allowNoEmail: boolean;
   passwordLogin: "ALLOWED" | "SITE_ADMINS_ONLY";
 };
 
@@ -257,6 +258,20 @@ export function OidcSettingsForm({
             {ta("oidc.trustEmail")}
             <span className={styles.note} style={{ display: "block" }}>
               {ta("oidc.trustEmailNote")}
+            </span>
+          </span>
+        </label>
+        <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <input
+            type="checkbox"
+            name="allowNoEmail"
+            defaultChecked={values.allowNoEmail}
+            data-ui="OidcSettingsForm.allowNoEmail"
+          />
+          <span>
+            {ta("oidc.allowNoEmail")}
+            <span className={styles.note} style={{ display: "block" }}>
+              {ta("oidc.allowNoEmailNote")}
             </span>
           </span>
         </label>

@@ -16,6 +16,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 - Public pages' link cards (Open Graph and Twitter / X) show an image: the knowledge root's favicon when it's a PNG and the root page is public, otherwise the app icon
 
+- Single sign-on can let in people the identity provider has no email address for (admin console → single sign-on → "Allow accounts without an email address"): their account is made without one, only while no email domains are listed. An address that isn't verified isn't kept. They can add one later on the account screen, or a site admin can ask for one from the user list
+
 - Site admins can change another user's email address from the admin console (the user list's "⋯" menu): a code is mailed to the new address, and the address changes when the user signs in and enters it on their account screen. The user can turn it down, and the admin can cancel it. Needs mail sending to be set up
 
 ### Changed

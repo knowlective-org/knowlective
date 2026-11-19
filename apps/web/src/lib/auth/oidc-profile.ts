@@ -11,7 +11,7 @@ import { disconnectUsers } from "@/lib/collab-events";
 // A claim name, or a dotted path to a nested one ("profile.name").
 export const CLAIM_PATH = /^[A-Za-z0-9_:\-]+(\.[A-Za-z0-9_:\-]+)*$/;
 export const MAX_TEMPLATE_LENGTH = 200;
-const MAX_NAME_LENGTH = 100;
+export const MAX_NAME_LENGTH = 100;
 // Groups taken from one sign-in, and the length of a group's name.
 const MAX_GROUPS = 100;
 const MAX_GROUP_NAME_LENGTH = 100;

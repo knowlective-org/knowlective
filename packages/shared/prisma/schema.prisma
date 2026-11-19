@@ -1188,6 +1188,10 @@ model OidcSettings {
   // at once on the account screen: no confirmation (no code, no link to the
   // new address). Off: the same confirmed change as other accounts.
   allowEmailChangeUnconfirmed Boolean           @default(false)
+  // Sign in (and create accounts) without an email address when the IdP
+  // sends none, or one that isn't verified (it isn't kept then). Accounts
+  // are still created only while allowedDomains is empty.
+  allowNoEmail                Boolean           @default(false)
   passwordLogin               PasswordLoginMode @default(ALLOWED)
   updatedAt                   DateTime          @updatedAt
 }

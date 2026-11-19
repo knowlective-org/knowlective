@@ -28,6 +28,8 @@ export default {
   },
   common: {
     email: "Email address",
+    // An account without an address (single sign-on, OidcSettings.allowNoEmail).
+    noEmail: "Not set",
     password: "Password",
     passwordWithMin: "Password (at least {min, number} characters)",
     confirmPassword: "Password (again)",

@@ -119,7 +119,7 @@ export default async function AdminGroupPage({ params }: PageProps<"/admin/group
                       {user.name ?? "-"}
                       {user.disabledAt && <span className={styles.badge}>{t("admin.common.disabled")}</span>}
                     </td>
-                    <td>{user.email}</td>
+                    <td>{user.email || <span className={styles.note}>{t("common.noEmail")}</span>}</td>
                     <td>{format.dateTime(createdAt, { dateStyle: "short", timeStyle: "medium" })}</td>
                     <td>
                       <RowMenu

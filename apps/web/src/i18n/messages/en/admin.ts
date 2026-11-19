@@ -546,6 +546,9 @@ export default {
       trustEmail: "Treat the identity provider's email addresses as verified",
       trustEmailNote:
         "Turn on when the identity provider doesn't send \"verified\" (email_verified), e.g. Microsoft Entra ID. On with an identity provider where users can set any email address, someone could get into another person's account.",
+      allowNoEmail: "Allow accounts without an email address",
+      allowNoEmailNote:
+        "For identity providers where some people have no email address. On: someone the identity provider sends no address for (or one that isn't verified, which isn't kept) can still log in, and an account is made for them without one, only while no domains are listed above. They can add an address later on the Account screen (or you can ask for one from the user list). Until then no email from this site reaches them, and an account that already exists can't be matched to them by address. Off: they can't log in.",
       allowNameChange: "Let accounts that log in with single sign-on change their name",
       allowNameChangeNote: "Off: the name stays as the identity provider gave it at the first log-in. Other accounts can always change theirs (Account screen).",
       allowEmailChangeUnconfirmed: "Let accounts that log in with single sign-on change their email address without confirmation",

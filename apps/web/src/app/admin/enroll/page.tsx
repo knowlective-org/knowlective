@@ -37,7 +37,8 @@ export default async function AdminEnrollPage() {
   // Name of the entry in the authenticator app, which can be changed on this
   // screen and is never stored. An account starts with its email address; the
   // master password has no account, so it starts with a random name.
-  const defaultName = session.user?.email ?? randomAuthenticatorName();
+  // An account without an address (single sign-on): a random name, as for the master password.
+  const defaultName = session.user?.email || randomAuthenticatorName();
   const qr = await QRCode.toDataURL(otpauthUri(secretBase32, defaultName), QR_OPTIONS);
   const base32 = secretBase32.replace(/(.{4})/g, "$1 ").trim();
   const t = await getTranslations("admin.enroll");
