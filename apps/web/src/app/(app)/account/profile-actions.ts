@@ -8,6 +8,11 @@ import { recordAudit, userLabel } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { CODE_TTL_MINUTES, sendEmailCode } from "@/lib/auth/email-code";
 import { EMAIL_CHANGE_TTL_MINUTES, changeEmailWithoutConfirmation, startEmailChange } from "@/lib/auth/email-change";
+import {
+  cancelAdminEmailChange,
+  confirmAdminEmailChange,
+  resendAdminEmailChangeCode,
+} from "@/lib/auth/admin-email-change";
 import { beginReauthentication } from "@/lib/auth/passkeys";
 import { MAX_NAME_LENGTH, profileRules } from "@/lib/auth/profile";
 import { reauthMethod, verifyReauth } from "@/lib/auth/reauth";
@@ -100,4 +105,31 @@ export async function changeEmailNow(newEmail: string): Promise<{ email: string 
   if (result === "taken") return { error: t("emailTaken") };
   revalidatePath("/", "layout");
   return { email: normalizeEmail(newEmail) };
+}
+
+// ---- A change asked for by an administrator -----------------------------------
+// The code mailed to the new address (lib/auth/admin-email-change.ts). It
+// proves the new mailbox is theirs; being signed in proves the account is.
+
+export async function confirmEmailChangeByAdmin(code: string): Promise<{ email: string } | { error: string }> {
+  const user = await requireUser("/account");
+  const t = await getTranslations("account.profile.adminChange.errors");
+  const result = await confirmAdminEmailChange(user, typeof code === "string" ? code : "");
+  if (!result.ok) return { error: t(result.reason) };
+  revalidatePath("/", "layout");
+  return { email: result.email };
+}
+
+export async function resendEmailChangeByAdminCode(): Promise<{ sent: true } | { error: string }> {
+  const user = await requireUser("/account");
+  const t = await getTranslations("account.profile.adminChange.errors");
+  const result = await resendAdminEmailChangeCode(user.id);
+  if (result === "sent") return { sent: true };
+  return { error: t(result) };
+}
+
+export async function declineEmailChangeByAdmin(): Promise<void> {
+  const user = await requireUser("/account");
+  await cancelAdminEmailChange({ userId: user.id, label: userLabel(user) }, user.id, "user");
+  revalidatePath("/account");
 }

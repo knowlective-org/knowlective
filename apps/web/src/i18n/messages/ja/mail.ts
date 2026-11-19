@@ -47,6 +47,13 @@ const ja: MessageShape<typeof en> = {
       inUse: "このアドレスはほかの KNOWLECTIVE のアカウントで使われているため、使えません。何も変更していません。",
       ignore: "心当たりがない場合は、このメールは無視してください。",
     },
+    adminEmailChange: {
+      subject: "KNOWLECTIVE の確認コード: {code}",
+      intro: "管理者が、あなたの KNOWLECTIVE のアカウントのメールアドレスを、このアドレスに変更するよう依頼しました。確定するには、次のコードを入力してください。",
+      where: "KNOWLECTIVE に（今のメールアドレスで）ログインし、「アカウント」で入力します。",
+      expires: "コードは1回だけ使え、{duration}で使えなくなります。入力するまで、メールアドレスは変わりません。",
+      ignore: "心当たりがない場合は、このメールは無視してください（何も変わりません）。",
+    },
     emailChanged: {
       subject: "KNOWLECTIVE のメールアドレスが変更されました",
       body: "KNOWLECTIVE のアカウントのメールアドレスが {email} に変更されました。これからのメールはそちらに届きます。",

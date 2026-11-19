@@ -37,6 +37,22 @@ export default {
       cannotConfirm: "This account has no way to confirm it's you here. Register a passkey first.",
       linkSent: "We've emailed a link to {email}. Open it within an hour to finish the change.",
       emailMail: "Email sending isn't set up on this site, so the email address can't be changed here. Ask an administrator.",
+      adminChange: {
+        lead: "An administrator asked to change your email address to {email}. Enter the code we emailed there to make the change (until {expires}). Until then your address stays as it is.",
+        code: "Code",
+        confirmButton: "Change the address",
+        resendButton: "Send a new code",
+        resent: "We've emailed a new code to {email}.",
+        declineButton: "Turn down",
+        declineConfirm: "Turn down the change to {email}? The code stops working, and your address stays as it is.",
+        errors: {
+          wrong: "That code isn't right. Check it, or send a new one.",
+          none: "This request is no longer valid. Ask the administrator again if needed.",
+          taken: "This address is now used by another account, so it can't be used.",
+          tooMany: "No more codes can be sent for this request. Ask the administrator again.",
+          mailFailed: "The email couldn't be sent. Please try again later.",
+        },
+      },
       errors: {
         nameRequired: "Enter a name.",
         nameTooLong: "Keep the name to {max, number} characters.",

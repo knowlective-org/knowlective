@@ -8,6 +8,7 @@ import { PASSWORD_RESET_TTL_MINUTES } from "@/lib/auth/password-reset";
 import { canIssueApiKeys, getApiSettings, listApiKeys } from "@/lib/api/keys";
 import { listPasskeys, passkeyRequiredSetting } from "@/lib/auth/passkeys";
 import { reauthMethod } from "@/lib/auth/reauth";
+import { pendingAdminEmailChange } from "@/lib/auth/admin-email-change";
 import { getPublicUrl } from "@/lib/site-url";
 import { getSessionUser, requireUser } from "@/lib/auth/session";
 import { loadSidebar } from "@/lib/sidebar-data";
@@ -44,7 +45,7 @@ export default async function AccountPage() {
     passkeyRequiredSetting(),
     getSessionUser(),
   ]);
-  const [apiKeys, canIssue, apiSettings, method, publicUrl, rules, grants, canConnect] = await Promise.all([
+  const [apiKeys, canIssue, apiSettings, method, publicUrl, rules, grants, canConnect, adminChange] = await Promise.all([
     listApiKeys(user.id),
     canIssueApiKeys(user.siteRole),
     getApiSettings(),
@@ -53,6 +54,7 @@ export default async function AccountPage() {
     profileRules(user.id),
     listGrants(user.id),
     oauthAllowedFor(user.siteRole),
+    pendingAdminEmailChange(user.id),
   ]);
   const now = new Date();
 
@@ -69,6 +71,13 @@ export default async function AccountPage() {
             rules={rules}
             method={method}
             maxNameLength={MAX_NAME_LENGTH}
+            adminChange={
+              adminChange && {
+                newEmail: adminChange.newEmail,
+                expiresAt: adminChange.expiresAt.toISOString(),
+                canResend: adminChange.canResend,
+              }
+            }
           />
           <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "8px 16px", margin: "24px 0 0" }}>
             <dt className={styles.note}>{t("account.role")}</dt>

@@ -46,6 +46,13 @@ export default {
       inUse: "This address is already used by another KNOWLECTIVE account, so it can't be used for this one. Nothing was changed.",
       ignore: "If you didn't ask for this, you can ignore this email.",
     },
+    adminEmailChange: {
+      subject: "Your KNOWLECTIVE confirmation code: {code}",
+      intro: "An administrator asked to change your KNOWLECTIVE account's email address to this address. To confirm, enter this code:",
+      where: "Sign in to KNOWLECTIVE (with your current address) and enter it under \"Account\":",
+      expires: "The code works once and expires in {duration}. Until you enter it, your address stays as it is.",
+      ignore: "If you don't know about this, you can ignore this email: nothing changes.",
+    },
     emailChanged: {
       subject: "Your KNOWLECTIVE email address was changed",
       body: "Your KNOWLECTIVE account's email address was changed to {email}. Emails go there from now on.",

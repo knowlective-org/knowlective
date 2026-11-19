@@ -6,6 +6,7 @@ import { startTransition, useActionState, useState } from "react";
 import { isPasskeyPromptDismissed, useWebAuthnSupport } from "@/components/passkey-register-form";
 import { StatusRow } from "@/components/status-row";
 import styles from "@/styles/ui.module.css";
+import { AdminEmailChange } from "./admin-email-change";
 import {
   type NameState,
   beginEmailChangePasskeyCheck,
@@ -25,6 +26,7 @@ export function ProfileSection({
   rules,
   method,
   maxNameLength,
+  adminChange,
 }: {
   name: string | null;
   email: string;
@@ -32,6 +34,8 @@ export function ProfileSection({
   // How this account confirms it's them (lib/auth/reauth.ts).
   method: "passkey" | "code" | null;
   maxNameLength: number;
+  // A change an administrator asked for, waiting for the code.
+  adminChange: { newEmail: string; expiresAt: string; canResend: boolean } | null;
 }) {
   const t = useTranslations("account.profile");
   const tc = useTranslations("common");
@@ -180,6 +184,16 @@ export function ProfileSection({
           <p className={styles.success} data-ui="ProfileSection.linkStatus">
             {t("linkSent", { email: linkSentTo })}
           </p>
+        )}
+        {adminChange && !changedTo && (
+          <AdminEmailChange
+            {...adminChange}
+            onChanged={(email) => {
+              setChangedTo(email);
+              setChanging(false);
+              setLinkSentTo(null);
+            }}
+          />
         )}
         {rules.email === "mail" ? (
           <p className={styles.note} data-ui="ProfileSection.emailUnavailable">
