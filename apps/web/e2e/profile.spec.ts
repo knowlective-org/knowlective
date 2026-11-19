@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { loadDataKey, sealEmail } from "shared";
 import { ACCOUNTS, authFile } from "./accounts";
 import { userWhere, withPrisma } from "./db";
+import { openAdmin } from "./admin-login";
 import { startMailCapture } from "./mail-capture";
 
 // The account screen's name and email address. Mail goes to a capture
@@ -33,6 +34,7 @@ test.describe("Name and email address", () => {
       });
       await prisma.emailChangeRequest.deleteMany({ where: { userId: original.id } });
       await prisma.emailCode.deleteMany({ where: { userId: original.id } });
+      await prisma.adminEmailChange.deleteMany({ where: { userId: original.id } });
     });
   });
 
@@ -198,6 +200,109 @@ test.describe("Name and email address", () => {
       await page.reload();
       await expect(page.getByTestId("AccountPage.email")).toHaveText(ACCOUNTS.editor.email);
     } finally {
+      await mail.close();
+    }
+  });
+
+  test("an admin asks to change the address: it changes when the user enters the code mailed to the new one", async ({ page, browser, baseURL }) => {
+    const mail = await startMailCapture();
+    const adminContext = await browser.newContext({ storageState: authFile("admin") });
+    const auditorContext = await browser.newContext({ storageState: authFile("auditor") });
+    try {
+      const admin = await adminContext.newPage();
+      await openAdmin(admin, `/users/${original.id}/email`);
+      await expect(admin.getByTestId("AdminEmailChangePage.currentEmail")).toHaveText(ACCOUNTS.editor.email);
+
+      // Another account's address: the admin is told.
+      await admin.getByTestId("AdminEmailChangeForm.newEmailInput").fill(ACCOUNTS.viewer.email);
+      await admin.getByTestId("AdminEmailChangeForm.submitButton").click();
+      await expect(admin.getByTestId("AdminEmailChangeForm.error")).toContainText("ほかのアカウント");
+
+      const codeMail = mail.next(NEW_EMAIL);
+      await admin.getByTestId("AdminEmailChangeForm.newEmailInput").fill(NEW_EMAIL);
+      await admin.getByTestId("AdminEmailChangeForm.submitButton").click();
+      await expect(admin.getByTestId("AdminEmailChangeForm.status")).toContainText(NEW_EMAIL);
+      const { text } = await codeMail;
+      expect(text).toMatch(/\/account$/m);
+      const code = /^(\d{6})$/m.exec(text)![1];
+      await admin.reload();
+      await expect(admin.getByTestId("AdminEmailChangePage.pendingStatus")).toContainText(NEW_EMAIL);
+
+      // An auditor (read-only in the admin console) can't open the page, nor
+      // cancel the request by posting the action directly.
+      const auditor = await auditorContext.newPage();
+      await openAdmin(auditor, `/users/${original.id}/email`, "auditor");
+      await expect(auditor.getByTestId("AdminEmailChangePage")).toHaveCount(0);
+      const action = (await admin.locator('[data-ui="CancelEmailChangeForm"] input[name^="$ACTION_ID_"]').getAttribute("name"))!;
+      await auditor.request.post(`admin/users/${original.id}/email`, {
+        headers: { Origin: new URL(baseURL!).origin },
+        multipart: { [action]: "", userId: original.id },
+        maxRedirects: 0,
+      });
+      await admin.reload();
+      await expect(admin.getByTestId("AdminEmailChangePage.pendingStatus")).toContainText(NEW_EMAIL);
+
+      // Nothing changes until the user enters the code.
+      await page.goto("account");
+      await expect(page.getByTestId("AccountPage.email")).toHaveText(ACCOUNTS.editor.email);
+      await expect(page.getByTestId("AdminEmailChange.lead")).toContainText(NEW_EMAIL);
+      await page.getByTestId("AdminEmailChange.codeInput").fill(code === "000000" ? "111111" : "000000");
+      await page.getByTestId("AdminEmailChange.confirmButton").click();
+      await expect(page.getByTestId("AdminEmailChange.error")).toContainText("コードが違います");
+      await expect(page.getByTestId("AccountPage.email")).toHaveText(ACCOUNTS.editor.email);
+
+      const notice = mail.next(ACCOUNTS.editor.email);
+      await page.getByTestId("AdminEmailChange.codeInput").fill(code);
+      await page.getByTestId("AdminEmailChange.confirmButton").click();
+      await expect(page.getByTestId("AccountPage.email")).toHaveText(NEW_EMAIL);
+      await expect(page.getByTestId("AdminEmailChange")).toHaveCount(0);
+      // The old address is told.
+      expect((await notice).text).toContain(NEW_EMAIL);
+
+      await admin.reload();
+      await expect(admin.getByTestId("AdminEmailChangePage.currentEmail")).toHaveText(NEW_EMAIL);
+      await expect(admin.getByTestId("AdminEmailChangePage.pendingStatus")).toHaveCount(0);
+    } finally {
+      await adminContext.close();
+      await auditorContext.close();
+      await mail.close();
+    }
+  });
+
+  test("the user can turn down an admin's change, and the admin can cancel it", async ({ page, browser }) => {
+    const mail = await startMailCapture();
+    const adminContext = await browser.newContext({ storageState: authFile("admin") });
+    try {
+      const admin = await adminContext.newPage();
+      const ask = async () => {
+        await openAdmin(admin, `/users/${original.id}/email`);
+        const sent = mail.next(NEW_EMAIL);
+        await admin.getByTestId("AdminEmailChangeForm.newEmailInput").fill(NEW_EMAIL);
+        await admin.getByTestId("AdminEmailChangeForm.submitButton").click();
+        await expect(admin.getByTestId("AdminEmailChangeForm.status")).toContainText(NEW_EMAIL);
+        await sent;
+      };
+
+      // Turned down by the user.
+      await ask();
+      await page.goto("account");
+      await page.getByTestId("AdminEmailChange.declineButton").click();
+      await page.getByTestId("AppDialog.confirmButton").click();
+      await expect(page.getByTestId("AdminEmailChange")).toHaveCount(0);
+      await admin.reload();
+      await expect(admin.getByTestId("AdminEmailChangePage.pendingStatus")).toHaveCount(0);
+
+      // Cancelled by the admin.
+      await ask();
+      await admin.reload();
+      await admin.getByTestId("CancelEmailChangeForm.cancelButton").click();
+      await admin.getByTestId("AppDialog.confirmButton").click();
+      await expect(admin.getByTestId("AdminEmailChangePage.pendingStatus")).toHaveCount(0);
+      await page.reload();
+      await expect(page.getByTestId("AdminEmailChange")).toHaveCount(0);
+      await expect(page.getByTestId("AccountPage.email")).toHaveText(ACCOUNTS.editor.email);
+    } finally {
+      await adminContext.close();
       await mail.close();
     }
   });

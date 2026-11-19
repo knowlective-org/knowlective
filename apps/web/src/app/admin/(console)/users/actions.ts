@@ -17,6 +17,8 @@ import { passwordResetMail } from "@/lib/mail-templates";
 import { userLocale } from "@/i18n/locale";
 import { getPublicUrl } from "@/lib/site-url";
 import { disconnectUsers } from "@/lib/collab-events";
+import { cancelAdminEmailChange, requestAdminEmailChange } from "@/lib/auth/admin-email-change";
+import { normalizeEmail } from "@/lib/auth/session";
 
 type AuditText = Awaited<ReturnType<typeof auditTranslator>>;
 
@@ -181,4 +183,51 @@ export async function issuePasswordReset(
   } catch (err) {
     return { link, mailError: err instanceof Error ? err.message : String(err) };
   }
+}
+
+// From the user list's "⋯" menu: the change is asked for on its own page.
+export async function openEmailChange(formData: FormData): Promise<void> {
+  await requireAdmin(["SITE_ADMIN"]);
+  const userId = formData.get("userId");
+  if (typeof userId !== "string") return;
+  redirect(`/admin/users/${encodeURIComponent(userId)}/email`);
+}
+
+export type AdminEmailChangeState = { error?: string; sentTo?: string };
+
+// Site admins only. Mails a code to the new address; the address changes
+// when the user enters it on their account screen
+// (lib/auth/admin-email-change.ts).
+export async function requestUserEmailChange(
+  _prev: AdminEmailChangeState,
+  formData: FormData,
+): Promise<AdminEmailChangeState> {
+  const { session, actor } = await requireAdmin(["SITE_ADMIN"]);
+  const userId = formData.get("userId");
+  const newEmail = formData.get("newEmail");
+  const t = await getTranslations();
+  if (typeof userId !== "string" || typeof newEmail !== "string") return { error: t("common.errors.invalidInput") };
+  if (userId === session.userId) return { error: t("admin.emailChange.errors.own") };
+  const result = await requestAdminEmailChange(actor, userId, newEmail);
+  switch (result) {
+    case "sent":
+      revalidatePath("/admin", "layout");
+      return { sentTo: normalizeEmail(newEmail) };
+    case "notFound":
+      return { error: t("admin.users.errors.notFound") };
+    case "disabled":
+      return { error: t("admin.emailChange.disabled") };
+    case "mail":
+      return { error: t("admin.emailChange.mailNotConfigured") };
+    default:
+      return { error: t(`admin.emailChange.errors.${result}`) };
+  }
+}
+
+export async function cancelUserEmailChange(formData: FormData): Promise<void> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const userId = formData.get("userId");
+  if (typeof userId !== "string") return;
+  await cancelAdminEmailChange(actor, userId, "admin");
+  revalidatePath("/admin", "layout");
 }

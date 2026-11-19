@@ -20,7 +20,7 @@ import { SignupSettingsForm } from "../signup-settings-form";
 import { OidcSettingsForm } from "../oidc-settings-form";
 import { ApiSettingsForm } from "../api-settings-form";
 import { PasskeySettingsForm } from "../passkey-settings-form";
-import { changeSiteRole, disableUser, enableUser, openPasswordReset, resetPasskeys, revokeApiKeys } from "./actions";
+import { changeSiteRole, disableUser, enableUser, openEmailChange, openPasswordReset, resetPasskeys, revokeApiKeys } from "./actions";
 
 type UserRow = {
   id: string;
@@ -37,6 +37,7 @@ type UserMenuText = {
   makeRole: (role: SiteRole) => string;
   roleConfirm: (who: string, role: SiteRole) => string;
   issueReset: string;
+  changeEmail: string;
   enable: string;
   disable: string;
   disableConfirm: (who: string) => string;
@@ -46,7 +47,8 @@ type UserMenuText = {
   revokeApiKeysConfirm: (who: string, count: number) => string;
 };
 
-// Site admins only: change role, password reset link, remove passkeys,
+// Site admins only: change role, password reset link, change the email
+// address (confirmed by the user with a code), remove passkeys,
 // revoke API keys, disable / enable.
 function userMenu(u: UserRow, text: UserMenuText): RowMenuItem[] {
   const who = u.name ?? u.email;
@@ -58,7 +60,12 @@ function userMenu(u: UserRow, text: UserMenuText): RowMenuItem[] {
   }));
   return [
     ...roleItems,
-    ...(u.disabledAt ? [] : [{ label: text.issueReset, action: openPasswordReset, fields: { userId: u.id } }]),
+    ...(u.disabledAt
+      ? []
+      : [
+          { label: text.issueReset, action: openPasswordReset, fields: { userId: u.id } },
+          { label: text.changeEmail, action: openEmailChange, fields: { userId: u.id } },
+        ]),
     ...(u._count.passkeys > 0
       ? [
           {
@@ -163,6 +170,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
     makeRole: (r) => t("admin.users.makeRole", { role: roleLabel(r) }),
     roleConfirm: (who, r) => t("admin.users.roleConfirm", { who, role: roleLabel(r) }),
     issueReset: t("admin.users.issueReset"),
+    changeEmail: t("admin.users.changeEmail"),
     enable: t("admin.users.enable"),
     disable: t("admin.users.disable"),
     disableConfirm: (who) => t("admin.users.disableConfirm", { who }),

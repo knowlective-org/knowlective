@@ -135,6 +135,26 @@ export function emailChangeConfirmMail(locale: AppLocale, input: { link: string;
   };
 }
 
+// A change of address asked for from the admin console: the code the user
+// enters on their account screen, sent to the new address.
+export function adminEmailChangeCodeMail(locale: AppLocale, input: { code: string; ttlHours: number; accountUrl: string }): Mail {
+  const t = translatorFor(locale);
+  return {
+    subject: t("mail.adminEmailChange.subject", { code: input.code }),
+    text: [
+      t("mail.adminEmailChange.intro"),
+      "",
+      input.code,
+      "",
+      t("mail.adminEmailChange.where"),
+      input.accountUrl,
+      "",
+      t("mail.adminEmailChange.expires", { duration: duration(locale, input.ttlHours * 60) }),
+      t("mail.adminEmailChange.ignore"),
+    ].join("\n"),
+  };
+}
+
 // To a new address that already belongs to an account here: it can't be used.
 export function emailChangeInUseMail(locale: AppLocale): Mail {
   const t = translatorFor(locale);

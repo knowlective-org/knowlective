@@ -78,6 +78,7 @@ model User {
   apiKeys           ApiKey[]
   oauthGrants       OAuthGrant[]
   emailCodes        EmailCode[]
+  adminEmailChange  AdminEmailChange?
   emailChanges      EmailChangeRequest[]
   chatMessages      ChatMessage[]
   chatLocks         ChatLock[]
@@ -845,6 +846,30 @@ model EmailChangeRequest {
   createdAt    DateTime  @default(now())
 
   @@index([userId])
+}
+
+// A change of a user's email address asked for from the admin console
+// (lib/auth/admin-email-change.ts): a code is mailed to the new address, and
+// the user enters it on their account screen. Until then the address stays
+// as it was. One per user; a new request replaces it. Only a hash of the code
+// is kept (with the row id in it); the new address is encrypted like the
+// others (emailHash / emailEnc).
+model AdminEmailChange {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The admin who asked (null: signed in with the master password). No
+  // foreign key: kept if that account goes.
+  requestedById String?
+  newEmailHash  Bytes
+  newEmailEnc   Bytes
+  codeHash      String
+  // Wrong codes entered for the current code.
+  attempts      Int      @default(0)
+  // Codes mailed for this request (the first one and resends).
+  sends         Int      @default(1)
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
 }
 
 // Sign-up is invitation-only. Issued from /admin; the link carries a random
