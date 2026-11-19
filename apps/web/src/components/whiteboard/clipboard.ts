@@ -128,7 +128,8 @@ function checked(raw: Map<string, Record<string, unknown>>): WhiteboardItem[] {
     for (const [id, fields] of raw) {
       const item = new Y.Map<unknown>();
       for (const [key, value] of Object.entries(fields)) {
-        if (typeof value === "string" || typeof value === "number") item.set(key, value);
+        // Text styles are lists of ranges (readMarks() checks them).
+        if (typeof value === "string" || typeof value === "number" || (key.endsWith("Marks") && Array.isArray(value))) item.set(key, value);
       }
       map.set(id, item);
     }

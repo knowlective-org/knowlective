@@ -16,6 +16,7 @@ const box = (id: string, x: number, y: number, text = ""): WhiteboardItem => ({
   text,
   textX: 0,
   textY: 0,
+  textMarks: [],
   color: "blue",
   z: 1,
   src: "",
@@ -36,6 +37,9 @@ const connector = (id: string, from: string, to: string): WhiteboardItem => ({
   text: "yes",
   startText: "",
   endText: "",
+  textMarks: [],
+  startTextMarks: [],
+  endTextMarks: [],
   color: "gray",
   z: 3,
 });

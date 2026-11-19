@@ -58,3 +58,18 @@ export async function readRootFavicon(
   if (!(await getPageAccess(prisma, userId, root.rootPageId))) return null;
   return { type: root.faviconType as FaviconType, bytes: await openFavicon(rootId, root.faviconEnc) };
 }
+
+// The image of a public page's link card (Open Graph / Twitter card), for
+// someone not logged in: the root's favicon when they can see it and it's a
+// PNG (X and most link cards read neither SVG nor ICO), else the app icon.
+// A path under the site (prefix it with getPublicUrl()).
+export const APP_CARD_ICON = "/icons/icon-512.png";
+export async function cardImageForGuest(rootId: string): Promise<string> {
+  const root = await prisma.knowledgeRoot.findUnique({
+    where: { id: rootId },
+    select: { rootPageId: true, faviconType: true, faviconUpdatedAt: true },
+  });
+  if (!root?.rootPageId || !root.faviconUpdatedAt || root.faviconType !== "image/png") return APP_CARD_ICON;
+  if (!(await getPageAccess(prisma, null, root.rootPageId))) return APP_CARD_ICON;
+  return rootFaviconUrl(rootId, root.faviconUpdatedAt);
+}

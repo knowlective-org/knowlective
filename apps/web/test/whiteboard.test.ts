@@ -56,6 +56,7 @@ describe("whiteboard items", () => {
       text: "",
       textX: 0,
       textY: 0,
+      textMarks: [],
       color: "yellow",
       z: 1,
       src: "",
@@ -93,7 +94,7 @@ describe("whiteboard items", () => {
     );
     assert.deepEqual(
       items.find((i) => i.type === "line"),
-      { id: "l", type: "line", x1: 0, y1: 0, x2: MAX_COORD, y2: 0, arrows: "none", stroke: "solid", text: "", color: "gray", z: 3 },
+      { id: "l", type: "line", x1: 0, y1: 0, x2: MAX_COORD, y2: 0, arrows: "none", stroke: "solid", text: "", textMarks: [], color: "gray", z: 3 },
     );
   });
 
@@ -151,7 +152,7 @@ describe("whiteboard geometry", () => {
   });
 
   test("a connector starts at the edge of its box", () => {
-    const box = { id: "a", type: "rect" as const, x: 0, y: 0, w: 100, h: 50, text: "", textX: 0, textY: 0, color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const };
+    const box = { id: "a", type: "rect" as const, x: 0, y: 0, w: 100, h: 50, text: "", textX: 0, textY: 0, textMarks: [], color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const };
     assert.deepEqual(edgePoint(box, { x: 500, y: 25 }, 0), { x: 100, y: 25 });
     // A diamond: its point.
     assert.deepEqual(edgePoint({ ...box, type: "diamond" as const }, { x: 500, y: 25 }, 0), { x: 100, y: 25 });
@@ -202,7 +203,7 @@ describe("whiteboard geometry", () => {
   });
 
   test("an elbow connector turns as few times as it can, never through a box", () => {
-    const box = (id: string, x: number, y: number) => ({ id, type: "rect" as const, x, y, w: 100, h: 50, text: "", textX: 0, textY: 0, color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const });
+    const box = (id: string, x: number, y: number) => ({ id, type: "rect" as const, x, y, w: 100, h: 50, text: "", textX: 0, textY: 0, textMarks: [], color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const });
     // Diagonally apart, further across: across first, then down into the top (one turn).
     assert.deepEqual(connectorPoints(box("a", 0, 0), box("b", 300, 200), "elbow", AUTO, 0), [
       { x: 100, y: 25 },
@@ -236,7 +237,7 @@ describe("whiteboard geometry", () => {
   });
 
   test("an elbow connector runs from and to the sides its ends were dropped on", () => {
-    const box = (id: string, x: number, y: number) => ({ id, type: "rect" as const, x, y, w: 100, h: 50, text: "", textX: 0, textY: 0, color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const });
+    const box = (id: string, x: number, y: number) => ({ id, type: "rect" as const, x, y, w: 100, h: 50, text: "", textX: 0, textY: 0, textMarks: [], color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const });
     // Dropped on the top: around and in from above (one turn, across first).
     assert.deepEqual(connectorPoints(box("a", 0, 0), box("b", 300, 200), "elbow", { from: null, to: "top" }, 0), [
       { x: 100, y: 25 },
@@ -259,7 +260,7 @@ describe("whiteboard geometry", () => {
   });
 
   test("a diamond is connected at its corners only", () => {
-    const box = (id: string, x: number, y: number) => ({ id, type: "rect" as const, x, y, w: 100, h: 50, text: "", textX: 0, textY: 0, color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const });
+    const box = (id: string, x: number, y: number) => ({ id, type: "rect" as const, x, y, w: 100, h: 50, text: "", textX: 0, textY: 0, textMarks: [], color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const });
     const diamond = (id: string, x: number, y: number) => ({ ...box(id, x, y), type: "diamond" as const });
     // Straight: from the corner facing the other box (for its shape: a box
     // 300 across and 200 down from a diamond 100 × 50 lies more below it).
@@ -283,7 +284,7 @@ describe("whiteboard geometry", () => {
   });
 
   test("an ellipse is connected at its points at 45° steps only", () => {
-    const box = (id: string, x: number, y: number) => ({ id, type: "rect" as const, x, y, w: 100, h: 100, text: "", textX: 0, textY: 0, color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const });
+    const box = (id: string, x: number, y: number) => ({ id, type: "rect" as const, x, y, w: 100, h: 100, text: "", textX: 0, textY: 0, textMarks: [], color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const });
     const ellipse = (id: string, x: number, y: number) => ({ ...box(id, x, y), type: "ellipse" as const });
     const r = 50 * Math.SQRT1_2;
     // Toward 30° (below the right, y down): the point at 45°.
@@ -316,7 +317,7 @@ describe("whiteboard geometry", () => {
   });
 
   test("where an end is dropped on a box: the side it's toward, or none in the middle", () => {
-    const box = { id: "a", type: "rect" as const, x: 0, y: 0, w: 200, h: 100, text: "", textX: 0, textY: 0, color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const };
+    const box = { id: "a", type: "rect" as const, x: 0, y: 0, w: 200, h: 100, text: "", textX: 0, textY: 0, textMarks: [], color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const };
     assert.equal(sideToward(box, { x: 100, y: 50 }), null);
     assert.equal(sideToward(box, { x: 100, y: 5 }), "top");
     assert.equal(sideToward(box, { x: 195, y: 50 }), "right");
@@ -325,7 +326,7 @@ describe("whiteboard geometry", () => {
   });
 
   test("a line straightened: level or upright, whichever is nearer, about its middle", () => {
-    const line = { id: "l", type: "line" as const, x1: 0, y1: 0, x2: 100, y2: 20, arrows: "none" as const, stroke: "solid" as const, text: "", color: "gray" as const, z: 0 };
+    const line = { id: "l", type: "line" as const, x1: 0, y1: 0, x2: 100, y2: 20, arrows: "none" as const, stroke: "solid" as const, text: "", textMarks: [], color: "gray" as const, z: 0 };
     const level = straightened(line);
     assert.equal(level.y1, 10);
     assert.equal(level.y2, 10);

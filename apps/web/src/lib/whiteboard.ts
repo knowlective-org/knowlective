@@ -1,10 +1,12 @@
 import * as Y from "yjs";
+import { type TextMark, readMarks } from "./whiteboard-marks";
 
 // A whiteboard page (Page.kind = WHITEBOARD) keeps its canvas in the page's
 // Yjs document, next to the title: Y.Map(WHITEBOARD_FIELD) of items by id,
 // each a Y.Map of the fields below. The BlockNote fragment stays empty, so
 // an editor that doesn't know whiteboards never touches the canvas.
-// Used by the browser and the collab server: only Yjs as a dependency.
+// Used by the browser and the collab server: only Yjs (and the dependency-
+// free whiteboard-marks.ts) as dependencies.
 export const WHITEBOARD_FIELD = "whiteboard";
 
 export const ITEM_TYPES = ["sticky", "rect", "ellipse", "diamond", "text", "image", "connector", "line"] as const;
@@ -59,6 +61,8 @@ export type BoxItem = {
   // the box). Missing: 0.
   textX: number;
   textY: number;
+  // Styles on parts of the text (lib/whiteboard-marks.ts). Missing: none.
+  textMarks: TextMark[];
   color: ItemColor;
   // Stacking order (higher is in front).
   z: number;
@@ -95,6 +99,10 @@ export type ConnectorItem = {
   text: string;
   startText: string;
   endText: string;
+  // Their styles (lib/whiteboard-marks.ts).
+  textMarks: TextMark[];
+  startTextMarks: TextMark[];
+  endTextMarks: TextMark[];
   color: ItemColor;
   z: number;
 };
@@ -112,6 +120,7 @@ export type LineItem = {
   stroke: Stroke;
   // Always empty (a line has no text), for the code that reads every item's.
   text: string;
+  textMarks: TextMark[];
   color: ItemColor;
   z: number;
 };
@@ -184,6 +193,8 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
     const arrows = (ARROW_ENDS as readonly unknown[]).includes(rawArrows) ? (rawArrows as ArrowEnds) : "end";
     const rawRoute = map.get("route");
     const route = (ROUTES as readonly unknown[]).includes(rawRoute) ? (rawRoute as Route) : "straight";
+    const startText = str(map.get("startText"));
+    const endText = str(map.get("endText"));
     const side = (key: string) => {
       const value = map.get(key);
       return (SIDES as readonly unknown[]).includes(value) ? (value as Side) : null;
@@ -199,8 +210,11 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
       fromSide: side("fromSide"),
       toSide: side("toSide"),
       text,
-      startText: str(map.get("startText")),
-      endText: str(map.get("endText")),
+      startText,
+      endText,
+      textMarks: readMarks(map.get("textMarks"), text.length),
+      startTextMarks: readMarks(map.get("startTextMarks"), startText.length),
+      endTextMarks: readMarks(map.get("endTextMarks"), endText.length),
       color,
       z,
     };
@@ -209,7 +223,7 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
   if (type === "line") {
     const rawArrows = map.get("arrows");
     const arrows = (ARROW_ENDS as readonly unknown[]).includes(rawArrows) ? (rawArrows as ArrowEnds) : "none";
-    return { id, type, x1: coord("x1"), y1: coord("y1"), x2: coord("x2"), y2: coord("y2"), arrows, stroke, text: "", color, z };
+    return { id, type, x1: coord("x1"), y1: coord("y1"), x2: coord("x2"), y2: coord("y2"), arrows, stroke, text: "", textMarks: [], color, z };
   }
   return {
     id,
@@ -221,6 +235,7 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
     text,
     textX: clamp(num(map.get("textX"), 0), -MAX_SIZE, MAX_SIZE),
     textY: clamp(num(map.get("textY"), 0), -MAX_SIZE, MAX_SIZE),
+    textMarks: readMarks(map.get("textMarks"), text.length),
     color,
     z,
     src: type === "image" ? matching(map.get("src"), FILE_URL) : "",

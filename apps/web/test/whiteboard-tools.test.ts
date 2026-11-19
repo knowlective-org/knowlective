@@ -94,7 +94,7 @@ describe("whiteboard lining up", () => {
 
 describe("connector ends meeting a box at one point", () => {
   const box = (id: string, connectorEnds: "spread" | "merge" = "spread"): BoxItem => ({
-    id, type: "rect", x: 0, y: 200, w: 100, h: 50, text: "", textX: 0, textY: 0, color: "white", z: 0, src: "", link: "", connectorEnds,
+    id, type: "rect", x: 0, y: 200, w: 100, h: 50, text: "", textX: 0, textY: 0, textMarks: [], color: "white", z: 0, src: "", link: "", connectorEnds,
   });
   // Into the top of box c (x 0–100) at x 50: from the left, the right, and straight down.
   const lines = [
@@ -169,6 +169,7 @@ describe("whiteboard images and links", () => {
 describe("whiteboard export", () => {
   const colors = {
     items: { yellow: "#ff0", orange: "#fa0", pink: "#f9c", purple: "#ccf", blue: "#9cf", green: "#9f9", gray: "#ddd", white: "#fff", transparent: "transparent" },
+    text: { red: "#a00", brown: "#930", green: "#060", blue: "#00c", purple: "#609", pink: "#a05", gray: "#444" },
     board: "#fafafa",
     ink: "#111",
     line: "#555",
@@ -192,6 +193,30 @@ describe("whiteboard export", () => {
     // The items and a margin around them.
     assert.equal(width, 400 + 80);
     assert.equal(height, 100 + 80);
+  });
+
+  test("styled parts of the text: in spans with their styles, lists kept, other values ignored", () => {
+    const doc = board({
+      a: {
+        type: "rect",
+        x: 0,
+        y: 0,
+        w: 100,
+        h: 60,
+        text: "bold and red\n- item",
+        textMarks: [
+          { from: 0, to: 4, bold: true },
+          { from: 9, to: 12, color: "red", underline: true },
+          { from: 15, to: 19, strike: true, italic: true },
+          { from: 0, to: 2, color: "url(javascript:x)" },
+        ],
+        z: 1,
+      },
+    });
+    const { svg } = whiteboardSvg(readItems(doc), colors);
+    assert.ok(svg.includes('<span style="font-weight:700">bold</span> and <span style="text-decoration-line:underline;color:#a00">red</span>'));
+    assert.ok(svg.includes('<li><span style="font-style:italic;text-decoration-line:line-through">item</span></li>'));
+    assert.ok(!svg.includes("javascript"));
   });
 
   test("a transparent box: no fill and no shadow, the outline kept", () => {
