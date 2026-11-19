@@ -5,6 +5,7 @@ const ja: MessageShape<typeof en> = {
   audit: {
     passwordReset: "{who} がパスワードを再設定（{via, select, admin {管理者が発行したリンク} other {メールのリンク}}）",
     oidcUserCreated: "シングルサインオンで {email} のアカウントを作成（{role}）",
+    oidcUserCreatedNoEmail: "シングルサインオンで {name} のアカウントをメールアドレスなしで作成（{role}）",
     pageMove: "ページ「{title}」{descendants, plural, =0 {} other {とその下の#ページ}}を{from}「{to}」の下に移動{root}。権限は移動先から引き継ぐ",
     pageMoveFrom: "「{title}」の下から",
     pageMoveRoot: "（ナレッジルート「{root}」へ）",
@@ -65,6 +66,7 @@ const ja: MessageShape<typeof en> = {
     emailChangeCancel: "{who} のメールアドレスの {to} への変更の依頼を取り消し",
     emailChangeDecline: "管理者が依頼したメールアドレスの {to} への変更を断る",
     emailChangeUnconfirmed: "メールアドレスを {from} から {to} に変更（確認なし。シングルサインオンのアカウント）",
+    oidcNoEmail: "{allowed, select, true {メールアドレスのないアカウントを許可} other {メールアドレスを必須に}}",
     oidcTrustEmail: "{trust, select, true {メールアドレスを確認済みとして扱う} other {メールアドレスの確認を必須に}}",
     oidcPasswordLogin: "{siteAdminsOnly, select, true {パスワードログインをサイト管理者だけに} other {パスワードログインを併用に}}",
     groupCreate: "グループ「{name}」を作成",

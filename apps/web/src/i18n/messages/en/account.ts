@@ -144,7 +144,7 @@ export default {
       code: "Code",
       resendCode: "Send a new code",
       issueWithCode: "Confirm with the code and issue",
-      cannotConfirm: "Email sending isn't set up on this site, so you can't confirm it's you by email. Register a passkey above to issue keys.",
+      cannotConfirm: "You can't confirm it's you by email (this site doesn't send email, or your account has no email address). Register a passkey above to issue keys.",
       issuedTitle: "Your new API key",
       issued: "Copy the key now: it isn't shown again. Send it as \"Authorization: Bearer <key>\" to {url}. Click the key to copy it.",
       revoke: "Revoke",

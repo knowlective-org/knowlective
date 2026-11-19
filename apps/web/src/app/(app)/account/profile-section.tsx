@@ -172,7 +172,7 @@ export function ProfileSection({
         <div>
           <span className={styles.note}>{t("email")}</span>
           <p style={{ margin: "4px 0" }} data-ui="AccountPage.email">
-            {changedTo ?? email}
+            {changedTo ?? (email || tc("noEmail"))}
           </p>
         </div>
         {changedTo && (

@@ -171,7 +171,7 @@ export async function issuePasswordReset(
   const who = userLabel(user);
   await recordAudit(actor, "user.password.reset.issue", (await auditTranslator())("audit.userResetIssue", { who }), { userId });
   const link = `${await getPublicUrl()}/reset-password/${token}`;
-  if (formData.get("sendEmail") !== "on") return { link };
+  if (formData.get("sendEmail") !== "on" || !user.email) return { link };
 
   // The link stays valid even if sending fails; it is still shown on screen.
   try {

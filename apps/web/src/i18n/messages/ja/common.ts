@@ -28,6 +28,7 @@ const ja: MessageShape<typeof en> = {
   },
   common: {
     email: "メールアドレス",
+    noEmail: "未設定",
     password: "パスワード",
     passwordWithMin: "パスワード（{min, number}文字以上）",
     confirmPassword: "パスワード（確認）",

@@ -293,7 +293,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
                       {u.name ?? "-"}
                       {u.disabledAt && <span className={styles.badge}>{t("admin.common.disabled")}</span>}
                     </td>
-                    <td>{u.email}</td>
+                    <td>{u.email || <span className={styles.note}>{t("common.noEmail")}</span>}</td>
                     <td>{roleLabel(u.siteRole)}</td>
                     <td>{u.groups.map((g) => g.group.name).join(separator) || "-"}</td>
                     <td>{formatDate(u.createdAt)}</td>

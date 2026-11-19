@@ -85,6 +85,18 @@ export async function pasteText(page: Page, text: string) {
   }, text);
 }
 
+// Clicks into the editor's text and waits until the editor has the caret
+// there. ProseMirror takes the browser's selection on a later selectionchange
+// event: a key pressed at once (Tab, an arrow) would still act where the caret
+// was before (seen on CI), while the typing lands where it was clicked.
+export async function clickInEditor(target: Locator) {
+  await target.click();
+  await expect
+    .poll(() => target.evaluate((el) => !!getSelection()?.anchorNode && el.contains(getSelection()!.anchorNode)))
+    .toBe(true);
+  await target.page().evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+}
+
 // Moves the open page to the trash through its menu.
 export async function trashOpenPage(page: Page) {
   await page.getByTestId("PageMenu.button").click();

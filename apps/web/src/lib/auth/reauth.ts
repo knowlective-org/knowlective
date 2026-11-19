@@ -17,7 +17,10 @@ export type ReauthMethod = "passkey" | "code" | null;
 
 export async function reauthMethod(userId: string): Promise<ReauthMethod> {
   if ((await prisma.userPasskey.count({ where: { userId } })) > 0) return "passkey";
-  return (await isMailConfigured()) ? "code" : null;
+  // A code needs somewhere to go: not for an account without an address
+  // (single sign-on, OidcSettings.allowNoEmail).
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { emailHash: true } });
+  return user?.emailHash && (await isMailConfigured()) ? "code" : null;
 }
 
 export type ReauthProof = { passkey?: AuthenticationResponseJSON; code?: string };
