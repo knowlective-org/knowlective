@@ -27,6 +27,28 @@ test("links in the text are bold and carry a link icon", async ({ page }) => {
   await trashOpenPage(page);
 });
 
+test("links in a table's cells look like links too", async ({ page }) => {
+  await createPage(page, "E2E 表のリンク");
+  await typeInBody(page, "表");
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData("text/html", '<table><tr><th>名前</th><th>URL</th></tr><tr><td>資料</td><td><a href="https://example.com/table">example</a></td></tr></table>');
+    data.setData("text/plain", "名前\tURL\n資料\texample");
+    document.querySelector(".bn-editor")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  const link = editorBody(page).locator('[data-content-type="table"] a[href="https://example.com/table"]');
+  await expect(link).toBeVisible();
+  const look = await link.evaluate((el) => ({
+    weight: Number(getComputedStyle(el).fontWeight),
+    underline: getComputedStyle(el).textDecorationLine,
+    icon: getComputedStyle(el, "::after").maskImage || getComputedStyle(el, "::after").webkitMaskImage,
+  }));
+  expect(look.weight).toBeGreaterThanOrEqual(600);
+  expect(look.underline).toContain("underline");
+  expect(look.icon).toContain("svg");
+  await trashOpenPage(page);
+});
+
 test("a link to this site opens in the same tab; one to another site in a new tab", async ({ page, context }) => {
   const target = await createPage(page, "E2E リンク先");
   const { id } = await createPage(page, "E2E 同じタブのリンク");

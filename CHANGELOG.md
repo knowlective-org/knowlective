@@ -48,6 +48,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Fixed
 
+- Links in a table's cells looked like plain text: they're now bold and underlined with a link icon, like links in the rest of the page
+
 - A whiteboard connector inside a transparent box (a frame around boxes and their connectors) couldn't be clicked: the frame was selected. Clicking its line now selects the connector, and elsewhere in the frame, the frame
 
 - ↑ / ↓ in a TODO stopped on a line between blocks, then at the start of the next TODO's text. They now go straight to the block above / below (a nested TODO first) with the caret at the end of its text, also when coming into a TODO from another block

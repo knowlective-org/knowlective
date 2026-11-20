@@ -82,8 +82,9 @@ a {
 
 /* Links in a page's text: bold and underlined, with a link icon after them
    (always, not only on hover), so they can't be taken for plain text. Only
-   the text's own links: knowlective's blocks draw theirs themselves. */
-.bn-root .bn-inline-content a[href] {
+   the text's own links: knowlective's blocks draw theirs themselves. A
+   table's cells hold their text in a plain <p> (no .bn-inline-content). */
+.bn-root :is(.bn-inline-content, [data-content-type="table"] :is(td, th) > p) a[href] {
   font-weight: 600;
   color: var(--color-primary);
   text-decoration: underline;
@@ -91,7 +92,7 @@ a {
   text-underline-offset: 2px;
 }
 
-.bn-root .bn-inline-content a[href]::after {
+.bn-root :is(.bn-inline-content, [data-content-type="table"] :is(td, th) > p) a[href]::after {
   content: "";
   display: inline-block;
   width: 0.8em;
@@ -103,7 +104,7 @@ a {
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6.5 9.5l6-6M8.5 3h4.5v4.5M12 9.5V13H3V4h3.5'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
-.bn-root .bn-inline-content a[href]:hover {
+.bn-root :is(.bn-inline-content, [data-content-type="table"] :is(td, th) > p) a[href]:hover {
   text-decoration-thickness: 2px;
 }
 
