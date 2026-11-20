@@ -58,6 +58,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Fixed
 
+- Security: the `effect` package that Prisma's configuration uses is raised to 3.22.4, fixing a ReDoS (GHSA-7589-6fvf-x4pw)
+
 - On a whiteboard, the placeholder of a new item's text stayed over Japanese (or other IME) input until it was confirmed
 
 - Links in a table's cells looked like plain text: they're now bold and underlined with a link icon, like links in the rest of the page
