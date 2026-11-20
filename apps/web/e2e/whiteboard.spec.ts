@@ -521,6 +521,77 @@ test.describe("Whiteboard", () => {
     }
   });
 
+  test("a connector inside a transparent frame can be clicked; new connectors take the last connector style", async ({ browser }) => {
+    const context = await browser.newContext({ storageState: authFile("editor") });
+    const page = await context.newPage();
+    try {
+      await createWhiteboard(page, "E2E ホワイトボードの枠とコネクター");
+      const canvas = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
+      // A frame: a rectangle, made transparent, then boxes on it.
+      await page.getByTestId("Whiteboard.rectToolButton").click();
+      await page.mouse.move(canvas.x + 60, canvas.y + 60);
+      await page.mouse.down();
+      await page.mouse.move(canvas.x + 620, canvas.y + 280, { steps: 6 });
+      await page.mouse.up();
+      await page.keyboard.press("Escape");
+      const frame = page.locator('[data-ui="Whiteboard.item"][data-type="rect"]');
+      await frame.click({ position: { x: 20, y: 20 } });
+      await page.locator('[data-ui="Whiteboard.colorButton"][data-id="transparent"]').click();
+      await expect(frame).toHaveAttribute("data-color", "transparent");
+      await page.keyboard.press("Escape");
+      await addSticky(page, 170, 170, "枠の中A");
+      await addSticky(page, 470, 170, "枠の中B");
+      await addSticky(page, 470, 450, "枠の外");
+
+      const connect = async (from: string, side: string, to: string) => {
+        await item(page, from).hover();
+        const dot = (await page.locator(`[data-ui="Whiteboard.connectHandle"][data-id="${side}"]`).boundingBox())!;
+        const target = (await item(page, to).boundingBox())!;
+        await page.mouse.move(dot.x + dot.width / 2, dot.y + dot.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(target.x + 50, target.y + 50, { steps: 6 });
+        await page.mouse.up();
+      };
+      await connect("枠の中A", "right", "枠の中B");
+      const line = page.getByTestId("Whiteboard.connector");
+      await expect(line).toHaveCount(1);
+      // Arrowheads on both ends, drawn dashed: remembered for the next ones.
+      await page.locator('[data-ui="Whiteboard.arrowsButton"][data-id="both"]').click();
+      await page.locator('[data-ui="Whiteboard.strokeButton"][data-id="dashed"]').click();
+      await expect(line).toHaveAttribute("data-arrows", "both");
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("Whiteboard.connectorEndHandle")).toHaveCount(0);
+
+      // Clicked on its line inside the frame: the connector, not the frame.
+      const l = (await line.boundingBox())!;
+      await page.mouse.click(l.x + l.width / 2, l.y + l.height / 2);
+      await expect(page.getByTestId("Whiteboard.connectorEndHandle")).toHaveCount(2);
+      await expect(frame).not.toHaveAttribute("data-selected", "");
+      // Elsewhere in the frame: the frame.
+      await page.keyboard.press("Escape");
+      await frame.click({ position: { x: 20, y: 200 } });
+      await expect(frame).toHaveAttribute("data-selected", "");
+      await page.keyboard.press("Escape");
+
+      // A new connector looks like the last one styled.
+      await connect("枠の中B", "bottom", "枠の外");
+      await expect(line).toHaveCount(2);
+      await expect(line.nth(1)).toHaveAttribute("data-arrows", "both");
+      await expect(line.nth(1)).toHaveAttribute("data-stroke", "dashed");
+      // Kept in this browser, after reloading too.
+      await page.reload();
+      await expect(item(page, "枠の外")).toBeVisible();
+      await connect("枠の中A", "bottom", "枠の外");
+      await expect(page.getByTestId("Whiteboard.connector")).toHaveCount(3);
+      await expect(page.getByTestId("Whiteboard.connector").nth(2)).toHaveAttribute("data-arrows", "both");
+
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      await trashOpenPage(page);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("Alt held when a drag ends copies, whenever it was pressed; let go before, it doesn't", async ({ browser }) => {
     const context = await browser.newContext({ storageState: authFile("editor") });
     const page = await context.newPage();

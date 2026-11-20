@@ -196,6 +196,26 @@ const ALIGN_ICONS: Record<Alignment | "x" | "y", IconName> = {
   y: "distributeY",
 };
 
+// New connectors are drawn like the last one the viewer styled (arrowheads,
+// route, line), kept in their browser.
+const CONNECTOR_STYLE_KEY = "knowlective-whiteboard-connector";
+type ConnectorStyle = { arrows: ArrowEnds; route: Route; stroke: Stroke };
+const DEFAULT_CONNECTOR_STYLE: ConnectorStyle = { arrows: "end", route: "straight", stroke: "solid" };
+
+function readConnectorStyle(): ConnectorStyle {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(CONNECTOR_STYLE_KEY) ?? "{}") as Record<string, unknown>;
+    // Stored by this browser, but checked like anything read back.
+    return {
+      arrows: (ARROW_ENDS as readonly unknown[]).includes(raw.arrows) ? (raw.arrows as ArrowEnds) : DEFAULT_CONNECTOR_STYLE.arrows,
+      route: (ROUTES as readonly unknown[]).includes(raw.route) ? (raw.route as Route) : DEFAULT_CONNECTOR_STYLE.route,
+      stroke: (STROKES as readonly unknown[]).includes(raw.stroke) ? (raw.stroke as Stroke) : DEFAULT_CONNECTOR_STYLE.stroke,
+    };
+  } catch {
+    return DEFAULT_CONNECTOR_STYLE;
+  }
+}
+
 function readGridSnap(): boolean {
   try {
     return window.localStorage.getItem(GRID_KEY) === "true";
@@ -331,6 +351,21 @@ export function WhiteboardCanvas({
   const [guides, setGuides] = useState<Guide[]>([]);
   // (The board is only drawn in the browser: loaded without server rendering.)
   const [gridSnap, setGridSnap] = useState(readGridSnap);
+  const connectorStyle = useRef<ConnectorStyle>(readConnectorStyle());
+  // A connector was given these: the next ones are drawn the same.
+  const rememberConnectorStyle = (patch: Partial<ConnectorStyle>) => {
+    connectorStyle.current = { ...connectorStyle.current, ...patch };
+    try {
+      window.localStorage.setItem(CONNECTOR_STYLE_KEY, JSON.stringify(connectorStyle.current));
+    } catch {
+      // Not kept (storage blocked).
+    }
+  };
+  // A new connector's fields from the remembered style.
+  const newConnectorStyle = () => {
+    const { arrows, route, stroke } = connectorStyle.current;
+    return { arrows, route, ...strokeField(stroke) };
+  };
   const toggleGridSnap = () => {
     setGridSnap(!gridSnap);
     try {
@@ -555,7 +590,7 @@ export function WhiteboardCanvas({
       };
       put(id, { type: from.type, x: box.x, y: box.y, w: from.w, h: from.h, text: "", ...(from.src ? { src: from.src } : {}), color: from.color, z: ++z });
       const toSide = sideToward(box, { x: from.x + from.w / 2, y: from.y + from.h / 2 });
-      put(newId(), { type: "connector", from: fromId, to: id, arrows: "end", route: "straight", ...sideFields(fromSide, toSide), text: "", color: DEFAULT_COLOR.connector, z: ++z });
+      put(newId(), { type: "connector", from: fromId, to: id, ...newConnectorStyle(), ...sideFields(fromSide, toSide), text: "", color: DEFAULT_COLOR.connector, z: ++z });
     });
     setSelected(new Set([id]));
     if (from.type !== "image") setEditing(id);
@@ -930,14 +965,21 @@ export function WhiteboardCanvas({
     change(() => texts.forEach((x) => setField(x.id, { [marksField(x.field)]: applyStyle(x.marks, x.text.length, 0, x.text.length, patch) })));
     undo.current?.stopCapturing();
   };
-  const setArrows = (arrows: ArrowEnds) =>
+  // (connectorSelected: below, with the selection bar's other flags.)
+  const setArrows = (arrows: ArrowEnds) => {
+    if (connectorSelected) rememberConnectorStyle({ arrows });
     change(() => selection.forEach((id) => hasArrows(byId.get(id)) && setField(id, { arrows })));
-  const setRoute = (route: Route) =>
+  };
+  const setRoute = (route: Route) => {
+    if (connectorSelected) rememberConnectorStyle({ route });
     change(() => selection.forEach((id) => byId.get(id)?.type === "connector" && setField(id, { route })));
+  };
   const setConnectorEnds = (connectorEnds: ConnectorEnds) =>
     change(() => selection.forEach((id) => isBox(byId.get(id)) && setField(id, { connectorEnds })));
-  const setStroke = (stroke: Stroke) =>
+  const setStroke = (stroke: Stroke) => {
+    if (connectorSelected) rememberConnectorStyle({ stroke });
     change(() => selection.forEach((id) => hasArrows(byId.get(id)) && setField(id, { stroke })));
+  };
 
 
   // After a button: the board's keys (Esc, Delete, the tools) work again.
@@ -981,6 +1023,22 @@ export function WhiteboardCanvas({
     const el = (target as Element | null)?.closest?.("[data-wb-id], [data-wb-connect]");
     return el?.getAttribute("data-wb-id") ?? el?.getAttribute("data-wb-connect") ?? null;
   };
+  // The item clicked at this point of the screen. Connectors are drawn under
+  // every box, so one is only seen through a transparent box (a frame put
+  // around boxes and their connectors): where its line runs under the
+  // pointer, it's the connector that's clicked, not the box around it.
+  const itemUnder = (target: Element, clientX: number, clientY: number): string | null => {
+    const hit = itemAt(target);
+    const box = hit ? byId.get(hit) : undefined;
+    // Not its dots and handles, nor while drawing (a connector starts from the box).
+    if (!isBox(box) || box.color !== "transparent" || tool !== "select") return hit;
+    if (target.closest("[data-wb-connect], [data-wb-handle], [data-wb-textmove], [data-wb-link]")) return hit;
+    for (const el of document.elementsFromPoint(clientX, clientY)) {
+      const connector = el.closest('[data-ui="Whiteboard.connector"]')?.getAttribute("data-wb-id");
+      if (connector) return connector;
+    }
+    return hit;
+  };
   // The box a connector's end would go to at this point of the screen, and the
   // side (toward which the point lies).
   const dropAt = (clientX: number, clientY: number, world: Point) => {
@@ -1014,7 +1072,7 @@ export function WhiteboardCanvas({
       return;
     }
     if (e.button !== 0) return;
-    const hit = itemAt(target);
+    const hit = itemUnder(target, e.clientX, e.clientY);
 
     // A box's connection dot: a connector drawn from that box.
     const dotEl = tool === "select" ? target.closest("[data-wb-connect]") : null;
@@ -1404,8 +1462,7 @@ export function WhiteboardCanvas({
             type: "connector",
             from: g.from,
             to: box.id,
-            arrows: "end",
-            route: "straight",
+            ...newConnectorStyle(),
             ...sideFields(g.fromSide, drop.side),
             text: "",
             color: DEFAULT_COLOR.connector,
@@ -1422,7 +1479,7 @@ export function WhiteboardCanvas({
     const under = document.elementFromPoint(e.clientX, e.clientY);
     if (readOnly || tool !== "select" || !under || under.closest("textarea, [data-wb-text-editor], button, [data-wb-controls]")) return;
     // An item's text is edited; the background does nothing.
-    const hit = itemAt(under);
+    const hit = itemUnder(under, e.clientX, e.clientY);
     if (!hit) return;
     setSelected(new Set([hit]));
     // A line has no text: it's made level or upright, whichever it's nearer.

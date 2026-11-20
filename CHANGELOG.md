@@ -28,6 +28,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- New whiteboard connectors are drawn like the last connector you styled (arrowheads, straight or elbow, line style), remembered in your browser
+
 - Tab in an empty cell of the last column of an extended table goes to the first cell of the next row, instead of the cell below
 
 - Choosing the whiteboard for a document's whiteboard block lists whiteboards only, each after the titles of the pages above it, instead of every page with the others greyed
@@ -41,6 +43,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - The whiteboard's selection bar shows one button for the shape, with the shapes in its menu, so the bar fits on one row with the new text buttons
 
 ### Fixed
+
+- A whiteboard connector inside a transparent box (a frame around boxes and their connectors) couldn't be clicked: the frame was selected. Clicking its line now selects the connector, and elsewhere in the frame, the frame
 
 - ↑ / ↓ in a TODO stopped on a line between blocks, then at the start of the next TODO's text. They now go straight to the block above / below (a nested TODO first) with the caret at the end of its text, also when coming into a TODO from another block
 
