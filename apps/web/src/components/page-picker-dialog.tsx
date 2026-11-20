@@ -16,8 +16,9 @@ function pageIdInUrl(text: string): string | null {
 }
 
 // Choosing a page the user can see: a filter by title (or a page's address), then the pages per
-// knowledge root (those not of the kind asked for are shown greyed, for where
-// they are). For a whiteboard item's link and a document's whiteboard block.
+// knowledge root (page-picker-actions.ts: whiteboards alone, each after the
+// pages above it; otherwise the tree, other kinds greyed). For a whiteboard
+// item's link, a document's whiteboard block and a linked view's source.
 export function PagePickerDialog({
   title,
   lead,

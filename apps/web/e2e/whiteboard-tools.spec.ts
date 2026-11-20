@@ -219,8 +219,10 @@ test.describe("Whiteboard tools", () => {
     await page.keyboard.type("/ホワイトボード");
     await page.getByRole("option", { name: /ホワイトボード/ }).first().click();
     await page.getByTestId("WhiteboardEmbed.chooseButton").click();
-    // Only whiteboards can be chosen.
-    await expect(page.locator(`[data-ui="PagePickerDialog.pageSelect"] option[value="${HOME_PAGE_ID}"]`)).toBeDisabled();
+    // Only whiteboards are listed, each after the titles of the pages above it.
+    await expect(page.locator(`[data-ui="PagePickerDialog.pageSelect"] option[value="${HOME_PAGE_ID}"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-ui="PagePickerDialog.pageSelect"] option[value="${doc.id}"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-ui="PagePickerDialog.pageSelect"] option[value="${board.id}"]`)).toHaveText(new RegExp(` / ${board.title}$`));
     await page.getByTestId("PagePickerDialog.pageSelect").selectOption(board.id);
     await page.getByTestId("PagePickerDialog.submitButton").click();
     const embed = page.getByTestId("WhiteboardEmbed");

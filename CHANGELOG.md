@@ -28,6 +28,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- Choosing the whiteboard for a document's whiteboard block lists whiteboards only, each after the titles of the pages above it, instead of every page with the others greyed
+
 - The sidebar lists every child page by default. Folding pages with many child pages is now each person's choice, with how many are listed (account screen → "Sidebar"), and the "N more pages" row lists the rest in place instead of opening a dialog
 
 - Every save button in the admin console is on the right, with its message beside it (site name and logo, desktop notifications, auditors, API, adding files and network access were on the left)
