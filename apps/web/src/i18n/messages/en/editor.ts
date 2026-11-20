@@ -381,6 +381,7 @@ export default {
       reset: "Back to the block's order",
     },
     childTable: {
+      copied: "Copied {count, plural, one {# cell} other {# cells}} to the clipboard.",
       placeholder: "Child page table",
       cannotShow: "This table can't be shown.",
       columns: "Columns shown",

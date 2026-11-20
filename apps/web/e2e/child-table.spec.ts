@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { authFile } from "./accounts";
 import { createPage, editorBody, openPage, trashOpenPage } from "./helpers";
+import { withPrisma } from "./db";
 
 test.use({ storageState: authFile("editor") });
 
@@ -238,4 +239,59 @@ test.describe("Child page table", () => {
     await expect(page.getByTestId("AppDialog")).toHaveCount(0);
     await trashOpenPage(page);
   });
+});
+
+test("cells are selected by dragging or Shift+click and copied as a table", async ({ page }) => {
+  await tableWithColumn(page, "E2E セルのコピー", "メモ", "TEXT");
+  await page.getByTestId("ChildTableBlock.newPageButton").click();
+  await page.getByTestId("ChildTableBlock.newPageInput").fill("二つ目");
+  await page.keyboard.press("Enter");
+  const rows = page.getByTestId("ChildTableBlock.row");
+  await expect(rows).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  // A click in a cell still edits it.
+  for (const [i, text] of [
+    [0, "一行目のメモ"],
+    [1, "タブ\tを含む"],
+  ] as const) {
+    const input = rows.nth(i).locator("input").first();
+    await input.fill(text);
+    await input.press("Enter");
+  }
+  // Both saved, then read again.
+  const childIds = await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-id")!));
+  await expect.poll(() => withPrisma((prisma) => prisma.pagePropertyValue.count({ where: { pageId: { in: childIds } } }))).toBe(2);
+  await page.reload();
+  await expect(rows.nth(1).locator("input").first()).toHaveValue("タブ\tを含む");
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const cell = (r: number, c: number) => page.locator(`[data-ui="ChildTableBlock.cell"][data-r="${r}"][data-c="${c}"]`);
+  const selected = page.locator('[data-ui="ChildTableBlock.cell"][data-selected]');
+  // (Windows gives the lines back with \r\n.)
+  const clipboard = () => page.evaluate(() => navigator.clipboard.readText()).then((text) => text.replace(/\r\n/g, "\n"));
+
+  // Dragged from the first title to the second row's note: four cells.
+  const from = (await cell(0, 0).boundingBox())!;
+  const to = (await cell(1, 1).boundingBox())!;
+  await page.mouse.move(from.x + from.width - 6, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect(selected).toHaveCount(4);
+  await page.keyboard.press("Control+c");
+  await expect(page.getByTestId("Notice")).toContainText("4 個のセル");
+  expect(await clipboard()).toBe('子ページ\t一行目のメモ\n二つ目\t"タブ\tを含む"');
+  // Esc lets them go.
+  await page.keyboard.press("Escape");
+  await expect(selected).toHaveCount(0);
+
+  // A click, then Shift+click: the cells between.
+  await cell(0, 1).locator("input").click();
+  await cell(1, 1).click({ modifiers: ["Shift"], position: { x: 2, y: 2 } });
+  await expect(selected).toHaveCount(2);
+  await page.keyboard.press("Control+c");
+  await expect.poll(clipboard).toBe('一行目のメモ\n"タブ\tを含む"');
+  // A press outside lets them go.
+  await page.getByTestId("TitleField").click();
+  await expect(selected).toHaveCount(0);
+  await trashOpenPage(page);
 });

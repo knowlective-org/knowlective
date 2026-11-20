@@ -10,6 +10,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Cells of a child page table can be selected like a spreadsheet (drag across them, or click one and Shift+click another) and copied with Ctrl/⌘+C as a table, for spreadsheets and documents: what they show (an option's or a person's name, a date, a masked value only while its column is shown). Ctrl/⌘+C in a single cell copies that cell
+
 - The API and MCP can read a page's child pages with their properties (the values in its child page table's columns): `GET /api/v1/pages/<id>/children` (all columns, or `?property=<name>` for some) and the MCP tool `get_child_properties`
 
 - The API and MCP can send people a notification about a page, with a text of up to 2,000 characters whose links work: `POST /api/v1/pages/<id>/notifications` and the MCP tool `send_notification`. Only to people who can open the page (`GET /api/v1/pages/<id>/people`, MCP `list_page_people`), by someone who can edit it. They appear in the notification list (a new kind, "messages", that can be turned off on the account screen) and as desktop notifications

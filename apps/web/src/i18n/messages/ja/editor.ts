@@ -376,6 +376,7 @@ const ja: MessageShape<typeof en> = {
       reset: "ブロックの既定の並び順に戻す",
     },
     childTable: {
+      copied: "{count, number} 個のセルをクリップボードにコピーしました。",
       placeholder: "子ページテーブル",
       cannotShow: "このテーブルは表示できません。",
       columns: "表示する列",

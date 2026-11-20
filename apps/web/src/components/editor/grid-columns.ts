@@ -3,6 +3,7 @@ import { type EditorState, Plugin, PluginKey, TextSelection } from "@tiptap/pm/s
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { parseSummary, serializeSummary } from "./grid-summary";
 import { gridWidths } from "./grid-table-config";
+import { copyTable } from "@/lib/clipboard-table";
 
 // A column of the extended table, selected with its button at the top
 // (grid-table-block.ts): text selection runs along the rows, so it can't take
@@ -55,27 +56,12 @@ function cellTexts(table: PMNode, tablePos: number, col: number): string[] {
   return columnCells(table, tablePos, col).map(({ cell }) => cell.textBetween(0, cell.content.size, "\n", "\n"));
 }
 
-const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-// To the clipboard: a one-column table (HTML) for other apps and this
-// table's paste, and its lines as text (a cell with a tab, a line break or a
-// quote in quotes, as spreadsheets do).
+// To the clipboard: a one-column table (lib/clipboard-table.ts) for other
+// apps and this table's paste, and its lines as text.
 export async function copyColumn(view: EditorView, column: SelectedColumn): Promise<void> {
   const table = tableAt(view.state, column.tablePos);
   if (!table) return;
-  const texts = cellTexts(table, column.tablePos, column.col);
-  const plain = texts.map((t) => (/[\t\n"]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t)).join("\n");
-  const html = `<table>${texts.map((t) => `<tr><td>${escapeHtml(t).replace(/\n/g, "<br>")}</td></tr>`).join("")}</table>`;
-  try {
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        "text/plain": new Blob([plain], { type: "text/plain" }),
-        "text/html": new Blob([html], { type: "text/html" }),
-      }),
-    ]);
-  } catch {
-    await navigator.clipboard.writeText(plain).catch(() => {});
-  }
+  await copyTable(cellTexts(table, column.tablePos, column.col).map((t) => [t]));
 }
 
 // The column's cells emptied (each keeps one empty paragraph).
