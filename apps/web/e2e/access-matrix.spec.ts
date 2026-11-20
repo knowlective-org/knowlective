@@ -305,6 +305,10 @@ test.describe("Access matrix", () => {
     await expect(page.locator('[data-ui="ReviewMarkers.button"]')).toHaveText("1");
     await page.getByTestId("ReviewPane.resolveButton").click();
     await expect(page.locator('[data-ui="ReviewMarkers.button"]')).toHaveCount(0);
+    await expect.poll(() => actions.has("resolve")).toBe(true);
+    // Opened again: its list now has the thread (the list's id is taken from that).
+    await page.reload();
+    await expect(editorBody(page)).toBeVisible();
     await expect.poll(() => [...actions.keys()].sort()).toEqual(["list", "resolve"]);
     const resolved = () =>
       withPrisma(async (prisma) => !!(await prisma.reviewThread.findUnique({ where: { pageId_blockId: { pageId, blockId } } }))?.resolvedAt);
