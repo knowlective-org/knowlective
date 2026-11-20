@@ -26,8 +26,10 @@ test("Tab in an empty list item that can't be indented does nothing (the focus s
     // Back to an empty paragraph for the next kind (Backspace right after
     // the marker turns it back into text, which is then cleared).
     await page.keyboard.press("Backspace");
+    await expect(editorBody(page).locator('[data-content-type="paragraph"]').first()).toHaveText(marker);
     await page.keyboard.press("Shift+Home");
     await page.keyboard.press("Delete");
+    await expect(editorBody(page).locator('[data-content-type="paragraph"]').first()).toHaveText("");
   }
   await expect(editorBody(page).locator('[data-ui="TodoBlock"]').filter({ hasText: "やること" })).toHaveCount(1);
 

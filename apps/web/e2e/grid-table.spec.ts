@@ -150,44 +150,54 @@ test.describe("Extended table", () => {
     await trashOpenPage(page);
   });
 
-  test("Tab in an empty cell goes to the cell to the right, else the next row's first; in a cell with text it's the block's", async ({ page }) => {
+  test("Tab goes to the next cell as in a table, unless the block has a Tab of its own", async ({ page }) => {
     await createPage(page, "E2E 拡張テーブルの Tab");
     await insertGridTable(page);
     // (cells: 0 1 2 / 3 4 5 / 6 7 8)
     await clickInEditor(cellText(page, 0));
+    await page.keyboard.type("左");
+    // With text in the cell too: the cell to the right.
     await page.keyboard.press("Tab");
     await page.keyboard.type("右");
     await expect(cellText(page, 1)).toHaveText("右");
-    await expect(cellText(page, 0)).toHaveText("");
+    await expect(cellText(page, 0)).toHaveText("左");
     // The last column: the first cell of the next row.
     await clickInEditor(cellText(page, 2));
     await page.keyboard.press("Tab");
     await page.keyboard.type("下");
     await expect(cellText(page, 3)).toHaveText("下");
     await expect(cellText(page, 5)).toHaveText("");
+    // Shift+Tab: back to the last cell of the row above, its content selected.
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.type("戻");
+    await expect(cellText(page, 2)).toHaveText("戻");
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.type("中");
+    await expect(cellText(page, 1)).toHaveText("中");
     // The last cell: nowhere to go, it stays (and the focus stays in the editor).
     await clickInEditor(cellText(page, 8));
-    await page.keyboard.press("Tab");
     await page.keyboard.type("端");
-    await expect(cellText(page, 8)).toHaveText("端");
-    // With text: the block's own Tab — a second line nests under the first;
-    // a single line has nothing to nest under, and stays.
     await page.keyboard.press("Tab");
     await page.keyboard.type("!");
     await expect(cellText(page, 8)).toHaveText("端!");
+    // A list item with one above it: nested, as in the page.
     await clickInEditor(cellText(page, 4));
-    await page.keyboard.type("一");
+    await page.keyboard.type("- 一");
     await page.keyboard.press("Enter");
     await page.keyboard.type("二");
-    await page.keyboard.press("Home");
     await page.keyboard.press("Tab");
-    const nested = cells(page).nth(4).locator('.bn-block-group [data-content-type="paragraph"]');
+    const nested = cells(page).nth(4).locator('.bn-block-group [data-content-type="bulletListItem"]');
     await expect(nested).toHaveText("二");
-    await expect(cellText(page, 3)).toHaveText("下");
+    await expect(cellText(page, 5)).toHaveText("");
     // Shift+Tab takes it back out, still in the cell.
     await page.keyboard.press("Shift+Tab");
     await expect(nested).toHaveCount(0);
-    await expect(cells(page).nth(4).locator('[data-content-type="paragraph"]')).toHaveText(["一", "二"]);
+    await expect(cells(page).nth(4).locator('[data-content-type="bulletListItem"]')).toHaveText(["一", "二"]);
+    // The first item has nothing to nest under: the next cell.
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("隣");
+    await expect(cellText(page, 5)).toHaveText("隣");
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
     await trashOpenPage(page);
   });

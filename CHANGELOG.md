@@ -32,6 +32,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- Tab and Shift+Tab in an extended table work as in a table: to the next or previous cell, with its content selected, also from a cell with text in it. Where the block has a Tab of its own, that comes first: a code block indents, a list item or TODO with one above it nests under it, and Shift+Tab takes a nested block back out
+
 - Pages in your personal knowledge root (My Page) can be moved out into other knowledge roots, to share a draft: from the page menu's "Move" or by dragging in the sidebar. Like any move, what changes in who can see it is confirmed first. Pages from other roots still can't be moved into a personal root
 
 - New whiteboard connectors are drawn like the last connector you styled (arrowheads, straight or elbow, line style), remembered in your browser

@@ -83,19 +83,27 @@ function ReviewMarkers({ editor, review }: { editor: KnowlectiveEditor; review: 
     const layer = ref.current;
     const main = layer?.parentElement;
     if (!layer || !main) return;
+    // Nothing to mark: no listening to every change of the document.
+    if (!key) {
+      setPlaces((prev) => (prev.length ? [] : prev));
+      return;
+    }
     let frame = 0;
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const base = main.getBoundingClientRect();
         const next: Place[] = [];
-        for (const id of key ? key.split(" ") : []) {
+        for (const id of key.split(" ")) {
           const el = main.querySelector<HTMLElement>(`.bn-block-outer[data-id="${CSS.escape(id)}"]`);
           if (!el) continue;
           const box = el.getBoundingClientRect();
           next.push({ id, top: box.top - base.top, height: box.height });
         }
-        setPlaces(next);
+        // Unchanged (most edits): no render.
+        setPlaces((prev) =>
+          prev.length === next.length && prev.every((p, i) => p.id === next[i].id && p.top === next[i].top && p.height === next[i].height) ? prev : next,
+        );
       });
     };
     measure();
