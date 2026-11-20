@@ -326,6 +326,9 @@ DB の変更は要らない（`User.locale` と `InstanceConfig.defaultLocale` �
 | `GET /api/v1/pages/<id>` | 1ページ。本文は Markdown（`markdown`） |
 | `POST /api/v1/pages` | ページを作る：`{ "parentId": "...", "title": "...", "markdown": "..." }`（`title`・`markdown` は省略可）。親の下の最後に入る。`"kind": "WHITEBOARD"` でホワイトボード（`markdown` なし） |
 | `PATCH /api/v1/pages/<id>` | タイトルと本文（全体）を置き換える：`{ "title": "...", "markdown": "..." }`（どちらか一方でもよい） |
+| `GET /api/v1/pages/<id>/children` | 子ページ（並び順）と、そのページの子ページテーブルの列の値（`properties`。列名ごと。`?property=<列名>`（複数可）で一部だけ）。選択肢は選択肢の名前、ユーザーは `{ id, name }`、マスク列は `{ "masked": true }` |
+| `GET /api/v1/pages/<id>/people` | ページを開けて、メンションや通知を送れる人（`id`・`name`） |
+| `POST /api/v1/pages/<id>/notifications` | その人たち（`…/people` から）に、ページについての通知を送る：`{ "userIds": ["..."], "text": "..." }`（2,000 文字まで。http(s) の URL はリンクになる）。編集の権限が必要 |
 | `GET /api/v1/pages/<id>/chats` | ページのチャットブロック（`id`・`title`） |
 | `GET /api/v1/pages/<id>/chats/<チャットの id>/messages` | チャットの最近のメッセージ（古い順）：本文（Markdown。メンションは `<@ユーザーの id>`）・`plainText`・`mentions`（名前）・送った人・返信先・リアクション・投票 |
 | `POST /api/v1/pages/<id>/chats/<チャットの id>/messages` | メッセージを送る：`{ "text": "...", "replyToId": "..." }`（`replyToId` は省略可。`<@ユーザーの id>` でメンション、`<@all>` でページを開ける全員）。編集の権限が必要で、チャットがロックされていないこと（`chat_locked`） |

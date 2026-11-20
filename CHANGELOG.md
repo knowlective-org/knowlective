@@ -10,6 +10,12 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- The API and MCP can read a page's child pages with their properties (the values in its child page table's columns): `GET /api/v1/pages/<id>/children` (all columns, or `?property=<name>` for some) and the MCP tool `get_child_properties`
+
+- The API and MCP can send people a notification about a page, with a text of up to 2,000 characters whose links work: `POST /api/v1/pages/<id>/notifications` and the MCP tool `send_notification`. Only to people who can open the page (`GET /api/v1/pages/<id>/people`, MCP `list_page_people`), by someone who can edit it. They appear in the notification list (a new kind, "messages", that can be turned off on the account screen) and as desktop notifications
+
+- MCP can rename pages (`rename_page`), as the API's `PATCH /api/v1/pages/<id>` already could
+
 - Whiteboard boxes can be made transparent (a new color in the selection bar): the board shows through, and shapes keep their outline. Exports draw them without a fill
 
 - Parts of a whiteboard's text can be made bold, italic, underlined or struck through, and given a text color (the selection bar's buttons, or Ctrl/⌘+B, I, U and Ctrl/⌘+Shift+S): select words while typing, or select items to style their whole text. The text colors are dark ones that stay readable (a contrast of 4.5:1 or more) on every item color. Exports keep the styles; text written through the API or MCP loses them

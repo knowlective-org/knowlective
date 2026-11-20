@@ -323,6 +323,9 @@ Programs can read and change pages, chats and whiteboards over HTTP (`/api/v1`) 
 | `GET /api/v1/pages/<id>` | One page, with its content as Markdown (`markdown`) |
 | `POST /api/v1/pages` | A new page: `{ "parentId": "...", "title": "...", "markdown": "..." }` (`title` and `markdown` optional). Created last under the parent. `"kind": "WHITEBOARD"` makes a whiteboard (without `markdown`) |
 | `PATCH /api/v1/pages/<id>` | Replaces the title and/or the whole body: `{ "title": "...", "markdown": "..." }` |
+| `GET /api/v1/pages/<id>/children` | The child pages, in their order, with their values in the columns of the page's child page table (`properties`, by column name; `?property=<name>` (repeatable) for only some). A select value is its option's name, a person `{ id, name }`, a masked value `{ "masked": true }` |
+| `GET /api/v1/pages/<id>/people` | The people who can open the page and can be mentioned or sent a notification about it (`id`, `name`) |
+| `POST /api/v1/pages/<id>/notifications` | Sends those people (from `…/people`) a notification about the page: `{ "userIds": ["..."], "text": "..." }` (up to 2,000 characters; http(s) URLs become links). Needs edit access |
 | `GET /api/v1/pages/<id>/chats` | The page's chat blocks (`id`, `title`) |
 | `GET /api/v1/pages/<id>/chats/<chat id>/messages` | The chat's latest messages, oldest first: text (Markdown, mentions as `<@user id>`), `plainText`, `mentions` (names), author, reply, reactions, poll |
 | `POST /api/v1/pages/<id>/chats/<chat id>/messages` | Posts a message: `{ "text": "...", "replyToId": "..." }` (`replyToId` optional; `<@user id>` mentions someone, `<@all>` everyone who can open the page). Needs edit access, the chat not locked (`chat_locked`) |

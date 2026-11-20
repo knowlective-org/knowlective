@@ -1228,6 +1228,9 @@ enum NotificationKind {
   TODO_OVERDUE
   PAGE_CHANGED
   MENTION
+  // A message about a page, sent through the API or MCP (its text is the
+  // excerpt, whole: it may carry links).
+  MESSAGE
 }
 
 // Following a page: its changes by others are notified (at most once until

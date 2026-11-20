@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { messageParts } from "@/lib/page-message-text";
 import { connection } from "next/server";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { getDisplayTitle } from "@/i18n/display-title";
@@ -48,27 +49,62 @@ export default async function NotificationsPage() {
           </p>
         ) : (
           <div className={styles.list} role="list">
-            {items.map((item) => (
-              <Link
-                key={item.id}
-                href={`/pages/${item.pageId}`}
-                className={item.read ? styles.item : `${styles.item} ${styles.unread}`}
-                role="listitem"
-                data-ui="NotificationsPage.itemLink"
-                data-id={item.id}
-                data-kind={item.kind}
-                data-read={item.read || undefined}
-              >
+            {items.map((item) => {
+              const heading = (
                 <span className={styles.text}>
                   {!item.read && <span className={styles.dot} aria-label={t("unread")} />}
                   {t(`kind.${item.kind}`, { actor: item.actor || t("someone"), page: displayTitle(item.pageTitle) })}
                 </span>
-                {item.excerpt && <span className={styles.excerpt}>{item.excerpt}</span>}
+              );
+              const time = (
                 <time className={styles.time} dateTime={item.createdAt}>
                   {format.dateTime(new Date(item.createdAt), { dateStyle: "medium", timeStyle: "short" })}
                 </time>
-              </Link>
-            ))}
+              );
+              const className = item.read ? styles.item : `${styles.item} ${styles.unread}`;
+              // A message (API / MCP) is shown whole, its URLs as links: so
+              // the item isn't one link (links can't be nested); its heading
+              // opens the page.
+              if (item.kind === "MESSAGE") {
+                return (
+                  <div key={item.id} className={className} role="listitem" data-ui="NotificationsPage.messageItem" data-id={item.id} data-read={item.read || undefined}>
+                    <Link href={`/pages/${item.pageId}`} className={styles.headingLink} data-ui="NotificationsPage.itemLink" data-id={item.id} data-kind={item.kind}>
+                      {heading}
+                    </Link>
+                    {item.excerpt && (
+                      <p className={styles.message} data-ui="NotificationsPage.message">
+                        {messageParts(item.excerpt).map((part, i) =>
+                          part.href ? (
+                            <a key={i} href={part.href} target="_blank" rel="noopener noreferrer" data-ui="NotificationsPage.messageLink">
+                              {part.text}
+                            </a>
+                          ) : (
+                            part.text
+                          ),
+                        )}
+                      </p>
+                    )}
+                    {time}
+                  </div>
+                );
+              }
+              return (
+                <Link
+                  key={item.id}
+                  href={`/pages/${item.pageId}`}
+                  className={className}
+                  role="listitem"
+                  data-ui="NotificationsPage.itemLink"
+                  data-id={item.id}
+                  data-kind={item.kind}
+                  data-read={item.read || undefined}
+                >
+                  {heading}
+                  {item.excerpt && <span className={styles.excerpt}>{item.excerpt}</span>}
+                  {time}
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>

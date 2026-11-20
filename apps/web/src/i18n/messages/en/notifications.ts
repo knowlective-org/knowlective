@@ -4,7 +4,7 @@
 export default {
   notifications: {
     title: "Notifications",
-    lead: "New chat messages, TODOs for you, changes to pages you follow and mentions. Opening a page marks its notifications read.",
+    lead: "New chat messages, TODOs for you, changes to pages you follow, mentions and messages sent to you. Opening a page marks its notifications read.",
     empty: "No notifications yet.",
     markAllRead: "Mark all as read",
     unread: "Unread",
@@ -16,6 +16,7 @@ export default {
       TODO_OVERDUE: "A TODO of yours on {page} is past its date",
       PAGE_CHANGED: "{actor} changed {page}",
       MENTION: "{actor} mentioned you on {page}",
+      MESSAGE: "{actor} sent you a message about {page}",
     },
     // A desktop notification without details: only the kind.
     push: {
@@ -24,6 +25,7 @@ export default {
       TODO_OVERDUE: "A TODO of yours is past its date",
       PAGE_CHANGED: "A page you follow changed",
       MENTION: "You were mentioned",
+      MESSAGE: "A message for you",
     },
     sidebar: "Notifications",
     sidebarUnread: "Notifications ({count, number} unread)",
@@ -51,6 +53,7 @@ export default {
         TODO_OVERDUE: "Your TODOs past their date",
         PAGE_CHANGED: "Changes to pages you follow",
         MENTION: "Mentions of you",
+        MESSAGE: "Messages about pages sent to you through the API or AI apps (MCP)",
       },
       pushDetails: "Desktop notifications say who, which page and an excerpt",
       pushDetailsNote: "Off: only the kind of event (\"You were mentioned\"). Desktop notifications can show on a locked screen.",

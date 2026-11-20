@@ -84,11 +84,20 @@ test.describe("Access matrix", () => {
       expect(file.status(), `${account} attachment`).toBe(["guest", "outsider"].includes(account) ? 404 : 200);
       // The API takes keys only: a logged-in browser's cookies don't count
       // (401 without a key; 403 while the API is off in the admin console).
-      for (const path of ["api/v1/me", `api/v1/pages/${pageId}/chats`, `api/v1/pages/${pageId}/chats/x/messages`, `api/v1/pages/${pageId}/whiteboard`]) {
+      for (const path of [
+        "api/v1/me",
+        `api/v1/pages/${pageId}/chats`, `api/v1/pages/${pageId}/chats/x/messages`,
+        `api/v1/pages/${pageId}/whiteboard`,
+        `api/v1/pages/${pageId}/children`,
+        `api/v1/pages/${pageId}/people`,
+      ]) {
         expect([401, 403], `${account} ${path}`).toContain((await context.request.get(path)).status());
       }
       expect([401, 403], `${account} whiteboard POST`).toContain(
         (await context.request.post(`api/v1/pages/${pageId}/whiteboard`, { data: { remove: ["x"] } })).status(),
+      );
+      expect([401, 403], `${account} notifications POST`).toContain(
+        (await context.request.post(`api/v1/pages/${pageId}/notifications`, { data: { userIds: ["x"], text: "x" } })).status(),
       );
       // The MCP server takes keys only too (404 while it's off).
       expect([401, 404], `${account} MCP`).toContain(
