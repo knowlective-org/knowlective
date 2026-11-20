@@ -73,6 +73,8 @@ test.describe("Access by network", () => {
     const { id } = await createPage(page, "E2E ネットワーク");
     await attachText(page);
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    // (Once the upload has been saved.)
+    await expect.poll(() => withPrisma((prisma) => prisma.fileObject.count({ where: { pageId: id } }))).toBeGreaterThan(0);
     const file = await withPrisma((prisma) => prisma.fileObject.findFirstOrThrow({ where: { pageId: id }, select: { id: true } }));
     // Served with full access.
     expect((await page.request.get(`api/files/${file.id}`)).status()).toBe(200);
