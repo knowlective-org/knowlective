@@ -13,6 +13,9 @@ export type DraggedPage = {
   canEdit: boolean;
   // The page and its visible descendants: never a drop target.
   subtree: Set<string>;
+  // From the user's personal root: it can go anywhere. Others never go into
+  // a personal root (lib/page-move.ts).
+  personal: boolean;
 };
 
 // The page being dragged in the sidebar. Module-level so a drop can land in

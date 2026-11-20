@@ -179,6 +179,7 @@ export function Sidebar({
               maxDepth={maxDepth}
               childLimit={childLimit}
               rootBadge={t.personal ? tr("personal") : undefined}
+              personal={t.personal}
               rootIcon={t.favicon ?? undefined}
               rootReorder={
                 reorderable

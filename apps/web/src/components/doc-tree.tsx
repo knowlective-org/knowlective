@@ -61,6 +61,7 @@ export function DocTree({
   rootBadge,
   rootIcon,
   childLimit = null,
+  personal = false,
 }: {
   nodes: DocTreeNode[];
   entryIds: string[];
@@ -83,6 +84,8 @@ export function DocTree({
   rootBadge?: string;
   // The knowledge root's favicon, before the root page's title.
   rootIcon?: string;
+  // The user's personal root: pages from other roots can't be dropped in it.
+  personal?: boolean;
 }) {
   const t = useTranslations("docTree");
   const displayTitle = useDisplayTitle();
@@ -157,7 +160,7 @@ export function DocTree({
   // if the user can't (a before/after that isn't allowed falls back to into).
   const targetFor = (node: DocTreeNode, zone: DropZone): { zone: DropZone; target: MoveTarget } | null => {
     const d = getDraggedPage();
-    if (!d || d.subtree.has(node.id)) return null;
+    if (!d || d.subtree.has(node.id) || (personal && !d.personal)) return null;
     const into = (): { zone: DropZone; target: MoveTarget } | null => {
       if (!node.canEdit || (node.id !== d.parentId && !d.canEdit)) return null;
       return { zone: "into", target: { parentId: node.id, beforeId: null } };
@@ -189,7 +192,7 @@ export function DocTree({
   };
 
   const onDragStart = (e: DragEvent<HTMLElement>, node: DocTreeNode, title: string) => {
-    setDraggedPage({ id: node.id, title, parentId: node.parentId!, canEdit: node.canEdit, subtree: subtreeOf(node.id) });
+    setDraggedPage({ id: node.id, title, parentId: node.parentId!, canEdit: node.canEdit, subtree: subtreeOf(node.id), personal });
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData(DRAG_TYPE, node.id);
     setDraggingId(node.id);

@@ -465,7 +465,7 @@ export default {
     stale: "The pages have changed. Refresh the screen and try again.",
     rootPage: "A knowledge root's page can't be moved.",
     noEditDestination: "It can't go under that page (you need edit permission there).",
-    personalBoundary: "Pages can't be moved between your personal knowledge root and other knowledge roots.",
+    personalBoundary: "Pages from other knowledge roots can't be moved into a personal knowledge root.",
     locked: "This page is locked, so it can't be moved. Unlock it first.",
     destinationLocked: "The destination is locked with its child pages, so pages can't be moved there.",
     noEdit: "Moving this page needs edit permission.",

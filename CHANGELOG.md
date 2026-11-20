@@ -32,6 +32,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- Pages in your personal knowledge root (My Page) can be moved out into other knowledge roots, to share a draft: from the page menu's "Move" or by dragging in the sidebar. Like any move, what changes in who can see it is confirmed first. Pages from other roots still can't be moved into a personal root
+
 - New whiteboard connectors are drawn like the last connector you styled (arrowheads, straight or elbow, line style), remembered in your browser
 
 - Tab in an empty cell of the last column of an extended table goes to the first cell of the next row, instead of the cell below
