@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/db";
 
-// What this KNOWLECTIVE runs on, for the admin console's "About" page: the
+// What this knowlective runs on, for the admin console's "About" page: the
 // packages it depends on (as installed, with their licenses), the runtime and
 // the database. Site admins only (it tells which versions are running).
 
@@ -13,7 +13,7 @@ export type PackageInfo = {
   // As declared in package.json.
   wanted: string;
   license: string | null;
-  // Which parts of KNOWLECTIVE depend on it.
+  // Which parts of knowlective depend on it.
   usedBy: ("web" | "shared")[];
 };
 

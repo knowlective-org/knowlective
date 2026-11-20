@@ -61,7 +61,7 @@ export function TitleField({
 
   useEffect(() => {
     onChange?.(value);
-    document.title = `${displayTitle(value)} | KNOWLECTIVE`;
+    document.title = `${displayTitle(value)} | knowlective`;
     // Grow with the text instead of scrolling inside the field.
     const el = ref.current;
     if (el) {

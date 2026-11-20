@@ -174,7 +174,7 @@ function get(url: URL, allowPrivate: boolean, proxyUrl: string | null, options: 
         headers: {
           Accept: options.accept,
           "Accept-Language": "ja,en;q=0.8",
-          "User-Agent": "Mozilla/5.0 (compatible; KNOWLECTIVE-link-preview)",
+          "User-Agent": "Mozilla/5.0 (compatible; knowlective-link-preview)",
         },
       },
       (response) => {

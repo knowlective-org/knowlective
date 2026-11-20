@@ -93,7 +93,7 @@ const ja: MessageShape<typeof en> = {
     cannotMove: "移動できません",
   },
   home: {
-    welcome: "KNOWLECTIVE へようこそ",
+    welcome: "knowlective へようこそ",
     emptyCanCreate: "見られるページはまだありません。左の「＋ 新しいナレッジルート」から作成できます。",
     empty: "見られるページはまだありません。グループに追加されると、左に表示されます。",
   },

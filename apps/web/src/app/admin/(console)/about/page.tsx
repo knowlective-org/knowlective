@@ -6,7 +6,7 @@ import { getSourceUrl } from "@/lib/source";
 import { getSystemInfo } from "@/lib/system-info";
 import styles from "@/styles/ui.module.css";
 
-// Which KNOWLECTIVE this is (version, commit, build time) and what it runs on
+// Which knowlective this is (version, commit, build time) and what it runs on
 // (packages, runtime, database). Site admins only.
 export default async function AdminAboutPage() {
   const { readOnly } = await requireAdminView(["SITE_ADMIN"]);

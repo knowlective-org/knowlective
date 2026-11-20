@@ -122,7 +122,7 @@ export function createNotifier(prisma: PrismaClient) {
       prisma.brandSettings.findUnique({ where: { id: 1 }, select: { name: true } }),
     ]);
     const actorName = actor ? actor.name || (actor.emailEnc ? openEmail(key, actor.emailEnc) : "") : "";
-    const siteName = brand?.name || "KNOWLECTIVE";
+    const siteName = brand?.name || "knowlective";
 
     for (const device of devices) {
       const recipient = recipients.find((r) => r.id === device.userId)!;

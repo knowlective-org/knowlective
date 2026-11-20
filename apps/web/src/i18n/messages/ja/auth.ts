@@ -4,7 +4,7 @@ import type { MessageShape } from "../en";
 const ja: MessageShape<typeof en> = {
   login: {
     title: "ログイン",
-    heading: "KNOWLECTIVE にログイン",
+    heading: "knowlective にログイン",
     passwordResetDone: "パスワードを再設定しました。新しいパスワードでログインしてください。",
     ssoButton: "{provider}でログイン",
     ssoDefaultName: "シングルサインオン",
@@ -84,7 +84,7 @@ const ja: MessageShape<typeof en> = {
     signupHeading: "アカウント登録",
     alreadyLoggedIn: "すでに {name} としてログインしています。<link>トップへ</link>",
     signupLead: "表示名とパスワードを設定して、登録を完了してください。",
-    heading: "KNOWLECTIVE への招待",
+    heading: "knowlective への招待",
     loggedInAs: "{name} としてログインしています。参加すると、招待のグループに追加されます（ロールは変わりません）。",
     existingAccount: "すでにアカウントをお持ちの場合は、<link>ログイン</link>してから、このリンクをもう一度開いてください。",
     register: "登録して参加する",
@@ -121,7 +121,7 @@ const ja: MessageShape<typeof en> = {
   },
   setup: {
     title: "初期セットアップ",
-    heading: "KNOWLECTIVE の初期セットアップ",
+    heading: "knowlective の初期セットアップ",
     lead: "このインスタンスを管理するためのマスターパスワードと、サイトの公開 URL を設定します。同時に、ページ内容を暗号化するための鍵を生成します。",
     masterPasswordNote:
       "マスターパスワードは、サーバーの鍵（KNOWLECTIVE_SERVER_KEY）を失ったときにデータを復旧する唯一の手段です。あとから変更・再発行はできないため、パスワードマネージャーなどで安全に保管してください。",
@@ -140,10 +140,10 @@ const ja: MessageShape<typeof en> = {
   },
   oauth: {
     title: "アプリの接続",
-    heading: "{app} を KNOWLECTIVE に接続しますか？",
+    heading: "{app} を knowlective に接続しますか？",
     unnamed: "名前のないアプリ",
     intro: "{app} は、あなた（{user}）として動きます。あなたが開けるページで、あなたができることだけができます。",
-    unverified: "名前はアプリが名乗っているもので、KNOWLECTIVE では確かめられません。自分で接続を始めたときだけ続けてください。",
+    unverified: "名前はアプリが名乗っているもので、knowlective では確かめられません。自分で接続を始めたときだけ続けてください。",
     returnsTo: "答えた後の戻り先: {target}",
     clientSite: "アプリのサイト: {site}",
     scope: "許可する操作",

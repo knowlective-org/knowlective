@@ -43,7 +43,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
           type="text"
           data-ui="MailSettingsForm.fromNameInput"
           name="fromName"
-          defaultValue={current?.fromName ?? "KNOWLECTIVE"}
+          defaultValue={current?.fromName ?? "knowlective"}
           className={styles.field}
         />
       </label>

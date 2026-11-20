@@ -44,7 +44,7 @@ export default {
     none: "None",
     untitled: "Untitled",
     // Under a site name or logo other than the default (components/brand.tsx).
-    poweredBy: "powered by KNOWLECTIVE",
+    poweredBy: "powered by knowlective",
     listSeparator: ", ",
     // Between two sentences shown together.
     sentenceSeparator: " ",

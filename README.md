@@ -6,7 +6,7 @@ A self-hostable, open-source tool for sharing documents and knowledge, with a bl
 
 ## About the name
 
-KNOWLECTIVE combines KNOWLEDGE and COLLECTIVE: a place where a team's knowledge gathers and grows together.
+knowlective combines knowledge and collective: a place where a team's knowledge gathers and grows together.
 
 ## Structure
 
@@ -352,7 +352,7 @@ Each user has one site-wide role. Permission to view and edit pages comes from g
 | Content manager | "Users" (inviting only) and "Groups" in the admin console. Can invite only content managers and users |
 | User | Can't get into the admin console |
 
-The admin console has the pages Overview, Users, Groups, Files, Security and About (content managers see only "Users" and "Groups"). "About" shows this KNOWLECTIVE's version, the commit it was built from and when it was built, the Node.js and PostgreSQL versions and the latest database migration, and the packages it depends on with their installed versions and licenses. The version and commit (`0.1.0+abc1234`) also show at the bottom of the admin console's menu. There are two ways to log in, and both need an authenticator app (TOTP), registered at the first login.
+The admin console has the pages Overview, Users, Groups, Files, Security and About (content managers see only "Users" and "Groups"). "About" shows this knowlective's version, the commit it was built from and when it was built, the Node.js and PostgreSQL versions and the latest database migration, and the packages it depends on with their installed versions and licenses. The version and commit (`0.1.0+abc1234`) also show at the bottom of the admin console's menu. There are two ways to log in, and both need an authenticator app (TOTP), registered at the first login.
 
 - **Log in with an account (usual):** site admins and content managers log in with their own email address, password and authenticator app. Changing their role to user or disabling them locks them out at once, even while logged in
 - **Log in with the master password (initial setup and recovery):** `/admin/login?mode=master`. Used to register the first site admin, or when no admin can get in
@@ -372,8 +372,8 @@ Changes to roles, enabling/disabling accounts, password resets, registering and 
 
 "Overview" → "Site name and logo" chooses what the top left of every screen shows (the sidebar, the admin console):
 
-- "The site's name": the name in text (Newsreader, weight 600; "KNOWLECTIVE" by default). Japanese text falls back to the system's serif font
-- Once changed from the default, "powered by KNOWLECTIVE" is shown under it
+- "The site's name": the name in text (Newsreader, weight 600; "knowlective" by default). Japanese text falls back to the system's serif font
+- Once changed from the default, "powered by knowlective" is shown under it
 - "A logo (SVG)": an SVG you upload, up to 36px tall. The site's name becomes its text for screen readers
 - SVGs of up to 200 KB. For safety, ones with scripts, event attributes, links, embedded images or fonts and styles from elsewhere are refused (only shapes, paths, colors and text). It's also served so that nothing in it can run
 - Changes are recorded in the audit log
@@ -536,7 +536,7 @@ The server's own Node.js is used, so its security updates are yours to install (
 
 ## Versions and releases
 
-KNOWLECTIVE uses [Semantic Versioning](https://semver.org/); the version is the one in the root `package.json`. Until 1.0.0, MINOR versions may need attention when updating (see **Upgrade notes** in [CHANGELOG.md](CHANGELOG.md)). Running builds show `<version>+<commit>` (e.g. `0.1.0+abc1234`) under "About" in the admin console.
+knowlective uses [Semantic Versioning](https://semver.org/); the version is the one in the root `package.json`. Until 1.0.0, MINOR versions may need attention when updating (see **Upgrade notes** in [CHANGELOG.md](CHANGELOG.md)). Running builds show `<version>+<commit>` (e.g. `0.1.0+abc1234`) under "About" in the admin console.
 
 To make a release: add the changes under "Unreleased" in `CHANGELOG.md`, commit, then run `pnpm release 0.2.0`. It sets the version, dates the changelog section, commits and tags `v0.2.0` (push it yourself).
 

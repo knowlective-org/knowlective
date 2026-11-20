@@ -94,7 +94,7 @@ export default {
     cannotMove: "Can't move the page",
   },
   home: {
-    welcome: "Welcome to KNOWLECTIVE",
+    welcome: "Welcome to knowlective",
     emptyCanCreate: "There are no pages you can see yet. You can create one with \"+ New knowledge root\" on the left.",
     empty: "There are no pages you can see yet. They'll appear on the left once you're added to a group.",
   },

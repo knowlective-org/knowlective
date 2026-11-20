@@ -1151,11 +1151,11 @@ enum BrandMode {
 }
 
 // What the top left of the sidebars shows (lib/brand.ts): the site's name in
-// text, or an SVG logo. One row; without it, the name "KNOWLECTIVE".
+// text, or an SVG logo. One row; without it, the name "knowlective".
 model BrandSettings {
   id        Int       @id @default(1)
   mode      BrandMode @default(TEXT)
-  name      String    @default("KNOWLECTIVE")
+  name      String    @default("knowlective")
   // The logo (IMAGE), checked when uploaded (lib/brand.ts) and served with a
   // CSP that runs nothing (/api/brand-logo). Kept when switching back to TEXT.
   logoSvg   String?

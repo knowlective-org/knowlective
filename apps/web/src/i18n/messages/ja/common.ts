@@ -42,7 +42,7 @@ const ja: MessageShape<typeof en> = {
     sending: "送信しています…",
     none: "なし",
     untitled: "無題",
-    poweredBy: "powered by KNOWLECTIVE",
+    poweredBy: "powered by knowlective",
     listSeparator: "、",
     sentenceSeparator: "",
     errors: {

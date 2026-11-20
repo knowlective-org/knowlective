@@ -73,7 +73,7 @@
   letter-spacing: 0.2em;
 }
 
-/* A field with fixed text in front of it (e.g. "KNOWLECTIVE:"). */
+/* A field with fixed text in front of it (e.g. "knowlective:"). */
 .prefixedField {
   display: flex;
   align-items: center;

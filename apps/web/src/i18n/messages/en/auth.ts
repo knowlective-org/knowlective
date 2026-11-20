@@ -4,7 +4,7 @@
 export default {
   login: {
     title: "Log in",
-    heading: "Log in to KNOWLECTIVE",
+    heading: "Log in to knowlective",
     passwordResetDone: "Your password has been reset. Log in with the new password.",
     ssoButton: "Log in with {provider}",
     ssoDefaultName: "single sign-on",
@@ -84,7 +84,7 @@ export default {
     signupHeading: "Create an account",
     alreadyLoggedIn: "You're already logged in as {name}. <link>Go to the top page</link>",
     signupLead: "Choose your display name and password to finish registering.",
-    heading: "Invitation to KNOWLECTIVE",
+    heading: "Invitation to knowlective",
     loggedInAs: "You're logged in as {name}. Joining adds you to the invitation's groups (your role doesn't change).",
     existingAccount: "Already have an account? <link>Log in</link>, then open this link again.",
     register: "Register and join",
@@ -121,7 +121,7 @@ export default {
   },
   setup: {
     title: "First-time setup",
-    heading: "Set up KNOWLECTIVE",
+    heading: "Set up knowlective",
     lead: "Set the master password for managing this instance and the site's public URL. The key that encrypts page content is generated at the same time.",
     masterPasswordNote:
       "The master password is the only way to recover the data if the server key (KNOWLECTIVE_SERVER_KEY) is lost. It can't be changed or reissued later, so keep it somewhere safe, such as a password manager.",
@@ -140,10 +140,10 @@ export default {
   },
   oauth: {
     title: "Connect an app",
-    heading: "Connect {app} to KNOWLECTIVE?",
+    heading: "Connect {app} to knowlective?",
     unnamed: "An app without a name",
     intro: "{app} will act as you ({user}): it can do only what you can, on the pages you can open.",
-    unverified: "The name is what the app calls itself; KNOWLECTIVE can't confirm it. Continue only if you started this connection yourself.",
+    unverified: "The name is what the app calls itself; knowlective can't confirm it. Continue only if you started this connection yourself.",
     returnsTo: "After you answer, you go back to: {target}",
     clientSite: "The app's site: {site}",
     scope: "What it may do",

@@ -73,7 +73,7 @@ export function ThemeForm({ current }: { current: ThemeColors }) {
 
       <div className={themeStyles.preview} style={previewVars} data-ui="ThemeForm.preview" aria-label={tr("theme.preview")}>
         <div className={themeStyles.previewSidebar}>
-          <div className={themeStyles.previewBrand}>KNOWLECTIVE</div>
+          <div className={themeStyles.previewBrand}>knowlective</div>
           <div className={themeStyles.previewItemCurrent}>{tr("theme.previewCurrent")}</div>
           <div className={themeStyles.previewItem}>{tr("theme.previewOther")}</div>
         </div>

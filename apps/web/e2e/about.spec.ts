@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
 import { openAdmin } from "./admin-login";
 
-// The admin console's "About" page: this KNOWLECTIVE's version and commit
+// The admin console's "About" page: this knowlective's version and commit
 // (from the working copy in development), and what it runs on.
 
 test.use({ storageState: authFile("admin") });
@@ -26,5 +26,5 @@ test("the About page shows the version, the commit and the packages", async ({ p
   await expect(next).toContainText("MIT");
   await expect(page.locator('[data-ui="AdminAboutPage.packageRow"][data-id="@prisma/client"]')).toContainText("shared");
   // The version also shows at the bottom of the menu.
-  await expect(page.getByTestId("AdminSidebar.version")).toContainText(`KNOWLECTIVE ${version}+`);
+  await expect(page.getByTestId("AdminSidebar.version")).toContainText(`knowlective ${version}+`);
 });

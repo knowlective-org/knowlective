@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to KNOWLECTIVE, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
+Notable changes to knowlective, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
 Until 1.0.0, a MINOR version (0.**x**.0) may contain changes that need attention when updating; they're listed under **Upgrade notes**. From 1.0.0 on, those come only with a MAJOR version: removed or renamed environment variables, database migrations that need manual steps, incompatible changes to `/api/v1`, and higher minimum Node.js or PostgreSQL versions.
 
@@ -33,6 +33,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - Site admins can change another user's email address from the admin console (the user list's "⋯" menu): a code is mailed to the new address, and the address changes when the user signs in and enters it on their account screen. The user can turn it down, and the admin can cancel it. Needs mail sending to be set up
 
 ### Changed
+
+- The product's name is written in lower case, "knowlective", everywhere: the default site name (and "powered by knowlective"), screen titles, emails, the admin console, the authenticator app and passkey names given to new registrations, and the documentation. A site name or email sender name still set to the old default "KNOWLECTIVE" is changed to it; one set to anything else stays as it is. Environment variable names (`KNOWLECTIVE_…`) don't change
 
 - A mention in a chat message has more room around the name, in a slightly smaller font
 
