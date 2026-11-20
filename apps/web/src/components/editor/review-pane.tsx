@@ -84,10 +84,7 @@ function ReviewMarkers({ editor, review }: { editor: KnowlectiveEditor; review: 
     const main = layer?.parentElement;
     if (!layer || !main) return;
     // Nothing to mark: no listening to every change of the document.
-    if (!key) {
-      setPlaces((prev) => (prev.length ? [] : prev));
-      return;
-    }
+    if (!key) return;
     let frame = 0;
     const measure = () => {
       cancelAnimationFrame(frame);
@@ -118,8 +115,8 @@ function ReviewMarkers({ editor, review }: { editor: KnowlectiveEditor; review: 
   }, [editor, key]);
 
   return (
-    <div ref={ref} className={styles.layer} aria-hidden={places.length === 0 || undefined}>
-      {places.map((p) => {
+    <div ref={ref} className={styles.layer} aria-hidden={!key || places.length === 0 || undefined}>
+      {(key ? places : []).map((p) => {
         const thread = shown.find((th) => th.blockId === p.id);
         const isActive = p.id === review.activeId;
         return (

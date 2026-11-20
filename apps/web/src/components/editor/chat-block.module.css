@@ -302,6 +302,9 @@
 }
 
 .mentionItem {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   padding: 4px 10px;
   font-size: 13px;
   cursor: pointer;
@@ -886,4 +889,9 @@ button.pollOption:disabled {
   .formatBar {
     display: none;
   }
+}
+
+/* The author's picture by their name. */
+.meta > [data-ui="Avatar"] {
+  align-self: center;
 }

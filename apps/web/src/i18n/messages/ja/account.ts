@@ -15,6 +15,15 @@ const ja: MessageShape<typeof en> = {
       browser: "ブラウザの設定に合わせる",
       note: "画面と、あなたに届くメールの言語です。",
     },
+    avatar: {
+      note: "名前の横に表示する画像です。設定しないと、名前の最初の1文字を表示します。",
+      choose: "画像を選ぶ",
+      remove: "削除",
+      badType: "PNG・JPEG・WebP の画像を選んでください。",
+      tooLarge: "画像が大きすぎます。",
+      tooOften: "変更が多すぎます。少し待ってからやり直してください。",
+      failed: "画像を保存できませんでした。",
+    },
     sidebar: {
       heading: "左のメニュー",
       fold: "子ページが多いページを省略する",

@@ -49,6 +49,7 @@ import { useChildrenData, usePageEditor } from "./page-context";
 import { usePagePeople } from "./page-people";
 import styles from "./chat-block.module.css";
 import mentionStyles from "./mention-inline.module.css";
+import { Avatar } from "@/components/avatar";
 import { BLOCK_CONFIGS } from "./block-configs";
 import { BlockTitle } from "./block-title";
 import { Icon, type IconName } from "@/components/icons";
@@ -115,7 +116,7 @@ function saveFolded(blockId: string, folded: boolean) {
   }
 }
 
-type Person = { id: string; name: string };
+type Person = { id: string; name: string; avatar?: string | null };
 type Reply = { id: string; author: string | null; excerpt: string };
 type ComposerApi = { quote: (text: string) => void; addFiles: (files: File[]) => void };
 
@@ -660,6 +661,7 @@ function Message({
       data-editing={editing || undefined}
     >
       <div className={styles.meta}>
+        {!m.mine && m.author && m.authorId && <Avatar userId={m.authorId} name={m.author} url={m.avatar} size={20} />}
         {!m.mine && m.author && (
           <span className={styles.author} style={m.color ? { color: m.color } : undefined} data-ui="ChatBlock.author">
             {m.author}
@@ -1321,6 +1323,7 @@ function ChatInput({
               data-ui="ChatBlock.mentionItem"
               data-id={p.id}
             >
+              {p.id !== EVERYONE && <Avatar userId={p.id} name={p.name} url={p.avatar} size={20} />}
               {p.name}
               {p.id === EVERYONE && <span className={styles.mentionHint}>{t("everyoneHint")}</span>}
             </div>

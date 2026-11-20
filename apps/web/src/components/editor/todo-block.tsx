@@ -5,6 +5,7 @@ import { createExtension, getBlockInfoFromSelection, updateBlockTr, type BlockNo
 import { createReactBlockSpec } from "@blocknote/react";
 import { usePageEditor } from "./page-context";
 import { usePagePeople } from "./page-people";
+import { Avatar } from "@/components/avatar";
 import styles from "./todo-block.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
 import { blockLockOf } from "./block-lock";
@@ -188,6 +189,9 @@ function Todo({
       />
       <div className={styles.text} ref={contentRef} />
       <div className={styles.meta} contentEditable={false}>
+        {editable && assignee && people && (
+          <Avatar userId={assignee} name={assigneeName} url={people.find((p) => p.id === assignee)?.avatar} size={18} />
+        )}
         {editable ? (
           <select
             className={`${styles.control} ${assignee ? "" : styles.empty}`}
@@ -208,6 +212,7 @@ function Todo({
         ) : (
           assigneeName && (
             <span className={styles.chip} data-ui="TodoBlock.assignee">
+              <Avatar userId={assignee} name={assigneeName} url={people?.find((p) => p.id === assignee)?.avatar} size={16} />
               {t("assignedTo", { name: assigneeName })}
             </span>
           )

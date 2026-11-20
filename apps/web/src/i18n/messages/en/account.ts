@@ -15,6 +15,15 @@ export default {
       browser: "Same as the browser",
       note: "The language of the screens and of the emails sent to you.",
     },
+    avatar: {
+      note: "Your picture, shown by your name. Without one, the first letter of your name is shown.",
+      choose: "Choose a picture",
+      remove: "Remove",
+      badType: "Choose a PNG, JPEG or WebP picture.",
+      tooLarge: "The picture is too large.",
+      tooOften: "Too many changes. Please wait a moment.",
+      failed: "The picture couldn't be saved.",
+    },
     sidebar: {
       heading: "Sidebar",
       fold: "Fold pages with many child pages",

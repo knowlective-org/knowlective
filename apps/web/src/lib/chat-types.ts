@@ -94,6 +94,9 @@ export type ChatMessageView = {
   text: string;
   mine: boolean;
   author: string | null;
+  // Its author's id and picture (lib/avatar.ts); null for someone not logged in.
+  authorId: string | null;
+  avatar: string | null;
   color: string | null;
   createdAt: string;
   // When its author last changed it; null if never.

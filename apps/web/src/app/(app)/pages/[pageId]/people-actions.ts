@@ -4,8 +4,10 @@ import { getPageAccess } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
 import { pagePeople } from "@/lib/page-people";
+import { avatarUrls } from "@/lib/avatar";
 
-export type PagePeople = { id: string; name: string }[];
+// `avatar`: their picture (lib/avatar.ts), null for their initial.
+export type PagePeople = { id: string; name: string; avatar: string | null }[];
 
 // The people who can open the page and have a name (lib/page-people.ts):
 // whom a TODO can be given to and who can be mentioned (@name), and the names
@@ -15,5 +17,7 @@ export async function loadPagePeople(pageId: string): Promise<PagePeople | null>
   const user = await getCurrentUser();
   if (!user || typeof pageId !== "string") return null;
   if (!(await getPageAccess(prisma, user.id, pageId))) return null;
-  return pagePeople(prisma, pageId);
+  const people = await pagePeople(prisma, pageId);
+  const avatars = await avatarUrls(people.map((p) => p.id));
+  return people.map((p) => ({ ...p, avatar: avatars.get(p.id) ?? null }));
 }

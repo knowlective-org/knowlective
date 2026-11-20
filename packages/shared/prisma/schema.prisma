@@ -65,6 +65,12 @@ model User {
   // In the sidebar, a page with more child pages than this lists only this
   // many (the most recently changed) and a row to show the rest. Null = all.
   sidebarChildLimit Int?
+  // A picture of the person (apps/web/src/lib/avatar.ts): a square PNG, JPEG
+  // or WebP, encrypted with the data key (AAD: the user's id). None: their
+  // initial is shown.
+  avatarEnc       Bytes?
+  avatarType      String?
+  avatarUpdatedAt DateTime?
 
   pages             Page[]               @relation("PageCreatedBy")
   updatedPages      Page[]               @relation("PageUpdatedBy")

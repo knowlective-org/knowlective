@@ -23,6 +23,7 @@ const SRC = path.join(root, "apps/web/src");
 const GUARDS = [
   "requireUser",
   "requireAdmin",
+  "requireAdminView",
   "getCurrentUser",
   "getSessionUser",
   "getPasskeySetupUser",

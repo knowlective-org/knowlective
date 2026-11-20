@@ -10,6 +10,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- People can set a picture of themselves on the account screen (made a small square in the browser; PNG, JPEG or WebP). It's shown by their name: at the bottom of the sidebar, on their chat messages, in the "@" menus, as a TODO's assignee and in the admin console's user list. Without one, the first letter of their name is shown. Like names, only to people who are logged in
+
 - Review chats beside the page, like comments: "Start a chat" in a top-level block's ⋮⋮ menu opens a chat about that block in a pane on the right, which stays in view as the page scrolls. Blocks with a chat show a mark with the number of messages; a chat can be resolved (the mark goes) and reopened, and a new message reopens it. They aren't part of the page: not printed, exported or searched. Anyone who can open the page reads them; those who can edit it post and resolve. Everything a chat block has works in them (replies, reactions, mentions, files, notifications)
 
 - Cells of a child page table can be selected like a spreadsheet (drag across them, or click one and Shift+click another) and copied with Ctrl/⌘+C as a table, for spreadsheets and documents: what they show (an option's or a person's name, a date, a masked value only while its column is shown). Ctrl/⌘+C in a single cell copies that cell

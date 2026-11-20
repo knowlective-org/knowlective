@@ -104,12 +104,19 @@
 }
 
 .user {
+  display: flex;
   flex: 1 1 100%;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  color: var(--color-muted);
+}
+
+.userName {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-muted);
 }
 
 .footerLink {

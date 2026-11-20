@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar } from "./avatar";
 import Link from "next/link";
 import { withBasePath } from "@/lib/base-path";
 import { usePathname, useRouter } from "next/navigation";
@@ -42,6 +43,8 @@ export function Sidebar({
   currentTitle,
   maxDepth,
   userName,
+  userId,
+  userAvatar = null,
   canCreateRoot,
   canOpenAdmin,
   guest = false,
@@ -55,6 +58,8 @@ export function Sidebar({
   currentTitle?: string;
   maxDepth: number;
   userName: string;
+  userId?: string;
+  userAvatar?: string | null;
   canCreateRoot: boolean;
   canOpenAdmin: boolean;
   // Someone not logged in, viewing public pages: no search, no account links.
@@ -226,8 +231,9 @@ export function Sidebar({
         </div>
       ) : (
       <div className={styles.footer}>
-        <span className={styles.user} title={userName}>
-          {userName}
+        <span className={styles.user} title={userName} data-ui="Sidebar.user">
+          {userId && <Avatar userId={userId} name={userName} url={userAvatar} size={22} />}
+          <span className={styles.userName}>{userName}</span>
         </span>
         <Link
           href="/notifications"
