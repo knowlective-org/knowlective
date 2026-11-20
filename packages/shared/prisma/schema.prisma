@@ -85,6 +85,7 @@ model User {
   emailChanges      EmailChangeRequest[]
   chatMessages      ChatMessage[]
   chatLocks         ChatLock[]
+  reviewsResolved   ReviewThread[]
   chatReactions     ChatReaction[]
   chatPollVotes     ChatPollVote[]
   tableViews        TableViewPref[]
@@ -230,6 +231,7 @@ model Page {
   linkedViews    PageLinkedView[]
   chatMessages   ChatMessage[]
   chatLocks      ChatLock[]
+  reviewThreads  ReviewThread[]
   tableViews     TableViewPref[]
   notifications  Notification[]
   followers      PageFollow[]
@@ -440,6 +442,21 @@ model ChatPollVote {
   createdAt DateTime @default(now())
 
   @@id([messageId, userId, option])
+}
+
+// A review thread beside one of a page's top-level blocks (outside the
+// document: never printed or exported). Its messages are the chat messages
+// under the key `review_<blockId>` (lib/review-threads.ts); this row only
+// says the thread is resolved (a new message opens it again).
+model ReviewThread {
+  pageId       String
+  page         Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  blockId      String
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?     @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@id([pageId, blockId])
 }
 
 // A locked chat block: nobody can post, change or take back its messages

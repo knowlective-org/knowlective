@@ -24,6 +24,7 @@ import { showConfirm } from "../dialog";
 import { blockLockOf, setBlockLocks } from "./block-lock";
 import type { BlockLock } from "@/lib/block-locks";
 import { HEADING_LEVELS, editorSchema, type KnowlectiveEditor } from "./schema";
+import { useReview } from "./review-pane";
 
 // The block types a text block can be turned into: BlockNote's list, without
 // the heading levels the schema doesn't allow (the page title is the only H1;
@@ -65,6 +66,7 @@ function BlockMenu() {
   return (
     <DragHandleMenu>
       <BlockTypeItem />
+      <ReviewItem />
       <CopyBlockItem />
       <DuplicateBlockItem />
       <LockItem />
@@ -163,6 +165,24 @@ function DuplicateBlockItem() {
       }}
     >
       {t("duplicate")}
+    </Components.Generic.Menu.Item>
+  );
+}
+
+// A review thread about the block (review-pane.tsx), beside the page: only
+// for the page's top-level blocks. "Open" when it has messages already.
+function ReviewItem() {
+  const Components = useComponentsContext()!;
+  const { editor, block } = useMenuBlock();
+  const review = useReview();
+  const t = useTranslations("editor.review");
+  if (block === undefined || !review || editor.getParentBlock(block.id)) return null;
+  const thread = review.threads?.threads.find((th) => th.blockId === block.id && th.count > 0);
+  // Someone who can't post sees threads only through their marks.
+  if (!thread && !review.threads?.canPost) return null;
+  return (
+    <Components.Generic.Menu.Item className="bn-menu-item" data-ui="BlockMenu.reviewItem" onClick={() => review.open(block.id)}>
+      {thread ? t("open") : t("start")}
     </Components.Generic.Menu.Item>
   );
 }

@@ -10,6 +10,11 @@
   border-radius: 8px;
 }
 
+/* In a review thread (review-pane.tsx): the pane is the frame. */
+.embedded {
+  font-size: 14px;
+}
+
 .header {
   display: flex;
   gap: 12px;

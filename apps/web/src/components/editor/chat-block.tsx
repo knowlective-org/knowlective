@@ -124,19 +124,28 @@ type ComposerApi = { quote: (text: string) => void; addFiles: (files: File[]) =>
 // object URL, shown until it's sent.
 type PendingFile = { key: string; name: string; id: string | null; preview: string | null };
 
+// A chat's messages and its box to write in, outside any chat block: a
+// review thread beside the page (review-pane.tsx), under its own chat key.
+export function ChatThread({ chatKey }: { chatKey: string }) {
+  return <Chat blockId={chatKey} title="" titleEditable={false} onTitle={() => {}} embedded />;
+}
+
 function Chat({
   blockId,
   title,
   titleEditable,
   onTitle,
+  embedded = false,
 }: {
   blockId: string;
   title: string;
   titleEditable: boolean;
   onTitle: (title: string) => void;
+  // In a review thread: no title, no folding, no lock.
+  embedded?: boolean;
 }) {
   const t = useTranslations("editor.chat");
-  const [folded, setFolded] = useState(() => readFolded(blockId));
+  const [folded, setFolded] = useState(() => !embedded && readFolded(blockId));
   const toggleFolded = () => {
     setFolded(!folded);
     saveFolded(blockId, !folded);
@@ -190,25 +199,33 @@ function Chat({
   const editing = data?.canPost ? (data.messages.find((m) => m.id === editingId && m.mine && !m.deleted) ?? null) : null;
 
   return (
-    <div className={styles.block} contentEditable={false} ref={ref} data-ui="ChatBlock" data-folded={folded || undefined}>
-      <div className={styles.header}>
-        <div className={styles.titleRow}>
-          <button
-            type="button"
-            className={styles.foldButton}
-            aria-expanded={!folded}
-            aria-label={folded ? t("unfold") : t("fold")}
-            title={folded ? t("unfold") : t("fold")}
-            onClick={toggleFolded}
-            data-ui="ChatBlock.foldButton"
-          >
-            <span aria-hidden>{folded ? "▸" : "▾"}</span>
-          </button>
-          <Icon name="chat" size={18} className={styles.titleIcon} />
-          <BlockTitle value={title} placeholder={t("label")} editable={titleEditable} onSave={onTitle} uiName="ChatBlock" />
+    <div
+      className={embedded ? styles.embedded : styles.block}
+      contentEditable={false}
+      ref={ref}
+      data-ui="ChatBlock"
+      data-folded={folded || undefined}
+    >
+      {!embedded && (
+        <div className={styles.header}>
+          <div className={styles.titleRow}>
+            <button
+              type="button"
+              className={styles.foldButton}
+              aria-expanded={!folded}
+              aria-label={folded ? t("unfold") : t("fold")}
+              title={folded ? t("unfold") : t("fold")}
+              onClick={toggleFolded}
+              data-ui="ChatBlock.foldButton"
+            >
+              <span aria-hidden>{folded ? "▸" : "▾"}</span>
+            </button>
+            <Icon name="chat" size={18} className={styles.titleIcon} />
+            <BlockTitle value={title} placeholder={t("label")} editable={titleEditable} onSave={onTitle} uiName="ChatBlock" />
+          </div>
+          {!folded && data?.canLock && <LockButton blockId={blockId} locked={data.locked} onChanged={reload} />}
         </div>
-        {!folded && data?.canLock && <LockButton blockId={blockId} locked={data.locked} onChanged={reload} />}
-      </div>
+      )}
       {folded ? null : data === undefined ? (
         <p className={styles.muted}>{t("loading")}</p>
       ) : data === null ? (

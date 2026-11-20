@@ -375,6 +375,18 @@ const ja: MessageShape<typeof en> = {
       makeDefault: "この並び順を全員の既定にする",
       reset: "ブロックの既定の並び順に戻す",
     },
+    review: {
+      start: "チャットを開始",
+      open: "チャットを開く",
+      title: "このブロックについてのチャット",
+      resolve: "解決",
+      reopen: "再開",
+      resolved: "解決済みです。新しいメッセージを送ると再開します。",
+      close: "閉じる",
+      blockGone: "（このブロックはもうページにありません）",
+      noText: "（文字のないブロック）",
+      marker: "このブロックについてのメッセージ {count, number} 件",
+    },
     childTable: {
       copied: "{count, number} 個のセルをクリップボードにコピーしました。",
       placeholder: "子ページテーブル",

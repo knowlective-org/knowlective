@@ -380,6 +380,18 @@ export default {
       makeDefault: "Make this the order for everyone",
       reset: "Back to the block's order",
     },
+    review: {
+      start: "Start a chat",
+      open: "Open the chat",
+      title: "Chat about this block",
+      resolve: "Resolve",
+      reopen: "Reopen",
+      resolved: "Resolved. A new message opens it again.",
+      close: "Close",
+      blockGone: "(The block is no longer in the page.)",
+      noText: "(A block without text)",
+      marker: "{count, plural, one {# message} other {# messages}} about this block",
+    },
     childTable: {
       copied: "Copied {count, plural, one {# cell} other {# cells}} to the clipboard.",
       placeholder: "Child page table",

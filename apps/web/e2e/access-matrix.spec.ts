@@ -282,6 +282,58 @@ test.describe("Access matrix", () => {
     expect(await shortcuts()).toBe(2);
   });
 
+  test("review threads' actions, called directly: the list for who can open the page, resolving for who can edit it", async ({ page, browser, baseURL }) => {
+    // A thread on the page's first block, by the admin; the actions' ids from
+    // the requests their screen makes.
+    await openPage(page, pageId);
+    const first = editorBody(page).locator(".bn-block-outer").first();
+    const blockId = (await first.getAttribute("data-id"))!;
+    const actions = new Map<string, string>();
+    page.on("response", async (response) => {
+      const request = response.request();
+      const id = request.headers()["next-action"];
+      if (!id) return;
+      const body = request.postData() ?? "";
+      if (body === JSON.stringify([pageId, blockId, true])) actions.set("resolve", id);
+      else if (body === JSON.stringify([pageId]) && (await response.text().catch(() => "")).includes(`"blockId":"${blockId}"`)) actions.set("list", id);
+    });
+    await first.locator(".bn-block-content").first().hover();
+    await page.locator(".bn-side-menu [draggable=true]").click();
+    await page.getByTestId("BlockMenu.reviewItem").click();
+    await page.getByTestId("ReviewPane").getByTestId("ChatBlock.messageInput").fill("一覧のレビュー");
+    await page.getByTestId("ReviewPane").getByTestId("ChatBlock.sendButton").click();
+    await expect(page.locator('[data-ui="ReviewMarkers.button"]')).toHaveText("1");
+    await page.getByTestId("ReviewPane.resolveButton").click();
+    await expect(page.locator('[data-ui="ReviewMarkers.button"]')).toHaveCount(0);
+    await expect.poll(() => [...actions.keys()].sort()).toEqual(["list", "resolve"]);
+    const resolved = () =>
+      withPrisma(async (prisma) => !!(await prisma.reviewThread.findUnique({ where: { pageId_blockId: { pageId, blockId } } }))?.resolvedAt);
+    await withPrisma((prisma) => prisma.reviewThread.update({ where: { pageId_blockId: { pageId, blockId } }, data: { resolvedAt: null } }));
+
+    const origin = new URL(baseURL!).origin;
+    const call = async (request: APIRequestContext, action: string, args: unknown[]) => {
+      const response = await request.post(`pages/${pageId}`, {
+        headers: { Origin: origin, "Next-Action": action, Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8" },
+        data: JSON.stringify(args),
+        maxRedirects: 0,
+      });
+      return response.text();
+    };
+    for (const account of ACCOUNTS) {
+      const context = await contextFor(browser, account);
+      const list = await call(context.request, actions.get("list")!, [pageId]);
+      expect(list.includes(blockId), `${account} list`).toBe(!["guest", "outsider"].includes(account));
+      if (account !== "admin" && account !== "editor") {
+        await call(context.request, actions.get("resolve")!, [pageId, blockId, true]);
+        expect(await resolved(), `${account} resolve`).toBe(false);
+      }
+      await context.close();
+    }
+    // …and the very same request works for the admin.
+    await call(page.request, actions.get("resolve")!, [pageId, blockId, true]);
+    expect(await resolved()).toBe(true);
+  });
+
   test("a root's favicon: its actions, called directly, only work for a manager; its image only for who can open the root page", async ({ page, browser, baseURL }) => {
     test.setTimeout(150_000);
     // The E2E root, which the admin manages.
