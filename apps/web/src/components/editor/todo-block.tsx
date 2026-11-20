@@ -36,12 +36,48 @@ export function continueList(editor: Pick<BlockNoteEditor, "transact">, type: st
   });
 }
 
+// ↑ / ↓ at the first / last line of a TODO's text, or into a TODO: the block
+// above / below in the document's order (so a TODO's first nested block
+// comes right after it), with the caret at the end of its text. Left to
+// ProseMirror, the TODO's controls after its text make it stop at a gap
+// cursor between the blocks (a stray line), then at the start of the text.
+type BlockLike = { id: string; type: string; children: BlockLike[] };
+
+function adjacentBlock(editor: BlockNoteEditor, dir: "up" | "down"): boolean {
+  const view = editor.prosemirrorView;
+  if (!view || !view.state.selection.empty || !view.endOfTextblock(dir)) return false;
+  // Inside an extended table's cell, its own keys move between cells.
+  const { $from } = view.state.selection;
+  for (let d = $from.depth; d > 0; d--) if ($from.node(d).type.name === "gridCell") return false;
+  const order: BlockLike[] = [];
+  const walk = (blocks: BlockLike[]) => {
+    for (const b of blocks) {
+      order.push(b);
+      walk(b.children);
+    }
+  };
+  walk(editor.document as unknown as BlockLike[]);
+  const current = editor.getTextCursorPosition().block as unknown as BlockLike;
+  const index = order.findIndex((b) => b.id === current.id);
+  if (index === -1) return false;
+  const target = order[index + (dir === "down" ? 1 : -1)];
+  // The first / last block: the caret stays (not a gap cursor at the edge).
+  if (!target) return current.type === "todo";
+  if (current.type !== "todo" && target.type !== "todo") return false;
+  const schema = editor.schema.blockSchema as Record<string, { content: string } | undefined>;
+  if (schema[target.type]?.content !== "inline") return false;
+  editor.setTextCursorPosition(target.id, "end");
+  return true;
+}
+
 // "[ ] " / "[x] " at the start of a line, and Ctrl/Cmd+Shift+9, make a TODO
 // (they made a check list before).
 export const todoShortcuts = createExtension({
   key: "knowlective-todo",
   keyboardShortcuts: {
     Enter: ({ editor }) => continueList(editor, "todo"),
+    ArrowDown: ({ editor }) => adjacentBlock(editor as BlockNoteEditor, "down"),
+    ArrowUp: ({ editor }) => adjacentBlock(editor as BlockNoteEditor, "up"),
     "Mod-Shift-9": ({ editor }) => {
       const { block } = editor.getTextCursorPosition();
       if (editor.schema.blockSchema[block.type].content !== "inline") return false;

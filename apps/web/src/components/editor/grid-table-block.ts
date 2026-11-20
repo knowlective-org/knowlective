@@ -467,8 +467,8 @@ function moveVertically(view: EditorView | undefined, dir: "up" | "down"): boole
 }
 
 // Tab in an empty cell (one empty paragraph, nothing else) goes to the next
-// cell: the one to the right, else the one below (same column). With
-// neither, it does nothing. In a cell with anything in it, Tab is the
+// cell: the one to the right, else the first of the next row. In the last
+// cell, it does nothing. In a cell with anything in it, Tab is the
 // block's own (nesting it under the block above).
 function tabToNextCell(view: EditorView | undefined): boolean {
   if (!view) return false;
@@ -497,7 +497,7 @@ function tabToNextCell(view: EditorView | undefined): boolean {
   const row = table.child(rowIndex);
   let target: { row: number; col: number } | null = null;
   if (column + 1 < row.childCount) target = { row: rowIndex, col: column + 1 };
-  else if (rowIndex + 1 < table.childCount && column < table.child(rowIndex + 1).childCount) target = { row: rowIndex + 1, col: column };
+  else if (rowIndex + 1 < table.childCount && table.child(rowIndex + 1).childCount > 0) target = { row: rowIndex + 1, col: 0 };
   if (!target) return true;
 
   let pos = $from.start(cellDepth - 2);

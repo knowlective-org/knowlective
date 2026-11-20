@@ -14,15 +14,20 @@ test("Tab in an empty list item that can't be indented does nothing (the focus s
   await page.keyboard.type("[ ] やること");
   await page.keyboard.press("Home");
   await page.keyboard.press("Enter");
+  // Up into the empty TODO above; Enter makes it a paragraph.
   await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
   for (const marker of ["1. ", "- ", "> ", "[ ] "]) {
     await page.keyboard.type(marker);
     for (const key of ["Tab", "Shift+Tab"]) {
       await page.keyboard.press(key);
       await expect(editorBody(page)).toBeFocused();
     }
-    // Back to an empty paragraph for the next kind.
+    // Back to an empty paragraph for the next kind (Backspace right after
+    // the marker turns it back into text, which is then cleared).
     await page.keyboard.press("Backspace");
+    await page.keyboard.press("Shift+Home");
+    await page.keyboard.press("Delete");
   }
   await expect(editorBody(page).locator('[data-ui="TodoBlock"]').filter({ hasText: "やること" })).toHaveCount(1);
 

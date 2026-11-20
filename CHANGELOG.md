@@ -28,6 +28,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- Tab in an empty cell of the last column of an extended table goes to the first cell of the next row, instead of the cell below
+
 - Choosing the whiteboard for a document's whiteboard block lists whiteboards only, each after the titles of the pages above it, instead of every page with the others greyed
 
 - The sidebar lists every child page by default. Folding pages with many child pages is now each person's choice, with how many are listed (account screen → "Sidebar"), and the "N more pages" row lists the rest in place instead of opening a dialog
@@ -37,6 +39,12 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - Shapes and text pasted from Miro without a fill come in transparent instead of white (frames without a color stay white)
 
 - The whiteboard's selection bar shows one button for the shape, with the shapes in its menu, so the bar fits on one row with the new text buttons
+
+### Fixed
+
+- ↑ / ↓ in a TODO stopped on a line between blocks, then at the start of the next TODO's text. They now go straight to the block above / below (a nested TODO first) with the caret at the end of its text, also when coming into a TODO from another block
+
+- Tab in a TODO that can't be indented could move the focus to its checkbox after some text had been selected and the selection was gone
 
 ### Upgrade notes
 

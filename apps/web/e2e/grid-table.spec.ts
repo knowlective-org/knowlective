@@ -150,7 +150,7 @@ test.describe("Extended table", () => {
     await trashOpenPage(page);
   });
 
-  test("Tab in an empty cell goes to the cell to the right, else below; in a cell with text it's the block's", async ({ page }) => {
+  test("Tab in an empty cell goes to the cell to the right, else the next row's first; in a cell with text it's the block's", async ({ page }) => {
     await createPage(page, "E2E 拡張テーブルの Tab");
     await insertGridTable(page);
     // (cells: 0 1 2 / 3 4 5 / 6 7 8)
@@ -159,11 +159,12 @@ test.describe("Extended table", () => {
     await page.keyboard.type("右");
     await expect(cellText(page, 1)).toHaveText("右");
     await expect(cellText(page, 0)).toHaveText("");
-    // The last column: the cell below.
+    // The last column: the first cell of the next row.
     await clickInEditor(cellText(page, 2));
     await page.keyboard.press("Tab");
     await page.keyboard.type("下");
-    await expect(cellText(page, 5)).toHaveText("下");
+    await expect(cellText(page, 3)).toHaveText("下");
+    await expect(cellText(page, 5)).toHaveText("");
     // The last cell: nowhere to go, it stays (and the focus stays in the editor).
     await clickInEditor(cellText(page, 8));
     await page.keyboard.press("Tab");
@@ -182,7 +183,7 @@ test.describe("Extended table", () => {
     await page.keyboard.press("Tab");
     const nested = cells(page).nth(4).locator('.bn-block-group [data-content-type="paragraph"]');
     await expect(nested).toHaveText("二");
-    await expect(cellText(page, 5)).toHaveText("下");
+    await expect(cellText(page, 3)).toHaveText("下");
     // Shift+Tab takes it back out, still in the cell.
     await page.keyboard.press("Shift+Tab");
     await expect(nested).toHaveCount(0);

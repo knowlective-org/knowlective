@@ -141,3 +141,48 @@ test("the people for a page's TODOs are only given to those who can open it", as
   }
   await trashOpenPage(page);
 });
+
+test("↑ and ↓ go straight between TODOs and their nested ones, to the end of the text", async ({ page }) => {
+  await createPage(page, "E2E TODO の矢印キー");
+  await editorBody(page).click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("[ ] 一つ目");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("子");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.type("二つ目");
+  await expect(page.getByTestId("TodoBlock")).toHaveCount(3);
+  // Where the caret is: the text it's in, its offset, and no gap cursor.
+  const caret = () =>
+    page.evaluate(() => {
+      const s = window.getSelection()!;
+      const gap = !!document.querySelector(".ProseMirror-gapcursor");
+      return `${s.anchorNode?.textContent}@${s.anchorOffset}${gap ? " gap" : ""}`;
+    });
+  await page.getByTestId("TodoBlock").first().locator(".bn-inline-content").click();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(caret).toBe("子@1");
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(caret).toBe("二つ目@3");
+  // The last block: the caret stays.
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(caret).toBe("二つ目@3");
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(caret).toBe("子@1");
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(caret).toBe("一つ目@3");
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(caret).toBe("一つ目@3");
+  // From a paragraph below, up into the TODO's text, at its end.
+  await page.getByTestId("TodoBlock").nth(2).locator(".bn-inline-content").click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("段落");
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(caret).toBe("二つ目@3");
+  await trashOpenPage(page);
+});
