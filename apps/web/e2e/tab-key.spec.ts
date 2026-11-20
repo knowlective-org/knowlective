@@ -6,22 +6,22 @@ import { clickInEditor, createPage, editorBody, trashOpenPage } from "./helpers"
 // nothing: the focus stays in the text.
 test.use({ storageState: authFile("editor") });
 
-// A page with an empty paragraph on top and a TODO below it (built with a
-// click: ↑ right after Enter sometimes hasn't moved yet).
+// A page with an empty paragraph on top and a TODO below it, the caret in
+// the paragraph (put there with a click: ↑ right after Enter sometimes
+// hasn't moved yet).
 async function pageWithTodoBelow(page: import("@playwright/test").Page, title: string) {
   await createPage(page, title);
   await editorBody(page).click();
   await page.keyboard.press("Control+End");
-  await page.keyboard.type("x");
+  // The first line stays empty; the TODO goes on the next.
   await page.keyboard.press("Enter");
-  // A TODO further down: Tab once moved the focus to its checkbox.
-  await page.keyboard.type("[ ] やること");
   const blocks = editorBody(page).locator("[data-content-type]");
   await expect(blocks).toHaveCount(2);
+  // A TODO further down: Tab once moved the focus to its checkbox.
+  await page.keyboard.type("[ ] やること");
   await expect(blocks.nth(1)).toHaveAttribute("data-content-type", "todo");
+  await expect(blocks.nth(1)).toContainText("やること");
   await clickInEditor(blocks.first().locator(".bn-inline-content"));
-  await page.keyboard.press("End");
-  await page.keyboard.press("Backspace");
   await expect(blocks.first()).toHaveText("");
   await expect(blocks.first()).toHaveAttribute("data-content-type", "paragraph");
 }
