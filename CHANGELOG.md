@@ -32,6 +32,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- A mention in a chat message has more room around the name, in a slightly smaller font
+
 - A whiteboard text item is as tall as its text: its handle (now on its right edge) changes only the width, and the height follows as you type
 
 - Tab and Shift+Tab in an extended table work as in a table: to the next or previous cell, with its content selected, also from a cell with text in it. Where the block has a Tab of its own, that comes first: a code block indents, a list item or TODO with one above it nests under it, and Shift+Tab takes a nested block back out

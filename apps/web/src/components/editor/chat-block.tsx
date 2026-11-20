@@ -532,7 +532,7 @@ function MessageText({ message: m }: { message: ChatMessageView }) {
           return "\n";
         case "mention":
           return (
-            <span key={i} className={mentionStyles.mention} data-ui="ChatBlock.mention" data-id={n.userId}>
+            <span key={i} className={`${mentionStyles.mention} ${styles.mention}`} data-ui="ChatBlock.mention" data-id={n.userId}>
               @{m.names[n.userId] ?? someone}
             </span>
           );
