@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { startTransition, useActionState, useState } from "react";
 import styles from "@/styles/ui.module.css";
 import { type SignupSettingsState, saveSignupSettings } from "./actions";
+import { StatusRow } from "@/components/status-row";
 
 export function SignupSettingsForm({
   mode,
@@ -115,12 +116,11 @@ export function SignupSettingsForm({
         </label>
       )}
 
-      <p data-ui="SignupSettingsForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? ta("common.saved") : "")}
-      </p>
-      <button data-ui="SignupSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? ta("common.saving") : ta("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? ta("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="SignupSettingsForm.status">
+        <button data-ui="SignupSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? ta("common.saving") : ta("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

@@ -15,6 +15,12 @@ export default {
       browser: "Same as the browser",
       note: "The language of the screens and of the emails sent to you.",
     },
+    sidebar: {
+      heading: "Sidebar",
+      fold: "Fold pages with many child pages",
+      limit: "Child pages listed",
+      note: "Past this number, only the most recently changed are listed, with a row to show the rest.",
+    },
     profile: {
       name: "Name",
       nameSso: "This account logs in with single sign-on, so its name comes from the identity provider and can't be changed here.",

@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { startTransition, useActionState, useState } from "react";
 import type { LinkPreviewSettingsView } from "@/lib/link-preview-settings";
+import { StatusRow } from "@/components/status-row";
 import styles from "@/styles/ui.module.css";
 import { type LinkPreviewSettingsState, saveLinkPreviewSettings } from "./actions";
 
@@ -59,16 +60,11 @@ export function LinkPreviewSettingsForm({ current }: { current: LinkPreviewSetti
         </span>
       </label>
 
-      <p
-        data-ui="LinkPreviewSettingsForm.status"
-        aria-live="polite"
-        className={state.error ? styles.error : styles.success}
-      >
-        {state.error ?? (state.saved ? ta("common.saved") : "")}
-      </p>
-      <button data-ui="LinkPreviewSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? ta("common.saving") : ta("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? ta("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="LinkPreviewSettingsForm.status">
+        <button data-ui="LinkPreviewSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? ta("common.saving") : ta("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

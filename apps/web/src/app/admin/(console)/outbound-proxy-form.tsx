@@ -5,6 +5,7 @@ import { startTransition, useActionState, useState } from "react";
 import type { OutboundProxySettingsView } from "@/lib/outbound-proxy";
 import styles from "@/styles/ui.module.css";
 import { type OutboundProxyState, saveOutboundProxy } from "./actions";
+import { StatusRow } from "@/components/status-row";
 
 // The proxy for the server's own connections to the outside (lib/outbound-proxy.ts).
 export function OutboundProxyForm({ current }: { current: OutboundProxySettingsView }) {
@@ -82,12 +83,11 @@ export function OutboundProxyForm({ current }: { current: OutboundProxySettingsV
         </>
       )}
 
-      <p data-ui="OutboundProxyForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? tc("saved") : "")}
-      </p>
-      <button data-ui="OutboundProxyForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? tc("saving") : tc("save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? tc("saved") : "")} className={state.error ? styles.error : styles.success} dataUi="OutboundProxyForm.status">
+        <button data-ui="OutboundProxyForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? tc("saving") : tc("save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

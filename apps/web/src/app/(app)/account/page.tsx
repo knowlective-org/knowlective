@@ -16,6 +16,7 @@ import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { LocaleForm } from "./locale-form";
+import { SidebarForm } from "./sidebar-form";
 import { ApiKeySection } from "./api-key-section";
 import { McpSection } from "./mcp-section";
 import { listGrants, oauthAllowedFor } from "@/lib/oauth/tokens";
@@ -36,11 +37,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AccountPage() {
   await connection();
   const user = await requireUser("/account");
-  const [sidebar, reset, t, { locale, notificationPrefs }, passkeys, passkeyRequired, session] = await Promise.all([
+  const [sidebar, reset, t, { locale, notificationPrefs, sidebarChildLimit }, passkeys, passkeyRequired, session] = await Promise.all([
     loadSidebar(user),
     ownPasswordResetAvailability(user.id),
     getTranslations(),
-    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { locale: true, notificationPrefs: true } }),
+    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { locale: true, notificationPrefs: true, sidebarChildLimit: true } }),
     listPasskeys(user.id),
     passkeyRequiredSetting(),
     getSessionUser(),
@@ -88,6 +89,11 @@ export default async function AccountPage() {
         <section className={styles.section} data-ui="AccountPage.languageSection">
           <h2 className={styles.sectionTitle}>{t("account.language.heading")}</h2>
           <LocaleForm current={isLocale(locale) ? locale : null} />
+        </section>
+
+        <section className={styles.section} data-ui="AccountPage.sidebarSection">
+          <h2 className={styles.sectionTitle}>{t("account.sidebar.heading")}</h2>
+          <SidebarForm limit={sidebarChildLimit} />
         </section>
 
         <section className={styles.section} data-ui="AccountPage.notificationSection">

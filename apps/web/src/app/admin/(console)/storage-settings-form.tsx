@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import { submitKeepingValues } from "@/lib/form-submit";
 import type { StorageSettingsView } from "@/lib/storage";
+import { StatusRow } from "@/components/status-row";
 import styles from "@/styles/ui.module.css";
 import {
   type StorageFormState,
@@ -136,12 +137,11 @@ export function StorageSettingsForm({
             </label>
           </div>
         )}
-        <p data-ui="StorageSettingsForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-          {state.error ?? (state.saved ? ta("storage.saved") : "")}
-        </p>
-        <button data-ui="StorageSettingsForm.saveButton" type="submit" disabled={pending} className={styles.button}>
-          {pending ? ta("common.saving") : ta("common.save")}
-        </button>
+        <StatusRow message={state.error ?? (state.saved ? ta("storage.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="StorageSettingsForm.status">
+          <button data-ui="StorageSettingsForm.saveButton" type="submit" disabled={pending} className={styles.button}>
+            {pending ? ta("common.saving") : ta("common.save")}
+          </button>
+        </StatusRow>
       </form>
 
       <form data-ui="StorageSettingsForm.testForm" action={testAction} className={styles.form} style={{ marginTop: 8 }}>

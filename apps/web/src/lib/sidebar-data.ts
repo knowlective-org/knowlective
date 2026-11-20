@@ -13,7 +13,7 @@ import { rootFaviconUrls } from "@/lib/root-favicon";
 export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
   const [visible, prefs, brand, unread, publicIds] = await Promise.all([
     getVisibleTrees(prisma, user.id),
-    prisma.user.findUnique({ where: { id: user.id }, select: { rootOrder: true } }),
+    prisma.user.findUnique({ where: { id: user.id }, select: { rootOrder: true, sidebarChildLimit: true } }),
     getBrand(),
     unreadNotificationPages(user.id),
     publicPageIds(),
@@ -33,6 +33,7 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
     guest: false,
     brand,
     unreadNotifications,
+    childLimit: prefs?.sidebarChildLimit ?? null,
   };
 }
 
@@ -50,6 +51,7 @@ export async function loadPublicSidebar(): Promise<SidebarInfo> {
     guest: true,
     brand,
     unreadNotifications: 0,
+    childLimit: null,
   };
 }
 

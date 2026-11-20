@@ -62,6 +62,7 @@ export default {
     removeShortcutConfirm: "Remove the shortcut to \"{title}\"? The page itself stays as it is. (The shortcut goes to the trash.)",
     removeShortcutLabel: "Remove",
     moreChildren: "{count, plural, one {# more page} other {# more pages}}",
+    fewerChildren: "Show fewer",
   },
   dialog: {
     typeToConfirm: "To confirm, type the following:",

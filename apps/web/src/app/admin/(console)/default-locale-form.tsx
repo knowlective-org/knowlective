@@ -6,6 +6,7 @@ import { submitKeepingValues } from "@/lib/form-submit";
 import { type AppLocale, LOCALES, LOCALE_NAMES } from "@/i18n/locales";
 import styles from "@/styles/ui.module.css";
 import { type DefaultLocaleState, saveDefaultLocale } from "./actions";
+import { StatusRow } from "@/components/status-row";
 
 // The site's default language (InstanceConfig.defaultLocale).
 export function DefaultLocaleForm({ current }: { current: AppLocale }) {
@@ -24,12 +25,11 @@ export function DefaultLocaleForm({ current }: { current: AppLocale }) {
           ))}
         </select>
       </label>
-      <p data-ui="DefaultLocaleForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? t("common.saved") : "")}
-      </p>
-      <button data-ui="DefaultLocaleForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? t("common.saving") : t("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? t("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="DefaultLocaleForm.status">
+        <button data-ui="DefaultLocaleForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? t("common.saving") : t("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

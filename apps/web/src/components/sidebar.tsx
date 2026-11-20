@@ -48,6 +48,7 @@ export function Sidebar({
   searchQuery = "",
   brand,
   unreadNotifications = 0,
+  childLimit = null,
 }: {
   trees: SidebarTree[];
   currentPageId: string | null;
@@ -63,6 +64,8 @@ export function Sidebar({
   // The bell's count.
   unreadNotifications?: number;
   brand: BrandSettings;
+  // User.sidebarChildLimit (DocTree).
+  childLimit?: number | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -174,6 +177,7 @@ export function Sidebar({
               currentPageId={currentPageId}
               currentTitle={currentTitle}
               maxDepth={maxDepth}
+              childLimit={childLimit}
               rootBadge={t.personal ? tr("personal") : undefined}
               rootIcon={t.favicon ?? undefined}
               rootReorder={
@@ -201,6 +205,7 @@ export function Sidebar({
                 currentPageId={currentPageId}
                 currentTitle={currentTitle}
                 maxDepth={maxDepth}
+                childLimit={childLimit}
               />
             ))}
           </>

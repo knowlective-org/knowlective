@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { submitKeepingValues } from "@/lib/form-submit";
 import styles from "@/styles/ui.module.css";
 import { type PublicUrlState, savePublicUrl } from "./actions";
+import { StatusRow } from "@/components/status-row";
 
 const initialState: PublicUrlState = {};
 
@@ -30,12 +31,11 @@ export function PublicUrlForm({ current, suggested }: { current: string | null; 
       <p className={styles.note}>
         {ta("publicUrl.note")}
       </p>
-      <p data-ui="PublicUrlForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? ta("common.saved") : "")}
-      </p>
-      <button data-ui="PublicUrlForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? ta("common.saving") : ta("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? ta("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="PublicUrlForm.status">
+        <button data-ui="PublicUrlForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? ta("common.saving") : ta("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

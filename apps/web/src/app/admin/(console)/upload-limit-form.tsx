@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { submitKeepingValues } from "@/lib/form-submit";
 import styles from "@/styles/ui.module.css";
 import { type UploadLimitState, saveUploadLimit } from "./actions";
+import { StatusRow } from "@/components/status-row";
 
 export function UploadLimitForm({ current, maxLimitMb }: { current: number; maxLimitMb: number }) {
   const [state, formAction, pending] = useActionState(saveUploadLimit, {} as UploadLimitState);
@@ -24,12 +25,11 @@ export function UploadLimitForm({ current, maxLimitMb }: { current: number; maxL
           className={styles.field}
         />
       </label>
-      <p data-ui="UploadLimitForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? ta("common.saved") : "")}
-      </p>
-      <button data-ui="UploadLimitForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? ta("common.saving") : ta("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? ta("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="UploadLimitForm.status">
+        <button data-ui="UploadLimitForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? ta("common.saving") : ta("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

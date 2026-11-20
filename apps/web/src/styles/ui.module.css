@@ -365,6 +365,18 @@
   justify-self: end;
 }
 
+/* A form's message and button (StatusRow): on the right in the admin console, like its buttons. */
+.statusRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.adminPane .statusRow {
+  justify-content: flex-end;
+}
+
 /* Buttons alone in a plain form (delete group, end sessions, …). */
 .adminPane form:not(.form) > .button,
 .adminPane form:not(.form) > .buttonSecondary,

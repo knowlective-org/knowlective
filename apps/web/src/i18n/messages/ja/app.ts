@@ -61,6 +61,7 @@ const ja: MessageShape<typeof en> = {
     removeShortcutConfirm: "「{title}」へのショートカットを削除しますか？ページそのものはそのまま残ります（ショートカットはごみ箱に移ります）。",
     removeShortcutLabel: "削除する",
     moreChildren: "ほか {count, number} ページ",
+    fewerChildren: "少なく表示",
   },
   dialog: {
     typeToConfirm: "確認のため、次の文字を入力してください：",

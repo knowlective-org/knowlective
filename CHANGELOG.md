@@ -22,6 +22,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- The sidebar lists every child page by default. Folding pages with many child pages is now each person's choice, with how many are listed (account screen → "Sidebar"), and the "N more pages" row lists the rest in place instead of opening a dialog
+
+- Every save button in the admin console is on the right, with its message beside it (site name and logo, desktop notifications, auditors, API, adding files and network access were on the left)
+
 - Shapes and text pasted from Miro without a fill come in transparent instead of white (frames without a color stay white)
 
 - The whiteboard's selection bar shows one button for the shape, with the shapes in its menu, so the bar fits on one row with the new text buttons
