@@ -241,9 +241,15 @@ test.describe("Access matrix", () => {
     await expect(page.getByTestId("PageMenu.childPages")).toBeVisible();
     // (After the menu's page info, loaded with the same argument.)
     await expect(page.getByTestId("PageMenu.ownerGroups")).toBeVisible();
-    const listRequest = page.waitForRequest((request) => !!request.headers()["next-action"] && request.postData() === JSON.stringify([pageId]));
+    // Other actions take the page's id alone too (such as the review threads'
+    // list): each one asked for with it is a candidate, and the list is the
+    // one whose answer, called again below, has the child's title.
+    const candidates = new Set<string>();
+    page.on("request", (request) => {
+      const id = request.headers()["next-action"];
+      if (id && request.postData() === JSON.stringify([pageId])) candidates.add(id);
+    });
     await page.getByTestId("PageMenu.childPages").click();
-    actions.set("list", (await listRequest).headers()["next-action"]);
     await expect(page.getByTestId("ChildListDialog.pageLink").filter({ hasText: childTitle })).toBeVisible();
     await page.getByTestId("ChildListDialog.closeButton").click();
     await openPage(page, childId);
@@ -252,7 +258,7 @@ test.describe("Access matrix", () => {
     await page.getByTestId("MoveDialog.parentSelect").selectOption(pageId);
     await page.getByTestId("MoveDialog.submitButton").click();
     await page.waitForURL((url) => url.pathname.endsWith(`/${pageId}`));
-    expect([...actions.keys()].sort()).toEqual(["list", "shortcut"]);
+    expect(actions.has("shortcut")).toBe(true);
     const shortcuts = () => withPrisma((prisma) => prisma.page.count({ where: { kind: "SHORTCUT", shortcutTargetId: childId, deletedAt: null } }));
     expect(await shortcuts()).toBe(1);
 
@@ -265,6 +271,8 @@ test.describe("Access matrix", () => {
       });
       return response.text();
     };
+    for (const id of candidates) if ((await call(page.request, id, [pageId])).includes(childTitle)) actions.set("list", id);
+    expect(actions.has("list")).toBe(true);
     for (const account of ACCOUNTS) {
       const context = await contextFor(browser, account);
       // The child pages and their titles: for those who can open the page.
