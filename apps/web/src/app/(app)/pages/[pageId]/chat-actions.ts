@@ -1,5 +1,6 @@
 "use server";
 
+import { avatarUrls } from "@/lib/avatar";
 import { getTranslations } from "next-intl/server";
 import { canEditPage, loadDataKey } from "shared";
 import { getPageAccess } from "@/lib/page-access";
@@ -136,6 +137,8 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
     const [authors, people] = await Promise.all([namesOf(ids), mentioned ? pagePeopleNames(prisma, pageId) : new Map<string, string>()]);
     names = new Map([...people, ...authors]);
   }
+  // Pictures by the authors' names (not for someone not logged in, as their names aren't).
+  const avatars = user ? await avatarUrls(rows.flatMap((r) => (r.authorId ? [r.authorId] : []))) : new Map<string, string>();
   const tChat = await getTranslations("editor.chat");
   const unknown = tChat("unknownUser");
   // "@everyone" isn't anyone's name: shown to all, signed in or not.
@@ -169,6 +172,8 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
         text,
         mine: !!user && r.authorId === user.id,
         author: authorName(r.authorId),
+        authorId: user ? r.authorId : null,
+        avatar: (user && r.authorId && avatars.get(r.authorId)) || null,
         color: user && r.authorId ? cursorColorFor(r.authorId) : null,
         createdAt: r.createdAt.toISOString(),
         editedAt: r.editedAt?.toISOString() ?? null,

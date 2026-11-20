@@ -135,6 +135,9 @@ test.describe("MCP server", () => {
       expect(names).toContain("get_page");
       expect(names).not.toContain("create_page");
       expect(names).not.toContain("append_to_page");
+      expect(names).not.toContain("rename_page");
+      expect(names).not.toContain("send_notification");
+      expect(names).toContain("get_child_properties");
       expect(data(await reader.call("get_page", { pageId: HOME_PAGE_ID })).id).toBe(HOME_PAGE_ID);
     } finally {
       await reader.close();
@@ -166,6 +169,100 @@ test.describe("MCP server", () => {
       expect((await mcp.call("append_to_page", { pageId: HOME_PAGE_ID, markdown: "部外者" })).isError).toBe(true);
     } finally {
       await mcp.close();
+    }
+  });
+
+  test("renames a page, reads child pages' properties, lists a page's people and sends them a notification", async ({ baseURL, browser }) => {
+    const mcp = await connect(baseURL!, await keyFor("editor", "WRITE"));
+    try {
+      const stamp = Date.now();
+      const parent = data(await mcp.call("create_page", { parentId: HOME_PAGE_ID, title: `E2E MCP 親 ${stamp}` })).id as string;
+      createdPages.push(parent);
+      const child = data(await mcp.call("create_page", { parentId: parent, title: "E2E MCP 子" })).id as string;
+
+      // Renamed: the title changes, and is read back.
+      const renamed = await mcp.call("rename_page", { pageId: parent, title: `E2E MCP 改名 ${stamp}` });
+      expect(renamed.isError).toBeFalsy();
+      await expect.poll(async () => data(await mcp.call("get_page", { pageId: parent })).title).toBe(`E2E MCP 改名 ${stamp}`);
+
+      // Two columns of the parent's child page table, with the child's values.
+      await withPrisma(async (prisma) => {
+        const key = await loadDataKey(prisma);
+        const seal = (text: string, aad: string) => Uint8Array.from(encrypt(key, Buffer.from(text), aad));
+        const memo = randomUUID();
+        const state = randomUUID();
+        await prisma.pagePropertyDef.create({
+          data: { id: memo, pageId: parent, type: "TEXT", position: 0, name: seal("メモ", `knowlective:prop-name:${memo}`) },
+        });
+        await prisma.pagePropertyDef.create({
+          data: {
+            id: state,
+            pageId: parent,
+            type: "SELECT",
+            position: 1,
+            name: seal("状態", `knowlective:prop-name:${state}`),
+            options: seal(JSON.stringify([{ id: "done", name: "完了", color: "#dbeddb" }]), `knowlective:prop-options:${state}`),
+          },
+        });
+        await prisma.pagePropertyValue.create({ data: { pageId: child, defId: memo, value: seal("覚え書き", `knowlective:prop-value:${child}:${memo}`) } });
+        await prisma.pagePropertyValue.create({ data: { pageId: child, defId: state, value: seal("done", `knowlective:prop-value:${child}:${state}`) } });
+      });
+      const all = data(await mcp.call("get_child_properties", { pageId: parent }));
+      expect(all.columns).toEqual([
+        { name: "メモ", type: "TEXT" },
+        { name: "状態", type: "SELECT", options: ["完了"] },
+      ]);
+      expect(all.children).toHaveLength(1);
+      expect(all.children[0]).toMatchObject({ id: child, title: "E2E MCP 子", properties: { メモ: "覚え書き", 状態: "完了" } });
+      const one = data(await mcp.call("get_child_properties", { pageId: parent, properties: ["状態"] }));
+      expect(one.children[0].properties).toEqual({ 状態: "完了" });
+      const unknown = await mcp.call("get_child_properties", { pageId: parent, properties: ["ない列"] });
+      expect(unknown.isError).toBe(true);
+      expect(unknown.content[0].text).toContain("ない列");
+
+      // The page's people, and a notification to the viewer, with a link.
+      const people = data(await mcp.call("list_page_people", { pageId: parent })).people as { id: string; name: string }[];
+      const viewer = people.find((p) => p.name === ACCOUNTS.viewer.name);
+      expect(viewer).toBeTruthy();
+      expect(people.some((p) => p.name === ACCOUNTS.outsider.name)).toBe(false);
+      const text = `E2E MCP 通知 ${stamp}
+レビューをお願いします: https://example.com/review/${stamp}`;
+      const sent = await mcp.call("send_notification", { pageId: parent, userIds: [viewer!.id], text });
+      expect(sent.isError).toBeFalsy();
+      expect(data(sent).recipients).toBe(1);
+      // Only to people of the page.
+      const outsiderId = await withPrisma(async (prisma) =>
+        (await prisma.user.findFirstOrThrow({ where: await userWhere(prisma, ACCOUNTS.outsider.email), select: { id: true } })).id,
+      );
+      const refused = await mcp.call("send_notification", { pageId: parent, userIds: [outsiderId], text: "x" });
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0].text).toContain(outsiderId);
+
+      // The viewer sees it whole, the URL a link, the heading opening the page.
+      const context = await browser.newContext({ storageState: authFile("viewer") });
+      try {
+        const viewerPage = await context.newPage();
+        await viewerPage.goto("notifications");
+        const item = viewerPage.getByTestId("NotificationsPage.messageItem").filter({ hasText: `E2E MCP 通知 ${stamp}` });
+        await expect(item.getByTestId("NotificationsPage.itemLink")).toContainText(`E2E MCP 改名 ${stamp}`);
+        await expect(item.getByTestId("NotificationsPage.message")).toContainText("レビューをお願いします");
+        await expect(item.getByTestId("NotificationsPage.messageLink")).toHaveAttribute("href", `https://example.com/review/${stamp}`);
+        await item.getByTestId("NotificationsPage.itemLink").click();
+        await viewerPage.waitForURL(`**/pages/${parent}`);
+      } finally {
+        await context.close();
+      }
+    } finally {
+      await mcp.close();
+    }
+
+    // A viewer can't rename or send: they can't edit the page.
+    const viewerKey = await connect(baseURL!, await keyFor("viewer", "WRITE"));
+    try {
+      expect((await viewerKey.call("rename_page", { pageId: HOME_PAGE_ID, title: "閲覧者" })).isError).toBe(true);
+      expect((await viewerKey.call("send_notification", { pageId: HOME_PAGE_ID, userIds: ["x"], text: "x" })).isError).toBe(true);
+    } finally {
+      await viewerKey.close();
     }
   });
 

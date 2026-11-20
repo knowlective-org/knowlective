@@ -4,7 +4,8 @@ import * as Y from "yjs";
 import { decrypt, encrypt, getPageAccess, loadDataKey, openEmail, type PrismaClient } from "shared";
 import { docNotices } from "../src/lib/doc-notices";
 import { type NotificationKind, parseNotificationPrefs, wantsNotification } from "../src/lib/notification-prefs";
-import { type ChatPostedEvent, registerNotificationBridge } from "../src/lib/notification-bridge";
+import { type ChatPostedEvent, type MessageSentEvent, registerNotificationBridge } from "../src/lib/notification-bridge";
+import { MAX_MESSAGE_LENGTH } from "../src/lib/page-message-text";
 import { type PushSubscriptionData, isPushEndpoint, subscriptionAad } from "../src/lib/push-endpoint";
 import { loadOutboundProxy, proxyForHost } from "../src/lib/outbound-proxy";
 import { FALLBACK_LOCALE, isLocale } from "../src/i18n/locales";
@@ -13,7 +14,8 @@ import { translatorFor } from "../src/i18n/translator";
 // Notifications: new chat messages (to those who posted in the chat, follow
 // the page or are mentioned on it), a TODO given to someone or past its date
 // (to its assignee), changes to a followed page (to its followers, once until
-// they open it again or an hour has passed), mentions (to who's mentioned).
+// they open it again or an hour has passed), mentions (to who's mentioned),
+// messages about a page sent through the API or MCP (to those it names).
 //
 // Each is a Notification row (the app's list, /notifications) and, on the
 // devices that asked for it, a desktop notification (Web Push). Recipients
@@ -84,7 +86,11 @@ export function createNotifier(prisma: PrismaClient) {
     if (recipients.length === 0) return;
 
     const key = await loadDataKey(prisma);
-    const excerpt = event.excerpt?.replace(/\s+/g, " ").trim().slice(0, EXCERPT_LENGTH) || null;
+    // A message is kept whole (lines and links), the rest as a short excerpt.
+    const excerpt =
+      (event.kind === "MESSAGE"
+        ? event.excerpt?.trim().slice(0, MAX_MESSAGE_LENGTH)
+        : event.excerpt?.replace(/\s+/g, " ").trim().slice(0, EXCERPT_LENGTH)) || null;
     const rows = recipients.map((user) => {
       const id = randomUUID();
       return {
@@ -116,7 +122,7 @@ export function createNotifier(prisma: PrismaClient) {
       prisma.brandSettings.findUnique({ where: { id: 1 }, select: { name: true } }),
     ]);
     const actorName = actor ? actor.name || (actor.emailEnc ? openEmail(key, actor.emailEnc) : "") : "";
-    const siteName = brand?.name || "KNOWLECTIVE";
+    const siteName = brand?.name || "knowlective";
 
     for (const device of devices) {
       const recipient = recipients.find((r) => r.id === device.userId)!;
@@ -127,7 +133,7 @@ export function createNotifier(prisma: PrismaClient) {
       const message = details
         ? {
             title: t(`notifications.kind.${event.kind}`, { actor: actorName || t("notifications.someone"), page: page?.title || untitled }),
-            body: excerpt ?? "",
+            body: excerpt ? excerpt.replace(/\s+/g, " ").slice(0, EXCERPT_LENGTH) : "",
           }
         : { title: siteName, body: t(`notifications.push.${event.kind}`) };
       await sendTo(
@@ -285,6 +291,10 @@ export function createNotifier(prisma: PrismaClient) {
     });
   }
 
+  async function messageSent(event: MessageSentEvent) {
+    await notify({ kind: "MESSAGE", pageId: event.pageId, actorId: event.actorId, recipients: event.recipientIds, excerpt: event.text });
+  }
+
   // Unfinished TODOs whose date has passed (the day after it, in the server's
   // time zone): their assignee, once per date.
   async function notifyOverdue(today = localDate(new Date())): Promise<number> {
@@ -305,7 +315,7 @@ export function createNotifier(prisma: PrismaClient) {
   }
 
   function start() {
-    registerNotificationBridge({ chatPosted, pushPublicKey: async () => (await vapidKeys()).publicKey, testPush });
+    registerNotificationBridge({ chatPosted, messageSent, pushPublicKey: async () => (await vapidKeys()).publicKey, testPush });
     const pass = async () => {
       try {
         await notifyOverdue();

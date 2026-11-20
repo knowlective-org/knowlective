@@ -61,6 +61,7 @@ const ja: MessageShape<typeof en> = {
     removeShortcutConfirm: "「{title}」へのショートカットを削除しますか？ページそのものはそのまま残ります（ショートカットはごみ箱に移ります）。",
     removeShortcutLabel: "削除する",
     moreChildren: "ほか {count, number} ページ",
+    fewerChildren: "少なく表示",
   },
   dialog: {
     typeToConfirm: "確認のため、次の文字を入力してください：",
@@ -92,7 +93,7 @@ const ja: MessageShape<typeof en> = {
     cannotMove: "移動できません",
   },
   home: {
-    welcome: "KNOWLECTIVE へようこそ",
+    welcome: "knowlective へようこそ",
     emptyCanCreate: "見られるページはまだありません。左の「＋ 新しいナレッジルート」から作成できます。",
     empty: "見られるページはまだありません。グループに追加されると、左に表示されます。",
   },
@@ -461,7 +462,7 @@ const ja: MessageShape<typeof en> = {
     stale: "ページの構成が変わっています。画面を更新してから、もう一度お試しください。",
     rootPage: "ナレッジルートのページは移動できません。",
     noEditDestination: "そのページの下には移動できません（移動先に編集の権限が必要です）。",
-    personalBoundary: "自分専用のナレッジルートとほかのナレッジルートの間では、ページを移動できません。",
+    personalBoundary: "ほかのナレッジルートのページは、自分専用のナレッジルートに移動できません。",
     locked: "このページはロックされているため、移動できません。先にロックを解除してください。",
     destinationLocked: "移動先は子ページも含めてロックされているため、そこには移動できません。",
     noEdit: "このページを移動するには、編集の権限が必要です。",

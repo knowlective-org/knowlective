@@ -3,6 +3,7 @@ import { canEditPage, loadDataKey } from "shared";
 import { getPageAccess } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { notifyChildrenChanged } from "@/lib/collab-events";
+import { reviewBlockOf } from "@/lib/review-threads";
 import { reindexPage } from "@/lib/search-index";
 import { notifyChatPosted } from "@/lib/notification-bridge";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -93,6 +94,9 @@ export async function postChat(
       ...(poll && { poll: { create: { multiple: poll.multiple, optionsEnc: sealPollOptions(key, id, poll.options) } } }),
     },
   });
+  // A new message in a resolved review thread opens it again.
+  const reviewed = reviewBlockOf(blockId);
+  if (reviewed) await prisma.reviewThread.updateMany({ where: { pageId, blockId: reviewed }, data: { resolvedAt: null, resolvedById: null } });
   // Messages are searched with the page (a poll's choices and the files too);
   // this also keeps the files from the clean-up of unused ones.
   await reindexPage(prisma, pageId);

@@ -40,6 +40,9 @@ import {
   type SelectOption,
 } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
+import { inRange, rangeBounds, useCellRange } from "./cell-range";
+import { copyTable } from "@/lib/clipboard-table";
+import { showNotice } from "@/components/notice";
 import { MaskProvider, MaskedCell, MaskedColumnToggle } from "./masked-cell";
 import { useChildrenData, usePageEditor } from "./page-context";
 import styles from "./child-blocks.module.css";
@@ -193,6 +196,36 @@ function ChildTable({
     const known = new Set(["title", ...allColumns.map((c) => c.key)]);
     return sorted.filter((row) => matchesFilters(view.filters, known, cellReader(row, data, format)));
   }, [sorted, data, view.filters, filterCount, allColumns, format]);
+
+  // Cells selected like a spreadsheet (cell-range.ts), copied as a table of
+  // what they show: an option's or a person's name, a date as YYYY-MM-DD, a
+  // masked value only while its column is shown (read from the screen: its
+  // text is only opened there).
+  const [tableEl, setTableEl] = useState<HTMLDivElement | null>(null);
+  const cellText = (rowIndex: number, col: number): string => {
+    const row = rows[rowIndex];
+    if (!row || !data) return "";
+    if (col === 0) return displayTitle(row.title);
+    const column = visible[col - 1];
+    if (!column) return "";
+    if (!column.custom) return builtinText(row, column.key as BuiltinColumn, data, format);
+    if (column.custom.type === "MASKED") {
+      const open = tableEl?.querySelector(`[data-r="${rowIndex}"][data-c="${col}"] [data-ui="MaskedCell"]`);
+      const field = open?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
+      return field ? field.value : (open?.querySelector(`.${styles.text}`)?.textContent ?? "");
+    }
+    return cellReader(row, data, format).text(column.custom.id);
+  };
+  const { range: cellRange } = useCellRange(tableEl, (range) => {
+    const b = rangeBounds(range);
+    const out: string[][] = [];
+    for (let r = b.top; r <= b.bottom; r++) {
+      const line: string[] = [];
+      for (let c = b.left; c <= b.right; c++) line.push(cellText(r, c));
+      out.push(line);
+    }
+    void copyTable(out).then(() => showNotice(t("childTable.copied", { count: out.length * (out[0]?.length ?? 0) })));
+  });
 
   const linkedSource = linked && (
     <LinkedSource
@@ -377,7 +410,15 @@ function ChildTable({
           <p className={styles.muted}>{t("childPages.none")}</p>
         ) : (
           <div className={styles.tableScroll}>
-            <div className={drag ? styles.tableDragging : styles.table} role="table">
+            <div
+              className={drag ? styles.tableDragging : styles.table}
+              role="table"
+              ref={setTableEl}
+              // Takes the keys while cells are selected (Ctrl/⌘+C, Esc).
+              tabIndex={-1}
+              data-ui="ChildTableBlock.table"
+              data-cell-range={cellRange ? "" : undefined}
+            >
               <div className={styles.tr} role="row" ref={headerRef}>
                 <HeaderCell label={t("childTable.title")} sortKey="title" sort={sort} onSort={setSort} />
                 {visible.map((c, i) => (
@@ -426,20 +467,31 @@ function ChildTable({
                   </HeaderCell>
                 ))}
               </div>
-              {rows.map((row) => (
+              {rows.map((row, r) => (
                 <div key={row.id} className={styles.tr} role="row" data-ui="ChildTableBlock.row" data-id={row.id}>
-                  <div className={styles.titleCell} role="cell">
+                  <div
+                    className={styles.titleCell}
+                    role="cell"
+                    data-r={r}
+                    data-c={0}
+                    data-selected={inRange(cellRange, r, 0) || undefined}
+                    data-ui="ChildTableBlock.cell"
+                  >
                     <PageLink href={`/pages/${row.id}`} className={styles.pageLink} data-ui="ChildTableBlock.pageLink" data-id={row.id}>
                       <span aria-hidden>{row.icon ?? "📄"}</span>
                       <span>{displayTitle(row.title)}</span>
                     </PageLink>
                   </div>
-                  {visible.map((c) => (
+                  {visible.map((c, i) => (
                     <div
                       key={c.key}
                       role="cell"
                       className={c.custom ? styles.cell : styles.metaCell}
                       data-dragging={drag?.key === c.key || undefined}
+                      data-r={r}
+                      data-c={i + 1}
+                      data-selected={inRange(cellRange, r, i + 1) || undefined}
+                      data-ui="ChildTableBlock.cell"
                     >
                       {c.custom ? (
                         <Cell

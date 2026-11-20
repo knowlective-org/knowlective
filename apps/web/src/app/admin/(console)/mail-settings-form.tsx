@@ -6,6 +6,7 @@ import { submitKeepingValues } from "@/lib/form-submit";
 import type { SmtpSecurity } from "shared";
 import type { MailSettingsView } from "@/lib/mail";
 import styles from "@/styles/ui.module.css";
+import { StatusRow } from "@/components/status-row";
 import {
   type MailSettingsState,
   type TestMailState,
@@ -42,7 +43,7 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
           type="text"
           data-ui="MailSettingsForm.fromNameInput"
           name="fromName"
-          defaultValue={current?.fromName ?? "KNOWLECTIVE"}
+          defaultValue={current?.fromName ?? "knowlective"}
           className={styles.field}
         />
       </label>
@@ -136,12 +137,11 @@ export function MailSettingsForm({ current }: { current: MailSettingsView | null
           </label>
         </>
       )}
-      <p data-ui="MailSettingsForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? ta("common.saved") : "")}
-      </p>
-      <button data-ui="MailSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? ta("common.saving") : ta("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? ta("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="MailSettingsForm.status">
+        <button data-ui="MailSettingsForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? ta("common.saving") : ta("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }
@@ -156,14 +156,20 @@ export function TestMailForm({ disabled }: { disabled: boolean }) {
         {ta("mail.testTo")}
         <input data-ui="TestMailForm.toInput" type="email" name="to" required disabled={disabled} className={styles.field} />
       </label>
-      <p data-ui="TestMailForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ??
-          (state.sentTo ? ta("mail.testSent", { email: state.sentTo }) : "")}
-        {disabled && !state.error && ta("mail.testDisabled")}
-      </p>
-      <button data-ui="TestMailForm.submitButton" type="submit" disabled={pending || disabled} className={styles.buttonSecondary}>
-        {pending ? ta("mail.sending") : ta("mail.sendTest")}
-      </button>
+      <StatusRow
+        message={
+          <>
+            {state.error ?? (state.sentTo ? ta("mail.testSent", { email: state.sentTo }) : "")}
+            {disabled && !state.error && ta("mail.testDisabled")}
+          </>
+        }
+        className={state.error ? styles.error : styles.success}
+        dataUi="TestMailForm.status"
+      >
+        <button data-ui="TestMailForm.submitButton" type="submit" disabled={pending || disabled} className={styles.buttonSecondary}>
+          {pending ? ta("mail.sending") : ta("mail.sendTest")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

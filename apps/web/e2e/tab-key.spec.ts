@@ -1,32 +1,54 @@
 import { expect, test } from "@playwright/test";
 import { authFile } from "./accounts";
-import { createPage, editorBody, trashOpenPage } from "./helpers";
+import { clickInEditor, createPage, editorBody, trashOpenPage } from "./helpers";
 
 // Tab that nothing in the editor uses (components/editor/tab-stays.ts) does
 // nothing: the focus stays in the text.
 test.use({ storageState: authFile("editor") });
 
-test("Tab in an empty list item that can't be indented does nothing (the focus stays in the text)", async ({ page }) => {
-  await createPage(page, "E2E Tab");
+// A page with an empty paragraph on top and a TODO below it, the caret in
+// the paragraph (put there with a click: ↑ right after Enter sometimes
+// hasn't moved yet).
+async function pageWithTodoBelow(page: import("@playwright/test").Page, title: string) {
+  await createPage(page, title);
   await editorBody(page).click();
   await page.keyboard.press("Control+End");
+  // The first line stays empty; the TODO goes on the next.
+  await page.keyboard.press("Enter");
+  const blocks = editorBody(page).locator("[data-content-type]");
+  await expect(blocks).toHaveCount(2);
   // A TODO further down: Tab once moved the focus to its checkbox.
   await page.keyboard.type("[ ] やること");
-  await page.keyboard.press("Home");
-  await page.keyboard.press("Enter");
-  await page.keyboard.press("ArrowUp");
-  for (const marker of ["1. ", "- ", "> ", "[ ] "]) {
+  await expect(blocks.nth(1)).toHaveAttribute("data-content-type", "todo");
+  await expect(blocks.nth(1)).toContainText("やること");
+  await clickInEditor(blocks.first().locator(".bn-inline-content"));
+  await expect(blocks.first()).toHaveText("");
+  await expect(blocks.first()).toHaveAttribute("data-content-type", "paragraph");
+}
+
+const KINDS = [
+  ["1. ", "numberedListItem"],
+  ["- ", "bulletListItem"],
+  ["> ", "quote"],
+  ["[ ] ", "todo"],
+] as const;
+
+for (const [marker, kind] of KINDS) {
+  test(`Tab in an empty ${kind} that can't be indented does nothing (the focus stays in the text)`, async ({ page }) => {
+    await pageWithTodoBelow(page, `E2E Tab ${kind}`);
     await page.keyboard.type(marker);
+    await expect(editorBody(page).locator("[data-content-type]").first()).toHaveAttribute("data-content-type", kind);
     for (const key of ["Tab", "Shift+Tab"]) {
       await page.keyboard.press(key);
       await expect(editorBody(page)).toBeFocused();
     }
-    // Back to an empty paragraph for the next kind.
-    await page.keyboard.press("Backspace");
-  }
-  await expect(editorBody(page).locator('[data-ui="TodoBlock"]').filter({ hasText: "やること" })).toHaveCount(1);
+    await expect(editorBody(page).locator('[data-ui="TodoBlock"]').filter({ hasText: "やること" })).toHaveCount(1);
+    await trashOpenPage(page);
+  });
+}
 
-  // Where it can be indented, Tab still does.
+test("Tab still indents where it can", async ({ page }) => {
+  await pageWithTodoBelow(page, "E2E Tab の字下げ");
   await page.keyboard.type("- 一つ目");
   await page.keyboard.press("Enter");
   await page.keyboard.press("Tab");

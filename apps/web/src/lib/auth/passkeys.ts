@@ -30,7 +30,7 @@ import { COOKIE_PATH, type CurrentUser, passkeyRequiredSetting } from "./session
 // Both ceremonies ask for user verification (fingerprint, face, PIN): a
 // passkey replaces the password, so having the device alone isn't enough.
 
-const RP_NAME = "KNOWLECTIVE";
+const RP_NAME = "knowlective";
 const CHALLENGE_COOKIE = "knowlective_passkey";
 const CHALLENGE_AAD = "knowlective:passkey-challenge";
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;

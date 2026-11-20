@@ -8,7 +8,6 @@ import { createChildPage } from "@/app/(app)/actions";
 import { deletePage } from "@/app/(app)/pages/[pageId]/page-actions";
 import { useTranslations } from "next-intl";
 import { useDisplayTitle } from "@/i18n/use-display-title";
-import { ChildListDialog } from "./child-list-dialog";
 import { showAlert, showConfirm } from "./dialog";
 import { getDraggedPage, setDraggedPage, useConfirmAndMovePage } from "./move-page";
 import { withBasePath } from "@/lib/base-path";
@@ -23,11 +22,6 @@ const DRAG_TYPE = "application/x-knowlective-page";
 const ROOT_DRAG_TYPE = "application/x-knowlective-root";
 // Hovering a collapsed page this long while dragging expands it.
 const EXPAND_DELAY_MS = 600;
-// More child pages than this aren't all listed under their parent: only this
-// many, the most recently changed (newest first), plus the one on the way to
-// the open page, and a row saying how many others there are, which opens the
-// full list (ChildListDialog).
-export const MANY_CHILDREN = 5;
 
 export type DocTreeNode = {
   id: string;
@@ -66,6 +60,8 @@ export function DocTree({
   rootReorder,
   rootBadge,
   rootIcon,
+  childLimit = null,
+  personal = false,
 }: {
   nodes: DocTreeNode[];
   entryIds: string[];
@@ -74,6 +70,11 @@ export function DocTree({
   // Live title of the open page, so renaming shows here before it's saved.
   currentTitle?: string;
   maxDepth: number;
+  // The user's setting (User.sidebarChildLimit): a page with more child pages
+  // than this lists only this many, the most recently changed (newest first),
+  // plus the one on the way to the open page, and a row saying how many others
+  // there are, which lists them all in place. Null: always all.
+  childLimit?: number | null;
   // Set when the knowledge roots can be reordered (Sidebar): the root page's
   // row is then dragged to move the whole root among the others — not to
   // move the page, which a root page can't be — and Alt+↑/↓ on its link does
@@ -83,6 +84,8 @@ export function DocTree({
   rootBadge?: string;
   // The knowledge root's favicon, before the root page's title.
   rootIcon?: string;
+  // The user's personal root: pages from other roots can't be dropped in it.
+  personal?: boolean;
 }) {
   const t = useTranslations("docTree");
   const displayTitle = useDisplayTitle();
@@ -108,7 +111,8 @@ export function DocTree({
     return path;
   }, [byId, currentPageId, maxDepth]);
   // The parent whose full list of child pages is open.
-  const [listOf, setListOf] = useState<{ id: string; title: string } | null>(null);
+  // Pages whose "N more" row was opened: all their child pages are listed.
+  const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
 
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     // Only the path to the open page starts expanded (plus the page itself,
@@ -156,7 +160,7 @@ export function DocTree({
   // if the user can't (a before/after that isn't allowed falls back to into).
   const targetFor = (node: DocTreeNode, zone: DropZone): { zone: DropZone; target: MoveTarget } | null => {
     const d = getDraggedPage();
-    if (!d || d.subtree.has(node.id)) return null;
+    if (!d || d.subtree.has(node.id) || (personal && !d.personal)) return null;
     const into = (): { zone: DropZone; target: MoveTarget } | null => {
       if (!node.canEdit || (node.id !== d.parentId && !d.canEdit)) return null;
       return { zone: "into", target: { parentId: node.id, beforeId: null } };
@@ -188,7 +192,7 @@ export function DocTree({
   };
 
   const onDragStart = (e: DragEvent<HTMLElement>, node: DocTreeNode, title: string) => {
-    setDraggedPage({ id: node.id, title, parentId: node.parentId!, canEdit: node.canEdit, subtree: subtreeOf(node.id) });
+    setDraggedPage({ id: node.id, title, parentId: node.parentId!, canEdit: node.canEdit, subtree: subtreeOf(node.id), personal });
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData(DRAG_TYPE, node.id);
     setDraggingId(node.id);
@@ -285,7 +289,9 @@ export function DocTree({
     const children = (childrenOf.get(node.id) ?? []).filter((c) => !seen.has(c.id));
     // Many: the most recently changed, the one on the path to the open page
     // (if not among them), and a row for the rest.
-    const listed = children.length > MANY_CHILDREN ? recentChildren(children, onPath) : children;
+    const limited = childLimit !== null && children.length > childLimit;
+    const all = showAll.has(node.id);
+    const listed = limited && !all ? recentChildren(children, onPath, childLimit) : children;
     const unlisted = children.length - listed.length;
     const isOpen = expanded.has(node.id);
     const isCurrent = node.id === currentPageId;
@@ -417,17 +423,25 @@ export function DocTree({
         {isOpen && children.length > 0 && depth < maxDepth && (
           <ul className={styles.list}>
             {listed.map((c) => renderNode(c, depth + 1, new Set([...seen, c.id])))}
-            {unlisted > 0 && (
+            {limited && (
               <li>
                 <button
                   type="button"
                   className={styles.moreRow}
                   style={{ paddingLeft: 4 + (depth + 1) * 14 + 24 }}
-                  data-ui="DocTree.moreButton"
+                  data-ui={all ? "DocTree.lessButton" : "DocTree.moreButton"}
                   data-id={node.id}
-                  onClick={() => setListOf({ id: node.id, title: displayTitle(title) })}
+                  aria-expanded={all}
+                  onClick={() =>
+                    setShowAll((prev) => {
+                      const next = new Set(prev);
+                      if (all) next.delete(node.id);
+                      else next.add(node.id);
+                      return next;
+                    })
+                  }
                 >
-                  {t("moreChildren", { count: unlisted })}
+                  {all ? t("fewerChildren") : t("moreChildren", { count: unlisted })}
                 </button>
               </li>
             )}
@@ -440,17 +454,16 @@ export function DocTree({
   return (
     <nav aria-label={t("label")} data-ui="DocTree" aria-busy={moving}>
       <ul className={styles.list}>{entries.map((e) => renderNode(e, 0, new Set([e.id])))}</ul>
-      {listOf && <ChildListDialog pageId={listOf.id} title={listOf.title} onClose={() => setListOf(null)} />}
     </nav>
   );
 }
 
-// Of many child pages, the ones listed: the MANY_CHILDREN most recently
-// changed, newest first, and the one on the path to the open page.
-function recentChildren(children: DocTreeNode[], onPath: Set<string>): DocTreeNode[] {
+// Of many child pages, the ones listed: the `limit` most recently changed,
+// newest first, and the one on the path to the open page.
+function recentChildren(children: DocTreeNode[], onPath: Set<string>, limit: number): DocTreeNode[] {
   const recent = [...children].sort((a, b) => b.updatedAt - a.updatedAt);
-  const listed = recent.slice(0, MANY_CHILDREN);
-  const open = recent.slice(MANY_CHILDREN).find((c) => onPath.has(c.id));
+  const listed = recent.slice(0, limit);
+  const open = recent.slice(limit).find((c) => onPath.has(c.id));
   return open ? [...listed, open] : listed;
 }
 

@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to KNOWLECTIVE, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
+Notable changes to knowlective, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
 Until 1.0.0, a MINOR version (0.**x**.0) may contain changes that need attention when updating; they're listed under **Upgrade notes**. From 1.0.0 on, those come only with a MAJOR version: removed or renamed environment variables, database migrations that need manual steps, incompatible changes to `/api/v1`, and higher minimum Node.js or PostgreSQL versions.
 
@@ -9,6 +9,18 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 ## [Unreleased]
 
 ### Added
+
+- People can set a picture of themselves on the account screen (made a small square in the browser; PNG, JPEG or WebP). It's shown by their name: at the bottom of the sidebar, on their chat messages, in the "@" menus, as a TODO's assignee and in the admin console's user list. Without one, the first letter of their name is shown. Like names, only to people who are logged in
+
+- Review chats beside the page, like comments: "Start a chat" in a top-level block's ⋮⋮ menu opens a chat about that block in a pane on the right, which stays in view as the page scrolls. Blocks with a chat show a mark with the number of messages; a chat can be resolved (the mark goes) and reopened, and a new message reopens it. They aren't part of the page: not printed, exported or searched. Anyone who can open the page reads them; those who can edit it post and resolve. Everything a chat block has works in them (replies, reactions, mentions, files, notifications)
+
+- Cells of a child page table can be selected like a spreadsheet (drag across them, or click one and Shift+click another) and copied with Ctrl/⌘+C as a table, for spreadsheets and documents: what they show (an option's or a person's name, a date, a masked value only while its column is shown). Ctrl/⌘+C in a single cell copies that cell
+
+- The API and MCP can read a page's child pages with their properties (the values in its child page table's columns): `GET /api/v1/pages/<id>/children` (all columns, or `?property=<name>` for some) and the MCP tool `get_child_properties`
+
+- The API and MCP can send people a notification about a page, with a text of up to 2,000 characters whose links work: `POST /api/v1/pages/<id>/notifications` and the MCP tool `send_notification`. Only to people who can open the page (`GET /api/v1/pages/<id>/people`, MCP `list_page_people`), by someone who can edit it. They appear in the notification list (a new kind, "messages", that can be turned off on the account screen) and as desktop notifications
+
+- MCP can rename pages (`rename_page`), as the API's `PATCH /api/v1/pages/<id>` already could
 
 - Whiteboard boxes can be made transparent (a new color in the selection bar): the board shows through, and shapes keep their outline. Exports draw them without a fill
 
@@ -22,9 +34,43 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- The product's name is written in lower case, "knowlective", everywhere: the default site name (and "powered by knowlective"), screen titles, emails, the admin console, the authenticator app and passkey names given to new registrations, and the documentation. A site name or email sender name still set to the old default "KNOWLECTIVE" is changed to it; one set to anything else stays as it is. Environment variable names (`KNOWLECTIVE_…`) don't change
+
+- A mention in a chat message has more room around the name, in a slightly smaller font
+
+- A whiteboard text item is as tall as its text: its handle (now on its right edge) changes only the width, and the height follows as you type
+
+- Tab and Shift+Tab in an extended table work as in a table: to the next or previous cell, with its content selected, also from a cell with text in it. Where the block has a Tab of its own, that comes first: a code block indents, a list item or TODO with one above it nests under it, and Shift+Tab takes a nested block back out
+
+- Pages in your personal knowledge root (My Page) can be moved out into other knowledge roots, to share a draft: from the page menu's "Move" or by dragging in the sidebar. Like any move, what changes in who can see it is confirmed first. Pages from other roots still can't be moved into a personal root
+
+- New whiteboard connectors are drawn like the last connector you styled (arrowheads, straight or elbow, line style), remembered in your browser
+
+- Tab in an empty cell of the last column of an extended table goes to the first cell of the next row, instead of the cell below
+
+- Choosing the whiteboard for a document's whiteboard block lists whiteboards only, each after the titles of the pages above it, instead of every page with the others greyed
+
+- The sidebar lists every child page by default. Folding pages with many child pages is now each person's choice, with how many are listed (account screen → "Sidebar"), and the "N more pages" row lists the rest in place instead of opening a dialog
+
+- Every save button in the admin console is on the right, with its message beside it (site name and logo, desktop notifications, auditors, API, adding files and network access were on the left)
+
 - Shapes and text pasted from Miro without a fill come in transparent instead of white (frames without a color stay white)
 
 - The whiteboard's selection bar shows one button for the shape, with the shapes in its menu, so the bar fits on one row with the new text buttons
+
+### Fixed
+
+- Security: the `effect` package that Prisma's configuration uses is raised to 3.22.4, fixing a ReDoS (GHSA-7589-6fvf-x4pw)
+
+- On a whiteboard, the placeholder of a new item's text stayed over Japanese (or other IME) input until it was confirmed
+
+- Links in a table's cells looked like plain text: they're now bold and underlined with a link icon, like links in the rest of the page
+
+- A whiteboard connector inside a transparent box (a frame around boxes and their connectors) couldn't be clicked: the frame was selected. Clicking its line now selects the connector, and elsewhere in the frame, the frame
+
+- ↑ / ↓ in a TODO stopped on a line between blocks, then at the start of the next TODO's text. They now go straight to the block above / below (a nested TODO first) with the caret at the end of its text, also when coming into a TODO from another block
+
+- Tab in a TODO that can't be indented could move the focus to its checkbox after some text had been selected and the selection was gone
 
 ### Upgrade notes
 

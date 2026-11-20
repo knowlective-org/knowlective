@@ -62,6 +62,15 @@ model User {
   // (KnowledgeRoot ids). Roots not listed follow, oldest first. Empty = all
   // in creation order.
   rootOrder    String[]  @default([])
+  // In the sidebar, a page with more child pages than this lists only this
+  // many (the most recently changed) and a row to show the rest. Null = all.
+  sidebarChildLimit Int?
+  // A picture of the person (apps/web/src/lib/avatar.ts): a square PNG, JPEG
+  // or WebP, encrypted with the data key (AAD: the user's id). None: their
+  // initial is shown.
+  avatarEnc       Bytes?
+  avatarType      String?
+  avatarUpdatedAt DateTime?
 
   pages             Page[]               @relation("PageCreatedBy")
   updatedPages      Page[]               @relation("PageUpdatedBy")
@@ -82,6 +91,7 @@ model User {
   emailChanges      EmailChangeRequest[]
   chatMessages      ChatMessage[]
   chatLocks         ChatLock[]
+  reviewsResolved   ReviewThread[]
   chatReactions     ChatReaction[]
   chatPollVotes     ChatPollVote[]
   tableViews        TableViewPref[]
@@ -227,6 +237,7 @@ model Page {
   linkedViews    PageLinkedView[]
   chatMessages   ChatMessage[]
   chatLocks      ChatLock[]
+  reviewThreads  ReviewThread[]
   tableViews     TableViewPref[]
   notifications  Notification[]
   followers      PageFollow[]
@@ -437,6 +448,21 @@ model ChatPollVote {
   createdAt DateTime @default(now())
 
   @@id([messageId, userId, option])
+}
+
+// A review thread beside one of a page's top-level blocks (outside the
+// document: never printed or exported). Its messages are the chat messages
+// under the key `review_<blockId>` (lib/review-threads.ts); this row only
+// says the thread is resolved (a new message opens it again).
+model ReviewThread {
+  pageId       String
+  page         Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  blockId      String
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?     @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@id([pageId, blockId])
 }
 
 // A locked chat block: nobody can post, change or take back its messages
@@ -1125,11 +1151,11 @@ enum BrandMode {
 }
 
 // What the top left of the sidebars shows (lib/brand.ts): the site's name in
-// text, or an SVG logo. One row; without it, the name "KNOWLECTIVE".
+// text, or an SVG logo. One row; without it, the name "knowlective".
 model BrandSettings {
   id        Int       @id @default(1)
   mode      BrandMode @default(TEXT)
-  name      String    @default("KNOWLECTIVE")
+  name      String    @default("knowlective")
   // The logo (IMAGE), checked when uploaded (lib/brand.ts) and served with a
   // CSP that runs nothing (/api/brand-logo). Kept when switching back to TEXT.
   logoSvg   String?
@@ -1225,6 +1251,9 @@ enum NotificationKind {
   TODO_OVERDUE
   PAGE_CHANGED
   MENTION
+  // A message about a page, sent through the API or MCP (its text is the
+  // excerpt, whole: it may carry links).
+  MESSAGE
 }
 
 // Following a page: its changes by others are notified (at most once until

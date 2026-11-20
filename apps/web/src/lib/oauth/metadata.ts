@@ -32,7 +32,7 @@ export async function protectedResourceMetadata() {
     authorization_servers: [await oauthIssuer()],
     scopes_supported: [...OAUTH_SCOPES],
     bearer_methods_supported: ["header"],
-    resource_name: "KNOWLECTIVE",
+    resource_name: "knowlective",
   };
 }
 

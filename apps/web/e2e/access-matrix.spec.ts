@@ -84,11 +84,20 @@ test.describe("Access matrix", () => {
       expect(file.status(), `${account} attachment`).toBe(["guest", "outsider"].includes(account) ? 404 : 200);
       // The API takes keys only: a logged-in browser's cookies don't count
       // (401 without a key; 403 while the API is off in the admin console).
-      for (const path of ["api/v1/me", `api/v1/pages/${pageId}/chats`, `api/v1/pages/${pageId}/chats/x/messages`, `api/v1/pages/${pageId}/whiteboard`]) {
+      for (const path of [
+        "api/v1/me",
+        `api/v1/pages/${pageId}/chats`, `api/v1/pages/${pageId}/chats/x/messages`,
+        `api/v1/pages/${pageId}/whiteboard`,
+        `api/v1/pages/${pageId}/children`,
+        `api/v1/pages/${pageId}/people`,
+      ]) {
         expect([401, 403], `${account} ${path}`).toContain((await context.request.get(path)).status());
       }
       expect([401, 403], `${account} whiteboard POST`).toContain(
         (await context.request.post(`api/v1/pages/${pageId}/whiteboard`, { data: { remove: ["x"] } })).status(),
+      );
+      expect([401, 403], `${account} notifications POST`).toContain(
+        (await context.request.post(`api/v1/pages/${pageId}/notifications`, { data: { userIds: ["x"], text: "x" } })).status(),
       );
       // The MCP server takes keys only too (404 while it's off).
       expect([401, 404], `${account} MCP`).toContain(
@@ -232,9 +241,15 @@ test.describe("Access matrix", () => {
     await expect(page.getByTestId("PageMenu.childPages")).toBeVisible();
     // (After the menu's page info, loaded with the same argument.)
     await expect(page.getByTestId("PageMenu.ownerGroups")).toBeVisible();
-    const listRequest = page.waitForRequest((request) => !!request.headers()["next-action"] && request.postData() === JSON.stringify([pageId]));
+    // Other actions take the page's id alone too (such as the review threads'
+    // list): each one asked for with it is a candidate, and the list is the
+    // one whose answer, called again below, has the child's title.
+    const candidates = new Set<string>();
+    page.on("request", (request) => {
+      const id = request.headers()["next-action"];
+      if (id && request.postData() === JSON.stringify([pageId])) candidates.add(id);
+    });
     await page.getByTestId("PageMenu.childPages").click();
-    actions.set("list", (await listRequest).headers()["next-action"]);
     await expect(page.getByTestId("ChildListDialog.pageLink").filter({ hasText: childTitle })).toBeVisible();
     await page.getByTestId("ChildListDialog.closeButton").click();
     await openPage(page, childId);
@@ -243,7 +258,7 @@ test.describe("Access matrix", () => {
     await page.getByTestId("MoveDialog.parentSelect").selectOption(pageId);
     await page.getByTestId("MoveDialog.submitButton").click();
     await page.waitForURL((url) => url.pathname.endsWith(`/${pageId}`));
-    expect([...actions.keys()].sort()).toEqual(["list", "shortcut"]);
+    expect(actions.has("shortcut")).toBe(true);
     const shortcuts = () => withPrisma((prisma) => prisma.page.count({ where: { kind: "SHORTCUT", shortcutTargetId: childId, deletedAt: null } }));
     expect(await shortcuts()).toBe(1);
 
@@ -256,6 +271,8 @@ test.describe("Access matrix", () => {
       });
       return response.text();
     };
+    for (const id of candidates) if ((await call(page.request, id, [pageId])).includes(childTitle)) actions.set("list", id);
+    expect(actions.has("list")).toBe(true);
     for (const account of ACCOUNTS) {
       const context = await contextFor(browser, account);
       // The child pages and their titles: for those who can open the page.
@@ -271,6 +288,62 @@ test.describe("Access matrix", () => {
     // …and the very same request works for the admin.
     await call(page.request, actions.get("shortcut")!, [childId, pageId]);
     expect(await shortcuts()).toBe(2);
+  });
+
+  test("review threads' actions, called directly: the list for who can open the page, resolving for who can edit it", async ({ page, browser, baseURL }) => {
+    // A thread on the page's first block, by the admin; the actions' ids from
+    // the requests their screen makes.
+    await openPage(page, pageId);
+    const first = editorBody(page).locator(".bn-block-outer").first();
+    const blockId = (await first.getAttribute("data-id"))!;
+    const actions = new Map<string, string>();
+    page.on("response", async (response) => {
+      const request = response.request();
+      const id = request.headers()["next-action"];
+      if (!id) return;
+      const body = request.postData() ?? "";
+      if (body === JSON.stringify([pageId, blockId, true])) actions.set("resolve", id);
+      else if (body === JSON.stringify([pageId]) && (await response.text().catch(() => "")).includes(`"blockId":"${blockId}"`)) actions.set("list", id);
+    });
+    await first.locator(".bn-block-content").first().hover();
+    await page.locator(".bn-side-menu [draggable=true]").click();
+    await page.getByTestId("BlockMenu.reviewItem").click();
+    await page.getByTestId("ReviewPane").getByTestId("ChatBlock.messageInput").fill("一覧のレビュー");
+    await page.getByTestId("ReviewPane").getByTestId("ChatBlock.sendButton").click();
+    await expect(page.locator('[data-ui="ReviewMarkers.button"]')).toHaveText("1");
+    await page.getByTestId("ReviewPane.resolveButton").click();
+    await expect(page.locator('[data-ui="ReviewMarkers.button"]')).toHaveCount(0);
+    await expect.poll(() => actions.has("resolve")).toBe(true);
+    // Opened again: its list now has the thread (the list's id is taken from that).
+    await page.reload();
+    await expect(editorBody(page)).toBeVisible();
+    await expect.poll(() => [...actions.keys()].sort()).toEqual(["list", "resolve"]);
+    const resolved = () =>
+      withPrisma(async (prisma) => !!(await prisma.reviewThread.findUnique({ where: { pageId_blockId: { pageId, blockId } } }))?.resolvedAt);
+    await withPrisma((prisma) => prisma.reviewThread.update({ where: { pageId_blockId: { pageId, blockId } }, data: { resolvedAt: null } }));
+
+    const origin = new URL(baseURL!).origin;
+    const call = async (request: APIRequestContext, action: string, args: unknown[]) => {
+      const response = await request.post(`pages/${pageId}`, {
+        headers: { Origin: origin, "Next-Action": action, Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8" },
+        data: JSON.stringify(args),
+        maxRedirects: 0,
+      });
+      return response.text();
+    };
+    for (const account of ACCOUNTS) {
+      const context = await contextFor(browser, account);
+      const list = await call(context.request, actions.get("list")!, [pageId]);
+      expect(list.includes(blockId), `${account} list`).toBe(!["guest", "outsider"].includes(account));
+      if (account !== "admin" && account !== "editor") {
+        await call(context.request, actions.get("resolve")!, [pageId, blockId, true]);
+        expect(await resolved(), `${account} resolve`).toBe(false);
+      }
+      await context.close();
+    }
+    // …and the very same request works for the admin.
+    await call(page.request, actions.get("resolve")!, [pageId, blockId, true]);
+    expect(await resolved()).toBe(true);
   });
 
   test("a root's favicon: its actions, called directly, only work for a manager; its image only for who can open the root page", async ({ page, browser, baseURL }) => {

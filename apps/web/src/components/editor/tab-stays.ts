@@ -9,11 +9,18 @@ import type { KeyboardEvent } from "react";
 // preventDefault() by the time this runs (it's on an element around the
 // editor, so it gets the key after ProseMirror). Keys in a block's own
 // fields (inputs) keep moving the focus, and so does Tab while BlockNote's
-// formatting or link toolbar is open: it moves into the toolbar.
+// formatting or link toolbar is open: it moves into the toolbar. (Not a
+// toolbar left in the page while it fades out, after the selection is gone.)
 export function keepTabInEditor(e: KeyboardEvent<HTMLElement>) {
   if (e.key !== "Tab" || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
   const target = e.target as HTMLElement;
   if (!target.classList?.contains("ProseMirror") || !target.isContentEditable) return;
-  if (document.querySelector(".bn-formatting-toolbar, .bn-link-toolbar")) return;
+  if (toolbarShown()) return;
   e.preventDefault();
+}
+
+function toolbarShown(): boolean {
+  return [...document.querySelectorAll<HTMLElement>(".bn-formatting-toolbar, .bn-link-toolbar")].some((toolbar) =>
+    toolbar.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+  );
 }

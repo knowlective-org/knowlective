@@ -23,10 +23,10 @@ test.afterEach(async () => {
 });
 
 test("the top left shows the site's name or its logo, as set in the admin console", async ({ page, browser }) => {
-  // By default: "KNOWLECTIVE" in Newsreader 600.
+  // By default: "knowlective" in Newsreader 600.
   await openAdmin(page);
   const brandName = page.getByTestId("AdminSidebar").getByTestId("Brand.name");
-  await expect(brandName).toHaveText("KNOWLECTIVE");
+  await expect(brandName).toHaveText("knowlective");
   const font = await brandName.evaluate((el) => getComputedStyle(el));
   expect(font.fontFamily).toMatch(/newsreader/i);
   expect(font.fontWeight).toBe("600");
@@ -39,7 +39,7 @@ test("the top left shows the site's name or its logo, as set in the admin consol
   await page.getByTestId("BrandForm.submitButton").click();
   await expect(page.getByTestId("BrandForm.status")).toHaveText("保存しました。");
   await expect(brandName).toHaveText("E2E ナレッジ");
-  await expect(poweredBy).toHaveText("powered by KNOWLECTIVE");
+  await expect(poweredBy).toHaveText("powered by knowlective");
 
   // A logo: an SVG with a script is refused…
   await page.locator('[data-ui="BrandForm.modeRadio"][data-id="IMAGE"]').check();

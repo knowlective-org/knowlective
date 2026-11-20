@@ -320,6 +320,44 @@ test.describe("Public API", () => {
     expect((await request.post(boardUrl, { headers: auth(readKey), data: { remove: ["plan"] } })).status()).toBe(403);
   });
 
+  test("child pages with their properties, a page's people, and a notification about the page", async ({ page, request }) => {
+    const key = await issueKey(page, ACCOUNTS.editor.email, "E2E 子ページと通知", "WRITE");
+    const stamp = Date.now();
+    const parentId = (await (await createViaApi(request, key, { parentId: HOME_PAGE_ID, title: `API の親 ${stamp}` })).json()).id;
+    const childId = (await (await createViaApi(request, key, { parentId, title: "API の子" })).json()).id;
+
+    // The title alone changes.
+    expect((await request.patch(`api/v1/pages/${parentId}`, { headers: auth(key), data: { title: `API の親（改名） ${stamp}` } })).status()).toBe(200);
+    expect((await (await request.get(`api/v1/pages/${parentId}`, { headers: auth(key) })).json()).title).toBe(`API の親（改名） ${stamp}`);
+
+    // No columns yet: the child pages, with no properties; a column asked
+    // for by a name the page doesn't have is refused.
+    const children = await request.get(`api/v1/pages/${parentId}/children`, { headers: auth(key) });
+    expect(children.status()).toBe(200);
+    const body = await children.json();
+    expect(body.columns).toEqual([]);
+    expect(body.children).toEqual([expect.objectContaining({ id: childId, title: "API の子", properties: {} })]);
+    const unknown = await request.get(`api/v1/pages/${parentId}/children?property=${encodeURIComponent("状態")}`, { headers: auth(key) });
+    expect(unknown.status()).toBe(400);
+
+    // The people of the page; a notification to one of them, not to others.
+    const people = (await (await request.get(`api/v1/pages/${parentId}/people`, { headers: auth(key) })).json()).people as { id: string; name: string }[];
+    const viewer = people.find((p) => p.name === ACCOUNTS.viewer.name)!;
+    expect(viewer).toBeTruthy();
+    const text = `API からの通知 ${stamp} https://example.com/${stamp}`;
+    const sent = await request.post(`api/v1/pages/${parentId}/notifications`, { headers: auth(key), data: { userIds: [viewer.id], text } });
+    expect(sent.status()).toBe(200);
+    expect((await sent.json()).recipients).toBe(1);
+    await expect
+      .poll(() => withPrisma((prisma) => prisma.notification.count({ where: { userId: viewer.id, pageId: parentId, kind: "MESSAGE" } })))
+      .toBe(1);
+    const outsider = await withPrisma(async (prisma) => (await prisma.user.findFirstOrThrow({ where: await userWhere(prisma, ACCOUNTS.outsider.email), select: { id: true } })).id);
+    const refused = await request.post(`api/v1/pages/${parentId}/notifications`, { headers: auth(key), data: { userIds: [outsider], text } });
+    expect(refused.status()).toBe(400);
+    expect((await refused.json()).error.message).toContain(outsider);
+    expect((await request.post(`api/v1/pages/${parentId}/notifications`, { headers: auth(key), data: { userIds: [viewer.id], text: "" } })).status()).toBe(400);
+  });
+
   test.describe("with a passkey", () => {
     test.use({ storageState: authFile("outsider") });
 

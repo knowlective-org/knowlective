@@ -46,7 +46,7 @@ Anything in this repository: the web app and its custom server (collaborative ed
 
 ## Out of scope
 
-- Vulnerabilities in dependencies that don't affect KNOWLECTIVE as it uses them (please report those upstream)
+- Vulnerabilities in dependencies that don't affect knowlective as it uses them (please report those upstream)
 - Setups that go against the documentation, such as exposing the app without the reverse proxy that `KNOWLECTIVE_TRUSTED_PROXY_HOPS` describes, exposing the database, Redis or storage ports to the internet, or using the end-to-end test accounts (whose passwords are public in this repository) outside development
 - Anything that needs a site admin to act against their own instance (site admins are trusted with the server's settings), unless it reaches past what the admin console is meant to allow: site admins aren't meant to read pages they have no access to
 - Missing headers or settings without a way to exploit them (they are welcome as ordinary issues)

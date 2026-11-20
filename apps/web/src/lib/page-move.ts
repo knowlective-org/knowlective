@@ -75,10 +75,10 @@ export async function planMove(
     }
   }
 
-  // A personal root's pages stay in it, and nothing comes in from outside:
-  // moving would share them, or take pages away from the people who could
-  // see them.
-  if (parent.rootId !== page.rootId && ((await isPersonalRoot(prisma, page.rootId)) || (await isPersonalRoot(prisma, parent.rootId)))) {
+  // Nothing comes into a personal root from outside: that would take pages
+  // away from the people who could see them. Its owner can move its pages
+  // out (to share a draft), which the confirmation shows like any move.
+  if (parent.rootId !== page.rootId && (await isPersonalRoot(prisma, parent.rootId))) {
     return { error: t("personalBoundary") };
   }
 

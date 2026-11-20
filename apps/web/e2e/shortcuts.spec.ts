@@ -4,7 +4,7 @@ import { ACCOUNTS, authFile } from "./accounts";
 import { userWhere, withPrisma } from "./db";
 
 // Shortcuts (lib/shortcuts.ts) and the sidebar's short list of a page with
-// many child pages (DocTree's MANY_CHILDREN, ChildListDialog).
+// many child pages (the sidebar's fold, User.sidebarChildLimit; ChildListDialog).
 
 // A knowledge root for the test: the editors can edit it, the viewers see it.
 async function makeRoot(label: string, pages: { title: string }[]) {
@@ -101,7 +101,7 @@ test.describe("shortcuts", () => {
 test.describe("many child pages", () => {
   test.use({ storageState: authFile("editor") });
 
-  test("the sidebar lists the most recently changed and the open one; the rest are in the list of child pages", async ({ page }) => {
+  test("the sidebar lists every child page, or, set to fold, the most recently changed and the open one and a row for the rest", async ({ page }) => {
     const stamp = Date.now();
     const root = await makeRoot(`E2E 子ページが多い ${stamp}`, [{ title: `E2E 親 ${stamp}` }]);
     const parentId = root.ids[0];
@@ -127,10 +127,22 @@ test.describe("many child pages", () => {
       return ids;
     });
     try {
+      // By default every child page is listed.
+      await page.goto(`pages/${children[15]}`);
+      const tree = page.getByTestId("DocTree").filter({ hasText: `E2E 子ページが多い ${stamp}` });
+      await expect(tree.getByTestId("DocTree.link").filter({ hasText: /E2E 子 \d\d/ })).toHaveCount(31);
+      await expect(tree.getByTestId("DocTree.moreButton")).toHaveCount(0);
+
+      // Folding past 5, set in the account screen.
+      await page.goto("account");
+      await page.getByTestId("SidebarForm.foldCheckbox").check();
+      await page.getByTestId("SidebarForm.limitInput").fill("5");
+      await page.getByTestId("SidebarForm.submitButton").click();
+      await expect(page.getByTestId("SidebarForm.status")).toContainText("保存しました");
+
       // On a child page: the 5 most recently changed of its 31 siblings
       // (newest first), it, and how many others there are.
       await page.goto(`pages/${children[15]}`);
-      const tree = page.getByTestId("DocTree").filter({ hasText: `E2E 子ページが多い ${stamp}` });
       await expect(tree.getByTestId("DocTree.link").filter({ hasText: /E2E 子 \d\d/ })).toHaveText([
         "E2E 子 30",
         "E2E 子 29",
@@ -141,15 +153,12 @@ test.describe("many child pages", () => {
       ]);
       await expect(tree.getByTestId("DocTree.moreButton")).toHaveText("ほか 25 ページ");
 
-      // That row opens them all, filtered by title.
+      // That row lists them all in place, in their order; then folds them again.
       await tree.getByTestId("DocTree.moreButton").click();
-      const dialog = page.getByTestId("ChildListDialog");
-      await expect(dialog.getByTestId("ChildListDialog.pageLink")).toHaveCount(31);
-      await dialog.getByTestId("ChildListDialog.filterInput").fill("子 3");
-      await expect(dialog.getByTestId("ChildListDialog.pageLink")).toHaveText(["E2E 子 30"]);
-      await dialog.getByTestId("ChildListDialog.pageLink").filter({ hasText: "E2E 子 30" }).click();
-      await page.waitForURL(`**/pages/${children[30]}`);
-      await expect(page.getByTestId("ChildListDialog")).toHaveCount(0);
+      await expect(tree.getByTestId("DocTree.link").filter({ hasText: /E2E 子 \d\d/ })).toHaveCount(31);
+      await expect(tree.getByTestId("DocTree.link").filter({ hasText: /E2E 子 \d\d/ }).first()).toHaveText("E2E 子 00");
+      await tree.getByTestId("DocTree.lessButton").click();
+      await expect(tree.getByTestId("DocTree.link").filter({ hasText: /E2E 子 \d\d/ })).toHaveCount(6);
 
       // On the parent: the 5 most recent and the number of the others; the page menu has the list too.
       await page.goto(`pages/${parentId}`);
@@ -166,6 +175,9 @@ test.describe("many child pages", () => {
       await expect(page.getByTestId("PageMenu.history")).toBeVisible();
       await expect(page.getByTestId("PageMenu.childPages")).toHaveCount(0);
     } finally {
+      await withPrisma(async (prisma) =>
+        prisma.user.updateMany({ where: await userWhere(prisma, ACCOUNTS.editor.email), data: { sidebarChildLimit: null } }),
+      );
       await deleteRoot(root.rootId);
     }
   });

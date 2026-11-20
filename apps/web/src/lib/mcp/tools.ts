@@ -21,6 +21,10 @@ import { imageFileIds, planWhiteboardChange } from "@/lib/whiteboard-ops";
 import { MAX_CHAT_MESSAGE_LENGTH } from "@/lib/chat";
 import { postChat, siteChatWords } from "@/lib/chat-post";
 import type { SectionError } from "@/lib/body-edit";
+import { childProperties } from "@/lib/api/child-properties";
+import { pagePeople } from "@/lib/page-people";
+import { sendPageMessage } from "@/lib/page-message";
+import { MAX_MESSAGE_LENGTH, MAX_MESSAGE_RECIPIENTS } from "@/lib/page-message-text";
 import type { McpCaller } from "./auth";
 
 // The MCP server's tools. Each acts as the caller (lib/mcp/auth.ts) through
@@ -30,7 +34,7 @@ import type { McpCaller } from "./auth";
 // itself. A READ caller is offered the reading tools only.
 //
 // Writes never replace a whole body (lib/body-edit.ts): pages are written by
-// creating them, adding at the end, or replacing one section.
+// creating them, renaming them, adding at the end, or replacing one section.
 
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
 
@@ -251,7 +255,95 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     },
   );
 
+  server.registerTool(
+    "get_child_properties",
+    {
+      title: "Read child pages' properties",
+      description:
+        "A page's child pages (those you can see, in their order) with their values in the columns of the page's child page table (its properties): all columns, or only those named in `properties`. A select value is its option's name, a person { id, name }, a date \"YYYY-MM-DD\"; a masked value can't be read here ({ masked: true }). Columns sharing a name are \"name (2)\", ….",
+      inputSchema: z.object({
+        pageId,
+        properties: z.array(z.string().min(1).max(100)).max(30).optional().describe("Column names to return (default: all)"),
+      }),
+      annotations: readOnly,
+    },
+    async ({ pageId: id, properties }) => {
+      if (!(await getPageAccess(prisma, userId, id))) return fail(NOT_FOUND);
+      const result = await childProperties(userId, id, properties && properties.length > 0 ? properties : undefined);
+      if (!result) return fail(NOT_FOUND);
+      if ("unknown" in result) return fail(`The page's child pages have no property named ${result.unknown.map((n) => JSON.stringify(n)).join(", ")}.`);
+      return json(result);
+    },
+  );
+
+  server.registerTool(
+    "list_page_people",
+    {
+      title: "People on a page",
+      description: "The people who can open a page and can be mentioned (<@userId>) or sent a notification about it (send_notification), as { id, name }.",
+      inputSchema: z.object({ pageId }),
+      annotations: readOnly,
+    },
+    async ({ pageId: id }) => {
+      if (!(await getPageAccess(prisma, userId, id))) return fail(NOT_FOUND);
+      return json({ people: await pagePeople(prisma, id) });
+    },
+  );
+
   if (caller.scope !== "WRITE") return;
+
+  server.registerTool(
+    "rename_page",
+    {
+      title: "Rename a page",
+      description: "Changes a page's title (a document or a whiteboard). Everyone with the page open sees it; the page's history keeps the title before.",
+      inputSchema: z.object({ pageId, title: z.string().max(MAX_TITLE_LENGTH) }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ pageId: id, title }) => {
+      const access = await getPageAccess(prisma, userId, id);
+      if (!access) return fail(NOT_FOUND);
+      if (!atLeast(access.access, "EDIT")) return fail("You can't edit this page.");
+      if (!canEditPage(access)) return fail("The page is locked.");
+      const page = await prisma.page.findUniqueOrThrow({ where: { id }, select: { kind: true } });
+      if (page.kind === "SHORTCUT") return fail("The page is a shortcut, which has no title of its own.");
+      await replacePageContent(id, userId, { title: normalizeTitle(title) });
+      return json({ id, url: await pageUrl(id) });
+    },
+  );
+
+  server.registerTool(
+    "send_notification",
+    {
+      title: "Send a notification",
+      description: `Sends people a notification about a page, from you, with a text of up to ${MAX_MESSAGE_LENGTH} characters (its http(s) URLs become links; plain text, not Markdown). They see it in their notifications (and on their devices, if they turned that on), and it opens the page. The people must be among list_page_people's. Needs edit access to the page.`,
+      inputSchema: z.object({
+        pageId,
+        userIds: z.array(z.string().min(1).max(64)).min(1).max(MAX_MESSAGE_RECIPIENTS),
+        text: z.string().min(1).max(MAX_MESSAGE_LENGTH),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id, userIds, text }) => {
+      const result = await sendPageMessage(userId, id, userIds, text);
+      if ("error" in result) {
+        const e = result.error;
+        switch (e.code) {
+          case "not_found":
+            return fail(NOT_FOUND);
+          case "forbidden":
+            return fail("You can't edit this page, so you can't send notifications about it.");
+          case "invalid":
+            return fail(e.message);
+          case "unknown_recipients":
+            return fail(`These users can't open the page, or can't be sent a notification about it (see list_page_people): ${e.userIds.join(", ")}`);
+          case "too_many":
+            return fail("Too many notifications at once. Wait a moment and try again.");
+        }
+      }
+      return json({ recipients: result.recipients });
+    },
+  );
 
   server.registerTool(
     "create_page",

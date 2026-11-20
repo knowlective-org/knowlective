@@ -6,6 +6,7 @@ import { submitKeepingValues } from "@/lib/form-submit";
 import type { LandingPageOption } from "@/lib/landing-page";
 import styles from "@/styles/ui.module.css";
 import { type LandingPageSettingState, saveLandingPage } from "./actions";
+import { StatusRow } from "@/components/status-row";
 
 export function LandingPageForm({
   landingPageId,
@@ -50,12 +51,11 @@ export function LandingPageForm({
             : ta("landing.guestLogin")}
       </p>
 
-      <p data-ui="LandingPageForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? ta("common.saved") : "")}
-      </p>
-      <button data-ui="LandingPageForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? ta("common.saving") : ta("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? ta("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="LandingPageForm.status">
+        <button data-ui="LandingPageForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? ta("common.saving") : ta("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

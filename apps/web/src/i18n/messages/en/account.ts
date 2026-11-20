@@ -15,6 +15,21 @@ export default {
       browser: "Same as the browser",
       note: "The language of the screens and of the emails sent to you.",
     },
+    avatar: {
+      note: "Your picture, shown by your name. Without one, the first letter of your name is shown.",
+      choose: "Choose a picture",
+      remove: "Remove",
+      badType: "Choose a PNG, JPEG or WebP picture.",
+      tooLarge: "The picture is too large.",
+      tooOften: "Too many changes. Please wait a moment.",
+      failed: "The picture couldn't be saved.",
+    },
+    sidebar: {
+      heading: "Sidebar",
+      fold: "Fold pages with many child pages",
+      limit: "Child pages listed",
+      note: "Past this number, only the most recently changed are listed, with a row to show the rest.",
+    },
     profile: {
       name: "Name",
       nameSso: "This account logs in with single sign-on, so its name comes from the identity provider and can't be changed here.",

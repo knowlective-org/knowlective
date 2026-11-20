@@ -466,11 +466,16 @@ function moveVertically(view: EditorView | undefined, dir: "up" | "down"): boole
   return true;
 }
 
-// Tab in an empty cell (one empty paragraph, nothing else) goes to the next
-// cell: the one to the right, else the one below (same column). With
-// neither, it does nothing. In a cell with anything in it, Tab is the
-// block's own (nesting it under the block above).
-function tabToNextCell(view: EditorView | undefined): boolean {
+// Blocks whose Tab is their own in a cell too: a list item nests under the
+// one above it (when there is one), a code block indents its line.
+const LIST_ITEMS = new Set(["bulletListItem", "numberedListItem", "checkListItem", "todo", "toggleListItem"]);
+
+// Tab and Shift+Tab in a cell, as in BlockNote's table: the next cell (the
+// one to the right, else the first of the next row) or the previous one, its
+// content selected. In the first or last cell they do nothing. Except where
+// the block has a Tab of its own: a code block's indenting, a list item's
+// nesting under the item above, and Shift+Tab taking a nested block back out.
+function tabToCell(view: EditorView | undefined, dir: 1 | -1): boolean {
   if (!view) return false;
   const { state } = view;
   const { $from } = state.selection;
@@ -482,22 +487,25 @@ function tabToNextCell(view: EditorView | undefined): boolean {
     }
   }
   if (cellDepth < 2) return false;
-  const cell = $from.node(cellDepth);
-  const only = cell.childCount === 1 ? cell.child(0) : null;
-  const empty =
-    only?.type.name === "blockContainer" &&
-    only.childCount === 1 &&
-    only.child(0).type.name === "paragraph" &&
-    only.child(0).content.size === 0;
-  if (!empty) return nestInCell(view);
+  if ($from.parent.type.spec.code) return false;
+  const inCell = directlyInCell(state);
+  if (dir === -1 && !inCell) return false;
+  if (dir === 1 && LIST_ITEMS.has($from.parent.type.name) && $from.depth >= 2 && $from.index($from.depth - 2) > 0) {
+    return inCell ? nestInCell(view) : false;
+  }
 
   const table = $from.node(cellDepth - 2);
   const rowIndex = $from.index(cellDepth - 2);
   const column = $from.index(cellDepth - 1);
-  const row = table.child(rowIndex);
   let target: { row: number; col: number } | null = null;
-  if (column + 1 < row.childCount) target = { row: rowIndex, col: column + 1 };
-  else if (rowIndex + 1 < table.childCount && column < table.child(rowIndex + 1).childCount) target = { row: rowIndex + 1, col: column };
+  if (dir === 1) {
+    if (column + 1 < table.child(rowIndex).childCount) target = { row: rowIndex, col: column + 1 };
+    else if (rowIndex + 1 < table.childCount && table.child(rowIndex + 1).childCount > 0) target = { row: rowIndex + 1, col: 0 };
+  } else if (column > 0) {
+    target = { row: rowIndex, col: column - 1 };
+  } else if (rowIndex > 0 && table.child(rowIndex - 1).childCount > 0) {
+    target = { row: rowIndex - 1, col: table.child(rowIndex - 1).childCount - 1 };
+  }
   if (!target) return true;
 
   let pos = $from.start(cellDepth - 2);
@@ -505,7 +513,10 @@ function tabToNextCell(view: EditorView | undefined): boolean {
   pos += 1;
   const targetRow = table.child(target.row);
   for (let c = 0; c < target.col; c++) pos += targetRow.child(c).nodeSize;
-  view.dispatch(state.tr.setSelection(TextSelection.near(state.doc.resolve(pos + 1), 1)).scrollIntoView());
+  const cell = targetRow.child(target.col);
+  const first = TextSelection.near(state.doc.resolve(pos + 1), 1);
+  const last = TextSelection.near(state.doc.resolve(pos + cell.nodeSize - 1), -1);
+  view.dispatch(state.tr.setSelection(TextSelection.between(first.$from, last.$to)).scrollIntoView());
   return true;
 }
 
@@ -537,8 +548,8 @@ const gridExtension = createExtension({
   keyboardShortcuts: {
     Backspace: ({ editor }) => atCellEdge(editor.prosemirrorState, "start"),
     Delete: ({ editor }) => atCellEdge(editor.prosemirrorState, "end"),
-    Tab: ({ editor }) => tabToNextCell(editor.prosemirrorView),
-    "Shift-Tab": ({ editor }) => directlyInCell(editor.prosemirrorState),
+    Tab: ({ editor }) => tabToCell(editor.prosemirrorView, 1),
+    "Shift-Tab": ({ editor }) => tabToCell(editor.prosemirrorView, -1),
     ArrowDown: ({ editor }) => moveVertically(editor.prosemirrorView, "down"),
     ArrowUp: ({ editor }) => moveVertically(editor.prosemirrorView, "up"),
   },

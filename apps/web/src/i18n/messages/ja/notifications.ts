@@ -4,7 +4,7 @@ import type { MessageShape } from "../en";
 const ja: MessageShape<typeof en> = {
   notifications: {
     title: "通知",
-    lead: "チャットの新しいメッセージ、自分への TODO、フォローしているページの変更、メンション。ページを開くと、そのページの通知は既読になります。",
+    lead: "チャットの新しいメッセージ、自分への TODO、フォローしているページの変更、メンション、自分に送られたメッセージ。ページを開くと、そのページの通知は既読になります。",
     empty: "まだ通知はありません。",
     markAllRead: "すべて既読にする",
     unread: "未読",
@@ -15,6 +15,7 @@ const ja: MessageShape<typeof en> = {
       TODO_OVERDUE: "「{page}」のあなたの TODO が期限を過ぎました",
       PAGE_CHANGED: "{actor}さんが「{page}」を変更しました",
       MENTION: "{actor}さんが「{page}」であなたをメンションしました",
+      MESSAGE: "{actor}さんが「{page}」についてメッセージを送りました",
     },
     push: {
       CHAT_MESSAGE: "チャットに新しいメッセージがあります",
@@ -22,6 +23,7 @@ const ja: MessageShape<typeof en> = {
       TODO_OVERDUE: "あなたの TODO が期限を過ぎました",
       PAGE_CHANGED: "フォローしているページが変更されました",
       MENTION: "あなたがメンションされました",
+      MESSAGE: "あなたにメッセージが届きました",
     },
     sidebar: "通知",
     sidebarUnread: "通知（未読 {count, number} 件）",
@@ -49,6 +51,7 @@ const ja: MessageShape<typeof en> = {
         TODO_OVERDUE: "期限を過ぎた自分の TODO",
         PAGE_CHANGED: "フォローしているページの変更",
         MENTION: "自分へのメンション",
+        MESSAGE: "API や AI のアプリ（MCP）から自分に送られた、ページについてのメッセージ",
       },
       pushDetails: "デスクトップ通知に、誰が・どのページで・内容の一部を表示する",
       pushDetailsNote: "オフにすると、出来事の種類だけ（「あなたがメンションされました」）を表示します。デスクトップ通知はロック画面にも表示されることがあります。",

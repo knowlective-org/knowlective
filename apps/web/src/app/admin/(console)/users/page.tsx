@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Avatar } from "@/components/avatar";
 import { getFormatter, getTranslations } from "next-intl/server";
 import type { SiteRole } from "shared";
 import { prisma } from "@/lib/db";
@@ -134,6 +135,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
               siteRole: true,
               createdAt: true,
               disabledAt: true,
+              avatarUpdatedAt: true,
               groups: { select: { group: { select: { name: true } } } },
               _count: { select: { passkeys: true, apiKeys: true } },
             },
@@ -290,7 +292,15 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
                 {users.map((u) => (
                   <tr data-ui="AdminUsersPage.userRow" data-id={u.id} key={u.id} className={u.disabledAt ? styles.disabledRow : undefined}>
                     <td>
-                      {u.name ?? "-"}
+                      <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                        <Avatar
+                          userId={u.id}
+                          name={u.name ?? u.email}
+                          url={u.avatarUpdatedAt && `/admin/users/${u.id}/avatar?v=${u.avatarUpdatedAt.getTime()}`}
+                          size={22}
+                        />
+                        {u.name ?? "-"}
+                      </span>
                       {u.disabledAt && <span className={styles.badge}>{t("admin.common.disabled")}</span>}
                     </td>
                     <td>{u.email || <span className={styles.note}>{t("common.noEmail")}</span>}</td>

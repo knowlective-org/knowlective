@@ -28,6 +28,11 @@ export type SidebarInfo = {
   brand: Brand;
   // Unread notifications (the bell), 0 for someone not logged in.
   unreadNotifications: number;
+  // User.sidebarChildLimit; null for someone not logged in.
+  childLimit: number | null;
+  // The user's id and picture (lib/avatar.ts), by their name; none for someone not logged in.
+  userId?: string;
+  userAvatar?: string | null;
 };
 
 // The page screen: sidebar with every visible knowledge root on the left,

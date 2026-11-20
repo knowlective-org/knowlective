@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar } from "./avatar";
 import Link from "next/link";
 import { withBasePath } from "@/lib/base-path";
 import { usePathname, useRouter } from "next/navigation";
@@ -42,18 +43,23 @@ export function Sidebar({
   currentTitle,
   maxDepth,
   userName,
+  userId,
+  userAvatar = null,
   canCreateRoot,
   canOpenAdmin,
   guest = false,
   searchQuery = "",
   brand,
   unreadNotifications = 0,
+  childLimit = null,
 }: {
   trees: SidebarTree[];
   currentPageId: string | null;
   currentTitle?: string;
   maxDepth: number;
   userName: string;
+  userId?: string;
+  userAvatar?: string | null;
   canCreateRoot: boolean;
   canOpenAdmin: boolean;
   // Someone not logged in, viewing public pages: no search, no account links.
@@ -63,6 +69,8 @@ export function Sidebar({
   // The bell's count.
   unreadNotifications?: number;
   brand: BrandSettings;
+  // User.sidebarChildLimit (DocTree).
+  childLimit?: number | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -174,7 +182,9 @@ export function Sidebar({
               currentPageId={currentPageId}
               currentTitle={currentTitle}
               maxDepth={maxDepth}
+              childLimit={childLimit}
               rootBadge={t.personal ? tr("personal") : undefined}
+              personal={t.personal}
               rootIcon={t.favicon ?? undefined}
               rootReorder={
                 reorderable
@@ -201,6 +211,7 @@ export function Sidebar({
                 currentPageId={currentPageId}
                 currentTitle={currentTitle}
                 maxDepth={maxDepth}
+                childLimit={childLimit}
               />
             ))}
           </>
@@ -220,8 +231,9 @@ export function Sidebar({
         </div>
       ) : (
       <div className={styles.footer}>
-        <span className={styles.user} title={userName}>
-          {userName}
+        <span className={styles.user} title={userName} data-ui="Sidebar.user">
+          {userId && <Avatar userId={userId} name={userName} url={userAvatar} size={22} />}
+          <span className={styles.userName}>{userName}</span>
         </span>
         <Link
           href="/notifications"

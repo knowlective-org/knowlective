@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-// Which KNOWLECTIVE this is: the version (the repository root's package.json,
+// Which knowlective this is: the version (the repository root's package.json,
 // the one place it's set), the commit it was built from, and when it was
 // built. A Docker image carries them in apps/web/build-info.json, written
 // while building (server/write-build-info.ts: the image has no .git). In

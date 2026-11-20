@@ -25,7 +25,7 @@ export function AdminSidebar({
   actor: string;
   // Source code of this instance (AGPL-3.0; lib/source.ts).
   sourceUrl: string;
-  // This KNOWLECTIVE's version and commit (lib/build-info.ts).
+  // This knowlective's version and commit (lib/build-info.ts).
   version: string;
 }) {
   const pathname = usePathname();
@@ -73,7 +73,7 @@ export function AdminSidebar({
           {t("source")}
         </a>
         <span className={styles.user} title={version} data-ui="AdminSidebar.version">
-          KNOWLECTIVE {version}
+          knowlective {version}
         </span>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { submitKeepingValues } from "@/lib/form-submit";
 import styles from "@/styles/ui.module.css";
 import { saveIpAllowlist, type AllowlistState } from "./actions";
+import { StatusRow } from "@/components/status-row";
 
 const initialState: AllowlistState = {};
 
@@ -30,12 +31,11 @@ export function IpAllowlistForm({ current, clientIp }: { current: string[]; clie
       <p className={styles.note}>
         {ta.rich("ipAllowlist.current", { ip: clientIp, code: (chunks) => <code>{chunks}</code> })}
       </p>
-      <p data-ui="IpAllowlistForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? ta("common.saved") : "")}
-      </p>
-      <button data-ui="IpAllowlistForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? ta("common.saving") : ta("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? ta("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="IpAllowlistForm.status">
+        <button data-ui="IpAllowlistForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? ta("common.saving") : ta("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

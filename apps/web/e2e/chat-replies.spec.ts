@@ -145,6 +145,14 @@ test("@everyone: offered first, shown in the viewer's language, notifying everyo
   const mention = page.getByTestId("ChatBlock.messageRow").first().getByTestId("ChatBlock.mention");
   await expect(mention).toHaveText("@全員");
   await expect(mention).toHaveAttribute("data-id", "all");
+  // A chip with room around the name, the name a little smaller than the text.
+  const look = await mention.evaluate((el) => {
+    const style = getComputedStyle(el);
+    const text = getComputedStyle(el.parentElement!);
+    return { padding: parseFloat(style.paddingLeft), size: parseFloat(style.fontSize), textSize: parseFloat(text.fontSize) };
+  });
+  expect(look.padding).toBeGreaterThanOrEqual(6);
+  expect(look.size).toBeLessThan(look.textSize);
   // Kept as the token for everyone, not a name.
   const { recipients, outsider } = await withPrisma(async (prisma) => {
     const ids = async (...names: string[]) =>

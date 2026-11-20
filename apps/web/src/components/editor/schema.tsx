@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar } from "@/components/avatar";
 import {
   BlockNoteSchema,
   createExtension,
@@ -262,7 +263,7 @@ export function customSlashMenuItems(
 // followed by a line break (a hard break within the block).
 export function mentionMenuItems(
   editor: KnowlectiveEditor,
-  people: { id: string; name: string }[],
+  people: { id: string; name: string; avatar?: string | null }[],
   query: string,
 ): DefaultReactSuggestionItem[] {
   const q = query.normalize("NFKC").toLowerCase();
@@ -271,6 +272,7 @@ export function mentionMenuItems(
     .slice(0, 20)
     .map((p) => ({
       title: p.name,
+      icon: <Avatar userId={p.id} name={p.name} url={p.avatar} size={18} />,
       onItemClick: () => editor.insertInlineContent([{ type: "mention", props: { userId: p.id } }, "\n"]),
     }));
 }

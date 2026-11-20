@@ -30,6 +30,7 @@ import { blockNoteDictionary } from "@/i18n/blocknote";
 import { useDisplayTitle } from "@/i18n/use-display-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 import { EditorFormattingToolbar, EditorSideMenu } from "./editor/block-type-menu";
+import { ReviewLayout, ReviewProvider } from "./editor/review-pane";
 import { useAdoptFiles } from "./editor/adopt-files";
 import { dragCopyExtension } from "./editor/drag-copy";
 import { syncGuardExtension } from "./editor/sync-guard";
@@ -878,38 +879,42 @@ function EditorBody({
       />
       <PageEditorContext.Provider value={pageContext}>
         <PageProperties />
-        <BlockNoteView
-          editor={editor}
-          editable={!readOnly}
-          theme="light"
-          slashMenu={false}
-          sideMenu={false}
-          formattingToolbar={false}
-          onKeyDown={keepTabInEditor}
-          data-ui="EditorBody.editor"
-        >
-          <EditorFormattingToolbar />
-          <EditorSideMenu />
-          <SuggestionMenuController
-            triggerCharacter="/"
-            getItems={async (query) =>
-              filterSuggestionItems(
-                combineByGroup(
-                  withTodoForChecklist(getDefaultReactSlashMenuItems(editor), editor, t),
-                  getMultiColumnSlashMenuItems(editor),
-                  // Ours join BlockNote's group of the same name ("Others").
-                  customSlashMenuItems(editor, t),
-                ),
-                query,
-              )
-            }
-          />
-          {/* "@": mention someone who can open the page. */}
-          <SuggestionMenuController
-            triggerCharacter="@"
-            getItems={async (query) => mentionMenuItems(editor, (await pagePeople(pageId)) ?? [], query)}
-          />
-        </BlockNoteView>
+        <ReviewProvider>
+          <ReviewLayout editor={editor}>
+            <BlockNoteView
+              editor={editor}
+              editable={!readOnly}
+              theme="light"
+              slashMenu={false}
+              sideMenu={false}
+              formattingToolbar={false}
+              onKeyDown={keepTabInEditor}
+              data-ui="EditorBody.editor"
+            >
+              <EditorFormattingToolbar />
+              <EditorSideMenu />
+              <SuggestionMenuController
+                triggerCharacter="/"
+                getItems={async (query) =>
+                  filterSuggestionItems(
+                    combineByGroup(
+                      withTodoForChecklist(getDefaultReactSlashMenuItems(editor), editor, t),
+                      getMultiColumnSlashMenuItems(editor),
+                      // Ours join BlockNote's group of the same name ("Others").
+                      customSlashMenuItems(editor, t),
+                    ),
+                    query,
+                  )
+                }
+              />
+              {/* "@": mention someone who can open the page. */}
+              <SuggestionMenuController
+                triggerCharacter="@"
+                getItems={async (query) => mentionMenuItems(editor, (await pagePeople(pageId)) ?? [], query)}
+              />
+            </BlockNoteView>
+          </ReviewLayout>
+        </ReviewProvider>
       </PageEditorContext.Provider>
       {exportingPdf && (
         <p className={styles.exportStatus} role="status" data-ui="EditorBody.status">

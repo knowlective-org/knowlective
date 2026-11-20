@@ -4,7 +4,7 @@
 // account screen, its Server Action and the notifier (server/notifications.ts)
 // — keep dependency-free.
 
-export const NOTIFICATION_KINDS = ["CHAT_MESSAGE", "TODO_ASSIGNED", "TODO_OVERDUE", "PAGE_CHANGED", "MENTION"] as const;
+export const NOTIFICATION_KINDS = ["CHAT_MESSAGE", "TODO_ASSIGNED", "TODO_OVERDUE", "PAGE_CHANGED", "MENTION", "MESSAGE"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export type NotificationPrefs = {
@@ -18,7 +18,7 @@ export type NotificationPrefs = {
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   enabled: true,
-  kinds: { CHAT_MESSAGE: true, TODO_ASSIGNED: true, TODO_OVERDUE: true, PAGE_CHANGED: true, MENTION: true },
+  kinds: { CHAT_MESSAGE: true, TODO_ASSIGNED: true, TODO_OVERDUE: true, PAGE_CHANGED: true, MENTION: true, MESSAGE: true },
   pushDetails: true,
 };
 

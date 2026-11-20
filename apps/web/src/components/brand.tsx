@@ -6,7 +6,7 @@ import styles from "./brand.module.css";
 
 // The top left of the sidebars (lib/brand.ts): the site's name in Newsreader
 // 600, or its SVG logo (named for screen readers by the site's name). Once
-// changed from the default, "powered by KNOWLECTIVE" goes under it.
+// changed from the default, "powered by knowlective" goes under it.
 export function Brand({ brand, suffix }: { brand: BrandSettings; suffix?: string }) {
   const t = useTranslations("common");
   const customized = brand.mode === "IMAGE" || brand.name !== DEFAULT_BRAND_NAME;

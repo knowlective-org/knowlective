@@ -196,6 +196,26 @@ const ALIGN_ICONS: Record<Alignment | "x" | "y", IconName> = {
   y: "distributeY",
 };
 
+// New connectors are drawn like the last one the viewer styled (arrowheads,
+// route, line), kept in their browser.
+const CONNECTOR_STYLE_KEY = "knowlective-whiteboard-connector";
+type ConnectorStyle = { arrows: ArrowEnds; route: Route; stroke: Stroke };
+const DEFAULT_CONNECTOR_STYLE: ConnectorStyle = { arrows: "end", route: "straight", stroke: "solid" };
+
+function readConnectorStyle(): ConnectorStyle {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(CONNECTOR_STYLE_KEY) ?? "{}") as Record<string, unknown>;
+    // Stored by this browser, but checked like anything read back.
+    return {
+      arrows: (ARROW_ENDS as readonly unknown[]).includes(raw.arrows) ? (raw.arrows as ArrowEnds) : DEFAULT_CONNECTOR_STYLE.arrows,
+      route: (ROUTES as readonly unknown[]).includes(raw.route) ? (raw.route as Route) : DEFAULT_CONNECTOR_STYLE.route,
+      stroke: (STROKES as readonly unknown[]).includes(raw.stroke) ? (raw.stroke as Stroke) : DEFAULT_CONNECTOR_STYLE.stroke,
+    };
+  } catch {
+    return DEFAULT_CONNECTOR_STYLE;
+  }
+}
+
 function readGridSnap(): boolean {
   try {
     return window.localStorage.getItem(GRID_KEY) === "true";
@@ -331,6 +351,21 @@ export function WhiteboardCanvas({
   const [guides, setGuides] = useState<Guide[]>([]);
   // (The board is only drawn in the browser: loaded without server rendering.)
   const [gridSnap, setGridSnap] = useState(readGridSnap);
+  const connectorStyle = useRef<ConnectorStyle>(readConnectorStyle());
+  // A connector was given these: the next ones are drawn the same.
+  const rememberConnectorStyle = (patch: Partial<ConnectorStyle>) => {
+    connectorStyle.current = { ...connectorStyle.current, ...patch };
+    try {
+      window.localStorage.setItem(CONNECTOR_STYLE_KEY, JSON.stringify(connectorStyle.current));
+    } catch {
+      // Not kept (storage blocked).
+    }
+  };
+  // A new connector's fields from the remembered style.
+  const newConnectorStyle = () => {
+    const { arrows, route, stroke } = connectorStyle.current;
+    return { arrows, route, ...strokeField(stroke) };
+  };
   const toggleGridSnap = () => {
     setGridSnap(!gridSnap);
     try {
@@ -491,6 +526,21 @@ export function WhiteboardCanvas({
   };
 
   const change = (fn: () => void) => doc.transact(fn, origin);
+  // A text item is as tall as its text (only its width is set): its height
+  // is measured on the screen and kept in the document (for connectors,
+  // snapping, the selection and exports). Only for the items this screen
+  // changed (typed in, resized, put in): opening a board changes nothing.
+  // Not a step to undo (undoing the typing measures it again).
+  const sizedHere = useRef(new Set<string>());
+  const sizeOrigin = useMemo(() => ({ whiteboardSize: true }), []);
+  const fitText = (id: string, h: number) => {
+    if (readOnly || !sizedHere.current.has(id)) return;
+    const item = map.get(id);
+    if (!(item instanceof Y.Map) || item.get("type") !== "text") return;
+    const next = clampSize(Math.ceil(h));
+    if (Math.abs(Number(item.get("h")) - next) < 1) return;
+    doc.transact(() => item.set("h", next), sizeOrigin);
+  };
   const setField = (id: string, fields: Record<string, unknown>) => {
     const item = map.get(id);
     if (!(item instanceof Y.Map)) return;
@@ -509,6 +559,7 @@ export function WhiteboardCanvas({
       return null;
     }
     const id = newId();
+    sizedHere.current.add(id);
     change(() => {
       const item = new Y.Map<unknown>();
       for (const [key, value] of Object.entries({ ...fields, z: topZ() + 1 })) item.set(key, value);
@@ -555,7 +606,7 @@ export function WhiteboardCanvas({
       };
       put(id, { type: from.type, x: box.x, y: box.y, w: from.w, h: from.h, text: "", ...(from.src ? { src: from.src } : {}), color: from.color, z: ++z });
       const toSide = sideToward(box, { x: from.x + from.w / 2, y: from.y + from.h / 2 });
-      put(newId(), { type: "connector", from: fromId, to: id, arrows: "end", route: "straight", ...sideFields(fromSide, toSide), text: "", color: DEFAULT_COLOR.connector, z: ++z });
+      put(newId(), { type: "connector", from: fromId, to: id, ...newConnectorStyle(), ...sideFields(fromSide, toSide), text: "", color: DEFAULT_COLOR.connector, z: ++z });
     });
     setSelected(new Set([id]));
     if (from.type !== "image") setEditing(id);
@@ -930,14 +981,21 @@ export function WhiteboardCanvas({
     change(() => texts.forEach((x) => setField(x.id, { [marksField(x.field)]: applyStyle(x.marks, x.text.length, 0, x.text.length, patch) })));
     undo.current?.stopCapturing();
   };
-  const setArrows = (arrows: ArrowEnds) =>
+  // (connectorSelected: below, with the selection bar's other flags.)
+  const setArrows = (arrows: ArrowEnds) => {
+    if (connectorSelected) rememberConnectorStyle({ arrows });
     change(() => selection.forEach((id) => hasArrows(byId.get(id)) && setField(id, { arrows })));
-  const setRoute = (route: Route) =>
+  };
+  const setRoute = (route: Route) => {
+    if (connectorSelected) rememberConnectorStyle({ route });
     change(() => selection.forEach((id) => byId.get(id)?.type === "connector" && setField(id, { route })));
+  };
   const setConnectorEnds = (connectorEnds: ConnectorEnds) =>
     change(() => selection.forEach((id) => isBox(byId.get(id)) && setField(id, { connectorEnds })));
-  const setStroke = (stroke: Stroke) =>
+  const setStroke = (stroke: Stroke) => {
+    if (connectorSelected) rememberConnectorStyle({ stroke });
     change(() => selection.forEach((id) => hasArrows(byId.get(id)) && setField(id, { stroke })));
+  };
 
 
   // After a button: the board's keys (Esc, Delete, the tools) work again.
@@ -981,6 +1039,22 @@ export function WhiteboardCanvas({
     const el = (target as Element | null)?.closest?.("[data-wb-id], [data-wb-connect]");
     return el?.getAttribute("data-wb-id") ?? el?.getAttribute("data-wb-connect") ?? null;
   };
+  // The item clicked at this point of the screen. Connectors are drawn under
+  // every box, so one is only seen through a transparent box (a frame put
+  // around boxes and their connectors): where its line runs under the
+  // pointer, it's the connector that's clicked, not the box around it.
+  const itemUnder = (target: Element, clientX: number, clientY: number): string | null => {
+    const hit = itemAt(target);
+    const box = hit ? byId.get(hit) : undefined;
+    // Not its dots and handles, nor while drawing (a connector starts from the box).
+    if (!isBox(box) || box.color !== "transparent" || tool !== "select") return hit;
+    if (target.closest("[data-wb-connect], [data-wb-handle], [data-wb-textmove], [data-wb-link]")) return hit;
+    for (const el of document.elementsFromPoint(clientX, clientY)) {
+      const connector = el.closest('[data-ui="Whiteboard.connector"]')?.getAttribute("data-wb-id");
+      if (connector) return connector;
+    }
+    return hit;
+  };
   // The box a connector's end would go to at this point of the screen, and the
   // side (toward which the point lies).
   const dropAt = (clientX: number, clientY: number, world: Point) => {
@@ -1014,7 +1088,7 @@ export function WhiteboardCanvas({
       return;
     }
     if (e.button !== 0) return;
-    const hit = itemAt(target);
+    const hit = itemUnder(target, e.clientX, e.clientY);
 
     // A box's connection dot: a connector drawn from that box.
     const dotEl = tool === "select" ? target.closest("[data-wb-connect]") : null;
@@ -1079,6 +1153,7 @@ export function WhiteboardCanvas({
       const box = byId.get(hit);
       if (isBox(box)) {
         undo.current?.stopCapturing();
+        sizedHere.current.add(hit);
         gesture.current = { kind: "resize", id: hit, start: world, origin: { w: box.w, h: box.h } };
       }
       return;
@@ -1206,6 +1281,14 @@ export function WhiteboardCanvas({
         let w = clampSize(g.origin.w + world.x - g.start.x);
         let h = clampSize(g.origin.h + world.y - g.start.y);
         const box = byId.get(g.id);
+        if (box?.type === "text") {
+          // Only the width: the height follows the text (fitText).
+          const snap = e.ctrlKey || e.metaKey ? null : snapResize({ x: box.x, y: box.y, w, h: box.h }, snapTargets(new Set([g.id])), SNAP_PX / camera.zoom, gridSnap);
+          if (snap) w = clampSize(snap.w);
+          setGuides(snap ? snap.guides.filter((guide) => guide.axis === "x") : []);
+          writeSoon(() => change(() => setField(g.id, { w })));
+          return;
+        }
         if (box?.type === "image" && !e.shiftKey) {
           // An image keeps its shape (Shift: stretched freely).
           h = clampSize((w * g.origin.h) / g.origin.w);
@@ -1404,8 +1487,7 @@ export function WhiteboardCanvas({
             type: "connector",
             from: g.from,
             to: box.id,
-            arrows: "end",
-            route: "straight",
+            ...newConnectorStyle(),
             ...sideFields(g.fromSide, drop.side),
             text: "",
             color: DEFAULT_COLOR.connector,
@@ -1422,7 +1504,7 @@ export function WhiteboardCanvas({
     const under = document.elementFromPoint(e.clientX, e.clientY);
     if (readOnly || tool !== "select" || !under || under.closest("textarea, [data-wb-text-editor], button, [data-wb-controls]")) return;
     // An item's text is edited; the background does nothing.
-    const hit = itemAt(under);
+    const hit = itemUnder(under, e.clientX, e.clientY);
     if (!hit) return;
     setSelected(new Set([hit]));
     // A line has no text: it's made level or upright, whichever it's nearer.
@@ -1513,6 +1595,7 @@ export function WhiteboardCanvas({
   };
 
   const editText = (id: string, field: TextField, text: string, marks: TextMark[]) => {
+    sizedHere.current.add(id);
     const item = map.get(id);
     const key = marksField(field);
     // The styles only when they change (they're a list, never the same object).
@@ -1759,7 +1842,8 @@ export function WhiteboardCanvas({
                 onDone={() => finishEditing(item.id)}
                 placeholder={t("textPlaceholder")}
                 editor={editorProps}
-                resizeLabel={t("resize")}
+                resizeLabel={item.type === "text" ? t("resizeWidth") : t("resize")}
+                onMeasure={readOnly ? undefined : (h) => fitText(item.id, h)}
                 linkLabel={t("openLink")}
                 onOpenLink={(id) => router.push(`/pages/${id}`)}
               />
@@ -2438,6 +2522,7 @@ function Box({
   placeholder,
   editor,
   resizeLabel,
+  onMeasure,
   linkLabel,
   onOpenLink,
 }: {
@@ -2455,11 +2540,31 @@ function Box({
   placeholder: string;
   editor: EditorProps;
   resizeLabel: string;
+  // A text item's height on the screen (it's as tall as its text).
+  onMeasure?: (h: number) => void;
   linkLabel: string;
   onOpenLink: (pageId: string) => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const measure = useRef(onMeasure);
+  useLayoutEffect(() => {
+    measure.current = onMeasure;
+  });
+  const isText = item.type === "text";
+  useEffect(() => {
+    const el = ref.current;
+    if (!isText || !el) return;
+    // The layout size: the board's zoom (a transform) doesn't change it.
+    const observer = new ResizeObserver((entries) => {
+      const size = entries[0]?.borderBoxSize?.[0]?.blockSize ?? el.offsetHeight;
+      measure.current?.(size);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isText]);
   return (
     <div
+      ref={ref}
       className={styles.box}
       data-type={item.type}
       data-color={item.color}
@@ -2468,7 +2573,7 @@ function Box({
         left: item.x,
         top: item.y,
         width: item.w,
-        height: item.h,
+        height: isText ? undefined : item.h,
         // An ellipse's or diamond's text stays inside its outline, not in
         // the corners of the box around it (a percentage would be of the
         // board's width).

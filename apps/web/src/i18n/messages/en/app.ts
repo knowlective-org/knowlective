@@ -62,6 +62,7 @@ export default {
     removeShortcutConfirm: "Remove the shortcut to \"{title}\"? The page itself stays as it is. (The shortcut goes to the trash.)",
     removeShortcutLabel: "Remove",
     moreChildren: "{count, plural, one {# more page} other {# more pages}}",
+    fewerChildren: "Show fewer",
   },
   dialog: {
     typeToConfirm: "To confirm, type the following:",
@@ -93,7 +94,7 @@ export default {
     cannotMove: "Can't move the page",
   },
   home: {
-    welcome: "Welcome to KNOWLECTIVE",
+    welcome: "Welcome to knowlective",
     emptyCanCreate: "There are no pages you can see yet. You can create one with \"+ New knowledge root\" on the left.",
     empty: "There are no pages you can see yet. They'll appear on the left once you're added to a group.",
   },
@@ -464,7 +465,7 @@ export default {
     stale: "The pages have changed. Refresh the screen and try again.",
     rootPage: "A knowledge root's page can't be moved.",
     noEditDestination: "It can't go under that page (you need edit permission there).",
-    personalBoundary: "Pages can't be moved between your personal knowledge root and other knowledge roots.",
+    personalBoundary: "Pages from other knowledge roots can't be moved into a personal knowledge root.",
     locked: "This page is locked, so it can't be moved. Unlock it first.",
     destinationLocked: "The destination is locked with its child pages, so pages can't be moved there.",
     noEdit: "Moving this page needs edit permission.",

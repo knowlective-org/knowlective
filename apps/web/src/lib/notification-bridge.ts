@@ -5,6 +5,7 @@
 
 type NotificationBridge = {
   chatPosted(event: ChatPostedEvent): Promise<void>;
+  messageSent(event: MessageSentEvent): Promise<void>;
   // The server's key for Web Push (VAPID), made the first time it's asked for.
   pushPublicKey(): Promise<string>;
   // A test desktop notification to a person's devices: how many it went to.
@@ -13,6 +14,10 @@ type NotificationBridge = {
 
 // `text`: the excerpt (mentions as "@name"); `mentionIds`: who it mentions.
 export type ChatPostedEvent = { pageId: string; blockId: string; actorId: string; text: string; mentionIds: string[] };
+
+// A message about a page sent through the API or MCP (lib/page-message.ts):
+// its whole text, to these people (checked again when notified).
+export type MessageSentEvent = { pageId: string; actorId: string; recipientIds: string[]; text: string };
 
 const BRIDGE_KEY = Symbol.for("knowlective.notification-bridge");
 
@@ -30,6 +35,13 @@ export async function notifyChatPosted(event: ChatPostedEvent) {
   await bridge()
     ?.chatPosted(event)
     .catch((err) => console.error("[notifications] notifying a chat message failed", err));
+}
+
+// A message about a page (lib/page-message.ts). Never fails the caller.
+export async function notifyMessageSent(event: MessageSentEvent) {
+  await bridge()
+    ?.messageSent(event)
+    .catch((err) => console.error("[notifications] notifying a message failed", err));
 }
 
 // The key a browser subscribes to desktop notifications with; null outside

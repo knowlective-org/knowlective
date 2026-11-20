@@ -5,6 +5,7 @@ import { startTransition, useActionState, useState } from "react";
 import { showConfirm } from "@/components/dialog";
 import styles from "@/styles/ui.module.css";
 import { type PublicPagesSettingState, savePublicPagesSetting } from "./actions";
+import { StatusRow } from "@/components/status-row";
 
 const checkRow = { display: "flex", gap: 8, alignItems: "flex-start" } as const;
 
@@ -76,12 +77,11 @@ export function PublicPagesForm({
         {publicCount > 0 && !allowed && ta("publicPages.countNotAllowed")}
       </p>
 
-      <p data-ui="PublicPagesForm.status" aria-live="polite" className={state.error ? styles.error : styles.success}>
-        {state.error ?? (state.saved ? ta("common.saved") : "")}
-      </p>
-      <button data-ui="PublicPagesForm.submitButton" type="submit" disabled={pending} className={styles.button}>
-        {pending ? ta("common.saving") : ta("common.save")}
-      </button>
+      <StatusRow message={state.error ?? (state.saved ? ta("common.saved") : "")} className={state.error ? styles.error : styles.success} dataUi="PublicPagesForm.status">
+        <button data-ui="PublicPagesForm.submitButton" type="submit" disabled={pending} className={styles.button}>
+          {pending ? ta("common.saving") : ta("common.save")}
+        </button>
+      </StatusRow>
     </form>
   );
 }

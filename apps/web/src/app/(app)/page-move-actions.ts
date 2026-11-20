@@ -127,10 +127,10 @@ export async function loadMoveDestinations(
   const [t, displayTitle] = await Promise.all([getTranslations("moveDialog"), getDisplayTitle()]);
   const groups: MoveDestinationGroup[] = [];
   const shared: MoveDestination[] = [];
-  // A page in a personal root can only move within it; others never into one.
+  // A page in the personal root can go anywhere; others never into it.
   const fromPersonal = trees.find((t) => t.pages.some((p) => p.id === pageId))?.personal ?? false;
   for (const tree of trees) {
-    if (!shortcut && tree.personal !== fromPersonal) continue;
+    if (!shortcut && tree.personal && !fromPersonal) continue;
     const childrenOf = new Map<string, typeof tree.pages>();
     for (const p of tree.pages) {
       if (p.parentId) childrenOf.set(p.parentId, [...(childrenOf.get(p.parentId) ?? []), p]);

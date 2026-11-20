@@ -11,7 +11,9 @@ import { getDisplayTitle } from "@/i18n/display-title";
 // link a whiteboard's item to, to show in a document's whiteboard block, or
 // whose child pages a linked view shows.
 // Only pages they can see, per knowledge root in tree order, with only the
-// titles they can see.
+// titles they can see. Whiteboards are listed alone, each with the titles of
+// the pages above it; for the other kinds the whole tree is listed, pages of
+// another kind greyed (for where the others are).
 
 export type PickablePage = {
   id: string;
@@ -47,18 +49,26 @@ export async function loadPickablePages(kind: PickableKind, exclude: string | nu
       if (p.parentId) childrenOf.set(p.parentId, [...(childrenOf.get(p.parentId) ?? []), p]);
     }
     const byId = new Map(tree.pages.map((p) => [p.id, p]));
-    const visit = (id: string, depth: number, out: PickablePage[]) => {
+    // `trail`: the titles of the pages above (from the entry page down).
+    const visit = (id: string, depth: number, out: PickablePage[], trail: string[] = []) => {
       const p = byId.get(id);
       if (!p || depth > MAX_PAGE_DEPTH) return;
-      const ofKind = whiteboards ? whiteboards.has(id) : kind === "parent" ? p.kind !== "SHORTCUT" : true;
-      out.push({ id, title: displayTitle(p.title), depth, selectable: id !== exclude && ofKind });
-      for (const child of childrenOf.get(id) ?? []) visit(child.id, depth + 1, out);
+      const title = displayTitle(p.title);
+      if (whiteboards) {
+        // Whiteboards alone, each after the titles of the pages above it
+        // (all the viewer's own: visible pages from the entry page down).
+        if (whiteboards.has(id) && id !== exclude) out.push({ id, title: [...trail, title].join(" / "), depth: 0, selectable: true });
+      } else {
+        const ofKind = kind === "parent" ? p.kind !== "SHORTCUT" : true;
+        out.push({ id, title, depth, selectable: id !== exclude && ofKind });
+      }
+      for (const child of childrenOf.get(id) ?? []) visit(child.id, depth + 1, out, [...trail, title]);
     };
     for (const entryId of tree.entryIds) {
       if (entryId === tree.rootPageId) {
         const pages: PickablePage[] = [];
         visit(entryId, 0, pages);
-        groups.push({ label: displayTitle(byId.get(entryId)?.title ?? ""), pages });
+        if (pages.length > 0) groups.push({ label: displayTitle(byId.get(entryId)?.title ?? ""), pages });
       } else {
         visit(entryId, 0, shared);
       }

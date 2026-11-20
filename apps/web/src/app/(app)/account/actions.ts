@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth/password-reset";
 import { requireUser } from "@/lib/auth/session";
 import { sendMail } from "@/lib/mail";
+import { MAX_SIDEBAR_CHILD_LIMIT } from "@/lib/sidebar-child-limit";
 import { passwordResetMail } from "@/lib/mail-templates";
 import { getRequestContext } from "@/lib/request";
 import { getPublicUrl } from "@/lib/site-url";
@@ -60,6 +61,25 @@ export async function saveLocale(_prev: LocaleState, formData: FormData): Promis
   const raw = formData.get("locale");
   if (raw !== "" && !isLocale(raw)) return { error: (await getTranslations())("common.errors.invalidInput") };
   await prisma.user.update({ where: { id: user.id }, data: { locale: raw === "" ? null : raw } });
+  revalidatePath("/", "layout");
+  return { saved: true };
+}
+
+export type SidebarState = { error?: string; saved?: boolean };
+
+// The user's own sidebar setting (User.sidebarChildLimit): whether a page's
+// child pages past some number are folded into a "N more" row, and how many
+// are listed. Only how the user's own sidebar looks: nothing to check.
+export async function saveSidebarSettings(_prev: SidebarState, formData: FormData): Promise<SidebarState> {
+  const user = await requireUser("/account");
+  let limit: number | null = null;
+  if (formData.get("fold") === "on") {
+    limit = Number(formData.get("limit"));
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_SIDEBAR_CHILD_LIMIT) {
+      return { error: (await getTranslations())("common.errors.invalidInput") };
+    }
+  }
+  await prisma.user.update({ where: { id: user.id }, data: { sidebarChildLimit: limit } });
   revalidatePath("/", "layout");
   return { saved: true };
 }
