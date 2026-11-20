@@ -194,7 +194,7 @@ test.describe("Extended table", () => {
     await expect(nested).toHaveCount(0);
     await expect(cells(page).nth(4).locator('[data-content-type="bulletListItem"]')).toHaveText(["一", "二"]);
     // The first item has nothing to nest under: the next cell.
-    await page.keyboard.press("ArrowUp");
+    await clickInEditor(cells(page).nth(4).locator('[data-content-type="bulletListItem"] .bn-inline-content').first());
     await page.keyboard.press("Tab");
     await page.keyboard.type("隣");
     await expect(cellText(page, 5)).toHaveText("隣");
