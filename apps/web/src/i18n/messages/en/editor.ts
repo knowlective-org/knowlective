@@ -580,6 +580,7 @@ export default {
     textPlaceholder: "Type here",
     labelPlaceholder: "Label",
     resize: "Resize",
+    resizeWidth: "Change the width (the height follows the text)",
     bringToFront: "Bring to front",
     sendToBack: "Send to back",
     duplicate: "Duplicate",

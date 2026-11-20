@@ -343,6 +343,7 @@ export function TextEditor({
         // Kept as typed for now; styled when the composition ends.
         const next = read(el);
         model.current = next;
+        el.toggleAttribute("data-empty", next.text === "");
         props.current.onInput(next.text, next.marks);
         return;
       }
@@ -365,6 +366,8 @@ export function TextEditor({
 
     const onCompositionStart = () => {
       beforeComposing.current = model.current;
+      // What's being composed is in the field already: no placeholder over it.
+      el.removeAttribute("data-empty");
     };
     const onCompositionEnd = () => {
       const before = beforeComposing.current;

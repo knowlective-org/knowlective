@@ -526,6 +526,21 @@ export function WhiteboardCanvas({
   };
 
   const change = (fn: () => void) => doc.transact(fn, origin);
+  // A text item is as tall as its text (only its width is set): its height
+  // is measured on the screen and kept in the document (for connectors,
+  // snapping, the selection and exports). Only for the items this screen
+  // changed (typed in, resized, put in): opening a board changes nothing.
+  // Not a step to undo (undoing the typing measures it again).
+  const sizedHere = useRef(new Set<string>());
+  const sizeOrigin = useMemo(() => ({ whiteboardSize: true }), []);
+  const fitText = (id: string, h: number) => {
+    if (readOnly || !sizedHere.current.has(id)) return;
+    const item = map.get(id);
+    if (!(item instanceof Y.Map) || item.get("type") !== "text") return;
+    const next = clampSize(Math.ceil(h));
+    if (Math.abs(Number(item.get("h")) - next) < 1) return;
+    doc.transact(() => item.set("h", next), sizeOrigin);
+  };
   const setField = (id: string, fields: Record<string, unknown>) => {
     const item = map.get(id);
     if (!(item instanceof Y.Map)) return;
@@ -544,6 +559,7 @@ export function WhiteboardCanvas({
       return null;
     }
     const id = newId();
+    sizedHere.current.add(id);
     change(() => {
       const item = new Y.Map<unknown>();
       for (const [key, value] of Object.entries({ ...fields, z: topZ() + 1 })) item.set(key, value);
@@ -1137,6 +1153,7 @@ export function WhiteboardCanvas({
       const box = byId.get(hit);
       if (isBox(box)) {
         undo.current?.stopCapturing();
+        sizedHere.current.add(hit);
         gesture.current = { kind: "resize", id: hit, start: world, origin: { w: box.w, h: box.h } };
       }
       return;
@@ -1264,6 +1281,14 @@ export function WhiteboardCanvas({
         let w = clampSize(g.origin.w + world.x - g.start.x);
         let h = clampSize(g.origin.h + world.y - g.start.y);
         const box = byId.get(g.id);
+        if (box?.type === "text") {
+          // Only the width: the height follows the text (fitText).
+          const snap = e.ctrlKey || e.metaKey ? null : snapResize({ x: box.x, y: box.y, w, h: box.h }, snapTargets(new Set([g.id])), SNAP_PX / camera.zoom, gridSnap);
+          if (snap) w = clampSize(snap.w);
+          setGuides(snap ? snap.guides.filter((guide) => guide.axis === "x") : []);
+          writeSoon(() => change(() => setField(g.id, { w })));
+          return;
+        }
         if (box?.type === "image" && !e.shiftKey) {
           // An image keeps its shape (Shift: stretched freely).
           h = clampSize((w * g.origin.h) / g.origin.w);
@@ -1570,6 +1595,7 @@ export function WhiteboardCanvas({
   };
 
   const editText = (id: string, field: TextField, text: string, marks: TextMark[]) => {
+    sizedHere.current.add(id);
     const item = map.get(id);
     const key = marksField(field);
     // The styles only when they change (they're a list, never the same object).
@@ -1816,7 +1842,8 @@ export function WhiteboardCanvas({
                 onDone={() => finishEditing(item.id)}
                 placeholder={t("textPlaceholder")}
                 editor={editorProps}
-                resizeLabel={t("resize")}
+                resizeLabel={item.type === "text" ? t("resizeWidth") : t("resize")}
+                onMeasure={readOnly ? undefined : (h) => fitText(item.id, h)}
                 linkLabel={t("openLink")}
                 onOpenLink={(id) => router.push(`/pages/${id}`)}
               />
@@ -2495,6 +2522,7 @@ function Box({
   placeholder,
   editor,
   resizeLabel,
+  onMeasure,
   linkLabel,
   onOpenLink,
 }: {
@@ -2512,11 +2540,31 @@ function Box({
   placeholder: string;
   editor: EditorProps;
   resizeLabel: string;
+  // A text item's height on the screen (it's as tall as its text).
+  onMeasure?: (h: number) => void;
   linkLabel: string;
   onOpenLink: (pageId: string) => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const measure = useRef(onMeasure);
+  useLayoutEffect(() => {
+    measure.current = onMeasure;
+  });
+  const isText = item.type === "text";
+  useEffect(() => {
+    const el = ref.current;
+    if (!isText || !el) return;
+    // The layout size: the board's zoom (a transform) doesn't change it.
+    const observer = new ResizeObserver((entries) => {
+      const size = entries[0]?.borderBoxSize?.[0]?.blockSize ?? el.offsetHeight;
+      measure.current?.(size);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isText]);
   return (
     <div
+      ref={ref}
       className={styles.box}
       data-type={item.type}
       data-color={item.color}
@@ -2525,7 +2573,7 @@ function Box({
         left: item.x,
         top: item.y,
         width: item.w,
-        height: item.h,
+        height: isText ? undefined : item.h,
         // An ellipse's or diamond's text stays inside its outline, not in
         // the corners of the box around it (a percentage would be of the
         // board's width).

@@ -369,6 +369,63 @@ test.describe("Whiteboard", () => {
     }
   });
 
+  test("a text item is as tall as its text: only its width changes; the placeholder goes as soon as IME input starts", async ({ browser }) => {
+    const context = await browser.newContext({ storageState: authFile("editor") });
+    const page = await context.newPage();
+    try {
+      await createWhiteboard(page, "E2E ホワイトボードのテキストの高さ");
+      await page.getByTestId("Whiteboard.textToolButton").click();
+      await clickBoard(page, 200, 120);
+      const input = page.getByTestId("Whiteboard.textInput");
+      await expect(input).toBeFocused();
+      await expect(input).toHaveAttribute("data-empty", "");
+      // Japanese typed straight away (an IME composition): no placeholder over it.
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Input.imeSetComposition", { text: "にほ", selectionStart: 2, selectionEnd: 2 });
+      await expect(input).not.toHaveAttribute("data-empty");
+      await cdp.send("Input.insertText", { text: "日本" });
+      await expect(input).toHaveText("日本");
+      await expect(input).not.toHaveAttribute("data-empty");
+
+      const text = page.locator('[data-ui="Whiteboard.item"][data-type="text"]');
+      const oneLine = (await text.boundingBox())!;
+      for (const line of ["二行目", "三行目", "四行目"]) {
+        await page.keyboard.press("Enter");
+        await page.keyboard.type(line);
+      }
+      await page.keyboard.press("Escape");
+      await expect(input).toHaveCount(0);
+      await expect.poll(async () => (await text.boundingBox())!.height).toBeGreaterThan(oneLine.height * 3);
+      const tall = (await text.boundingBox())!;
+
+      // The height is kept in the board too: a selection box over the text's
+      // bottom line only (below where the first line ends) takes it.
+      const canvas = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
+      await page.mouse.click(canvas.x + 600, canvas.y + 400);
+      await page.mouse.move(tall.x + tall.width + 30, tall.y + tall.height - 6);
+      await page.mouse.down();
+      await page.mouse.move(tall.x + tall.width - 10, tall.y + tall.height - 2, { steps: 4 });
+      await page.mouse.up();
+      await expect(text).toHaveAttribute("data-selected", "");
+
+      // Resizing: the handle on its right edge changes the width alone.
+      await text.click();
+      const handle = text.getByTestId("Whiteboard.resizeHandle");
+      const at = (await handle.boundingBox())!;
+      await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(at.x + 160, at.y + 200, { steps: 6 });
+      await page.mouse.up();
+      await expect.poll(async () => Math.round((await text.boundingBox())!.width)).toBeGreaterThan(Math.round(tall.width) + 100);
+      expect(Math.abs((await text.boundingBox())!.height - tall.height)).toBeLessThan(2);
+
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      await trashOpenPage(page);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("double-clicking an item already on the board edits its text, with no new item made", async ({ browser }) => {
     const context = await browser.newContext({ storageState: authFile("editor") });
     const page = await context.newPage();

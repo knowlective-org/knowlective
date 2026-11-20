@@ -574,6 +574,7 @@ const ja: MessageShape<typeof en> = {
     textPlaceholder: "入力してください",
     labelPlaceholder: "ラベル",
     resize: "サイズを変更",
+    resizeWidth: "幅を変更（高さは文字に合わせる）",
     bringToFront: "最前面へ",
     sendToBack: "最背面へ",
     duplicate: "複製",

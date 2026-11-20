@@ -32,6 +32,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- A whiteboard text item is as tall as its text: its handle (now on its right edge) changes only the width, and the height follows as you type
+
 - Tab and Shift+Tab in an extended table work as in a table: to the next or previous cell, with its content selected, also from a cell with text in it. Where the block has a Tab of its own, that comes first: a code block indents, a list item or TODO with one above it nests under it, and Shift+Tab takes a nested block back out
 
 - Pages in your personal knowledge root (My Page) can be moved out into other knowledge roots, to share a draft: from the page menu's "Move" or by dragging in the sidebar. Like any move, what changes in who can see it is confirmed first. Pages from other roots still can't be moved into a personal root
@@ -51,6 +53,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - The whiteboard's selection bar shows one button for the shape, with the shapes in its menu, so the bar fits on one row with the new text buttons
 
 ### Fixed
+
+- On a whiteboard, the placeholder of a new item's text stayed over Japanese (or other IME) input until it was confirmed
 
 - Links in a table's cells looked like plain text: they're now bold and underlined with a link icon, like links in the rest of the page
 

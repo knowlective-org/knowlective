@@ -283,6 +283,14 @@
   cursor: nwse-resize;
 }
 
+/* A text item's: its width only (the height follows the text), on its right edge. */
+.box[data-type="text"] > .handle {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
 /* As wide as its text, up to max-width: left alone, its width would come
    from the board layer (0 wide), wrapping every character onto its own line. */
 .label {
