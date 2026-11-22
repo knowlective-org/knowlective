@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-22
+
 ### Added
 
 - Extended tables' columns can have an input rule, as child page tables have: number (shown with thousands separators and a set number of decimals), date, option (one or several, with colors), checkbox, person, or masked with the column's passphrase. A typed column's cells hold its value only, put in with a control, and stay text for search, exports and the summary row. Changing a column's type turns its cells into values, asking before emptying those that can't be. Masked values are sealed in the browser and left out of search and exports
@@ -91,6 +93,15 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 ### Upgrade notes
 
 - Pages left open from before the update ask to be reloaded before they can be edited again (the collaborative editor's version changed)
+- With single sign-on, accounts linked to the identity provider (other than site admins) can no longer log in with a password or a passkey, nor reset their password: they log in through the identity provider. Someone used to logging in with a password after their account was linked has to use single sign-on
+
+### Security
+
+- Fixes for security issues; please update to it. Published as GitHub security advisories:
+  - GHSA-5v55-rm2q-mmhg (medium): with single sign-on alongside passwords, someone disabled at the identity provider could still log in with a password or a passkey
+  - GHSA-66cf-j2rg-7rfq (medium): when single sign-on took over an account with an unconfirmed address, AI apps connected to it through OAuth (MCP) stayed connected
+  - GHSA-675g-7c8c-jpfq (medium): without a public URL set, the OAuth discovery documents for MCP were built from the request's Host and could be kept by a shared cache
+  - GHSA-9782-44xm-3w45 (low): the OAuth consent screen fetched an app's metadata document from any address before the visitor logged in, without a limit
 
 ### Changed
 

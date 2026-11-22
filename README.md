@@ -280,6 +280,7 @@ Under "Users" → "Single sign-on (OpenID Connect)" in the admin console (site a
 - With "Attribute for groups" set (e.g. groups, department; a string or a list of them), people are put in the group of each name at every log-in (made if missing; an existing group of the same name is used). Groups no longer listed are left, but only memberships single sign-on added: members added by hand stay. New groups have no permissions until given some. Membership changes are recorded in the audit log. If UserInfo can't be read, the groups are left as they are
 - Password login is either "Alongside single sign-on" (the default) or "Single sign-on only". Even with the latter, site admins can log in with a password, so nobody is locked out if the identity provider fails
 - Disabled users can't log in with single sign-on either
+- Accounts linked to the identity provider log in only through it, so that disabling someone there keeps them out: not with a password (one set before the account was linked included) or a passkey, and they can't reset a password. Their passkeys still confirm who they are (for example when issuing an API key). Site admins are the exception, as a way back in if the identity provider fails. Sessions already open (up to 30 days) and API keys last until the user is disabled in knowlective too
 - The admin console's (`/admin`) login page has the "Log in with …" button too. Site admins and content managers can log in through single sign-on instead of a password, then enter the authenticator app's code (registering the app the first time)
 - Logging out of knowlective doesn't log out of the identity provider
 
@@ -303,7 +304,7 @@ Instead of a password, you can log in with a passkey (fingerprint, face, or the 
   - Logging in with single sign-on is exempt (the identity provider authenticates)
 - Someone who lost their passkeys gets them removed from the user list in the admin console ("⋯" → "Remove passkeys", which also ends their sessions). They log in with their password again, and register a new passkey if required
 - A passkey only works at the address (host name) it was registered at. Opened at an address other than the public URL (an internal IP address, etc.), it has to be registered again for that address. Browsers also only use passkeys over https or on localhost
-- With "Single sign-on only", passkeys, like passwords, log in site admins only
+- With "Single sign-on only", passkeys, like passwords, log in site admins only. Accounts linked to single sign-on (other than site admins) never log in with a passkey
 - Logging in to the admin console (`/admin`) still takes a password plus an authenticator app (unaffected by the passkey settings)
 
 ## API
