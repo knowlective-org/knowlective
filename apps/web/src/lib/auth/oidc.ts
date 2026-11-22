@@ -10,6 +10,7 @@ import {
   ensurePersonalRoot,
 } from "shared";
 import { withBasePath } from "@/lib/base-path";
+import { revokeWaysIn } from "@/lib/auth/ways-in";
 import { prisma } from "@/lib/db";
 import { emailColumns, emailWhere, withEmail } from "@/lib/emails";
 import { type Claims, MAX_NAME_LENGTH, groupNames, renderDisplayName, syncOidcGroups } from "./oidc-profile";
@@ -386,7 +387,7 @@ async function completeLogin(search: string, state: LoginState): Promise<{ userI
   // (first sign-in through the IdP).
   const existing = await prisma.user.findUnique({
     where: await emailWhere(email),
-    select: { id: true, disabledAt: true, oidcIssuer: true, oidcSubject: true, emailUnconfirmed: true },
+    select: { id: true, disabledAt: true, siteRole: true, oidcIssuer: true, oidcSubject: true, emailUnconfirmed: true },
   });
   if (existing) {
     if (existing.disabledAt) throw new OidcLoginError("disabled");
@@ -407,14 +408,7 @@ async function completeLogin(search: string, state: LoginState): Promise<{ userI
             passwordHash: await hashPassword(randomBytes(48).toString("base64url")),
           },
         }),
-        prisma.userSession.deleteMany({ where: { userId: existing.id } }),
-        prisma.adminSession.deleteMany({ where: { userId: existing.id } }),
-        prisma.userPasskey.deleteMany({ where: { userId: existing.id } }),
-        prisma.apiKey.deleteMany({ where: { userId: existing.id } }),
-        prisma.passwordResetToken.deleteMany({ where: { userId: existing.id } }),
-        prisma.emailChangeRequest.deleteMany({ where: { userId: existing.id } }),
-        prisma.emailCode.deleteMany({ where: { userId: existing.id } }),
-        prisma.pushSubscription.deleteMany({ where: { userId: existing.id } }),
+        ...revokeWaysIn(existing.id),
       ]);
       disconnectUsers([existing.id]);
       const audit = await auditTranslator();
@@ -427,10 +421,21 @@ async function completeLogin(search: string, state: LoginState): Promise<{ userI
       await applyProfile(existing.id, settings, profile);
       return { userId: existing.id, next: state.next };
     }
-    await prisma.user.update({
-      where: { id: existing.id },
-      data: { oidcIssuer: issuer, oidcSubject: subject },
-    });
+    // From now on the account signs in through the IdP: its password goes,
+    // and links to set one (site admins keep theirs, signsInThroughIdpOnly()).
+    // Its passkeys stay, to confirm who it is, but no longer sign in.
+    const keepsPassword = existing.siteRole === "SITE_ADMIN";
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          oidcIssuer: issuer,
+          oidcSubject: subject,
+          ...(!keepsPassword && { passwordHash: await hashPassword(randomBytes(48).toString("base64url")) }),
+        },
+      }),
+      ...(keepsPassword ? [] : [prisma.passwordResetToken.deleteMany({ where: { userId: existing.id } })]),
+    ]);
     await applyProfile(existing.id, settings, profile);
     return { userId: existing.id, next: state.next };
   }
@@ -532,10 +537,22 @@ async function applyProfile(
   }
 }
 
-// Password sign-in is allowed for this user under the current settings.
-export async function passwordLoginAllowed(
-  siteRole: SiteRole,
-): Promise<boolean> {
+// An account tied to the IdP signs in through it: disabling someone at the IdP
+// has to keep them out. Not with a password or a passkey (an old one, set
+// before the account was tied), nor setting either up. Site admins keep
+// them, as a way back in when the IdP fails (as on SSO-only sites).
+export function signsInThroughIdpOnly(user: { siteRole: string; oidcSubject: string | null }): boolean {
+  return user.oidcSubject !== null && user.siteRole !== "SITE_ADMIN";
+}
+
+// Sign-in on this site's own (a password, a passkey) is allowed for this
+// user under the current settings.
+export async function passwordLoginAllowed(user: {
+  siteRole: string;
+  oidcSubject: string | null;
+}): Promise<boolean> {
+  if (signsInThroughIdpOnly(user)) return false;
+  const siteRole = user.siteRole;
   const row = await prisma.oidcSettings.findUnique({
     where: { id: 1 },
     select: { enabled: true, passwordLogin: true },

@@ -1,4 +1,4 @@
-import { PUBLIC_CORS, authorizationServerMetadata } from "@/lib/oauth/metadata";
+import { PUBLIC_CORS, metadataCacheHeaders, authorizationServerMetadata } from "@/lib/oauth/metadata";
 
 // RFC 8414: this site as an OAuth authorization server, for MCP clients
 // (lib/oauth/). With a base path, also answered at the root
@@ -6,7 +6,7 @@ import { PUBLIC_CORS, authorizationServerMetadata } from "@/lib/oauth/metadata";
 
 // auth: public — discovery metadata, the same for everyone
 export async function GET() {
-  return Response.json(await authorizationServerMetadata(), { headers: { ...PUBLIC_CORS, "Cache-Control": "max-age=3600" } });
+  return Response.json(await authorizationServerMetadata(), { headers: { ...PUBLIC_CORS, ...(await metadataCacheHeaders()) } });
 }
 
 // auth: public — CORS preflight

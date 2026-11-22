@@ -91,6 +91,7 @@ export default {
     passkeys: {
       heading: "Passkeys",
       lead: "Log in with a passkey (fingerprint, face, or the device's PIN) instead of your password. Your password keeps working too.",
+      leadIdpOnly: "This account logs in with single sign-on, so passkeys don't log you in. They confirm it's you, for example when you issue an API key.",
       leadRequired: "This site requires a passkey to log in: your password no longer logs you in. Register one on each device you use, or keep one on your phone.",
       none: "No passkeys registered.",
       name: "Name",

@@ -32,6 +32,9 @@ export default async function OAuthAuthorizePage({ searchParams }: PageProps<"/o
   for (const key of FIELDS) if (typeof raw[key] === "string") params[key] = raw[key];
   const t = await getTranslations("oauth");
 
+  // Signed in first: checking the request may fetch the app's metadata
+  // document from the address in client_id (lib/oauth/clients.ts).
+  const user = await requireUser(`/oauth/authorize?${new URLSearchParams(params)}`);
   const request = await checkAuthorizeRequest(params);
   if ("redirect" in request) redirect(request.redirect);
   const problem = (message: string) => (
@@ -44,7 +47,6 @@ export default async function OAuthAuthorizePage({ searchParams }: PageProps<"/o
   );
   if ("shown" in request) return problem(t(`errors.${request.shown}`));
 
-  const user = await requireUser(`/oauth/authorize?${new URLSearchParams(params)}`);
   if (!(await oauthAllowedFor(user.siteRole))) return problem(t("errors.notAllowed"));
 
   let site: string | null = null;

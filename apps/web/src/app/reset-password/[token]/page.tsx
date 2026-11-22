@@ -20,7 +20,7 @@ export default async function ResetPasswordPage({ params }: PageProps<"/reset-pa
   if (!(await isSetupComplete(prisma))) redirect("/setup");
   const { token } = await params;
   const reset = await findValidPasswordReset(token);
-  const ssoOnly = reset !== null && !(await passwordLoginAllowed(reset.user.siteRole));
+  const ssoOnly = reset !== null && !(await passwordLoginAllowed(reset.user));
   const t = await getTranslations();
 
   if (!reset || ssoOnly) {

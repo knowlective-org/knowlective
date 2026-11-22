@@ -18,6 +18,7 @@ import {
   recordLoginAttempt,
 } from "@/lib/admin/auth";
 import { normalizeEmail } from "@/lib/auth/session";
+import { signsInThroughIdpOnly } from "@/lib/auth/oidc";
 import { getAdminConsoleAccess } from "@/lib/roles";
 import { getRequestContext, type RequestContext } from "@/lib/request";
 import { isIpAllowed } from "@/lib/ip";
@@ -66,7 +67,7 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
 
   const user = await prisma.user.findUnique({
     where: await emailWhere(email),
-    select: { id: true, passwordHash: true, totpSecret: true },
+    select: { id: true, passwordHash: true, totpSecret: true, siteRole: true, oidcSubject: true },
   });
   // Same cost whether or not the account exists. Too many being checked at
   // once: refused before the slow part.
@@ -76,7 +77,9 @@ export async function loginWithAccount(_prev: LoginState, formData: FormData): P
   if (!checked.ok) return { error: (await getTranslations("admin.login.errors"))("busy"), email };
   const passwordOk = checked.value;
   // Not saying "not an admin" separately: it would confirm the password.
-  const allowed = passwordOk && user !== null && (await getAdminConsoleAccess(user.id)) !== null;
+  // An account tied to the IdP signs in here through it too (/admin/login/sso).
+  const allowed =
+    passwordOk && user !== null && !signsInThroughIdpOnly(user) && (await getAdminConsoleAccess(user.id)) !== null;
 
   if (!allowed) {
     return failure(ctx, (await getTranslations("admin.login.errors"))("wrongOrNotAdmin"), email);

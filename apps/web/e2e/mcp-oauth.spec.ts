@@ -244,6 +244,37 @@ test.describe("MCP over OAuth", () => {
     expect(new URL(page.url()).host).toBe(new URL(baseURL!).host);
   });
 
+  test("the discovery documents may be kept only when built from the public URL", async ({ request, baseURL }) => {
+    const previous = await withPrisma(async (prisma) => (await prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { publicUrl: true } })).publicUrl);
+    const cacheControl = async (path: string) => (await request.get(path)).headers()["cache-control"];
+    try {
+      // Unset: built from the request's origin, which the client chooses.
+      await withPrisma((prisma) => prisma.instanceConfig.update({ where: { id: 1 }, data: { publicUrl: null } }));
+      expect(await cacheControl(".well-known/oauth-authorization-server")).toBe("no-store");
+      expect(await cacheControl(".well-known/oauth-protected-resource/api/mcp")).toBe("no-store");
+      await withPrisma((prisma) => prisma.instanceConfig.update({ where: { id: 1 }, data: { publicUrl: new URL(baseURL!).origin } }));
+      expect(await cacheControl(".well-known/oauth-authorization-server")).toBe("max-age=3600");
+    } finally {
+      await withPrisma((prisma) => prisma.instanceConfig.update({ where: { id: 1 }, data: { publicUrl: previous } }));
+    }
+  });
+
+  test("the consent screen asks to sign in before looking up the app", async ({ browser }) => {
+    // Signed out (contexts made here take the describe's storage state).
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const page = await context.newPage();
+    const query = new URLSearchParams({
+      client_id: "https://app.example.invalid/client.json",
+      redirect_uri: "https://app.example.invalid/cb",
+      response_type: "code",
+      code_challenge: "x".repeat(43),
+      code_challenge_method: "S256",
+    });
+    await page.goto(`oauth/authorize?${query}`);
+    await expect(page).toHaveURL(/\/login/);
+    await context.close();
+  });
+
   test("the discovery documents name this site", async ({ request, baseURL }) => {
     const origin = new URL(baseURL!).href.replace(/\/$/, "");
     const resource = await (await request.get(".well-known/oauth-protected-resource/api/mcp")).json();

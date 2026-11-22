@@ -8,8 +8,8 @@ import { isMailConfigured } from "@/lib/mail";
 // Not possible:
 // - without mail: the link has nowhere to go (an administrator can issue one
 //   from /admin instead);
-// - for an account that signs in through single sign-on: its password, if it
-//   has one at all, isn't what it signs in with.
+// - for an account that signs in through single sign-on (but site admins'):
+//   its password isn't what it signs in with (passwordLoginAllowed()).
 export type OwnPasswordResetAvailability =
   | { available: true }
   | { available: false; reason: "mail" | "sso" };
@@ -19,7 +19,7 @@ export async function ownPasswordResetAvailability(userId: string): Promise<OwnP
     where: { id: userId },
     select: { siteRole: true, oidcSubject: true },
   });
-  if (user.oidcSubject !== null || !(await passwordLoginAllowed(user.siteRole))) {
+  if (!(await passwordLoginAllowed(user))) {
     return { available: false, reason: "sso" };
   }
   if (!(await isMailConfigured())) return { available: false, reason: "mail" };

@@ -40,7 +40,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
   const user = await prisma.user.findUnique({
     where: await emailWhere(email),
-    select: { id: true, passwordHash: true, disabledAt: true, siteRole: true },
+    select: { id: true, passwordHash: true, disabledAt: true, siteRole: true, oidcSubject: true },
   });
   // Same cost whether or not the account exists, so emails can't be probed.
   // Too many being checked at once: refused before the slow part.
@@ -64,7 +64,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
   // SSO-only sites: passwords still work for site admins (a way back in if
   // the IdP fails). Also only told after the correct password.
-  if (!(await passwordLoginAllowed(user.siteRole))) {
+  if (!(await passwordLoginAllowed(user))) {
     return { error: t("common.errors.ssoOnly"), email };
   }
 
@@ -107,7 +107,7 @@ export async function finishPasskeyLogin(response: AuthenticationResponseJSON, n
   }
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: result.userId },
-    select: { id: true, emailHash: true, disabledAt: true, siteRole: true },
+    select: { id: true, emailHash: true, disabledAt: true, siteRole: true, oidcSubject: true },
   });
   await prisma.userLoginAttempt.create({
     data: { ip: ctx.ip, emailHash: user.emailHash, success: true, userAgent: ctx.userAgent },
@@ -116,8 +116,9 @@ export async function finishPasskeyLogin(response: AuthenticationResponseJSON, n
     return { error: t("common.errors.disabledAccount") };
   }
   // A passkey signs in on this site's own, like a password: SSO-only sites
-  // keep it for site admins only.
-  if (!(await passwordLoginAllowed(user.siteRole))) {
+  // keep it for site admins only, and an account tied to the IdP signs in
+  // through it (signsInThroughIdpOnly()).
+  if (!(await passwordLoginAllowed(user))) {
     return { error: t("common.errors.ssoOnly") };
   }
 

@@ -41,12 +41,12 @@ export async function requestPasswordReset(
   const { ip } = await getRequestContext();
   const user = await prisma.user.findUnique({
     where: await emailWhere(email),
-    select: { id: true, disabledAt: true, siteRole: true },
+    select: { id: true, disabledAt: true, siteRole: true, oidcSubject: true },
   });
   if (
     user &&
     !user.disabledAt &&
-    (await passwordLoginAllowed(user.siteRole)) &&
+    (await passwordLoginAllowed(user)) &&
     !(await isPasswordResetRateLimited(user.id, ip))
   ) {
     const token = await createPasswordReset(user.id, { byAdmin: false, ip });
