@@ -413,10 +413,13 @@
   position: absolute;
   top: 14px;
   left: 12px;
-  padding: 1px 6px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 1px 6px 1px 2px;
   font-size: 12px;
   white-space: nowrap;
-  color: var(--color-on-primary);
+  color: var(--cursor-ink);
   background: var(--cursor-color);
   border-radius: 4px;
 }

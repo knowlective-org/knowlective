@@ -20,6 +20,8 @@ import {
   verifyCollabToken,
 } from "shared";
 import { cursorColorFor } from "../src/lib/cursor-color";
+import { avatarUrl } from "../src/lib/avatar-check";
+import { type CursorUser, isAvatarColor } from "../src/lib/avatar-mosaic";
 import { BASE_PATH } from "../src/lib/base-path";
 import { TITLE_FIELD, normalizeTitle } from "../src/lib/page-title";
 import { COLLAB_CLIENT_VERSION } from "../src/lib/collab-version";
@@ -47,7 +49,7 @@ export const COLLAB_PATH = `${BASE_PATH}/collab`;
 type ClientConnection = ReturnType<Hocuspocus["handleConnection"]>;
 
 // What onAuthenticate gives each connection.
-type CollabContext = { userId: string; cursor: { name: string; color: string } };
+type CollabContext = { userId: string; cursor: CursorUser };
 
 export async function createCollab() {
   // Separate from the app's PrismaClient (src/lib/db.ts): this module is
@@ -234,9 +236,18 @@ export async function createCollab() {
       }
       // What others see on this person's cursor: set here, not by the browser
       // (beforeHandleAwareness), so nobody can show up as someone else.
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailEnc: true } });
+      // The color is their avatar's (lib/avatar-mosaic.ts), and the badge
+      // shows their avatar: logged-in people only (as here) see it.
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { name: true, emailEnc: true, avatarColor: true, avatarSeed: true, avatarUpdatedAt: true },
+      });
       const name = user.name || (user.emailEnc ? openEmail(await loadDataKey(prisma), user.emailEnc) : "");
-      return { userId, cursor: { name, color: cursorColorFor(userId) } } satisfies CollabContext;
+      const color = isAvatarColor(user.avatarColor) ? user.avatarColor : cursorColorFor(userId);
+      return {
+        userId,
+        cursor: { name, color, id: userId, seed: user.avatarSeed, image: avatarUrl(userId, user.avatarUpdatedAt) },
+      } satisfies CollabContext;
     },
     // Cursors and selections (awareness) from a connection: only for the one
     // Yjs client that connection is (the first it sends anything for; one

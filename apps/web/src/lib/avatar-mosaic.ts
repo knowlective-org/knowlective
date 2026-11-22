@@ -73,6 +73,49 @@ export function mosaicOutline(color: string): string {
   return hex(h, sat, 0.18);
 }
 
+// The text on a badge in a person's color (their cursor's name): a very
+// light shade of its hue on a dark color, a very deep one on a light color
+// (whichever reads better); plain white or black where a shade wouldn't
+// reach a contrast of 4.5:1 (some middle colors).
+export function badgeInk(color: string): string {
+  const base = isAvatarColor(color) ? color : "#4d5560";
+  const [h, s] = hsl(base);
+  const sat = s < 0.05 ? 0 : Math.max(0.25, Math.min(0.7, s));
+  const contrast = (ink: string) => {
+    const [x, y] = [luminance(ink), luminance(base)].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  };
+  const [light, deep] = [hex(h, sat, 0.97), hex(h, sat, 0.1)];
+  const shade = contrast(light) >= contrast(deep) ? light : deep;
+  if (contrast(shade) >= 4.5) return shade;
+  return contrast("#ffffff") >= contrast("#000000") ? "#ffffff" : "#000000";
+}
+
+// WCAG relative luminance.
+export function luminance(color: string): number {
+  const n = parseInt(color.slice(1), 16);
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * lin((n >> 16) / 255) + 0.7152 * lin(((n >> 8) & 255) / 255) + 0.0722 * lin((n & 255) / 255);
+}
+
+// What the collab server puts on each person's cursor (awareness `user`):
+// their name, their color (the avatar's, else their cursor's), and what
+// draws their avatar. Read back checked, as anything in awareness.
+export type CursorUser = { name: string; color: string; id: string; seed: number; image: string | null };
+const AVATAR_PATH = /^\/api\/users\/[A-Za-z0-9_-]{1,64}\/avatar\?v=\d{1,16}$/;
+export function readCursorUser(raw: unknown): CursorUser | null {
+  if (!raw || typeof raw !== "object") return null;
+  const u = raw as Record<string, unknown>;
+  if (typeof u.name !== "string" || !isAvatarColor(u.color) || typeof u.id !== "string") return null;
+  return {
+    name: u.name,
+    color: u.color,
+    id: u.id,
+    seed: typeof u.seed === "number" && Number.isSafeInteger(u.seed) ? u.seed : 0,
+    image: typeof u.image === "string" && AVATAR_PATH.test(u.image) ? u.image : null,
+  };
+}
+
 // The mosaic as an SVG (a square N × N, scaled to fit), for a CSS background.
 export function mosaicSvg(userId: string, seed: number, color: string): string {
   const shades = mosaicShades(color);

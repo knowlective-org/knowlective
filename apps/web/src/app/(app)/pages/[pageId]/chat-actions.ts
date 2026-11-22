@@ -175,7 +175,7 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
         author: authorName(r.authorId),
         authorId: user ? r.authorId : null,
         avatar: (user && r.authorId && avatars.get(r.authorId)) || null,
-        color: user && r.authorId ? cursorColorFor(r.authorId) : null,
+        color: user && r.authorId ? (avatars.get(r.authorId)?.color ?? cursorColorFor(r.authorId)) : null,
         createdAt: r.createdAt.toISOString(),
         editedAt: r.editedAt?.toISOString() ?? null,
         deleted: r.deletedAt !== null,

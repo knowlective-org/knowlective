@@ -106,6 +106,8 @@ import {
   zoomAt,
 } from "./geometry";
 import { parseRichTextAt, toggleList } from "./rich-text";
+import { Avatar } from "@/components/avatar";
+import { type CursorUser, badgeInk, readCursorUser } from "@/lib/avatar-mosaic";
 import { TextEditor, type TextEditorHandle, highlightVar, textColorVar } from "./text-editor";
 import { Icon, type IconName } from "@/components/icons";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
@@ -157,7 +159,7 @@ type Gesture =
 
 type LineEnds = { x1: number; y1: number; x2: number; y2: number };
 
-type RemoteCursor = { clientId: number; name: string; color: string; x: number; y: number };
+type RemoteCursor = { clientId: number; user: CursorUser | null; x: number; y: number };
 
 // Whether the connector links box `a` at side `aSide` to box `b` at side
 // `bSide`, either way round. Two boxes get one connector per pair of sides
@@ -514,15 +516,8 @@ export function WhiteboardCanvas({
       for (const [clientId, state] of awareness.getStates()) {
         if (clientId === awareness.clientID) continue;
         const pos = (state as { whiteboard?: unknown }).whiteboard as Point | null | undefined;
-        const user = (state as { user?: { name?: unknown; color?: unknown } }).user;
         if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") continue;
-        next.push({
-          clientId,
-          name: typeof user?.name === "string" ? user.name : "",
-          color: typeof user?.color === "string" ? user.color : "#888888",
-          x: pos.x,
-          y: pos.y,
-        });
+        next.push({ clientId, user: readCursorUser((state as { user?: unknown }).user), x: pos.x, y: pos.y });
       }
       setCursors(next);
     };
@@ -1943,13 +1938,22 @@ export function WhiteboardCanvas({
             <div
               key={c.clientId}
               className={styles.cursor}
-              style={{ transform: `translate(${p.x}px, ${p.y}px)`, ["--cursor-color" as string]: c.color }}
+              style={{
+                transform: `translate(${p.x}px, ${p.y}px)`,
+                ["--cursor-color" as string]: c.user?.color ?? "#888888",
+                ["--cursor-ink" as string]: badgeInk(c.user?.color ?? "#888888"),
+              }}
               data-ui="Whiteboard.cursor"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
                 <path d="M1 1 L1 13 L4.5 9.5 L7 15 L9 14 L6.5 8.5 L11.5 8.5 Z" />
               </svg>
-              {c.name && <span className={styles.cursorName}>{c.name}</span>}
+              {c.user?.name && (
+                <span className={styles.cursorName}>
+                  <Avatar userId={c.user.id} name={null} look={{ url: c.user.image, color: c.user.color, seed: c.user.seed }} size={14} initial={false} />
+                  {c.user.name}
+                </span>
+              )}
             </div>
           );
         })}

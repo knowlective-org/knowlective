@@ -68,6 +68,8 @@ import { blockLockExtension } from "./editor/block-lock";
 import { showNotice } from "./notice";
 import styles from "./collaborative-editor.module.css";
 import { cursorColorFor } from "@/lib/cursor-color";
+import { badgeInk, readCursorUser } from "@/lib/avatar-mosaic";
+import { avatarElement } from "@/components/avatar";
 
 // The viewer's text for the helpers below, which BlockNote calls outside
 // React (uploads, imports). Set by EditorBody; a browser shows one language.
@@ -77,13 +79,12 @@ let text: Text;
 
 
 // Same markup as BlockNote's default collaboration cursor, but with the label
-// permanently expanded ([data-active] is what its CSS keys the label on).
-function renderCursorWithLabel(user: { name: string; color: string }): HTMLElement {
-  const hex = user.color.replace("#", "");
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-  const lum = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-  const textColor = 0.2126 * lum(r) + 0.7152 * lum(g) + 0.0722 * lum(b) <= 0.179 ? "white" : "black";
-  const style = `background-color: ${user.color}; color: ${textColor}`;
+// permanently expanded ([data-active] is what its CSS keys the label on), in
+// the person's avatar color with their avatar (server/collab.ts sets these).
+function renderCursorWithLabel(raw: { name: string; color: string }): HTMLElement {
+  const user = readCursorUser(raw);
+  const color = user?.color ?? "#4d5560";
+  const style = `background-color: ${color}; color: ${badgeInk(color)}`;
 
   const base = document.createElement("span");
   base.classList.add("bn-collaboration-cursor__base");
@@ -95,7 +96,8 @@ function renderCursorWithLabel(user: { name: string; color: string }): HTMLEleme
   const label = document.createElement("span");
   label.classList.add("bn-collaboration-cursor__label");
   label.setAttribute("style", style);
-  label.textContent = user.name;
+  if (user) label.append(avatarElement(user.id, { url: user.image, color: user.color, seed: user.seed }, 14));
+  label.append(raw.name);
   caret.append(label);
   // Word joiners keep the caret from affecting line breaks.
   base.append("⁠", caret, "⁠");

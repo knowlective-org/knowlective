@@ -844,3 +844,12 @@ a {
   background-color: var(--color-primary-light);
   text-decoration: underline dotted;
 }
+
+/* Other people's cursor labels: their avatar, then their name, in their
+   avatar color (components/collaborative-editor.tsx renderCursorWithLabel). */
+.bn-collaboration-cursor__base[data-active] .bn-collaboration-cursor__label {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  padding: 1px 5px 1px 2px;
+}

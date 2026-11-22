@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { avatarLook } from "../src/lib/avatar-check";
-import { AVATAR_COLOR_PRESETS, isAvatarColor, mosaicBackground, mosaicOutline, mosaicShades, mosaicSvg } from "../src/lib/avatar-mosaic";
+import { AVATAR_COLOR_PRESETS, badgeInk, isAvatarColor, luminance, mosaicBackground, mosaicOutline, mosaicShades, mosaicSvg, readCursorUser } from "../src/lib/avatar-mosaic";
 
 // The mosaic shown for people without a picture (lib/avatar-mosaic.ts).
 //   pnpm --filter web test:unit
@@ -71,4 +71,29 @@ test("the initial's outline: a deep shade of the same hue, darker than the mosai
   const sum = (c: string) => [1, 3, 5].reduce((s, i) => s + parseInt(c.slice(i, i + 2), 16), 0);
   for (const shade of mosaicShades("#2f7d6d")) assert.ok(sum(outline) < sum(shade), `${outline} vs ${shade}`);
   assert.ok(sum(outline) < 200);
+});
+
+test("a badge's text: light on a dark color, deep on a light one, in its hue, readable", () => {
+  const contrast = (a: string, b: string) => {
+    const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  };
+  for (const color of [...AVATAR_COLOR_PRESETS, "#5b8def", "#f76b15", "#12a594", "#ffe14d", "#000000", "#ffffff", "#808080"]) {
+    const ink = badgeInk(color);
+    // Light on dark, dark on light: the better one.
+    assert.equal(luminance(ink) > luminance(color), contrast("#ffffff", color) >= contrast("#000000", color), `${color}: ${ink}`);
+    assert.ok(contrast(ink, color) >= Math.min(4.5, Math.max(contrast("#ffffff", color), contrast("#000000", color))), `${ink} on ${color}: ${contrast(ink, color).toFixed(2)}`);
+  }
+});
+
+test("a cursor's user from awareness: checked", () => {
+  const good = { name: "山田", color: "#1f5f8b", id: "u1", seed: 3, image: "/api/users/u1/avatar?v=123" };
+  assert.deepEqual(readCursorUser(good), good);
+  assert.equal(readCursorUser({ ...good, color: "red" }), null);
+  assert.equal(readCursorUser({ name: "x", color: "#1f5f8b" }), null);
+  assert.equal(readCursorUser(null), null);
+  // A picture anywhere else, or a seed that isn't a whole number: dropped.
+  assert.equal(readCursorUser({ ...good, image: "https://evil.example/x.png" })!.image, null);
+  assert.equal(readCursorUser({ ...good, image: "/api/users/u1/avatar?v=1&x=javascript:" })!.image, null);
+  assert.equal(readCursorUser({ ...good, seed: 1.5 })!.seed, 0);
 });
