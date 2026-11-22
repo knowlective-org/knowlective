@@ -33,12 +33,12 @@ export const isAvatarType = (type: string | null | undefined): type is AvatarTyp
   (AVATAR_TYPES as readonly string[]).includes(type ?? "");
 
 // The first character of a name (a whole character: an emoji, or a letter
-// with its marks), upper-cased; "?" for none.
+// with its marks), as it is written (upper or lower case kept); "?" for none.
 export function initialOf(name: string | null | undefined): string {
   const text = (name ?? "").trim();
   if (!text) return "?";
   const first = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)[Symbol.iterator]().next().value?.segment ?? text;
-  return first.toLocaleUpperCase();
+  return first;
 }
 
 // How a person's avatar looks: their picture's address, or without one, the

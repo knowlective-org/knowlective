@@ -22,11 +22,12 @@ test("anything else is turned down: SVG, GIF, HTML, a RIFF that isn't WebP, too 
   assert.deepEqual(checkAvatar(big), { error: "tooLarge" });
 });
 
-test("a person's initial: the first whole character, upper-cased", () => {
-  assert.equal(initialOf("alice"), "A");
+test("a person's initial: the first whole character, its case kept", () => {
+  assert.equal(initialOf("alice"), "a");
+  assert.equal(initialOf("Alice"), "A");
   assert.equal(initialOf("  山田 太郎"), "山");
   assert.equal(initialOf("👩‍💻 dev"), "👩‍💻");
-  assert.equal(initialOf("éclair"), "É");
+  assert.equal(initialOf("éclair"), "é");
   assert.equal(initialOf(""), "?");
   assert.equal(initialOf(null), "?");
 });

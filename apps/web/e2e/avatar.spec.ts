@@ -17,7 +17,7 @@ test("a picture set on the account screen is shown by the name, to people logged
     // None yet: the first character of the name.
     await openPage(page, HOME_PAGE_ID);
     const own = page.getByTestId("Sidebar.user").getByTestId("Avatar");
-    await expect(own).toHaveAttribute("data-initial", ACCOUNTS.editor.name.trim()[0].toUpperCase());
+    await expect(own).toHaveAttribute("data-initial", ACCOUNTS.editor.name.trim()[0]);
 
     await page.goto("account");
     const section = page.getByTestId("AvatarSection");
@@ -54,7 +54,7 @@ test("a picture set on the account screen is shown by the name, to people logged
     // Removed: the initial again.
     await section.getByTestId("AvatarSection.removeButton").click();
     await expect(section.getByTestId("Avatar").locator("img")).toHaveCount(0);
-    await expect(page.getByTestId("Sidebar.user").getByTestId("Avatar")).toHaveAttribute("data-initial", ACCOUNTS.editor.name.trim()[0].toUpperCase());
+    await expect(page.getByTestId("Sidebar.user").getByTestId("Avatar")).toHaveAttribute("data-initial", ACCOUNTS.editor.name.trim()[0]);
     expect((await page.request.get(new URL(src, page.url()).toString())).status()).toBe(404);
   } finally {
     await withPrisma((prisma) => prisma.user.update({ where: { id: editorId }, data: { avatarEnc: null, avatarType: null, avatarUpdatedAt: null } }));
@@ -77,7 +77,7 @@ test("without a picture, a mosaic in a color of one's choice, and another patter
     const own = page.getByTestId("Sidebar.user").getByTestId("Avatar");
     const mosaic = () => own.evaluate((el) => getComputedStyle(el).backgroundImage);
     // A mosaic (an SVG) with the initial on it.
-    await expect(own).toHaveAttribute("data-initial", ACCOUNTS.editor.name.trim()[0].toUpperCase());
+    await expect(own).toHaveAttribute("data-initial", ACCOUNTS.editor.name.trim()[0]);
     const first = await mosaic();
     expect(first).toContain("data:image/svg+xml");
     await expect(section.getByTestId("AvatarSection.resetColorButton")).toHaveCount(0);

@@ -10,7 +10,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
-- Without a picture, a person's avatar is a mosaic of triangles in shades of one color, with their initial on it. The color (a suggested one or any other) and another pattern can be chosen on the account screen; until then, their cursor's color is used
+- Without a picture, a person's avatar is a mosaic of triangles in shades of one color, with their initial on it (as written: upper or lower case). The color (a suggested one or any other) and another pattern can be chosen on the account screen; until then, their cursor's color is used
 
 - Whiteboard text can be highlighted, in yellow, green, blue, pink or orange: from the highlight button of the bar above the selection (for the selected words while typing, or the whole text of the selected items), or Ctrl/⌘+Shift+H for yellow (again takes it off). Shown in PNG and SVG exports too
 
