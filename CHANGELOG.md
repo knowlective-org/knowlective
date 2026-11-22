@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-22
+
 ### Added
 
 - Extended tables' columns can have an input rule, as child page tables have: number (shown with thousands separators and a set number of decimals), date, option (one or several, with colors), checkbox, person, or masked with the column's passphrase. A typed column's cells hold its value only, put in with a control, and stay text for search, exports and the summary row. Changing a column's type turns its cells into values, asking before emptying those that can't be. Masked values are sealed in the browser and left out of search and exports
