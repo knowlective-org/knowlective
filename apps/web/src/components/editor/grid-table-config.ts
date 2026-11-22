@@ -2,7 +2,8 @@
 // (paragraphs, lists, images, code…), not only text as BlockNote's table does.
 // Three node types, like BlockNote's columns (columnList / column):
 //
-//   gridTable (props: header row, header column, column widths, summary row)
+//   gridTable (props: header row, header column, column widths, summary row,
+//              the columns' input rules)
 //     gridRow
 //       gridCell → the blocks in the cell
 //
@@ -26,6 +27,8 @@ export const GRID_TABLE_PROPS = {
   // The summary row under the table: JSON, one entry per column (what it
   // shows: grid-summary.ts); "" = no summary row.
   summary: { default: "" },
+  // JSON, one entry per column: its input rule (grid-types.ts); "" = all text.
+  columns: { default: "" },
 } as const;
 
 export const MAX_GRID_COLUMNS = 20;
@@ -74,6 +77,11 @@ export const GRID_TABLE_NODES = {
         default: "",
         parseHTML: (el: HTMLElement) => el.getAttribute("data-summary") ?? "",
         renderHTML: (attrs: Attributes) => (attrs.summary ? { "data-summary": attrs.summary } : {}),
+      },
+      columns: {
+        default: "",
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-columns") ?? "",
+        renderHTML: (attrs: Attributes) => (attrs.columns ? { "data-columns": attrs.columns } : {}),
       },
     }),
     parseHTML: () => byNodeType("gridTable"),

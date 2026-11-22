@@ -133,7 +133,7 @@ export function planWhiteboardChange(
     let type = currentType;
     if (patch.type !== undefined && patch.type !== currentType) {
       if (typeof patch.type !== "string" || !isShapeType(patch.type) || !isShapeType(currentType)) {
-        return fail(`${where}: only a sticky note, rectangle, ellipse, diamond or text can change its type, into another of those.`);
+        return fail(`${where}: only a sticky note, rectangle, ellipse, diamond, hexagon or text can change its type, into another of those.`);
       }
       type = patch.type;
     }

@@ -17,13 +17,13 @@ export default async function AdminPasswordResetPage({ params }: PageProps<"/adm
   const { userId } = await params;
   const found = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, emailEnc: true, name: true, siteRole: true, disabledAt: true },
+    select: { id: true, emailEnc: true, name: true, siteRole: true, oidcSubject: true, disabledAt: true },
   });
   const user = found && (await withEmail(found));
   if (!user || user.id === session.userId) notFound();
   const [mailConfigured, passwordAllowed, t] = await Promise.all([
     isMailConfigured(),
-    passwordLoginAllowed(user.siteRole),
+    passwordLoginAllowed(user),
     getTranslations("admin.passwordReset"),
   ]);
 

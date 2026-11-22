@@ -2,6 +2,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { type EditorState, Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { parseSummary, serializeSummary } from "./grid-summary";
+import { moveColumnRule } from "./grid-types";
 import { gridWidths } from "./grid-table-config";
 import { copyTable } from "@/lib/clipboard-table";
 
@@ -77,7 +78,8 @@ export function clearColumn(view: EditorView, column: SelectedColumn, newId: () 
   view.dispatch(tr.setMeta(columnKey, column));
 }
 
-// The column moved to `to` (its index once moved), with its width and summary.
+// The column moved to `to` (its index once moved), with its width, summary
+// and input rule.
 export function moveColumn(view: EditorView, tablePos: number, from: number, to: number) {
   const { state } = view;
   const table = tableAt(state, tablePos);
@@ -99,6 +101,7 @@ export function moveColumn(view: EditorView, tablePos: number, from: number, to:
   const attrs: Record<string, unknown> = { ...table.attrs, widths: JSON.stringify(reorder(gridWidths(table.attrs.widths, columns))) };
   const summary = parseSummary(table.attrs.summary, columns);
   if (summary) attrs.summary = serializeSummary(reorder(summary));
+  if (table.attrs.columns) attrs.columns = moveColumnRule(table.attrs.columns, columns, from, to);
   const tr = state.tr.replaceWith(tablePos, tablePos + table.nodeSize, table.type.create(attrs, rows));
   tr.setSelection(TextSelection.near(tr.doc.resolve(tablePos + 1)));
   view.dispatch(tr.setMeta(columnKey, { tablePos, col: to }));

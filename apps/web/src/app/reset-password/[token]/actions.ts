@@ -27,7 +27,7 @@ export async function resetPassword(_prev: ResetPasswordState, formData: FormDat
   const reset = await findValidPasswordReset(token);
   if (!reset) return { error: t("resetPassword.errors.unavailable") };
   // SSO-only sites: a password would be useless (and an unused way in).
-  if (!(await passwordLoginAllowed(reset.user.siteRole))) {
+  if (!(await passwordLoginAllowed(reset.user))) {
     return { error: t("common.errors.ssoOnly") };
   }
   if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {

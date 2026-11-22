@@ -9,12 +9,19 @@
   color: #fff;
   vertical-align: middle;
   user-select: none;
-  background: var(--avatar-color);
+  background-color: var(--color-border);
+  background-position: center;
+  background-size: cover;
   border-radius: 50%;
 }
 
+/* The initial on the mosaic: white, outlined in a deep shade of its color
+   (--avatar-outline) so it reads on the light shades too. */
 .avatar[data-initial]::before {
   content: attr(data-initial);
+  font-weight: 700;
+  -webkit-text-stroke: 0.14em var(--avatar-outline, #1f2328);
+  paint-order: stroke fill;
 }
 
 .avatar[data-image] {

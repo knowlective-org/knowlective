@@ -1,6 +1,7 @@
 "use server";
 
-import { avatarUrls } from "@/lib/avatar";
+import { avatarLooks } from "@/lib/avatar";
+import type { AvatarLook } from "@/lib/avatar-check";
 import { getTranslations } from "next-intl/server";
 import { canEditPage, loadDataKey } from "shared";
 import { getPageAccess } from "@/lib/page-access";
@@ -138,7 +139,7 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
     names = new Map([...people, ...authors]);
   }
   // Pictures by the authors' names (not for someone not logged in, as their names aren't).
-  const avatars = user ? await avatarUrls(rows.flatMap((r) => (r.authorId ? [r.authorId] : []))) : new Map<string, string>();
+  const avatars = user ? await avatarLooks(rows.flatMap((r) => (r.authorId ? [r.authorId] : []))) : new Map<string, AvatarLook>();
   const tChat = await getTranslations("editor.chat");
   const unknown = tChat("unknownUser");
   // "@everyone" isn't anyone's name: shown to all, signed in or not.
@@ -174,7 +175,7 @@ export async function loadChat(pageId: string, blockId: string): Promise<ChatDat
         author: authorName(r.authorId),
         authorId: user ? r.authorId : null,
         avatar: (user && r.authorId && avatars.get(r.authorId)) || null,
-        color: user && r.authorId ? cursorColorFor(r.authorId) : null,
+        color: user && r.authorId ? (avatars.get(r.authorId)?.color ?? cursorColorFor(r.authorId)) : null,
         createdAt: r.createdAt.toISOString(),
         editedAt: r.editedAt?.toISOString() ?? null,
         deleted: r.deletedAt !== null,

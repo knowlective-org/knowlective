@@ -9,6 +9,7 @@ import type { NotificationKind } from "@/lib/notification-prefs";
 
 const LIST_SIZE = 100;
 const excerptAad = (id: string) => `knowlective:notification:${id}`;
+const viaAad = (id: string) => `knowlective:notification-via:${id}`;
 
 export type NotificationView = {
   id: string;
@@ -18,6 +19,8 @@ export type NotificationView = {
   // null: not someone's doing (a TODO past its date).
   actor: string | null;
   excerpt: string | null;
+  // A message's sender app or API key, by name (lib/page-message.ts).
+  via: string | null;
   createdAt: string;
   read: boolean;
 };
@@ -54,6 +57,7 @@ export async function listNotifications(userId: string): Promise<NotificationVie
       pageTitle,
       actor: row.actor ? await displayName(row.actor) : row.actorId ? "" : null,
       excerpt: row.excerptEnc ? decrypt(key, row.excerptEnc, excerptAad(row.id)).toString("utf8") : null,
+      via: row.viaEnc ? decrypt(key, row.viaEnc, viaAad(row.id)).toString("utf8") : null,
       createdAt: row.createdAt.toISOString(),
       read: row.readAt !== null,
     });

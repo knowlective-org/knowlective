@@ -316,7 +316,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     "send_notification",
     {
       title: "Send a notification",
-      description: `Sends people a notification about a page, from you, with a text of up to ${MAX_MESSAGE_LENGTH} characters (its http(s) URLs become links; plain text, not Markdown). They see it in their notifications (and on their devices, if they turned that on), and it opens the page. The people must be among list_page_people's. Needs edit access to the page.`,
+      description: `Sends people a notification about a page, from you, with a text of up to ${MAX_MESSAGE_LENGTH} characters (its http(s) URLs become links; plain text, not Markdown). They see it in their notifications (and on their devices, if they turned that on), and it opens the page. The people must be among list_page_people's; you may include yourself (to tell yourself something is done). They see the name of this app (or API key) as what sent it. Needs edit access to the page.`,
       inputSchema: z.object({
         pageId,
         userIds: z.array(z.string().min(1).max(64)).min(1).max(MAX_MESSAGE_RECIPIENTS),
@@ -325,7 +325,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async ({ pageId: id, userIds, text }) => {
-      const result = await sendPageMessage(userId, id, userIds, text);
+      const result = await sendPageMessage(userId, caller.credentialId, id, userIds, text);
       if ("error" in result) {
         const e = result.error;
         switch (e.code) {
@@ -465,7 +465,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
       title: "Edit a whiteboard",
       description: [
         "Adds, changes and removes a whiteboard's items at once (get_page shows them). Items:",
-        "- boxes: { type: sticky | rect | ellipse | diamond | text, x, y, w, h, text, color }; color: yellow, orange, pink, purple, blue, green, gray, white, transparent",
+        "- boxes: { type: sticky | rect | ellipse | diamond | hexagon | text, x, y, w, h, text, color }; color: yellow, orange, pink, purple, blue, green, gray, white, transparent",
         "- connectors between boxes: { type: connector, from, to, text, arrows: end | both | start | none, route: straight | elbow, stroke: solid | bold | dashed | double }",
         "- lines: { type: line, x1, y1, x2, y2, arrows, stroke }",
         "Texts may have styles on parts of them (textMarks, startTextMarks, endTextMarks: ranges of the text that are bold, italic, underlined, struck through or colored); they're shown by get_page but can't be written here, and writing a text takes its styles away.",

@@ -8,13 +8,13 @@ import type { SidebarInfo } from "@/app/(app)/pages/[pageId]/page-view";
 import { orderRoots } from "@/lib/root-order";
 import { resolveShortcuts } from "@/lib/shortcuts";
 import { rootFaviconUrls } from "@/lib/root-favicon";
-import { avatarUrl } from "@/lib/avatar-check";
+import { avatarLook } from "@/lib/avatar-check";
 
 // Everything the sidebar needs for a signed-in user.
 export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
   const [visible, prefs, brand, unread, publicIds] = await Promise.all([
     getVisibleTrees(prisma, user.id),
-    prisma.user.findUnique({ where: { id: user.id }, select: { rootOrder: true, sidebarChildLimit: true, avatarUpdatedAt: true } }),
+    prisma.user.findUnique({ where: { id: user.id }, select: { rootOrder: true, sidebarChildLimit: true, avatarUpdatedAt: true, avatarColor: true, avatarSeed: true } }),
     getBrand(),
     unreadNotificationPages(user.id),
     publicPageIds(),
@@ -30,7 +30,7 @@ export async function loadSidebar(user: CurrentUser): Promise<SidebarInfo> {
     maxDepth: MAX_PAGE_DEPTH,
     userName: user.name ?? user.email,
     userId: user.id,
-    userAvatar: avatarUrl(user.id, prefs?.avatarUpdatedAt),
+    userAvatar: avatarLook({ id: user.id, ...prefs }),
     canCreateRoot: isManager,
     canOpenAdmin: isManager,
     guest: false,

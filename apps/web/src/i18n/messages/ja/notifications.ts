@@ -9,6 +9,8 @@ const ja: MessageShape<typeof en> = {
     markAllRead: "すべて既読にする",
     unread: "未読",
     someone: "誰か",
+    // A message's sender and what sent it (an app or an API key).
+    actorVia: "{actor}（{via}）",
     kind: {
       CHAT_MESSAGE: "{actor}さんが「{page}」のチャットに投稿しました",
       TODO_ASSIGNED: "{actor}さんが「{page}」であなたに TODO を割り当てました",

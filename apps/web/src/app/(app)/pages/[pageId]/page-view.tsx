@@ -1,5 +1,6 @@
 "use client";
 
+import type { AvatarLook } from "@/lib/avatar-check";
 import Link from "next/link";
 import type { Brand } from "@/lib/brand";
 import { useFormatter, useTranslations } from "next-intl";
@@ -32,7 +33,7 @@ export type SidebarInfo = {
   childLimit: number | null;
   // The user's id and picture (lib/avatar.ts), by their name; none for someone not logged in.
   userId?: string;
-  userAvatar?: string | null;
+  userAvatar?: AvatarLook | null;
 };
 
 // The page screen: sidebar with every visible knowledge root on the left,

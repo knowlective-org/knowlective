@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Avatar } from "@/components/avatar";
 import { StatusRow } from "@/components/status-row";
-import { AVATAR_SIZE } from "@/lib/avatar-check";
+import { AVATAR_SIZE, type AvatarLook } from "@/lib/avatar-check";
+import { AVATAR_COLOR_PRESETS } from "@/lib/avatar-mosaic";
+import { cursorColorFor } from "@/lib/cursor-color";
 import styles from "@/styles/ui.module.css";
-import { removeAvatar, saveAvatar } from "./avatar-actions";
+import avatarStyles from "./avatar-section.module.css";
+import { newAvatarPattern, removeAvatar, saveAvatar, saveAvatarColor } from "./avatar-actions";
 
 // Made in the browser: the middle square of the chosen picture, at
 // AVATAR_SIZE (WebP where the browser can write it, else PNG). Null: not a
@@ -34,14 +37,28 @@ async function squareOf(file: File): Promise<Blob | null> {
 }
 
 // The user's own picture on the account screen: chosen from a file, or
-// taken away (their initial is shown instead).
-export function AvatarSection({ userId, name, url }: { userId: string; name: string | null; url: string | null }) {
+// taken away. Without one, a mosaic with their initial: its color (any, or
+// a suggested one) and another pattern can be chosen here.
+export function AvatarSection({ userId, name, look }: { userId: string; name: string | null; look: AvatarLook }) {
+  const url = look.url;
   const t = useTranslations("account.avatar");
   const tc = useTranslations("common");
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
+  // The color being picked, shown before it's saved.
+  const [picking, setPicking] = useState<string | null>(null);
+  const color = picking ?? look.color ?? cursorColorFor(userId);
+
+  const run = (action: () => Promise<{ error?: string }>) =>
+    startTransition(async () => {
+      setMessage(null);
+      const result = await action().catch(() => ({ error: t("notSaved") }));
+      setMessage(result.error ? { error: true, text: result.error } : { error: false, text: tc("saved") });
+      setPicking(null);
+      router.refresh();
+    });
 
   const choose = (file: File) =>
     startTransition(async () => {
@@ -68,9 +85,49 @@ export function AvatarSection({ userId, name, url }: { userId: string; name: str
 
   return (
     <div data-ui="AvatarSection" style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
-      <Avatar userId={userId} name={name} url={url} size={64} />
+      <Avatar userId={userId} name={name} look={{ ...look, color }} size={64} />
       <div style={{ flex: 1 }}>
         <div className={styles.note}>{t("note")}</div>
+        {!url && (
+          <div className={avatarStyles.mosaic} role="group" aria-label={t("mosaicColor")}>
+            <span className={avatarStyles.label}>{t("mosaicColor")}</span>
+            {AVATAR_COLOR_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className={avatarStyles.swatch}
+                style={{ background: preset }}
+                aria-label={preset}
+                title={preset}
+                aria-pressed={color === preset}
+                disabled={pending}
+                onClick={() => run(() => saveAvatarColor(preset))}
+                data-ui="AvatarSection.colorPresetButton"
+                data-id={preset}
+              />
+            ))}
+            <input
+              type="color"
+              className={avatarStyles.picker}
+              value={color}
+              aria-label={t("otherColor")}
+              title={t("otherColor")}
+              disabled={pending}
+              // Shown while picking; saved when the picker is closed.
+              onInput={(e) => setPicking(e.currentTarget.value)}
+              onChange={(e) => run(() => saveAvatarColor(e.target.value))}
+              data-ui="AvatarSection.colorInput"
+            />
+            <button type="button" className={styles.buttonSecondary} disabled={pending} onClick={() => run(newAvatarPattern)} data-ui="AvatarSection.patternButton">
+              {t("anotherPattern")}
+            </button>
+            {look.color && (
+              <button type="button" className={styles.buttonSecondary} disabled={pending} onClick={() => run(() => saveAvatarColor(null))} data-ui="AvatarSection.resetColorButton">
+                {t("resetColor")}
+              </button>
+            )}
+          </div>
+        )}
         <input
           ref={input}
           type="file"

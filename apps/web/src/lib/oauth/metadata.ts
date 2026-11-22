@@ -1,4 +1,4 @@
-import { getPublicUrl } from "@/lib/site-url";
+import { getPublicUrl, publicUrlConfigured } from "@/lib/site-url";
 import { OAUTH_SCOPES } from "./params";
 
 // Where an MCP client discovers how to connect (lib/oauth/):
@@ -64,3 +64,13 @@ export const PUBLIC_CORS = {
   "Access-Control-Allow-Headers": "Authorization, Content-Type, MCP-Protocol-Version",
   "Access-Control-Max-Age": "86400",
 };
+
+// How long the documents may be kept. Without a public URL set, they are built
+// from the request's origin (getPublicUrl()), which the client chooses: kept
+// by no one, or a shared cache could hand one built for a forged Host to
+// everyone else.
+export async function metadataCacheHeaders(): Promise<Record<string, string>> {
+  return (await publicUrlConfigured())
+    ? { "Cache-Control": "max-age=3600" }
+    : { "Cache-Control": "no-store", Vary: "Host, X-Forwarded-Host, X-Forwarded-Proto" };
+}

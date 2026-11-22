@@ -39,6 +39,13 @@
   --color-wb-text-purple: #6d28d9;
   --color-wb-text-pink: #a3195b;
   --color-wb-text-gray: #4b5563;
+  /* Highlights (lib/whiteboard-marks.ts HIGHLIGHT_COLORS): stronger than the
+     item colors, with the ink and every text color at 4.5:1 or more. */
+  --color-wb-mark-yellow: #ffe14d;
+  --color-wb-mark-green: #a6eb8f;
+  --color-wb-mark-blue: #b5d8ff;
+  --color-wb-mark-pink: #ffc2ea;
+  --color-wb-mark-orange: #ffcb8a;
 }
 
 html {
@@ -182,6 +189,113 @@ a {
 
 .bn-root .kn-grid-cell-content {
   min-width: 0;
+}
+
+/* A typed column's cell (components/editor/grid-values.ts): its control in
+   place of its blocks (a person's cell shows its mention beside it). */
+.bn-root .kn-grid-cell[data-col-type]:not([data-col-type="user"]) > .kn-grid-cell-content {
+  display: none;
+}
+
+.bn-root .kn-grid-cell[data-col-type="user"] {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.bn-root .kn-grid-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 1.6em;
+}
+
+.bn-root .kn-grid-value-input {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.bn-root .kn-grid-value-input:hover:not(:disabled),
+.bn-root .kn-grid-value-input:focus {
+  border-color: var(--color-border-strong);
+  outline: none;
+}
+
+.bn-root .kn-grid-value-input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.bn-root .kn-grid-value[data-grid-value="number"] .kn-grid-value-input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bn-root .kn-grid-value-check {
+  width: 16px;
+  height: 16px;
+}
+
+.bn-root .kn-grid-chips,
+.bn-root .kn-grid-user-button,
+.bn-root .kn-grid-masked {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-height: 1.6em;
+  padding: 2px 4px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.bn-root .kn-grid-chips {
+  width: 100%;
+}
+
+.bn-root .kn-grid-chips:hover:not(:disabled),
+.bn-root .kn-grid-user-button:hover:not(:disabled),
+.bn-root .kn-grid-masked:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+.bn-root .kn-grid-chips:disabled,
+.bn-root .kn-grid-user-button:disabled {
+  cursor: default;
+}
+
+.bn-root .kn-grid-user-button:disabled {
+  display: none;
+}
+
+.bn-root .kn-grid-chip {
+  padding: 0 8px;
+  font-size: 0.9em;
+  color: #1f2328;
+  border-radius: 999px;
+}
+
+.bn-root .kn-grid-chip-empty {
+  color: var(--color-muted);
+}
+
+.bn-root .kn-grid-invalid {
+  font-size: 0.85em;
+  color: var(--color-danger);
+  overflow-wrap: anywhere;
 }
 
 .bn-root .kn-grid-table[data-header-row="true"] > .kn-grid-scroll > .kn-grid-body > .kn-grid-row:first-child > .kn-grid-cell,
@@ -836,4 +950,13 @@ a {
 ::highlight(knowlective-file-path) {
   background-color: var(--color-primary-light);
   text-decoration: underline dotted;
+}
+
+/* Other people's cursor labels: their avatar, then their name, in their
+   avatar color (components/collaborative-editor.tsx renderCursorWithLabel). */
+.bn-collaboration-cursor__base[data-active] .bn-collaboration-cursor__label {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  padding: 1px 5px 1px 2px;
 }

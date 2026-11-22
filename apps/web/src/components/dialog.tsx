@@ -27,6 +27,7 @@ type Request =
     })
   | (Base & { kind: "copy"; value: string; resolve: () => void })
   | (Base & { kind: "choice"; choices: Choice[]; resolve: (value: string | null) => void })
+  | (Base & { kind: "prompt"; confirmLabel: string; value: string; maxLength: number; resolve: (value: string | null) => void })
   | (Base & {
       kind: "passphrase";
       confirmLabel: string;
@@ -119,6 +120,25 @@ export function showChoice<T extends string>(
   );
 }
 
+// A line of text (window.prompt), starting from `value`; null for cancel.
+// OK needs something other than spaces.
+export function showPrompt(
+  message: string,
+  options: { title?: string; confirmLabel?: string; value?: string; maxLength?: number } = {},
+): Promise<string | null> {
+  return new Promise((resolve) =>
+    enqueue({
+      kind: "prompt",
+      message,
+      title: options.title,
+      confirmLabel: options.confirmLabel ?? "OK",
+      value: options.value ?? "",
+      maxLength: options.maxLength ?? 200,
+      resolve,
+    }),
+  );
+}
+
 // A passphrase, typed into a password field (and again, when `repeat`, for
 // choosing a new one), or null for cancel. It's only handed back: the caller
 // keeps it in memory, and never sends it anywhere. `check` runs with the
@@ -198,12 +218,14 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
   const [copied, setCopied] = useState<boolean | null>(null);
   // For a passphrase: the field(s).
   const [secret, setSecret] = useState({ value: "", again: "" });
+  // For a prompt: the text.
+  const [line, setLine] = useState(request.kind === "prompt" ? request.value : "");
   // For a passphrase with a check: running it / what it said was wrong.
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState("");
   const secretReady =
-    request.kind !== "passphrase" ||
-    (!checking && secret.value !== "" && (!request.repeat || secret.value === secret.again));
+    (request.kind !== "passphrase" || (!checking && secret.value !== "" && (!request.repeat || secret.value === secret.again))) &&
+    (request.kind !== "prompt" || line.trim() !== "");
   const t = useTranslations();
   const copy = async (input: HTMLInputElement | null) => {
     if (request.kind !== "copy") return;
@@ -249,6 +271,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
     if (request.kind === "confirm") request.resolve(ok);
     else if (request.kind === "choice") request.resolve(choice);
     else if (request.kind === "passphrase") request.resolve(ok ? secret.value : null);
+    else if (request.kind === "prompt") request.resolve(ok ? line : null);
     else request.resolve();
     onDone();
   };
@@ -350,6 +373,27 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
             />
           </label>
         )}
+        {request.kind === "prompt" && (
+          <div className={styles.secretFields}>
+            <input
+              className={ui.field}
+              data-ui="AppDialog.textInput"
+              aria-label={request.message}
+              value={line}
+              maxLength={request.maxLength}
+              onChange={(e) => setLine(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing && secretReady) {
+                  // (As in the code field above.)
+                  e.preventDefault();
+                  void finish(true);
+                }
+              }}
+              autoFocus
+              autoComplete="off"
+            />
+          </div>
+        )}
         {request.kind === "passphrase" && (
           <div className={styles.secretFields}>
             <input
@@ -408,7 +452,7 @@ function AppDialog({ request, onDone }: { request: Request; onDone: () => void }
           </div>
         )}
         <div className={styles.actions}>
-          {request.kind === "confirm" || request.kind === "passphrase" ? (
+          {request.kind === "confirm" || request.kind === "passphrase" || request.kind === "prompt" ? (
             <>
               <button
                 type="button"

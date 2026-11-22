@@ -190,7 +190,7 @@ function Todo({
       <div className={styles.text} ref={contentRef} />
       <div className={styles.meta} contentEditable={false}>
         {editable && assignee && people && (
-          <Avatar userId={assignee} name={assigneeName} url={people.find((p) => p.id === assignee)?.avatar} size={18} />
+          <Avatar userId={assignee} name={assigneeName} look={people.find((p) => p.id === assignee)?.avatar} size={18} />
         )}
         {editable ? (
           <select
@@ -212,7 +212,7 @@ function Todo({
         ) : (
           assigneeName && (
             <span className={styles.chip} data-ui="TodoBlock.assignee">
-              <Avatar userId={assignee} name={assigneeName} url={people?.find((p) => p.id === assignee)?.avatar} size={16} />
+              <Avatar userId={assignee} name={assigneeName} look={people?.find((p) => p.id === assignee)?.avatar} size={16} />
               {t("assignedTo", { name: assigneeName })}
             </span>
           )

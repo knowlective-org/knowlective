@@ -10,7 +10,7 @@ import { COLLAB_CLIENT_VERSION } from "../src/lib/collab-version";
 // record the new outline and version below.
 //   pnpm --filter web test:unit
 
-const RECORDED_VERSION = 11;
+const RECORDED_VERSION = 13;
 const RECORDED = [
   "mark backgroundColor(stringValue)",
   "mark bold()",
@@ -38,7 +38,7 @@ const RECORDED = [
   "node file(backgroundColor,caption,name,url)",
   "node gridCell(id)",
   "node gridRow(id)",
-  "node gridTable(headerColumn,headerRow,id,summary,widths)",
+  "node gridTable(columns,headerColumn,headerRow,id,summary,widths)",
   "node hardBreak()",
   "node heading(backgroundColor,isToggleable,level,textAlignment,textColor)",
   "node image(backgroundColor,caption,name,previewWidth,showPreview,textAlignment,url)",

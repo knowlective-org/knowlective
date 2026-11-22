@@ -1,6 +1,8 @@
 // What the chat block (browser) and its Server Actions share about messages
 // (lib/chat.ts). Keep dependency-free: the block is client code.
 
+import type { AvatarLook } from "./avatar-check";
+
 export const MAX_CHAT_MESSAGE_LENGTH = 4000;
 // The latest this many are shown.
 export const CHAT_HISTORY = 300;
@@ -96,7 +98,7 @@ export type ChatMessageView = {
   author: string | null;
   // Its author's id and picture (lib/avatar.ts); null for someone not logged in.
   authorId: string | null;
-  avatar: string | null;
+  avatar: AvatarLook | null;
   color: string | null;
   createdAt: string;
   // When its author last changed it; null if never.

@@ -10,6 +10,16 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Extended tables' columns can have an input rule, as child page tables have: number (shown with thousands separators and a set number of decimals), date, option (one or several, with colors), checkbox, person, or masked with the column's passphrase. A typed column's cells hold its value only, put in with a control, and stay text for search, exports and the summary row. Changing a column's type turns its cells into values, asking before emptying those that can't be. Masked values are sealed in the browser and left out of search and exports
+
+- Other people's cursors (in documents and on whiteboards) show their avatar and name on a badge in their avatar color, the name in a light shade of it on a dark color and a deep one on a light color. Chat names take the same color
+
+- Without a picture, a person's avatar is a mosaic of triangles in shades of one color, with their initial on it (as written: upper or lower case). The color (a suggested one or any other) and another pattern can be chosen on the account screen; until then, their cursor's color is used
+
+- Whiteboard text can be highlighted, in yellow, green, blue, pink or orange: from the highlight button of the bar above the selection (for the selected words while typing, or the whole text of the selected items), or Ctrl/⌘+Shift+H for yellow (again takes it off). Shown in PNG and SVG exports too
+
+- Whiteboards have hexagons (the hexagon tool, X): level top and bottom, corners at the middle of the left and right, every inner angle 120°. Their width and height can be anything but taller than a regular hexagon (Shift: a regular one). Connectors meet them at a corner or the middle of a side (elbow connectors: the left and right corners and the middles of the top and bottom)
+
 - People can set a picture of themselves on the account screen (made a small square in the browser; PNG, JPEG or WebP). It's shown by their name: at the bottom of the sidebar, on their chat messages, in the "@" menus, as a TODO's assignee and in the admin console's user list. Without one, the first letter of their name is shown. Like names, only to people who are logged in
 
 - Review chats beside the page, like comments: "Start a chat" in a top-level block's ⋮⋮ menu opens a chat about that block in a pane on the right, which stays in view as the page scrolls. Blocks with a chat show a mark with the number of messages; a chat can be resolved (the mark goes) and reopened, and a new message reopens it. They aren't part of the page: not printed, exported or searched. Anyone who can open the page reads them; those who can edit it post and resolve. Everything a chat block has works in them (replies, reactions, mentions, files, notifications)
@@ -18,7 +28,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 - The API and MCP can read a page's child pages with their properties (the values in its child page table's columns): `GET /api/v1/pages/<id>/children` (all columns, or `?property=<name>` for some) and the MCP tool `get_child_properties`
 
-- The API and MCP can send people a notification about a page, with a text of up to 2,000 characters whose links work: `POST /api/v1/pages/<id>/notifications` and the MCP tool `send_notification`. Only to people who can open the page (`GET /api/v1/pages/<id>/people`, MCP `list_page_people`), by someone who can edit it. They appear in the notification list (a new kind, "messages", that can be turned off on the account screen) and as desktop notifications
+- The API and MCP can send people a notification about a page, with a text of up to 2,000 characters whose links work: `POST /api/v1/pages/<id>/notifications` and the MCP tool `send_notification`. Only to people who can open the page (`GET /api/v1/pages/<id>/people`, MCP `list_page_people`), by someone who can edit it. They appear in the notification list (a new kind, "messages", that can be turned off on the account screen) and as desktop notifications. The sender may send one to themselves (a script or an AI app telling its owner it's done), and the notification names what sent it: the connected app, or the API key
 
 - MCP can rename pages (`rename_page`), as the API's `PATCH /api/v1/pages/<id>` already could
 
@@ -33,6 +43,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - Site admins can change another user's email address from the admin console (the user list's "⋯" menu): a code is mailed to the new address, and the address changes when the user signs in and enters it on their account screen. The user can turn it down, and the admin can cancel it. Needs mail sending to be set up
 
 ### Changed
+
+- A click in a child page list, table, board or calendar, a chat, an embedded whiteboard (and the other blocks of their own like them) is for what was clicked: the editor no longer selects the whole block first. Such a block is selected, moved or deleted with its ⋮⋮ handle
+
+- The whiteboard's toolbar has one button for the shapes drawn by dragging (rectangle, ellipse, diamond, hexagon): it draws the last one chosen, and its corner mark opens the others. Their keys (R, O, D, X) still work and change the button too
 
 - The product's name is written in lower case, "knowlective", everywhere: the default site name (and "powered by knowlective"), screen titles, emails, the admin console, the authenticator app and passkey names given to new registrations, and the documentation. A site name or email sender name still set to the old default "KNOWLECTIVE" is changed to it; one set to anything else stays as it is. Environment variable names (`KNOWLECTIVE_…`) don't change
 
@@ -59,6 +73,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - The whiteboard's selection bar shows one button for the shape, with the shapes in its menu, so the bar fits on one row with the new text buttons
 
 ### Fixed
+
+- A new whiteboard shape's placeholder ("Type here") was cut off at the bottom
 
 - Security: the `effect` package that Prisma's configuration uses is raised to 3.22.4, fixing a ReDoS (GHSA-7589-6fvf-x4pw)
 

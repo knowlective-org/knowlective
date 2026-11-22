@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar } from "./avatar";
+import type { AvatarLook } from "@/lib/avatar-check";
 import Link from "next/link";
 import { withBasePath } from "@/lib/base-path";
 import { usePathname, useRouter } from "next/navigation";
@@ -59,7 +60,7 @@ export function Sidebar({
   maxDepth: number;
   userName: string;
   userId?: string;
-  userAvatar?: string | null;
+  userAvatar?: AvatarLook | null;
   canCreateRoot: boolean;
   canOpenAdmin: boolean;
   // Someone not logged in, viewing public pages: no search, no account links.
@@ -232,7 +233,7 @@ export function Sidebar({
       ) : (
       <div className={styles.footer}>
         <span className={styles.user} title={userName} data-ui="Sidebar.user">
-          {userId && <Avatar userId={userId} name={userName} url={userAvatar} size={22} />}
+          {userId && <Avatar userId={userId} name={userName} look={userAvatar} size={22} />}
           <span className={styles.userName}>{userName}</span>
         </span>
         <Link

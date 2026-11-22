@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { isLocale } from "@/i18n/locales";
 import { prisma } from "@/lib/db";
 import { ownPasswordResetAvailability } from "@/lib/auth/own-password-reset";
+import { signsInThroughIdpOnly } from "@/lib/auth/oidc";
 import { PASSWORD_RESET_TTL_MINUTES } from "@/lib/auth/password-reset";
 import { canIssueApiKeys, getApiSettings, listApiKeys } from "@/lib/api/keys";
 import { listPasskeys, passkeyRequiredSetting } from "@/lib/auth/passkeys";
@@ -18,7 +19,7 @@ import styles from "@/styles/ui.module.css";
 import { LocaleForm } from "./locale-form";
 import { SidebarForm } from "./sidebar-form";
 import { AvatarSection } from "./avatar-section";
-import { avatarUrl } from "@/lib/avatar-check";
+import { avatarLook } from "@/lib/avatar-check";
 import { ApiKeySection } from "./api-key-section";
 import { McpSection } from "./mcp-section";
 import { listGrants, oauthAllowedFor } from "@/lib/oauth/tokens";
@@ -39,11 +40,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AccountPage() {
   await connection();
   const user = await requireUser("/account");
-  const [sidebar, reset, t, { locale, notificationPrefs, sidebarChildLimit, avatarUpdatedAt }, passkeys, passkeyRequired, session] = await Promise.all([
+  const [sidebar, reset, t, { siteRole, oidcSubject, locale, notificationPrefs, sidebarChildLimit, avatarUpdatedAt, avatarColor, avatarSeed }, passkeys, passkeyRequired, session] = await Promise.all([
     loadSidebar(user),
     ownPasswordResetAvailability(user.id),
     getTranslations(),
-    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { locale: true, notificationPrefs: true, sidebarChildLimit: true, avatarUpdatedAt: true } }),
+    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { siteRole: true, oidcSubject: true, locale: true, notificationPrefs: true, sidebarChildLimit: true, avatarUpdatedAt: true, avatarColor: true, avatarSeed: true } }),
     listPasskeys(user.id),
     passkeyRequiredSetting(),
     getSessionUser(),
@@ -68,7 +69,7 @@ export default async function AccountPage() {
 
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>{t("account.details")}</h2>
-          <AvatarSection userId={user.id} name={user.name} url={avatarUrl(user.id, avatarUpdatedAt)} />
+          <AvatarSection userId={user.id} name={user.name} look={avatarLook({ id: user.id, avatarUpdatedAt, avatarColor, avatarSeed })} />
           <ProfileSection
             name={user.name}
             email={user.email}
@@ -114,6 +115,7 @@ export default async function AccountPage() {
               lastUsedAt: p.lastUsedAt?.toISOString() ?? null,
             }))}
             required={passkeyRequired && !session?.passkeyExempt}
+            idpOnly={signsInThroughIdpOnly({ siteRole, oidcSubject })}
           />
         </section>
 

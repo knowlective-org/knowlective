@@ -1,4 +1,5 @@
-import { atLeast } from "shared";
+import { atLeast, decrypt, loadDataKey } from "shared";
+import { apiKeyNameAad } from "@/lib/api/keys";
 import { prisma } from "@/lib/db";
 import { getPageAccess } from "@/lib/page-access";
 import { pagePeople } from "@/lib/page-people";
@@ -15,7 +16,11 @@ import { MAX_MESSAGE_LENGTH, MAX_MESSAGE_RECIPIENTS } from "@/lib/page-message-t
 // Like a mention: the sender needs edit access to the page (not a lock: a
 // message doesn't change it), and each recipient must be someone the page
 // offers to mention (lib/page-people.ts: can open it, has a name). The
-// recipients' own settings decide whether they're told.
+// recipients' own settings decide whether they're told. Unlike the other
+// notifications, the sender may be among them (an AI app or a script
+// telling its owner it's done). What sent it is kept with it, by name: the
+// app connected with OAuth, or the API key (`credentialId`, as the MCP
+// server's "grant:<id>" / "key:<id>").
 
 export type MessageError =
   | { code: "not_found" }
@@ -27,8 +32,24 @@ export type MessageError =
 // Messages per sender (each one counted once, whoever it goes to).
 const sendLimit = createRateLimiter(60_000, 20);
 
+// The name of what a message is sent with, as the person sees it on their
+// account screen; null if it's gone.
+async function credentialName(credentialId: string): Promise<string | null> {
+  const [kind, id] = [credentialId.slice(0, credentialId.indexOf(":")), credentialId.slice(credentialId.indexOf(":") + 1)];
+  if (kind === "key") {
+    const key = await prisma.apiKey.findUnique({ where: { id }, select: { nameEnc: true } });
+    return key ? decrypt(await loadDataKey(prisma), key.nameEnc, apiKeyNameAad(id)).toString("utf8").slice(0, 100) : null;
+  }
+  if (kind === "grant") {
+    const grant = await prisma.oAuthGrant.findUnique({ where: { id }, select: { client: { select: { name: true } } } });
+    return grant?.client.name.slice(0, 100) ?? null;
+  }
+  return null;
+}
+
 export async function sendPageMessage(
   senderId: string,
+  credentialId: string,
   pageId: string,
   userIds: unknown,
   text: unknown,
@@ -55,6 +76,6 @@ export async function sendPageMessage(
   if (unknown.length > 0) return { error: { code: "unknown_recipients", userIds: unknown } };
   const retryAfter = sendLimit(senderId);
   if (retryAfter !== null) return { error: { code: "too_many", retryAfter } };
-  await notifyMessageSent({ pageId, actorId: senderId, recipientIds: ids, text });
-  return { recipients: ids.filter((id) => id !== senderId).length };
+  await notifyMessageSent({ pageId, actorId: senderId, recipientIds: ids, text, via: await credentialName(credentialId) });
+  return { recipients: ids.length };
 }

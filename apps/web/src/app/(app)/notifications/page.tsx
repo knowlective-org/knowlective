@@ -53,7 +53,10 @@ export default async function NotificationsPage() {
               const heading = (
                 <span className={styles.text}>
                   {!item.read && <span className={styles.dot} aria-label={t("unread")} />}
-                  {t(`kind.${item.kind}`, { actor: item.actor || t("someone"), page: displayTitle(item.pageTitle) })}
+                  {t(`kind.${item.kind}`, {
+                    actor: item.via ? t("actorVia", { actor: item.actor || t("someone"), via: item.via }) : item.actor || t("someone"),
+                    page: displayTitle(item.pageTitle),
+                  })}
                 </span>
               );
               const time = (

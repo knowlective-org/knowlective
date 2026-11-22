@@ -27,7 +27,7 @@ async function boardOf(userId: string, pageId: string) {
 }
 
 // GET: the board's items, back to front (lib/whiteboard.ts: boxes —
-// sticky, rect, ellipse, diamond, text, image —, connectors between boxes,
+// sticky, rect, ellipse, diamond, hexagon, text, image —, connectors between boxes,
 // and lines).
 export async function GET(request: Request, ctx: Context) {
   return withApiKey(request, "READ", async ({ user }) => {

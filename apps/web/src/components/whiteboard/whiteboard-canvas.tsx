@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   type CSSProperties,
+  Fragment,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -26,6 +27,7 @@ import {
   type ConnectorItem,
   DEFAULT_COLOR,
   DEFAULT_SIZE,
+  HEXAGON_RATIO,
   ITEM_COLORS,
   type ItemColor,
   type LineItem,
@@ -44,6 +46,8 @@ import {
   type Stroke,
   type TextField,
   type WhiteboardItem,
+  hexagonInset,
+  hexagonSize,
   isBox,
   isShapeType,
   readItem,
@@ -51,10 +55,11 @@ import {
   whiteboardMap,
 } from "@/lib/whiteboard";
 import {
+  HIGHLIGHT_COLORS,
   STYLE_FLAGS,
+  type StyleChange,
   type StyleFlag,
   TEXT_COLORS,
-  type TextColor,
   type TextMark,
   type TextStyle,
   applyStyle,
@@ -80,6 +85,7 @@ import {
   type Rect,
   boundsOf,
   connectorPoints,
+  hexagonPolygon,
   fitCamera,
   fractionAlong,
   hopCrossings,
@@ -100,7 +106,9 @@ import {
   zoomAt,
 } from "./geometry";
 import { parseRichTextAt, toggleList } from "./rich-text";
-import { TextEditor, type TextEditorHandle, textColorVar } from "./text-editor";
+import { Avatar } from "@/components/avatar";
+import { type CursorUser, badgeInk, readCursorUser } from "@/lib/avatar-mosaic";
+import { TextEditor, type TextEditorHandle, highlightVar, textColorVar } from "./text-editor";
 import { Icon, type IconName } from "@/components/icons";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 import { ALIGNMENTS, type Alignment, type Guide, align, distribute, snapMove, snapResize } from "./snap";
@@ -141,7 +149,7 @@ type Gesture =
   // A connector's end dragged to another box; `fixed` is the box at its other end.
   | { kind: "reconnect"; id: string; end: "from" | "to"; fixed: string }
   // A rectangle or ellipse being drawn: made once the pointer has moved.
-  | { kind: "draw"; type: "rect" | "ellipse" | "diamond"; start: Point; id: string | null }
+  | { kind: "draw"; type: "rect" | "ellipse" | "diamond" | "hexagon"; start: Point; id: string | null }
   // A box's text being moved (its offset from where it would be).
   | { kind: "moveText"; id: string; start: Point; origin: Point }
   // A line being drawn (likewise), or one of a line's ends dragged.
@@ -151,7 +159,7 @@ type Gesture =
 
 type LineEnds = { x1: number; y1: number; x2: number; y2: number };
 
-type RemoteCursor = { clientId: number; name: string; color: string; x: number; y: number };
+type RemoteCursor = { clientId: number; user: CursorUser | null; x: number; y: number };
 
 // Whether the connector links box `a` at side `aSide` to box `b` at side
 // `bSide`, either way round. Two boxes get one connector per pair of sides
@@ -252,6 +260,12 @@ function wheelZoomFactor(e: WheelEvent): number {
 // Connectors whose crossings are worked out (hops); more are drawn straight.
 const MAX_HOPPING_CONNECTORS = 300;
 
+// The shapes drawn by dragging: one button in the toolbar (the last one
+// used), the others in its menu.
+const DRAWN_SHAPES = ["rect", "ellipse", "diamond", "hexagon"] as const;
+type DrawnShape = (typeof DRAWN_SHAPES)[number];
+const isDrawnShape = (tool: string): tool is DrawnShape => (DRAWN_SHAPES as readonly string[]).includes(tool);
+
 const TOOL_KEYS: Record<string, Tool> = {
   v: "select",
   h: "hand",
@@ -259,6 +273,7 @@ const TOOL_KEYS: Record<string, Tool> = {
   r: "rect",
   o: "ellipse",
   d: "diamond",
+  x: "hexagon",
   t: "text",
   l: "line",
   c: "connector",
@@ -379,7 +394,16 @@ export function WhiteboardCanvas({
   const [linking, setLinking] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [textColorOpen, setTextColorOpen, textColorRef] = useBarMenu();
+  const [highlightOpen, setHighlightOpen, highlightRef] = useBarMenu();
   const [shapeOpen, setShapeOpen, shapeRef] = useBarMenu();
+  const [shapeToolsOpen, setShapeToolsOpen, shapeToolsRef] = useBarMenu();
+  // The shape the toolbar's shape button draws: the last one chosen.
+  const [lastShape, setLastShape] = useState<DrawnShape>("rect");
+  const shownShape = isDrawnShape(tool) ? tool : lastShape;
+  const chooseTool = (next: Tool) => {
+    setTool(next);
+    if (isDrawnShape(next)) setLastShape(next);
+  };
   const templatesRef = useRef<HTMLDivElement>(null);
   // The item whose text is being edited, and which text (a connector has three).
   const [editingText, setEditingText] = useState<{ id: string; field: TextField } | null>(null);
@@ -492,15 +516,8 @@ export function WhiteboardCanvas({
       for (const [clientId, state] of awareness.getStates()) {
         if (clientId === awareness.clientID) continue;
         const pos = (state as { whiteboard?: unknown }).whiteboard as Point | null | undefined;
-        const user = (state as { user?: { name?: unknown; color?: unknown } }).user;
         if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") continue;
-        next.push({
-          clientId,
-          name: typeof user?.name === "string" ? user.name : "",
-          color: typeof user?.color === "string" ? user.color : "#888888",
-          x: pos.x,
-          y: pos.y,
-        });
+        next.push({ clientId, user: readCursorUser((state as { user?: unknown }).user), x: pos.x, y: pos.y });
       }
       setCursors(next);
     };
@@ -968,15 +985,17 @@ export function WhiteboardCanvas({
     const common: TextStyle = {};
     for (const flag of STYLE_FLAGS) if (styles.every((st) => st[flag])) common[flag] = true;
     if (styles[0].color && styles.every((st) => st.color === styles[0].color)) common.color = styles[0].color;
+    if (styles[0].highlight && styles.every((st) => st.highlight === styles[0].highlight)) common.highlight = styles[0].highlight;
     return common;
   };
-  // Bold, italic, underline or strike, or a text color: for the selection in
-  // the text being edited, else for the whole of the selected items' texts.
-  const styleText = (how: { flag: StyleFlag } | { color: TextColor | null }) => {
+  // Bold, italic, underline or strike, a text color or a highlight: for the
+  // selection in the text being edited, else for the whole of the selected
+  // items' texts.
+  const styleText = (how: StyleChange) => {
     if (editingText) return textEditor.current?.style(how);
     const texts = selectedTexts();
     if (texts.length === 0) return;
-    const patch = "flag" in how ? { [how.flag]: !wholeStyle()[how.flag] } : { color: how.color };
+    const patch = "flag" in how ? { [how.flag]: !wholeStyle()[how.flag] } : how;
     undo.current?.stopCapturing();
     change(() => texts.forEach((x) => setField(x.id, { [marksField(x.field)]: applyStyle(x.marks, x.text.length, 0, x.text.length, patch) })));
     undo.current?.stopCapturing();
@@ -1126,7 +1145,7 @@ export function WhiteboardCanvas({
       }
       return;
     }
-    if (tool === "rect" || tool === "ellipse" || tool === "diamond") {
+    if (tool === "rect" || tool === "ellipse" || tool === "diamond" || tool === "hexagon") {
       undo.current?.stopCapturing();
       gesture.current = { kind: "draw", type: tool, start: world, id: null };
       return;
@@ -1299,6 +1318,8 @@ export function WhiteboardCanvas({
           h = clampSize(snap.h);
           setGuides(snap.guides);
         } else setGuides([]);
+        // A hexagon: no taller than a regular one (Shift: a regular one).
+        if (box?.type === "hexagon") ({ w, h } = hexagonSize(w, e.shiftKey ? MAX_SIZE : h));
         writeSoon(() => change(() => setField(g.id, { w, h })));
         return;
       }
@@ -1324,17 +1345,20 @@ export function WhiteboardCanvas({
         let dx = world.x - g.start.x;
         let dy = world.y - g.start.y;
         if (!g.id && Math.hypot(dx * camera.zoom, dy * camera.zoom) < 4) return;
-        // Shift: a square or a circle, as big as the larger side.
+        // Shift: a square or a circle, as big as the larger side (a regular
+        // hexagon, as wide as dragged).
         if (e.shiftKey) {
           const side = Math.max(Math.abs(dx), Math.abs(dy));
           dx = Math.sign(dx || 1) * side;
-          dy = Math.sign(dy || 1) * side;
+          dy = Math.sign(dy || 1) * (g.type === "hexagon" ? side * HEXAGON_RATIO : side);
         }
+        // A hexagon is never taller than a regular one.
+        const size =
+          g.type === "hexagon" ? hexagonSize(clampSize(Math.abs(dx)), clampSize(Math.abs(dy))) : { w: clampSize(Math.abs(dx)), h: clampSize(Math.abs(dy)) };
         const fields = {
-          x: clampCoord(Math.min(g.start.x, g.start.x + dx)),
-          y: clampCoord(Math.min(g.start.y, g.start.y + dy)),
-          w: clampSize(Math.abs(dx)),
-          h: clampSize(Math.abs(dy)),
+          x: clampCoord(dx < 0 ? g.start.x - size.w : g.start.x),
+          y: clampCoord(dy < 0 ? g.start.y - size.h : g.start.y),
+          ...size,
         };
         if (!g.id) {
           g.id = addItem({ type: g.type, ...fields, text: "", color: DEFAULT_COLOR[g.type] });
@@ -1591,7 +1615,7 @@ export function WhiteboardCanvas({
       moveSelection(arrows[key].x * step, arrows[key].y * step);
       return;
     }
-    if (!mod && !e.altKey && TOOL_KEYS[key]) setTool(TOOL_KEYS[key]);
+    if (!mod && !e.altKey && TOOL_KEYS[key]) chooseTool(TOOL_KEYS[key]);
   };
 
   const editText = (id: string, field: TextField, text: string, marks: TextMark[]) => {
@@ -1630,9 +1654,6 @@ export function WhiteboardCanvas({
     { tool: "select", label: t("tools.select"), icon: "select", dataUi: "selectToolButton" },
     { tool: "hand", label: t("tools.hand"), icon: "hand", dataUi: "handToolButton" },
     { tool: "sticky", label: t("tools.sticky"), icon: "sticky", dataUi: "stickyToolButton" },
-    { tool: "rect", label: t("tools.rect"), icon: "rect", dataUi: "rectToolButton" },
-    { tool: "ellipse", label: t("tools.ellipse"), icon: "ellipse", dataUi: "ellipseToolButton" },
-    { tool: "diamond", label: t("tools.diamond"), icon: "diamond", dataUi: "diamondToolButton" },
     { tool: "text", label: t("tools.text"), icon: "text", dataUi: "textToolButton" },
     { tool: "line", label: t("tools.line"), icon: "line", dataUi: "lineToolButton" },
     { tool: "connector", label: t("tools.connector"), icon: "connector", dataUi: "connectorToolButton" },
@@ -1917,13 +1938,22 @@ export function WhiteboardCanvas({
             <div
               key={c.clientId}
               className={styles.cursor}
-              style={{ transform: `translate(${p.x}px, ${p.y}px)`, ["--cursor-color" as string]: c.color }}
+              style={{
+                transform: `translate(${p.x}px, ${p.y}px)`,
+                ["--cursor-color" as string]: c.user?.color ?? "#888888",
+                ["--cursor-ink" as string]: badgeInk(c.user?.color ?? "#888888"),
+              }}
               data-ui="Whiteboard.cursor"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
                 <path d="M1 1 L1 13 L4.5 9.5 L7 15 L9 14 L6.5 8.5 L11.5 8.5 Z" />
               </svg>
-              {c.name && <span className={styles.cursorName}>{c.name}</span>}
+              {c.user?.name && (
+                <span className={styles.cursorName}>
+                  <Avatar userId={c.user.id} name={null} look={{ url: c.user.image, color: c.user.color, seed: c.user.seed }} size={14} initial={false} />
+                  {c.user.name}
+                </span>
+              )}
             </div>
           );
         })}
@@ -1937,21 +1967,78 @@ export function WhiteboardCanvas({
       {!readOnly && (
         <div className={styles.toolbar} role="toolbar" aria-label={t("toolsLabel")} data-ui="Whiteboard.toolbar" data-wb-controls>
           {tools.map((x) => (
-            <button
-              key={x.tool}
-              type="button"
-              className={styles.toolButton}
-              aria-pressed={tool === x.tool}
-              aria-label={x.label}
-              title={x.label}
-              data-ui={`Whiteboard.${x.dataUi}`}
-              onClick={() => {
-                setTool(x.tool);
-                viewportRef.current?.focus({ preventScroll: true });
-              }}
-            >
-              <Icon name={x.icon} />
-            </button>
+            <Fragment key={x.tool}>
+              <button
+                type="button"
+                className={styles.toolButton}
+                aria-pressed={tool === x.tool}
+                aria-label={x.label}
+                title={x.label}
+                data-ui={`Whiteboard.${x.dataUi}`}
+                onClick={() => {
+                  setTool(x.tool);
+                  viewportRef.current?.focus({ preventScroll: true });
+                }}
+              >
+                <Icon name={x.icon} />
+              </button>
+              {x.tool === "sticky" && (
+                // The shapes: one button drawing the last one chosen, the
+                // others in a menu beside it (its corner mark).
+                <div className={styles.toolPick} ref={shapeToolsRef}>
+                  <button
+                    type="button"
+                    className={styles.toolButton}
+                    aria-pressed={isDrawnShape(tool)}
+                    aria-label={t(`tools.${shownShape}`)}
+                    title={t(`tools.${shownShape}`)}
+                    data-ui="Whiteboard.shapeToolButton"
+                    data-id={shownShape}
+                    onClick={() => {
+                      chooseTool(shownShape);
+                      setShapeToolsOpen(false);
+                      viewportRef.current?.focus({ preventScroll: true });
+                    }}
+                  >
+                    <Icon name={shownShape} />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.toolMore}
+                    aria-label={t("shapeTools")}
+                    title={t("shapeTools")}
+                    aria-expanded={shapeToolsOpen}
+                    aria-haspopup="menu"
+                    data-ui="Whiteboard.shapeToolsButton"
+                    onClick={() => setShapeToolsOpen(!shapeToolsOpen)}
+                  />
+                  {shapeToolsOpen && (
+                    <div className={styles.toolMenu} role="menu" aria-label={t("shapeTools")} data-ui="Whiteboard.shapeToolMenu">
+                      {DRAWN_SHAPES.map((shape) => (
+                        <button
+                          key={shape}
+                          type="button"
+                          role="menuitemradio"
+                          className={styles.toolButton}
+                          aria-checked={tool === shape}
+                          aria-label={t(`tools.${shape}`)}
+                          title={t(`tools.${shape}`)}
+                          data-ui="Whiteboard.shapeToolItem"
+                          data-id={shape}
+                          onClick={() => {
+                            chooseTool(shape);
+                            setShapeToolsOpen(false);
+                            viewportRef.current?.focus({ preventScroll: true });
+                          }}
+                        >
+                          <Icon name={shape} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </Fragment>
           ))}
           <span className={styles.toolSeparator} />
           <div className={styles.templatePick} ref={templatesRef}>
@@ -2151,6 +2238,43 @@ export function WhiteboardCanvas({
                         onClick={() => {
                           styleText({ color });
                           setTextColorOpen(false);
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className={`${styles.barPick} ${styles.textColorPick}`} ref={highlightRef}>
+                <button
+                  type="button"
+                  className={styles.barButton}
+                  aria-label={t("highlight")}
+                  title={t("highlight")}
+                  aria-expanded={highlightOpen}
+                  aria-haspopup="menu"
+                  data-ui="Whiteboard.highlightButton"
+                  onClick={() => setHighlightOpen(!highlightOpen)}
+                >
+                  <Icon name="highlight" size={18} />
+                  {shownStyle.highlight && <span className={styles.textColorBar} style={{ background: highlightVar(shownStyle.highlight) }} />}
+                </button>
+                {highlightOpen && (
+                  <div className={`${styles.barMenu} ${styles.swatchMenu}`} role="menu" aria-label={t("highlight")} data-ui="Whiteboard.highlightMenu">
+                    {([null, ...HIGHLIGHT_COLORS] as const).map((color) => (
+                      <button
+                        key={color ?? "none"}
+                        type="button"
+                        role="menuitemradio"
+                        className={styles.swatch}
+                        style={color ? { background: highlightVar(color) } : undefined}
+                        aria-label={t(`highlights.${color ?? "none"}`)}
+                        title={t(`highlights.${color ?? "none"}`)}
+                        aria-checked={(shownStyle.highlight ?? null) === color}
+                        data-ui="Whiteboard.highlightItem"
+                        data-id={color ?? "none"}
+                        onClick={() => {
+                          styleText({ highlight: color });
+                          setHighlightOpen(false);
                         }}
                       />
                     ))}
@@ -2579,6 +2703,7 @@ function Box({
         // board's width).
         ...(item.type === "ellipse" && { paddingInline: Math.round(item.w * 0.15) }),
         ...(item.type === "diamond" && { paddingInline: Math.round(item.w * 0.22), paddingBlock: Math.round(item.h * 0.12) }),
+        ...(item.type === "hexagon" && { paddingInline: Math.round(hexagonInset(item.h) * 0.8) }),
         ["--item-color" as string]: `var(--color-wb-${item.color})`,
       }}
       data-wb-id={item.id}
@@ -2588,6 +2713,11 @@ function Box({
       {item.type === "diamond" && (
         <svg className={styles.diamond} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
           <polygon points="50,0 100,50 50,100 0,50" />
+        </svg>
+      )}
+      {item.type === "hexagon" && (
+        <svg className={styles.diamond} viewBox={`0 0 ${item.w} ${item.h}`} aria-hidden>
+          <polygon points={hexagonPolygon(item.w, item.h)} />
         </svg>
       )}
       {item.type === "image" ? (
@@ -2754,7 +2884,7 @@ function marksOf(item: WhiteboardItem, field: TextField): TextMark[] {
 function Styled({ text, marks, from, to }: { text: string; marks: TextMark[]; from: number; to: number }) {
   return styledRuns(text, marks, from, to).map((run, i) =>
     run.style ? (
-      <span key={i} style={textStyleCss(run.style, textColorVar)}>
+      <span key={i} style={textStyleCss(run.style, textColorVar, highlightVar)}>
         {run.text}
       </span>
     ) : (

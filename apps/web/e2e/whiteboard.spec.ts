@@ -30,6 +30,13 @@ async function addSticky(page: Page, x: number, y: number, text: string) {
   await expect(page.getByTestId("Whiteboard.textInput")).toHaveCount(0);
 }
 
+// Picks a shape drawn by dragging, from the menu of the toolbar's shape button.
+async function pickShape(page: Page, shape: "rect" | "ellipse" | "diamond" | "hexagon") {
+  await page.getByTestId("Whiteboard.shapeToolsButton").click();
+  await page.locator(`[data-ui="Whiteboard.shapeToolItem"][data-id="${shape}"]`).click();
+  await expect(page.getByTestId("Whiteboard.shapeToolButton")).toHaveAttribute("data-id", shape);
+}
+
 const item = (page: Page, text: string) => page.getByTestId("Whiteboard.item").filter({ hasText: text });
 
 test.describe("Whiteboard", () => {
@@ -340,7 +347,7 @@ test.describe("Whiteboard", () => {
       await createWhiteboard(page, "E2E ホワイトボードの図形");
       const canvas = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
       const drag = async (tool: string, from: [number, number], to: [number, number], shift = false) => {
-        await page.getByTestId(`Whiteboard.${tool}ToolButton`).click();
+        await pickShape(page, tool as "rect" | "ellipse");
         await page.mouse.move(canvas.x + from[0], canvas.y + from[1]);
         await page.mouse.down();
         if (shift) await page.keyboard.down("Shift");
@@ -379,6 +386,8 @@ test.describe("Whiteboard", () => {
       const input = page.getByTestId("Whiteboard.textInput");
       await expect(input).toBeFocused();
       await expect(input).toHaveAttribute("data-empty", "");
+      // The placeholder isn't cut off at the bottom (its glyphs can be taller than the empty line).
+      await expect(input).toHaveCSS("overflow", "visible");
       // Japanese typed straight away (an IME composition): no placeholder over it.
       const cdp = await context.newCDPSession(page);
       await cdp.send("Input.imeSetComposition", { text: "にほ", selectionStart: 2, selectionEnd: 2 });
@@ -431,7 +440,7 @@ test.describe("Whiteboard", () => {
     const page = await context.newPage();
     try {
       await createWhiteboard(page, "E2E ホワイトボードの文字の編集");
-      await page.getByTestId("Whiteboard.rectToolButton").click();
+      await pickShape(page, "rect");
       await clickBoard(page, 300, 200);
       await page.keyboard.press("Escape");
       const rect = page.locator('[data-ui="Whiteboard.item"][data-type="rect"]');
@@ -585,7 +594,7 @@ test.describe("Whiteboard", () => {
       await createWhiteboard(page, "E2E ホワイトボードの枠とコネクター");
       const canvas = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
       // A frame: a rectangle, made transparent, then boxes on it.
-      await page.getByTestId("Whiteboard.rectToolButton").click();
+      await pickShape(page, "rect");
       await page.mouse.move(canvas.x + 60, canvas.y + 60);
       await page.mouse.down();
       await page.mouse.move(canvas.x + 620, canvas.y + 280, { steps: 6 });
@@ -976,7 +985,7 @@ test.describe("Whiteboard", () => {
     }
   });
 
-  test("parts of a text made bold, italic, underlined, struck through or colored, kept after reloading", async ({ browser }) => {
+  test("parts of a text made bold, italic, underlined, struck through, colored or highlighted, kept after reloading", async ({ browser }) => {
     const context = await browser.newContext({ storageState: authFile("editor") });
     const page = await context.newPage();
     try {
@@ -1029,6 +1038,22 @@ test.describe("Whiteboard", () => {
       // Undo while typing: the board's undo, the field drawn again.
       await page.keyboard.press("Control+z");
       await expect(input).toHaveJSProperty("textContent", "太い字と赤字と普通");
+
+      // The last word highlighted from the menu; Ctrl+Shift+H takes it off,
+      // and again puts yellow on.
+      await page.keyboard.press("Control+End");
+      await page.keyboard.press("Shift+ArrowLeft");
+      await page.keyboard.press("Shift+ArrowLeft");
+      await page.getByTestId("Whiteboard.highlightButton").click();
+      await expect(page.getByTestId("Whiteboard.highlightMenu")).toBeVisible();
+      await page.locator('[data-ui="Whiteboard.highlightItem"][data-id="green"]').click();
+      await expect(page.getByTestId("Whiteboard.highlightMenu")).toHaveCount(0);
+      await expect(styled("h:green")).toHaveText("普通");
+      await expect(page.locator('[data-ui="Whiteboard.highlightItem"]')).toHaveCount(0);
+      await page.keyboard.press("Control+Shift+h");
+      await expect(styled("h:green")).toHaveCount(0);
+      await page.keyboard.press("Control+Shift+h");
+      await expect(styled("h:yellow")).toHaveText("普通");
       await page.keyboard.press("Escape");
 
       // Shown on the board in the styles.
@@ -1036,7 +1061,8 @@ test.describe("Whiteboard", () => {
       await expect(shown.filter({ hasText: "太い字" })).toHaveCSS("font-weight", "700");
       await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("color", "rgb(166, 27, 27)");
       await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("text-decoration-line", "underline");
-      await expect(shown.filter({ hasText: "普通" })).toHaveCount(0);
+      await expect(shown.filter({ hasText: "普通" })).toHaveCSS("background-color", "rgb(255, 225, 77)");
+      await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
       // The whole note struck through from the bar (selected, not being edited); again takes it away.
       await expect(note).toHaveAttribute("data-selected", "");
@@ -1049,8 +1075,93 @@ test.describe("Whiteboard", () => {
       // Kept in the page's document.
       await page.reload();
       await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("color", "rgb(166, 27, 27)");
+      await expect(shown.filter({ hasText: "普通" })).toHaveCSS("background-color", "rgb(255, 225, 77)");
       await expect(shown.filter({ hasText: "太い字" })).toHaveCSS("font-weight", "700");
 
+      await trashOpenPage(page);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("hexagons: drawn, resized and changed into, never taller than a regular one", async ({ browser }) => {
+    const context = await browser.newContext({ storageState: authFile("editor") });
+    const page = await context.newPage();
+    try {
+      await createWhiteboard(page, "E2E ホワイトボードの六角形");
+      const c = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
+      const draw = async (x: number, y: number, w: number, h: number, shift = false) => {
+        await pickShape(page, "hexagon");
+        await page.mouse.move(c.x + x, c.y + y);
+        await page.mouse.down();
+        if (shift) await page.keyboard.down("Shift");
+        await page.mouse.move(c.x + x + w, c.y + y + h, { steps: 6 });
+        await page.mouse.up();
+        if (shift) await page.keyboard.up("Shift");
+        await page.keyboard.press("Escape");
+      };
+      const hexagons = page.locator('[data-ui="Whiteboard.item"][data-type="hexagon"]');
+      const sizeOf = async (n: number) => {
+        const b = (await hexagons.nth(n).boundingBox())!;
+        return [Math.round(b.width), Math.round(b.height)];
+      };
+      // Flat: as dragged.
+      await draw(60, 60, 240, 60);
+      await expect(hexagons).toHaveCount(1);
+      expect(await sizeOf(0)).toEqual([240, 60]);
+      await expect(hexagons.nth(0).locator("polygon")).toHaveCount(1);
+      // Dragged taller than a regular one: as tall as one (100 × 86).
+      await draw(60, 200, 100, 200);
+      await expect(hexagons).toHaveCount(2);
+      expect(await sizeOf(1)).toEqual([100, 86]);
+      // With Shift: a regular one, as wide as dragged.
+      await draw(400, 60, 140, 30, true);
+      await expect(hexagons).toHaveCount(3);
+      expect(await sizeOf(2)).toEqual([140, 121]);
+
+      // Made taller by its handle: no taller than a regular one.
+      await hexagons.nth(0).click();
+      const handle = hexagons.nth(0).getByTestId("Whiteboard.resizeHandle");
+      const h = (await handle.boundingBox())!;
+      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2 + 400, { steps: 6 });
+      await page.mouse.up();
+      await expect.poll(() => sizeOf(0)).toEqual([240, 207]);
+
+      // Changed into from a sticky note (square): kept no taller than a regular one.
+      await page.keyboard.press("Escape");
+      await page.getByTestId("Whiteboard.stickyToolButton").click();
+      await page.mouse.click(c.x + 700, c.y + 300);
+      await page.keyboard.press("Escape");
+      const sticky = page.locator('[data-ui="Whiteboard.item"][data-type="sticky"]');
+      await expect(sticky).toHaveCount(1);
+      await page.getByTestId("Whiteboard.shapeMenuButton").click();
+      await page.locator('[data-ui="Whiteboard.shapeButton"][data-id="hexagon"]').click();
+      await expect(hexagons).toHaveCount(4);
+      expect(await sizeOf(3)).toEqual([100, 86]);
+
+      // The toolbar's shape button draws the last shape chosen, from its
+      // menu or by key.
+      const shapeButton = page.getByTestId("Whiteboard.shapeToolButton");
+      await expect(shapeButton).toHaveAttribute("data-id", "hexagon");
+      await expect(page.getByTestId("Whiteboard.rectToolButton")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await page.mouse.click(c.x + 900, c.y + 450);
+      await page.keyboard.press("o");
+      await expect(shapeButton).toHaveAttribute("data-id", "ellipse");
+      await expect(shapeButton).toHaveAttribute("aria-pressed", "true");
+      await page.getByTestId("Whiteboard.selectToolButton").click();
+      await expect(shapeButton).toHaveAttribute("aria-pressed", "false");
+      await shapeButton.click();
+      await expect(shapeButton).toHaveAttribute("aria-pressed", "true");
+      await expect(shapeButton).toHaveAttribute("data-id", "ellipse");
+      await page.getByTestId("Whiteboard.shapeToolsButton").click();
+      await expect(page.locator('[data-ui="Whiteboard.shapeToolItem"]')).toHaveCount(4);
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("Whiteboard.shapeToolMenu")).toHaveCount(0);
+
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
       await trashOpenPage(page);
     } finally {
       await context.close();
@@ -1063,7 +1174,7 @@ test.describe("Whiteboard", () => {
     try {
       await createWhiteboard(page, "E2E ホワイトボードのひし形");
       // Drawn by dragging with the diamond tool.
-      await page.getByTestId("Whiteboard.diamondToolButton").click();
+      await pickShape(page, "diamond");
       await page.mouse.move(...(await (async () => {
         const c = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
         return [c.x + 150, c.y + 100] as const;

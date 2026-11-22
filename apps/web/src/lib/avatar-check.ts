@@ -1,6 +1,8 @@
 // The check for an uploaded avatar (lib/avatar.ts), and a person's initial
 // for when there's none. No dependencies (unit-tested).
 
+import { isAvatarColor } from "./avatar-mosaic";
+
 // The browser makes it a small square (components/avatar-picker.tsx); the
 // limit is for what comes to the server, whatever made it.
 export const MAX_AVATAR_BYTES = 300 * 1024;
@@ -31,13 +33,28 @@ export const isAvatarType = (type: string | null | undefined): type is AvatarTyp
   (AVATAR_TYPES as readonly string[]).includes(type ?? "");
 
 // The first character of a name (a whole character: an emoji, or a letter
-// with its marks), upper-cased; "?" for none.
+// with its marks), as it is written (upper or lower case kept); "?" for none.
 export function initialOf(name: string | null | undefined): string {
   const text = (name ?? "").trim();
   if (!text) return "?";
   const first = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)[Symbol.iterator]().next().value?.segment ?? text;
-  return first.toLocaleUpperCase();
+  return first;
 }
+
+// How a person's avatar looks: their picture's address, or without one, the
+// mosaic's color (null: their cursor's) and pattern (lib/avatar-mosaic.ts).
+export type AvatarLook = { url: string | null; color: string | null; seed: number };
+
+export const avatarLook = (user: {
+  id: string;
+  avatarUpdatedAt?: Date | null;
+  avatarColor?: string | null;
+  avatarSeed?: number | null;
+}): AvatarLook => ({
+  url: avatarUrl(user.id, user.avatarUpdatedAt),
+  color: isAvatarColor(user.avatarColor) ? user.avatarColor : null,
+  seed: user.avatarSeed ?? 0,
+});
 
 // The picture's address; the time it was set makes a new one for a new picture.
 export const avatarUrl = (userId: string, updatedAt: Date | number | null | undefined): string | null =>

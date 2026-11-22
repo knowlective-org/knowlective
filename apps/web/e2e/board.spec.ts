@@ -17,6 +17,36 @@ const lane = (page: import("@playwright/test").Page, name: string) =>
   page.locator(`[data-ui="ChildBoardBlock.lane"][aria-label="${name}"]`);
 
 test.describe("Child page board", () => {
+  test("a click on a card or a lane is for it, not a selection of the whole block", async ({ page }) => {
+    await createPage(page, "E2E ボードのクリック");
+    // A line of text before it; the board, as put in, is selected as a whole.
+    await editorBody(page).click();
+    await page.keyboard.type("前の行");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("/kanban");
+    await page.getByRole("option", { name: /子ページボード/ }).click();
+    await expect(page.getByTestId("ChildBoardBlock")).toBeVisible();
+    await page.getByTestId("ChildBoardBlock.createStatusButton").click();
+    await lane(page, "未着手").getByTestId("ChildBoardBlock.addCardButton").click();
+    await page.getByTestId("ChildBoardBlock.addCardInput").fill("クリックするカード");
+    await page.keyboard.press("Enter");
+    const card = page.locator('[data-ui="ChildBoardBlock.card"]').filter({ hasText: "クリックするカード" });
+    await expect(card).toBeVisible();
+    const selectedBlocks = page.locator(".ProseMirror-selectednode");
+    for (const target of [card, lane(page, "進行中")]) {
+      const box = (await target.boundingBox())!;
+      // Not on the card's link or select: its empty corner, the lane's foot.
+      await page.mouse.click(box.x + box.width - 4, box.y + box.height - 4);
+      await page.waitForTimeout(300);
+      await expect(selectedBlocks).toHaveCount(0);
+    }
+    // A control in it works on the first click.
+    await card.getByTestId("ChildBoardBlock.cardLaneSelect").selectOption({ label: "完了" });
+    await expect(lane(page, "完了").locator('[data-ui="ChildBoardBlock.card"]')).toHaveCount(1);
+    await expect(selectedBlocks).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
   test("makes a status column, adds cards and moves them between lanes", async ({ page }) => {
     const board = await createPage(page, "E2E ボード");
     await insertBoard(page);

@@ -17,7 +17,8 @@ export type ChatPostedEvent = { pageId: string; blockId: string; actorId: string
 
 // A message about a page sent through the API or MCP (lib/page-message.ts):
 // its whole text, to these people (checked again when notified).
-export type MessageSentEvent = { pageId: string; actorId: string; recipientIds: string[]; text: string };
+// `via`: what sent it for the person (an app's or an API key's name).
+export type MessageSentEvent = { pageId: string; actorId: string; recipientIds: string[]; text: string; via: string | null };
 
 const BRIDGE_KEY = Symbol.for("knowlective.notification-bridge");
 

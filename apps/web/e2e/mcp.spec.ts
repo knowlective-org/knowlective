@@ -172,7 +172,7 @@ test.describe("MCP server", () => {
     }
   });
 
-  test("renames a page, reads child pages' properties, lists a page's people and sends them a notification", async ({ baseURL, browser }) => {
+  test("renames a page, reads child pages' properties, lists a page's people and sends them a notification", async ({ baseURL, browser, page }) => {
     const mcp = await connect(baseURL!, await keyFor("editor", "WRITE"));
     try {
       const stamp = Date.now();
@@ -245,6 +245,8 @@ test.describe("MCP server", () => {
         await viewerPage.goto("notifications");
         const item = viewerPage.getByTestId("NotificationsPage.messageItem").filter({ hasText: `E2E MCP 通知 ${stamp}` });
         await expect(item.getByTestId("NotificationsPage.itemLink")).toContainText(`E2E MCP 改名 ${stamp}`);
+        // From the editor, through the key named "E2E MCP".
+        await expect(item.getByTestId("NotificationsPage.itemLink")).toContainText(`${ACCOUNTS.editor.name}（E2E MCP）`);
         await expect(item.getByTestId("NotificationsPage.message")).toContainText("レビューをお願いします");
         await expect(item.getByTestId("NotificationsPage.messageLink")).toHaveAttribute("href", `https://example.com/review/${stamp}`);
         await item.getByTestId("NotificationsPage.itemLink").click();
@@ -252,6 +254,15 @@ test.describe("MCP server", () => {
       } finally {
         await context.close();
       }
+
+      // To oneself too (an AI app telling its owner it's done).
+      const editor = people.find((p) => p.name === ACCOUNTS.editor.name)!;
+      const own = await mcp.call("send_notification", { pageId: parent, userIds: [editor.id], text: `E2E MCP 自分へ ${stamp}` });
+      expect(own.isError).toBeFalsy();
+      expect(data(own).recipients).toBe(1);
+      await page.goto("notifications");
+      const mine = page.getByTestId("NotificationsPage.messageItem").filter({ hasText: `E2E MCP 自分へ ${stamp}` });
+      await expect(mine.getByTestId("NotificationsPage.itemLink")).toContainText(`${ACCOUNTS.editor.name}（E2E MCP）`);
     } finally {
       await mcp.close();
     }

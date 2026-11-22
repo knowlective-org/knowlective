@@ -12,7 +12,9 @@ export type PasskeyItem = { id: string; name: string; createdAt: string; lastUse
 
 // The account's passkeys: listed, added, removed. `required`: the site
 // requires one for this account (the last one can't be removed).
-export function PasskeySection({ passkeys, required }: { passkeys: PasskeyItem[]; required: boolean }) {
+// `idpOnly`: the account signs in through single sign-on only, so its
+// passkeys confirm who it is (issuing an API key…) but don't log in.
+export function PasskeySection({ passkeys, required, idpOnly }: { passkeys: PasskeyItem[]; required: boolean; idpOnly: boolean }) {
   const t = useTranslations("account.passkeys");
   const format = useFormatter();
   const router = useRouter();
@@ -21,7 +23,7 @@ export function PasskeySection({ passkeys, required }: { passkeys: PasskeyItem[]
 
   return (
     <div data-ui="PasskeySection" style={{ display: "grid", gap: 16 }}>
-      <p className={styles.note}>{required ? t("leadRequired") : t("lead")}</p>
+      <p className={styles.note}>{idpOnly ? t("leadIdpOnly") : required ? t("leadRequired") : t("lead")}</p>
       {passkeys.length === 0 ? (
         <p className={styles.note} data-ui="PasskeySection.empty">
           {t("none")}

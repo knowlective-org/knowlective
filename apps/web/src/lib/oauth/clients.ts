@@ -17,6 +17,15 @@ import { type ClientInfo, type ClientMetadataError, isClientMetadataUrl, parseCl
 export const CLIENT_ID_PREFIX = "knc_";
 const METADATA_TTL_MS = 60 * 60 * 1000;
 const MAX_METADATA_BYTES = 16 * 1024;
+// Fetching a document is asked for by whoever opens the consent screen: an
+// address that couldn't be read isn't tried again for a while, and only so
+// many are fetched a minute (in this process).
+const FAILED_METADATA_MS = 10 * 60 * 1000;
+const METADATA_FETCHES_PER_MINUTE = 20;
+const failedMetadata = new Map<string, number>();
+let fetchWindow = { start: 0, count: 0 };
+// A document's app nobody connected with is forgotten after a day.
+const UNUSED_METADATA_MS = 24 * 60 * 60 * 1000;
 // A registration nobody connected with is removed after a day; one whose
 // connections are all gone, after 90 days unused.
 const UNUSED_REGISTRATION_MS = 24 * 60 * 60 * 1000;
@@ -48,6 +57,21 @@ async function removeUnusedClients() {
       ],
     },
   });
+  await prisma.oAuthClient.deleteMany({
+    where: { kind: "METADATA_URL", grants: { none: {} }, fetchedAt: { lt: new Date(now - UNUSED_METADATA_MS) } },
+  });
+}
+
+// Whether a document may be fetched now; counts the fetch when it may.
+function mayFetchMetadata(clientId: string): boolean {
+  const now = Date.now();
+  const failed = failedMetadata.get(clientId);
+  if (failed !== undefined && failed > now) return false;
+  if (now - fetchWindow.start >= 60_000) fetchWindow = { start: now, count: 0 };
+  if (fetchWindow.count >= METADATA_FETCHES_PER_MINUTE) return false;
+  fetchWindow.count++;
+  for (const [id, until] of failedMetadata) if (until <= now) failedMetadata.delete(id);
+  return true;
 }
 
 // The app with this id, as it's known now: a registered one from the
@@ -60,9 +84,14 @@ export async function findClient(clientId: unknown): Promise<OAuthClientView | n
   if (!isClientMetadataUrl(clientId)) return null;
   if (row && row.fetchedAt && Date.now() - row.fetchedAt.getTime() < METADATA_TTL_MS) return view(row);
 
+  if (!mayFetchMetadata(clientId)) return row ? view(row) : null;
   const document = await fetchPublicJson(clientId, await loadOutboundProxy(prisma), MAX_METADATA_BYTES);
   const info = document === null ? null : parseClientMetadata(document, clientId);
-  if (!info || "error" in info) return row ? view(row) : null;
+  if (!info || "error" in info) {
+    failedMetadata.set(clientId, Date.now() + FAILED_METADATA_MS);
+    return row ? view(row) : null;
+  }
+  if (!row) await removeUnusedClients();
   const data = { name: info.name, redirectUris: info.redirectUris, clientUri: info.clientUri, fetchedAt: new Date() };
   const saved = await prisma.oAuthClient.upsert({
     where: { id: clientId },

@@ -158,12 +158,12 @@ export async function issuePasswordReset(
   if (userId === session.userId) return { error: t("admin.users.errors.ownReset") };
   const found = await prisma.user.findUnique({
     where: { id: userId },
-    select: { emailEnc: true, name: true, siteRole: true, disabledAt: true },
+    select: { emailEnc: true, name: true, siteRole: true, oidcSubject: true, disabledAt: true },
   });
   const user = found && (await withEmail(found));
   if (!user) return { error: t("admin.users.errors.notFound") };
   if (user.disabledAt) return { error: t("admin.users.errors.disabled") };
-  if (!(await passwordLoginAllowed(user.siteRole))) {
+  if (!(await passwordLoginAllowed(user))) {
     return { error: t("admin.users.errors.ssoOnly") };
   }
 

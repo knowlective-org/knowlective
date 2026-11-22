@@ -41,6 +41,11 @@ test("single sign-on to an account with an unconfirmed address takes over every 
     await register.waitForURL((url) => !url.pathname.includes("/invite/"));
     const before = await withPrisma(async (prisma) => prisma.user.findUniqueOrThrow({ where: await userWhere(prisma, email), select: { id: true, emailUnconfirmed: true } }));
     expect(before.emailUnconfirmed).toBe(true);
+    // An AI app the registrant connected (OAuth): its connection goes too.
+    await withPrisma(async (prisma) => {
+      await prisma.oAuthClient.create({ data: { id: `knc_e2e-unconfirmed-${stamp}`, kind: "REGISTERED", name: "E2E 未確認のアプリ", redirectUris: ["http://127.0.0.1/cb"] } });
+      await prisma.oAuthGrant.create({ data: { userId: before.id, clientId: `knc_e2e-unconfirmed-${stamp}`, scope: "WRITE" } });
+    });
 
     // The address's owner signs in through the IdP: the same account, now theirs.
     const sso = await browser.newContext();
@@ -52,6 +57,7 @@ test("single sign-on to an account with an unconfirmed address takes over every 
     );
     expect(after.emailUnconfirmed).toBe(false);
     expect(after.oidcSubject).toBe(`e2e-unconfirmed-${stamp}`);
+    expect(await withPrisma((prisma) => prisma.oAuthGrant.count({ where: { userId: before.id } }))).toBe(0);
     await sso.close();
 
     // The registrant's session ended, and the password no longer signs in.
@@ -72,6 +78,7 @@ test("single sign-on to an account with an unconfirmed address takes over every 
       } else await prisma.oidcSettings.deleteMany({});
       const user = await prisma.user.findUnique({ where: await userWhere(prisma, email), select: { id: true } });
       if (user) await prisma.user.update({ where: { id: user.id }, data: { disabledAt: new Date() } });
+      await prisma.oAuthClient.deleteMany({ where: { id: `knc_e2e-unconfirmed-${stamp}` } });
     });
     await idp.close();
   }

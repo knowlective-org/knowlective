@@ -435,7 +435,7 @@ export default {
         ownReset: "You can't reset your own password here.",
         notFound: "The user can't be found.",
         disabled: "Links can't be issued for a disabled user. Enable them first.",
-        ssoOnly: "This user can't log in with a password (single sign-on only).",
+        ssoOnly: "This user can't log in with a password (they log in with single sign-on).",
       },
     },
     invitation: {
@@ -584,7 +584,7 @@ export default {
       back: "← Users",
       heading: "Reset the password: {user}",
       disabled: "This user is disabled. Enable them first to issue a reset link.",
-      ssoOnly: "Single sign-on only is set, so this user can't log in with a password.",
+      ssoOnly: "This user logs in with single sign-on, so they can't log in with a password.",
       lead: "Issues a link for the user to set a new password. The password doesn't change until they open it and set one.",
       lead2: "Setting it logs them out on every device. Links issued before stop working.",
       sendEmail: "Email it to {email}",

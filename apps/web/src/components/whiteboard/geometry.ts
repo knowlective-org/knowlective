@@ -1,4 +1,4 @@
-import { type BoxItem, type LineItem, type Route, SIDES, type Side } from "@/lib/whiteboard";
+import { type BoxItem, type LineItem, type Route, SIDES, type Side, hexagonInset } from "@/lib/whiteboard";
 
 // The view onto the board: a point at world (x, y) is drawn at
 // (x * zoom + camera.x, y * zoom + camera.y) in the canvas.
@@ -78,7 +78,8 @@ export function rectFrom(a: Point, b: Point): Rect {
 }
 
 // Where the line from the box's center toward `toward` leaves the box's
-// outline (an ellipse for ellipses, a diamond for diamonds), `gap` further out.
+// outline (an ellipse for ellipses, a diamond for diamonds, a hexagon for
+// hexagons), `gap` further out.
 export function edgePoint(box: BoxItem, toward: Point, gap = 4): Point {
   const cx = box.x + box.w / 2;
   const cy = box.y + box.h / 2;
@@ -93,6 +94,9 @@ export function edgePoint(box: BoxItem, toward: Point, gap = 4): Point {
       ? 1 / Math.sqrt((dx / hw) ** 2 + (dy / hh) ** 2)
       : box.type === "diamond"
         ? 1 / (Math.abs(dx) / hw + Math.abs(dy) / hh)
+        : box.type === "hexagon"
+          ? // Inside: |y| ≤ hh and |x| + |y|·inset/hh ≤ hw.
+            1 / Math.max(Math.abs(dy) / hh, (Math.abs(dx) + (Math.abs(dy) * hexagonInset(box.h)) / hh) / hw)
         : Math.min(dx === 0 ? Infinity : hw / Math.abs(dx), dy === 0 ? Infinity : hh / Math.abs(dy));
   const along = Math.min(1, t + gap / len);
   return { x: cx + dx * along, y: cy + dy * along };
@@ -115,6 +119,49 @@ export function ellipsePort(box: BoxItem, toward: Point, gap = 4): Point {
   // Rounded off: cos and sin of the steps aren't exact.
   const round = (n: number) => Math.round(n * 1e9) / 1e9;
   return { x: round(cx + dx * out), y: round(cy + dy * out) };
+}
+
+// The points a connector meets a hexagon at: its six corners and the middles
+// of its six sides, from its right corner round clockwise (on screen).
+export function hexagonPoints(box: Rect): Point[] {
+  const a = hexagonInset(box.h);
+  const { x, y, w, h } = box;
+  const corners = [
+    { x: x + w, y: y + h / 2 },
+    { x: x + w - a, y: y + h },
+    { x: x + a, y: y + h },
+    { x, y: y + h / 2 },
+    { x: x + a, y },
+    { x: x + w - a, y },
+  ];
+  return corners.flatMap((p, i) => {
+    const q = corners[(i + 1) % 6];
+    return [p, { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }];
+  });
+}
+
+// A hexagon's outline in a box w × h from the origin, as SVG polygon points.
+export function hexagonPolygon(w: number, h: number): string {
+  return hexagonPoints({ x: 0, y: 0, w, h })
+    .filter((_, i) => i % 2 === 0)
+    .map((p) => `${Math.round(p.x * 100) / 100},${Math.round(p.y * 100) / 100}`)
+    .join(" ");
+}
+
+// Where a connector meets a hexagon: the one of hexagonPoints() whose
+// direction from the center is nearest that of `toward`, `gap` further out.
+export function hexagonPort(box: BoxItem, toward: Point, gap = 4): Point {
+  const c = center(box);
+  const want = Math.atan2(toward.y - c.y, toward.x - c.x);
+  const off = (p: Point) => {
+    const d = Math.abs(Math.atan2(p.y - c.y, p.x - c.x) - want);
+    return Math.min(d, Math.PI * 2 - d);
+  };
+  const best = hexagonPoints(box).reduce((b, p) => (off(p) < off(b) - 1e-9 ? p : b));
+  const len = Math.hypot(best.x - c.x, best.y - c.y);
+  const out = len > 0 ? 1 + gap / len : 1;
+  const round = (n: number) => Math.round(n * 1e9) / 1e9;
+  return { x: round(c.x + (best.x - c.x) * out), y: round(c.y + (best.y - c.y) * out) };
 }
 
 export function center(box: Rect): Point {
@@ -273,24 +320,31 @@ export function connectorPoints(
 ): Point[] {
   if (route === "straight") {
     // A diamond is connected at its corners only, an ellipse at its points at
-    // 45° steps: the one facing the other box (and the other box's edge
-    // faces that point).
-    const fixed = (box: BoxItem) => box.type === "diamond" || box.type === "ellipse";
+    // 45° steps, a hexagon at its corners and the middles of its sides: the
+    // one facing the other box (and the other box's edge faces that point).
+    const fixed = (box: BoxItem) => box.type === "diamond" || box.type === "ellipse" || box.type === "hexagon";
     if (!fixed(from) && !fixed(to)) {
       const { a, b } = connectorLine(from, to);
       return [a, b];
     }
     const meet = (box: BoxItem, p: Point) =>
-      box.type === "diamond" ? port(box, sideFacing(box, p), gap).p : box.type === "ellipse" ? ellipsePort(box, p, gap) : edgePoint(box, p, gap);
+      box.type === "diamond"
+        ? port(box, sideFacing(box, p), gap).p
+        : box.type === "ellipse"
+          ? ellipsePort(box, p, gap)
+          : box.type === "hexagon"
+            ? hexagonPort(box, p, gap)
+            : edgePoint(box, p, gap);
     const b0 = fixed(to) ? meet(to, center(from)) : null;
     const a = meet(from, b0 ?? center(to));
     const b = b0 ?? meet(to, a);
     return [a, b];
   }
-  // Sides chosen, or a diamond or an ellipse (its corners, or its points at
-  // 0°, 90°…, are the middles of the sides around it): the best of the
-  // sides that may be used.
-  const sidesOnly = (box: BoxItem) => box.type === "diamond" || box.type === "ellipse";
+  // Sides chosen, or a diamond, an ellipse or a hexagon (its corners, its
+  // points at 0°, 90°…, or its left and right corners and the middles of
+  // its top and bottom, are the middles of the sides around it): the best of
+  // the sides that may be used.
+  const sidesOnly = (box: BoxItem) => box.type === "diamond" || box.type === "ellipse" || box.type === "hexagon";
   if (sides.from || sides.to || sidesOnly(from) || sidesOnly(to)) {
     let best: Point[] | null = null;
     for (const s1 of sides.from ? [sides.from] : SIDES) {
@@ -367,7 +421,7 @@ export const END_SPACING = 20;
 
 // Connectors' points with the ends that meet a box at the same point spread
 // along its side (across for the top and bottom, down for the left and
-// right; for a diamond or an ellipse, the side around it there), in the
+// right; for a diamond, an ellipse or a hexagon, the side around it there), in the
 // order of where their other ends are, so they don't cross there. Not at
 // boxes whose `connectorEnds` is "merge". An elbow's last run (straight
 // out of the box) moves with its end; a run straight across to the other

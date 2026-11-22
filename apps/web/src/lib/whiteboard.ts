@@ -9,12 +9,12 @@ import { type TextMark, readMarks } from "./whiteboard-marks";
 // free whiteboard-marks.ts) as dependencies.
 export const WHITEBOARD_FIELD = "whiteboard";
 
-export const ITEM_TYPES = ["sticky", "rect", "ellipse", "diamond", "text", "image", "connector", "line"] as const;
+export const ITEM_TYPES = ["sticky", "rect", "ellipse", "diamond", "hexagon", "text", "image", "connector", "line"] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 // The items with a box (position and size). Connectors attach to these.
-export const BOX_TYPES = ["sticky", "rect", "ellipse", "diamond", "text", "image"] as const;
+export const BOX_TYPES = ["sticky", "rect", "ellipse", "diamond", "hexagon", "text", "image"] as const;
 // The boxes with text, which can be changed into one another.
-export const SHAPE_TYPES = ["sticky", "rect", "ellipse", "diamond", "text"] as const;
+export const SHAPE_TYPES = ["sticky", "rect", "ellipse", "diamond", "hexagon", "text"] as const;
 export const isShapeType = (type: string): type is (typeof SHAPE_TYPES)[number] => (SHAPE_TYPES as readonly string[]).includes(type);
 
 // Colors are names, shown through CSS variables (--color-wb-<name>).
@@ -143,6 +143,7 @@ export const DEFAULT_SIZE: Record<BoxItem["type"], { w: number; h: number }> = {
   rect: { w: 120, h: 70 },
   ellipse: { w: 100, h: 70 },
   diamond: { w: 120, h: 80 },
+  hexagon: { w: 120, h: 80 },
   text: { w: 120, h: 28 },
   image: { w: 240, h: 160 },
 };
@@ -152,11 +153,25 @@ export const DEFAULT_COLOR: Record<ItemType, ItemColor> = {
   rect: "white",
   ellipse: "white",
   diamond: "white",
+  hexagon: "white",
   text: "white",
   image: "white",
   connector: "gray",
   line: "gray",
 };
+
+// A hexagon: corners at the middle of its left and right sides, level top
+// and bottom, every inner angle 120°. Its slanted sides reach in `h / (2√3)`
+// from the box's sides. It is never taller than a regular one (h ≤ w·√3/2),
+// so its top and bottom are at least as long as its slanted sides.
+export const HEXAGON_RATIO = Math.sqrt(3) / 2;
+export const hexagonInset = (h: number) => h / (2 * Math.sqrt(3));
+// The size a hexagon is kept to: as wide as `w`, no taller than a regular one
+// (and wide enough for the smallest height).
+export function hexagonSize(w: number, h: number): { w: number; h: number } {
+  const width = Math.max(w, Math.ceil(MIN_SIZE / HEXAGON_RATIO));
+  return { w: width, h: Math.min(h, Math.floor(width * HEXAGON_RATIO)) };
+}
 
 export function whiteboardMap(doc: Y.Doc): Y.Map<Y.Map<unknown>> {
   return doc.getMap<Y.Map<unknown>>(WHITEBOARD_FIELD);
@@ -225,13 +240,16 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
     const arrows = (ARROW_ENDS as readonly unknown[]).includes(rawArrows) ? (rawArrows as ArrowEnds) : "none";
     return { id, type, x1: coord("x1"), y1: coord("y1"), x2: coord("x2"), y2: coord("y2"), arrows, stroke, text: "", textMarks: [], color, z };
   }
+  const size = {
+    w: clamp(num(map.get("w"), MIN_SIZE), MIN_SIZE, MAX_SIZE),
+    h: clamp(num(map.get("h"), MIN_SIZE), MIN_SIZE, MAX_SIZE),
+  };
   return {
     id,
     type: type as BoxItem["type"],
     x: coord("x"),
     y: coord("y"),
-    w: clamp(num(map.get("w"), MIN_SIZE), MIN_SIZE, MAX_SIZE),
-    h: clamp(num(map.get("h"), MIN_SIZE), MIN_SIZE, MAX_SIZE),
+    ...(type === "hexagon" ? hexagonSize(size.w, size.h) : size),
     text,
     textX: clamp(num(map.get("textX"), 0), -MAX_SIZE, MAX_SIZE),
     textY: clamp(num(map.get("textY"), 0), -MAX_SIZE, MAX_SIZE),

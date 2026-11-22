@@ -1,5 +1,5 @@
 // Styles on parts of a whiteboard text (bold, italic, underline, strike,
-// a text color). The text itself stays a plain string (searched, copied,
+// a text color, a highlight). The text itself stays a plain string (searched, copied,
 // shown as lists by its line starts: components/whiteboard/rich-text.ts);
 // its styles are kept beside it as ranges of it (`<field>Marks`, e.g.
 // `textMarks`: [{ from, to, bold: true }, …], `from` and `to` in UTF-16
@@ -13,14 +13,30 @@
 export const TEXT_COLORS = ["red", "brown", "green", "blue", "purple", "pink", "gray"] as const;
 export type TextColor = (typeof TEXT_COLORS)[number];
 
+// Highlights (a background behind the text, as a marker pen), stronger than
+// the item colors so they show on them, but light enough that the ink and
+// every text color keep a contrast of at least 4.5:1 on them (the unit test
+// checks globals.css).
+export const HIGHLIGHT_COLORS = ["yellow", "green", "blue", "pink", "orange"] as const;
+export type HighlightColor = (typeof HIGHLIGHT_COLORS)[number];
+
 export const STYLE_FLAGS = ["bold", "italic", "underline", "strike"] as const;
 export type StyleFlag = (typeof STYLE_FLAGS)[number];
 
-export type TextStyle = { bold?: true; italic?: true; underline?: true; strike?: true; color?: TextColor };
+export type TextStyle = { bold?: true; italic?: true; underline?: true; strike?: true; color?: TextColor; highlight?: HighlightColor };
 export type TextMark = TextStyle & { from: number; to: number };
-// A change of style: a flag on (true) or off (false), a color or back to the
-// default (null). What's left out stays as it is.
-export type StylePatch = { bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean; color?: TextColor | null };
+// A change of style: a flag on (true) or off (false), a color or a highlight,
+// or back to none (null). What's left out stays as it is.
+export type StylePatch = {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  color?: TextColor | null;
+  highlight?: HighlightColor | null;
+};
+// What a style button asks for: a flag turned over, or a color or highlight set.
+export type StyleChange = { flag: StyleFlag } | { color: TextColor | null } | { highlight: HighlightColor | null };
 
 export const MAX_MARKS = 1000;
 
@@ -28,11 +44,13 @@ export const MAX_MARKS = 1000;
 export const marksField = <F extends string>(field: F) => `${field}Marks` as `${F}Marks`;
 
 const isColor = (v: unknown): v is TextColor => (TEXT_COLORS as readonly unknown[]).includes(v);
+const isHighlight = (v: unknown): v is HighlightColor => (HIGHLIGHT_COLORS as readonly unknown[]).includes(v);
 
 function cleanStyle(raw: Record<string, unknown>): TextStyle | null {
   const style: TextStyle = {};
   for (const flag of STYLE_FLAGS) if (raw[flag] === true) style[flag] = true;
   if (isColor(raw.color)) style.color = raw.color;
+  if (isHighlight(raw.highlight)) style.highlight = raw.highlight;
   return Object.keys(style).length > 0 ? style : null;
 }
 
@@ -41,7 +59,8 @@ const sameStyle = (a: TextStyle | null | undefined, b: TextStyle | null | undefi
   (a?.italic ?? false) === (b?.italic ?? false) &&
   (a?.underline ?? false) === (b?.underline ?? false) &&
   (a?.strike ?? false) === (b?.strike ?? false) &&
-  (a?.color ?? null) === (b?.color ?? null);
+  (a?.color ?? null) === (b?.color ?? null) &&
+  (a?.highlight ?? null) === (b?.highlight ?? null);
 
 // Each character's style (null: none).
 function expand(marks: TextMark[], length: number): (TextStyle | null)[] {
@@ -105,6 +124,8 @@ export function styleOf(marks: TextMark[], length: number, from: number, to: num
   for (const flag of STYLE_FLAGS) if (styles.slice(from, to).every((s) => s?.[flag])) common[flag] = true;
   const color = styles[from]?.color;
   if (color && styles.slice(from, to).every((s) => s?.color === color)) common.color = color;
+  const highlight = styles[from]?.highlight;
+  if (highlight && styles.slice(from, to).every((s) => s?.highlight === highlight)) common.highlight = highlight;
   return common;
 }
 
@@ -116,6 +137,8 @@ function patched(style: TextStyle | null, patch: StylePatch): TextStyle | null {
   }
   if (patch.color === null) delete next.color;
   else if (patch.color !== undefined) next.color = patch.color;
+  if (patch.highlight === null) delete next.highlight;
+  else if (patch.highlight !== undefined) next.highlight = patch.highlight;
   return Object.keys(next).length > 0 ? next : null;
 }
 
@@ -177,21 +200,28 @@ export function remapMarks(before: string, after: string, marks: TextMark[], pla
 export const marksFromStyles = (styles: (TextStyle | null)[]): TextMark[] => compress(styles);
 
 // A style as CSS properties (React's names; the export turns them into
-// declarations). `color` gives the CSS value of a text color.
-export function textStyleCss(style: TextStyle, color: (c: TextColor) => string): Record<string, string> {
+// declarations). `color` and `highlight` give the CSS values of a text color
+// and a highlight.
+export function textStyleCss(
+  style: TextStyle,
+  color: (c: TextColor) => string,
+  highlight: (c: HighlightColor) => string,
+): Record<string, string> {
   const css: Record<string, string> = {};
   if (style.bold) css.fontWeight = "700";
   if (style.italic) css.fontStyle = "italic";
   const lines = [style.underline && "underline", style.strike && "line-through"].filter(Boolean);
   if (lines.length > 0) css.textDecorationLine = lines.join(" ");
   if (style.color) css.color = color(style.color);
+  if (style.highlight) css.backgroundColor = highlight(style.highlight);
   return css;
 }
 
-// A style in a short form for an attribute ("b i u s c:red"), and back.
+// A style in a short form for an attribute ("b i u s c:red h:yellow"), and back.
 export function encodeStyle(style: TextStyle): string {
   const parts: string[] = STYLE_FLAGS.filter((f) => style[f]).map((f) => f[0]);
   if (style.color) parts.push(`c:${style.color}`);
+  if (style.highlight) parts.push(`h:${style.highlight}`);
   return parts.join(" ");
 }
 
@@ -201,6 +231,7 @@ export function decodeStyle(code: string): TextStyle | null {
     const flag = STYLE_FLAGS.find((f) => f[0] === part);
     if (flag) style[flag] = true;
     else if (part.startsWith("c:") && isColor(part.slice(2))) style.color = part.slice(2) as TextColor;
+    else if (part.startsWith("h:") && isHighlight(part.slice(2))) style.highlight = part.slice(2) as HighlightColor;
   }
   return Object.keys(style).length > 0 ? style : null;
 }

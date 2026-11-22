@@ -14,3 +14,12 @@ export async function getPublicUrl(): Promise<string> {
   });
   return `${config?.publicUrl ?? (await getRequestOrigin())}${BASE_PATH}`;
 }
+
+// Whether the public URL is set in /admin (not taken from the request).
+export async function publicUrlConfigured(): Promise<boolean> {
+  const config = await prisma.instanceConfig.findUnique({
+    where: { id: 1 },
+    select: { publicUrl: true },
+  });
+  return config?.publicUrl != null;
+}

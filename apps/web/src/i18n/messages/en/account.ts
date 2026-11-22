@@ -16,7 +16,12 @@ export default {
       note: "The language of the screens and of the emails sent to you.",
     },
     avatar: {
-      note: "Your picture, shown by your name. Without one, the first letter of your name is shown.",
+      note: "Your picture, shown by your name. Without one, the first letter of your name is shown on a mosaic in a color you like.",
+      mosaicColor: "Mosaic color",
+      otherColor: "Choose another color",
+      anotherPattern: "Another pattern",
+      resetColor: "Reset the color",
+      notSaved: "That couldn't be saved.",
       choose: "Choose a picture",
       remove: "Remove",
       badType: "Choose a PNG, JPEG or WebP picture.",
@@ -86,6 +91,7 @@ export default {
     passkeys: {
       heading: "Passkeys",
       lead: "Log in with a passkey (fingerprint, face, or the device's PIN) instead of your password. Your password keeps working too.",
+      leadIdpOnly: "This account logs in with single sign-on, so passkeys don't log you in. They confirm it's you, for example when you issue an API key.",
       leadRequired: "This site requires a passkey to log in: your password no longer logs you in. Register one on each device you use, or keep one on your phone.",
       none: "No passkeys registered.",
       name: "Name",
