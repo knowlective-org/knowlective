@@ -1,6 +1,6 @@
 import { type BoxItem, type ItemColor, type Stroke, type WhiteboardItem, hexagonInset, isBox } from "@/lib/whiteboard";
 import { boundsOf, connectorPoints, endLabelPlace, hexagonPolygon, hopCrossings, lineRect, midpointOf, routePath, spreadEnds } from "./geometry";
-import { type TextColor, type TextMark, styledRuns, textStyleCss } from "@/lib/whiteboard-marks";
+import { type HighlightColor, type TextColor, type TextMark, styledRuns, textStyleCss } from "@/lib/whiteboard-marks";
 import { parseRichTextAt } from "./rich-text";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 
@@ -14,6 +14,8 @@ export type ExportColors = {
   items: Record<ItemColor, string>;
   // The text colors (lib/whiteboard-marks.ts).
   text: Record<TextColor, string>;
+  // The highlights (lib/whiteboard-marks.ts).
+  highlight: Record<HighlightColor, string>;
   board: string;
   ink: string;
   line: string;
@@ -32,7 +34,7 @@ function styledHtml(text: string, marks: TextMark[], span: { from: number; to: n
   return styledRuns(text, marks, span.from, span.to)
     .map((run) => {
       if (!run.style) return escapeXml(run.text);
-      const css = Object.entries(textStyleCss(run.style, (c) => colors.text[c]))
+      const css = Object.entries(textStyleCss(run.style, (c) => colors.text[c], (c) => colors.highlight[c]))
         .map(([k, v]) => `${kebab(k)}:${v}`)
         .join(";");
       return `<span style="${escapeXml(css)}">${escapeXml(run.text)}</span>`;

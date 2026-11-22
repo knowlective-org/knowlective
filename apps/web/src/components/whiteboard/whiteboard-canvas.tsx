@@ -55,10 +55,11 @@ import {
   whiteboardMap,
 } from "@/lib/whiteboard";
 import {
+  HIGHLIGHT_COLORS,
   STYLE_FLAGS,
+  type StyleChange,
   type StyleFlag,
   TEXT_COLORS,
-  type TextColor,
   type TextMark,
   type TextStyle,
   applyStyle,
@@ -105,7 +106,7 @@ import {
   zoomAt,
 } from "./geometry";
 import { parseRichTextAt, toggleList } from "./rich-text";
-import { TextEditor, type TextEditorHandle, textColorVar } from "./text-editor";
+import { TextEditor, type TextEditorHandle, highlightVar, textColorVar } from "./text-editor";
 import { Icon, type IconName } from "@/components/icons";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 import { ALIGNMENTS, type Alignment, type Guide, align, distribute, snapMove, snapResize } from "./snap";
@@ -391,6 +392,7 @@ export function WhiteboardCanvas({
   const [linking, setLinking] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [textColorOpen, setTextColorOpen, textColorRef] = useBarMenu();
+  const [highlightOpen, setHighlightOpen, highlightRef] = useBarMenu();
   const [shapeOpen, setShapeOpen, shapeRef] = useBarMenu();
   const [shapeToolsOpen, setShapeToolsOpen, shapeToolsRef] = useBarMenu();
   // The shape the toolbar's shape button draws: the last one chosen.
@@ -988,15 +990,17 @@ export function WhiteboardCanvas({
     const common: TextStyle = {};
     for (const flag of STYLE_FLAGS) if (styles.every((st) => st[flag])) common[flag] = true;
     if (styles[0].color && styles.every((st) => st.color === styles[0].color)) common.color = styles[0].color;
+    if (styles[0].highlight && styles.every((st) => st.highlight === styles[0].highlight)) common.highlight = styles[0].highlight;
     return common;
   };
-  // Bold, italic, underline or strike, or a text color: for the selection in
-  // the text being edited, else for the whole of the selected items' texts.
-  const styleText = (how: { flag: StyleFlag } | { color: TextColor | null }) => {
+  // Bold, italic, underline or strike, a text color or a highlight: for the
+  // selection in the text being edited, else for the whole of the selected
+  // items' texts.
+  const styleText = (how: StyleChange) => {
     if (editingText) return textEditor.current?.style(how);
     const texts = selectedTexts();
     if (texts.length === 0) return;
-    const patch = "flag" in how ? { [how.flag]: !wholeStyle()[how.flag] } : { color: how.color };
+    const patch = "flag" in how ? { [how.flag]: !wholeStyle()[how.flag] } : how;
     undo.current?.stopCapturing();
     change(() => texts.forEach((x) => setField(x.id, { [marksField(x.field)]: applyStyle(x.marks, x.text.length, 0, x.text.length, patch) })));
     undo.current?.stopCapturing();
@@ -2236,6 +2240,43 @@ export function WhiteboardCanvas({
                   </div>
                 )}
               </div>
+              <div className={`${styles.barPick} ${styles.textColorPick}`} ref={highlightRef}>
+                <button
+                  type="button"
+                  className={styles.barButton}
+                  aria-label={t("highlight")}
+                  title={t("highlight")}
+                  aria-expanded={highlightOpen}
+                  aria-haspopup="menu"
+                  data-ui="Whiteboard.highlightButton"
+                  onClick={() => setHighlightOpen(!highlightOpen)}
+                >
+                  <Icon name="highlight" size={18} />
+                  {shownStyle.highlight && <span className={styles.textColorBar} style={{ background: highlightVar(shownStyle.highlight) }} />}
+                </button>
+                {highlightOpen && (
+                  <div className={`${styles.barMenu} ${styles.swatchMenu}`} role="menu" aria-label={t("highlight")} data-ui="Whiteboard.highlightMenu">
+                    {([null, ...HIGHLIGHT_COLORS] as const).map((color) => (
+                      <button
+                        key={color ?? "none"}
+                        type="button"
+                        role="menuitemradio"
+                        className={styles.swatch}
+                        style={color ? { background: highlightVar(color) } : undefined}
+                        aria-label={t(`highlights.${color ?? "none"}`)}
+                        title={t(`highlights.${color ?? "none"}`)}
+                        aria-checked={(shownStyle.highlight ?? null) === color}
+                        data-ui="Whiteboard.highlightItem"
+                        data-id={color ?? "none"}
+                        onClick={() => {
+                          styleText({ highlight: color });
+                          setHighlightOpen(false);
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
               <span className={styles.separator} />
             </div>
           )}
@@ -2839,7 +2880,7 @@ function marksOf(item: WhiteboardItem, field: TextField): TextMark[] {
 function Styled({ text, marks, from, to }: { text: string; marks: TextMark[]; from: number; to: number }) {
   return styledRuns(text, marks, from, to).map((run, i) =>
     run.style ? (
-      <span key={i} style={textStyleCss(run.style, textColorVar)}>
+      <span key={i} style={textStyleCss(run.style, textColorVar, highlightVar)}>
         {run.text}
       </span>
     ) : (

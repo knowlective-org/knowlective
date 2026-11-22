@@ -611,6 +611,15 @@ const ja: MessageShape<typeof en> = {
       strike: "取り消し線（Ctrl/⌘+Shift+S）",
     },
     textColor: "文字色",
+    highlight: "ハイライト（Ctrl+Shift+H で黄色）",
+    highlights: {
+      none: "なし",
+      yellow: "黄",
+      green: "緑",
+      blue: "青",
+      pink: "ピンク",
+      orange: "オレンジ",
+    },
     textColors: {
       default: "既定",
       red: "赤",

@@ -10,6 +10,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Whiteboard text can be highlighted, in yellow, green, blue, pink or orange: from the highlight button of the bar above the selection (for the selected words while typing, or the whole text of the selected items), or Ctrl/⌘+Shift+H for yellow (again takes it off). Shown in PNG and SVG exports too
+
 - Whiteboards have hexagons (the hexagon tool, X): level top and bottom, corners at the middle of the left and right, every inner angle 120°. Their width and height can be anything but taller than a regular hexagon (Shift: a regular one). Connectors meet them at a corner or the middle of a side (elbow connectors: the left and right corners and the middles of the top and bottom)
 
 - People can set a picture of themselves on the account screen (made a small square in the browser; PNG, JPEG or WebP). It's shown by their name: at the bottom of the sidebar, on their chat messages, in the "@" menus, as a TODO's assignee and in the admin console's user list. Without one, the first letter of their name is shown. Like names, only to people who are logged in

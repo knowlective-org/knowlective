@@ -39,6 +39,13 @@
   --color-wb-text-purple: #6d28d9;
   --color-wb-text-pink: #a3195b;
   --color-wb-text-gray: #4b5563;
+  /* Highlights (lib/whiteboard-marks.ts HIGHLIGHT_COLORS): stronger than the
+     item colors, with the ink and every text color at 4.5:1 or more. */
+  --color-wb-mark-yellow: #ffe14d;
+  --color-wb-mark-green: #a6eb8f;
+  --color-wb-mark-blue: #b5d8ff;
+  --color-wb-mark-pink: #ffc2ea;
+  --color-wb-mark-orange: #ffcb8a;
 }
 
 html {

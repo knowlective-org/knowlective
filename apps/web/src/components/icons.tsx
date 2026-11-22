@@ -34,6 +34,8 @@ const ICONS = {
   underline: [{ d: "M6 3.5v6a4 4 0 0 0 8 0v-6M4.5 16.5h11" }],
   // A letter A (its bar below, in the color, is the button's).
   textColor: [{ d: "M5.5 14 10 3l4.5 11M7.2 10h5.6" }],
+  // A marker pen, tilted (its bar below, in the color, is the button's).
+  highlight: [{ d: "M12.5 3 16 6.5 9.5 13H6v-3.5ZM6 13l-2 2h3.5l.8-.8M10.2 5.3l3.5 3.5" }],
   strike: [{ d: "M3.5 10h13M13.8 6.2C13.3 4.9 11.8 4 10 4 7.8 4 6.2 5.2 6.2 6.9c0 1 .5 1.8 1.6 2.4M6.4 13.6c.6 1.4 2 2.4 3.9 2.4 2.3 0 3.9-1.2 3.9-3 0-.8-.3-1.5-.9-2" }],
   code: [{ d: "M7 6 3 10l4 4M13 6l4 4-4 4M11.2 4.5 8.8 15.5" }],
   quote: [{ d: "M4.5 9.5h3.5V14H4.5ZM4.5 9.5C4.5 7 5.5 5.5 7.5 5M12 9.5h3.5V14H12ZM12 9.5c0-2.5 1-4 3-4.5" }],

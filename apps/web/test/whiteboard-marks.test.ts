@@ -4,6 +4,7 @@ import { describe, test } from "node:test";
 import * as Y from "yjs";
 import { ITEM_COLORS, readItems, whiteboardMap } from "../src/lib/whiteboard";
 import {
+  HIGHLIGHT_COLORS,
   TEXT_COLORS,
   applyStyle,
   changedRange,
@@ -13,6 +14,7 @@ import {
   remapMarks,
   styleOf,
   styledRuns,
+  textStyleCss,
   toggleFlag,
 } from "../src/lib/whiteboard-marks";
 import { parseRichTextAt } from "../src/components/whiteboard/rich-text";
@@ -22,6 +24,41 @@ import { planWhiteboardChange } from "../src/lib/whiteboard-ops";
 //   pnpm --filter web test:unit
 
 describe("whiteboard text styles", () => {
+  test("highlights: kept, set, taken off, encoded and drawn as a background; unknown ones dropped", () => {
+    assert.deepEqual(
+      readMarks(
+        [
+          { from: 0, to: 2, highlight: "yellow" },
+          { from: 2, to: 4, highlight: "url(x)" },
+          { from: 4, to: 6, highlight: "green", color: "red" },
+        ],
+        6,
+      ),
+      [
+        { from: 0, to: 2, highlight: "yellow" },
+        { from: 4, to: 6, highlight: "green", color: "red" },
+      ],
+    );
+    const marks = applyStyle([], 6, 1, 5, { highlight: "pink" });
+    assert.deepEqual(marks, [{ from: 1, to: 5, highlight: "pink" }]);
+    assert.equal(styleOf(marks, 6, 1, 5).highlight, "pink");
+    assert.equal(styleOf(marks, 6, 0, 5).highlight, undefined);
+    // Bold on part of it keeps the highlight.
+    assert.deepEqual(toggleFlag(marks, 6, 2, 3, "bold"), [
+      { from: 1, to: 2, highlight: "pink" },
+      { from: 2, to: 3, highlight: "pink", bold: true },
+      { from: 3, to: 5, highlight: "pink" },
+    ]);
+    assert.deepEqual(applyStyle(marks, 6, 0, 6, { highlight: null }), []);
+    assert.equal(encodeStyle({ bold: true, highlight: "blue" }), "b h:blue");
+    assert.deepEqual(decodeStyle("b h:blue"), { bold: true, highlight: "blue" });
+    assert.equal(decodeStyle("h:url(x)"), null);
+    assert.deepEqual(
+      textStyleCss({ highlight: "orange", color: "red" }, (c) => `text-${c}`, (c) => `mark-${c}`),
+      { color: "text-red", backgroundColor: "mark-orange" },
+    );
+  });
+
   test("stored styles are checked: kept within the text, unknown values dropped, overlaps resolved", () => {
     assert.deepEqual(
       readMarks(
@@ -127,7 +164,7 @@ describe("whiteboard text styles", () => {
     assert.deepEqual(plan.ops.set[0].fields, { text: "bye", textMarks: null });
   });
 
-  test("every text color has a contrast of at least 4.5:1 on every item color (globals.css)", () => {
+  test("every text color has a contrast of at least 4.5:1 on every item color and highlight (globals.css)", () => {
     const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
     const hex = (name: string) => {
       const match = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`).exec(css);
@@ -148,7 +185,7 @@ describe("whiteboard text styles", () => {
     // Transparent boxes and connector labels show the board under them.
     const backgrounds = [...ITEM_COLORS.filter((c) => c !== "transparent").map((c) => `color-wb-${c}`), "color-wb-board"];
     for (const text of [...TEXT_COLORS.map((c) => `color-wb-text-${c}`), "color-wb-ink"]) {
-      for (const bg of backgrounds) {
+      for (const bg of [...backgrounds, ...HIGHLIGHT_COLORS.map((c) => `color-wb-mark-${c}`)]) {
         const ratio = contrast(hex(text), hex(bg));
         assert.ok(ratio >= 4.5, `${text} on ${bg}: ${ratio.toFixed(2)}`);
       }

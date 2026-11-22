@@ -617,6 +617,15 @@ export default {
       strike: "Strikethrough (Ctrl/⌘+Shift+S)",
     },
     textColor: "Text color",
+    highlight: "Highlight (Ctrl+Shift+H for yellow)",
+    highlights: {
+      none: "None",
+      yellow: "Yellow",
+      green: "Green",
+      blue: "Blue",
+      pink: "Pink",
+      orange: "Orange",
+    },
     textColors: {
       default: "Default",
       red: "Red",

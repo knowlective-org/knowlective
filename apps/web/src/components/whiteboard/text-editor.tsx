@@ -3,6 +3,8 @@
 import { type RefObject, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import { MAX_TEXT_LENGTH } from "@/lib/whiteboard";
 import {
+  type HighlightColor,
+  type StyleChange,
   type StyleFlag,
   type StylePatch,
   type TextColor,
@@ -32,12 +34,13 @@ import { enterInList } from "./rich-text";
 export type TextEditorHandle = {
   // Bold, italic, underline or strike on or off for the selection, or a
   // color (null: the default). With nothing selected, for what's typed next.
-  style: (change: { flag: StyleFlag } | { color: TextColor | null }) => void;
+  style: (change: StyleChange) => void;
   // The text as it is in the document now (after an undo).
   reset: (text: string, marks: TextMark[]) => void;
 };
 
 export const textColorVar = (c: TextColor) => `var(--color-wb-text-${c})`;
+export const highlightVar = (c: HighlightColor) => `var(--color-wb-mark-${c})`;
 
 type Model = { text: string; marks: TextMark[] };
 
@@ -47,7 +50,7 @@ function draw(el: HTMLElement, { text, marks }: Model) {
     const span = document.createElement("span");
     if (run.style) {
       span.dataset.s = encodeStyle(run.style);
-      Object.assign(span.style, textStyleCss(run.style, textColorVar));
+      Object.assign(span.style, textStyleCss(run.style, textColorVar, highlightVar));
     }
     span.textContent = run.text;
     el.append(span);
@@ -175,7 +178,7 @@ const mergePatch = (style: TextStyle, patch: StylePatch | null): TextStyle => {
   if (!patch) return style;
   const out: TextStyle = { ...style };
   for (const [key, value] of Object.entries(patch)) {
-    if (value === true || (key === "color" && value)) (out as Record<string, unknown>)[key] = value;
+    if (value === true || ((key === "color" || key === "highlight") && value)) (out as Record<string, unknown>)[key] = value;
     else delete (out as Record<string, unknown>)[key];
   }
   return out;
@@ -254,6 +257,15 @@ export function TextEditor({
     commit({ text: after, marks: nextMarks }, { from: from + insert.length, to: from + insert.length });
   };
 
+  // The style of the selection (with nothing selected: of what's typed next).
+  const currentStyle = (): TextStyle => {
+    const el = ref.current;
+    const { text, marks } = model.current;
+    const sel = (el && selectionIn(el)) ?? { from: text.length, to: text.length };
+    const base = styleOf(marks, text.length, sel.from, sel.to);
+    return sel.from === sel.to && pending.current?.at === sel.from ? mergePatch(base, pending.current.patch) : base;
+  };
+
   const style: TextEditorHandle["style"] = (change) => {
     const el = ref.current;
     if (!el) return;
@@ -264,13 +276,13 @@ export function TextEditor({
       const current = mergePatch(styleOf(marks, text.length, sel.from, sel.to), pending.current?.at === sel.from ? pending.current.patch : null);
       const patch: StylePatch = { ...(pending.current?.at === sel.from ? pending.current.patch : {}) };
       if ("flag" in change) patch[change.flag] = !current[change.flag];
-      else patch.color = change.color;
+      else Object.assign(patch, change);
       pending.current = { patch, at: sel.from };
       report();
       return;
     }
     const patch: StylePatch =
-      "flag" in change ? { [change.flag]: !styleOf(marks, text.length, sel.from, sel.to)[change.flag] } : { color: change.color };
+      "flag" in change ? { [change.flag]: !styleOf(marks, text.length, sel.from, sel.to)[change.flag] } : change;
     commit({ text, marks: applyStyle(marks, text.length, sel.from, sel.to, patch) }, sel);
   };
 
@@ -435,6 +447,12 @@ export function TextEditor({
           if (flag) {
             e.preventDefault();
             style({ flag });
+            return;
+          }
+          // Ctrl/⌘+Shift+H: a yellow highlight, or none when there is one.
+          if (key === "h" && e.shiftKey) {
+            e.preventDefault();
+            style({ highlight: currentStyle().highlight ? null : "yellow" });
             return;
           }
           if (key === "z" || key === "y") {

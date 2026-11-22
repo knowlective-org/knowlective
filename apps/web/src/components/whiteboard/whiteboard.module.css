@@ -524,8 +524,8 @@
   cursor: pointer;
 }
 
-/* Transparent: a slash across the swatch. */
-.swatch[data-id="transparent"] {
+/* Transparent (or no highlight): a slash across the swatch. */
+.swatch:is([data-id="transparent"], [data-id="none"]) {
   background: linear-gradient(to top right, transparent calc(50% - 1px), var(--color-danger) calc(50% - 1px), var(--color-danger) calc(50% + 1px), transparent calc(50% + 1px)), var(--color-surface) !important;
 }
 

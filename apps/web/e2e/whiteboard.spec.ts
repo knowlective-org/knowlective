@@ -983,7 +983,7 @@ test.describe("Whiteboard", () => {
     }
   });
 
-  test("parts of a text made bold, italic, underlined, struck through or colored, kept after reloading", async ({ browser }) => {
+  test("parts of a text made bold, italic, underlined, struck through, colored or highlighted, kept after reloading", async ({ browser }) => {
     const context = await browser.newContext({ storageState: authFile("editor") });
     const page = await context.newPage();
     try {
@@ -1036,6 +1036,22 @@ test.describe("Whiteboard", () => {
       // Undo while typing: the board's undo, the field drawn again.
       await page.keyboard.press("Control+z");
       await expect(input).toHaveJSProperty("textContent", "太い字と赤字と普通");
+
+      // The last word highlighted from the menu; Ctrl+Shift+H takes it off,
+      // and again puts yellow on.
+      await page.keyboard.press("Control+End");
+      await page.keyboard.press("Shift+ArrowLeft");
+      await page.keyboard.press("Shift+ArrowLeft");
+      await page.getByTestId("Whiteboard.highlightButton").click();
+      await expect(page.getByTestId("Whiteboard.highlightMenu")).toBeVisible();
+      await page.locator('[data-ui="Whiteboard.highlightItem"][data-id="green"]').click();
+      await expect(page.getByTestId("Whiteboard.highlightMenu")).toHaveCount(0);
+      await expect(styled("h:green")).toHaveText("普通");
+      await expect(page.locator('[data-ui="Whiteboard.highlightItem"]')).toHaveCount(0);
+      await page.keyboard.press("Control+Shift+h");
+      await expect(styled("h:green")).toHaveCount(0);
+      await page.keyboard.press("Control+Shift+h");
+      await expect(styled("h:yellow")).toHaveText("普通");
       await page.keyboard.press("Escape");
 
       // Shown on the board in the styles.
@@ -1043,7 +1059,8 @@ test.describe("Whiteboard", () => {
       await expect(shown.filter({ hasText: "太い字" })).toHaveCSS("font-weight", "700");
       await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("color", "rgb(166, 27, 27)");
       await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("text-decoration-line", "underline");
-      await expect(shown.filter({ hasText: "普通" })).toHaveCount(0);
+      await expect(shown.filter({ hasText: "普通" })).toHaveCSS("background-color", "rgb(255, 225, 77)");
+      await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
       // The whole note struck through from the bar (selected, not being edited); again takes it away.
       await expect(note).toHaveAttribute("data-selected", "");
@@ -1056,6 +1073,7 @@ test.describe("Whiteboard", () => {
       // Kept in the page's document.
       await page.reload();
       await expect(shown.filter({ hasText: "赤字" })).toHaveCSS("color", "rgb(166, 27, 27)");
+      await expect(shown.filter({ hasText: "普通" })).toHaveCSS("background-color", "rgb(255, 225, 77)");
       await expect(shown.filter({ hasText: "太い字" })).toHaveCSS("font-weight", "700");
 
       await trashOpenPage(page);

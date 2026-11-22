@@ -170,6 +170,7 @@ describe("whiteboard export", () => {
   const colors = {
     items: { yellow: "#ff0", orange: "#fa0", pink: "#f9c", purple: "#ccf", blue: "#9cf", green: "#9f9", gray: "#ddd", white: "#fff", transparent: "transparent" },
     text: { red: "#a00", brown: "#930", green: "#060", blue: "#00c", purple: "#609", pink: "#a05", gray: "#444" },
+    highlight: { yellow: "#fe4", green: "#ae9", blue: "#bdf", pink: "#fce", orange: "#fc8" },
     board: "#fafafa",
     ink: "#111",
     line: "#555",
