@@ -248,6 +248,12 @@
   overflow: hidden;
 }
 
+/* Empty: its line (a <br>, in the box's "normal" line height) can be lower
+   than the placeholder's Japanese glyphs, which aren't cut off. */
+.boxInput[data-empty] {
+  overflow: visible;
+}
+
 /* Drags the text to another place (sized for the screen). */
 .textHandle {
   position: absolute;

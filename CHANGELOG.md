@@ -72,6 +72,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Fixed
 
+- A new whiteboard shape's placeholder ("Type here") was cut off at the bottom
+
 - Security: the `effect` package that Prisma's configuration uses is raised to 3.22.4, fixing a ReDoS (GHSA-7589-6fvf-x4pw)
 
 - On a whiteboard, the placeholder of a new item's text stayed over Japanese (or other IME) input until it was confirmed

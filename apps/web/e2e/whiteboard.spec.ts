@@ -386,6 +386,8 @@ test.describe("Whiteboard", () => {
       const input = page.getByTestId("Whiteboard.textInput");
       await expect(input).toBeFocused();
       await expect(input).toHaveAttribute("data-empty", "");
+      // The placeholder isn't cut off at the bottom (its glyphs can be taller than the empty line).
+      await expect(input).toHaveCSS("overflow", "visible");
       // Japanese typed straight away (an IME composition): no placeholder over it.
       const cdp = await context.newCDPSession(page);
       await cdp.send("Input.imeSetComposition", { text: "にほ", selectionStart: 2, selectionEnd: 2 });
