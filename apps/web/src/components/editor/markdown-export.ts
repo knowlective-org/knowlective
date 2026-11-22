@@ -1,3 +1,4 @@
+import { parseColumns } from "./grid-types";
 import type { ChildPageItem } from "@/lib/page-property-types";
 // Relative: also loaded by the custom server (server/page-markdown.ts).
 import { displayTitle } from "../../lib/page-title";
@@ -224,6 +225,9 @@ function tocList(headings: TocHeading[], people: Record<string, string>): Export
 // table, whose cells hold text only.
 function gridTableAsTable(table: ExportBlock, rows: ExportBlock[]): ExportBlock {
   const columns = Math.max(1, ...rows.map((row) => row.children?.length ?? 0));
+  // Masked columns' values (sealed text, grid-types.ts): masked here too.
+  const rules = parseColumns(table.props?.columns, columns);
+  const masked = (r: number, c: number) => rules[c]?.type === "masked" && !(r === 0 && table.props?.headerRow !== false);
   const cell = (blocks: ExportBlock[]) => ({
     type: "tableCell",
     props: { backgroundColor: "default", textColor: "default", textAlignment: "left", colspan: 1, rowspan: 1 },
@@ -236,9 +240,14 @@ function gridTableAsTable(table: ExportBlock, rows: ExportBlock[]): ExportBlock 
       ...(table.props?.headerRow !== false ? { headerRows: 1 } : {}),
       ...(table.props?.headerColumn === true ? { headerCols: 1 } : {}),
       rows: [
-        ...rows.map((row) => {
+        ...rows.map((row, r) => {
           const cells = row.children ?? [];
-          return { cells: Array.from({ length: columns }, (_, i) => cell(cells[i]?.children ?? [])) };
+          return {
+            cells: Array.from({ length: columns }, (_, i) => {
+              const blocks = cells[i]?.children ?? [];
+              return masked(r, i) && cellText(blocks).length > 0 ? { ...cell([]), content: [text("🔒 ••••••••")] } : cell(blocks);
+            }),
+          };
         }),
         ...summaryRow(table, rows, columns).map((texts) => ({
           cells: texts.map((t) => ({ ...cell([]), content: t ? [text(t, { bold: true })] : [] })),

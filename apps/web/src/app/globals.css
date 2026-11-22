@@ -191,6 +191,113 @@ a {
   min-width: 0;
 }
 
+/* A typed column's cell (components/editor/grid-values.ts): its control in
+   place of its blocks (a person's cell shows its mention beside it). */
+.bn-root .kn-grid-cell[data-col-type]:not([data-col-type="user"]) > .kn-grid-cell-content {
+  display: none;
+}
+
+.bn-root .kn-grid-cell[data-col-type="user"] {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.bn-root .kn-grid-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 1.6em;
+}
+
+.bn-root .kn-grid-value-input {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.bn-root .kn-grid-value-input:hover:not(:disabled),
+.bn-root .kn-grid-value-input:focus {
+  border-color: var(--color-border-strong);
+  outline: none;
+}
+
+.bn-root .kn-grid-value-input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.bn-root .kn-grid-value[data-grid-value="number"] .kn-grid-value-input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bn-root .kn-grid-value-check {
+  width: 16px;
+  height: 16px;
+}
+
+.bn-root .kn-grid-chips,
+.bn-root .kn-grid-user-button,
+.bn-root .kn-grid-masked {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-height: 1.6em;
+  padding: 2px 4px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.bn-root .kn-grid-chips {
+  width: 100%;
+}
+
+.bn-root .kn-grid-chips:hover:not(:disabled),
+.bn-root .kn-grid-user-button:hover:not(:disabled),
+.bn-root .kn-grid-masked:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+.bn-root .kn-grid-chips:disabled,
+.bn-root .kn-grid-user-button:disabled {
+  cursor: default;
+}
+
+.bn-root .kn-grid-user-button:disabled {
+  display: none;
+}
+
+.bn-root .kn-grid-chip {
+  padding: 0 8px;
+  font-size: 0.9em;
+  color: #1f2328;
+  border-radius: 999px;
+}
+
+.bn-root .kn-grid-chip-empty {
+  color: var(--color-muted);
+}
+
+.bn-root .kn-grid-invalid {
+  font-size: 0.85em;
+  color: var(--color-danger);
+  overflow-wrap: anywhere;
+}
+
 .bn-root .kn-grid-table[data-header-row="true"] > .kn-grid-scroll > .kn-grid-body > .kn-grid-row:first-child > .kn-grid-cell,
 .bn-root .kn-grid-table[data-header-column="true"] > .kn-grid-scroll > .kn-grid-body > .kn-grid-row > .kn-grid-cell:first-child {
   font-weight: 600;

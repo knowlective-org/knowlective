@@ -10,6 +10,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Extended tables' columns can have an input rule, as child page tables have: number (shown with thousands separators and a set number of decimals), date, option (one or several, with colors), checkbox, person, or masked with the column's passphrase. A typed column's cells hold its value only, put in with a control, and stay text for search, exports and the summary row. Changing a column's type turns its cells into values, asking before emptying those that can't be. Masked values are sealed in the browser and left out of search and exports
+
 - Other people's cursors (in documents and on whiteboards) show their avatar and name on a badge in their avatar color, the name in a light shade of it on a dark color and a deep one on a light color. Chat names take the same color
 
 - Without a picture, a person's avatar is a mosaic of triangles in shades of one color, with their initial on it (as written: upper or lower case). The color (a suggested one or any other) and another pattern can be chosen on the account screen; until then, their cursor's color is used

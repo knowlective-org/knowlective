@@ -10,6 +10,7 @@ import { translatorFor } from "../i18n/translator";
 import { pagePeopleNames } from "./page-people";
 import { whiteboardFileIds, whiteboardText } from "./whiteboard";
 import { linkedViewSources } from "./child-view-blocks";
+import { parseColumns } from "../components/editor/grid-types";
 
 // Encrypted full-text search index. Used by the collab server (reindexing on
 // every store) and the app (queries, reindexing on uploads / new pages).
@@ -110,6 +111,19 @@ export function documentText(doc: Y.Doc): string {
         const value = node.getAttribute(key) as unknown;
         if (typeof value === "string" && value) line += `${value.replace(/\s+/g, " ")} `;
       }
+    }
+    // An extended table: its masked columns' values (sealed text) left out.
+    if (node instanceof Y.XmlElement && node.nodeName === "gridTable") {
+      const rows = node.toArray().filter((r): r is Y.XmlElement => r instanceof Y.XmlElement);
+      const columns = parseColumns(node.getAttribute("columns") as unknown, Math.max(0, ...rows.map((r) => r.length)));
+      const headerRow = (node.getAttribute("headerRow") as unknown) !== false;
+      rows.forEach((row, r) =>
+        row.toArray().forEach((cell, c) => {
+          if (columns[c]?.type === "masked" && !(r === 0 && headerRow)) return;
+          visit(cell as Y.XmlElement);
+        }),
+      );
+      return;
     }
     for (const child of node.toArray()) visit(child as Y.XmlElement | Y.XmlText);
     if (node instanceof Y.XmlElement && node.nodeName === "blockContainer" && line) {

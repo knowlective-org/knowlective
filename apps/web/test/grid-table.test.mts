@@ -52,6 +52,25 @@ describe("extended table", () => {
     assert.match(markdown, /\|\s*検索\s*\|\s*本文 添付ファイル\s*\|/);
   });
 
+  test("its columns' rules survive the round trip; masked values are written masked", async () => {
+    const typed = {
+      ...table,
+      props: { ...table.props, columns: JSON.stringify([null, { type: "masked" }]) },
+      children: [
+        table.children[0],
+        { type: "gridRow", children: [cell({ type: "paragraph", content: text("鍵") }), cell({ type: "paragraph", content: text("v1.600000.AAAA.BBBB.CCCC") })] },
+      ],
+    };
+    const blocks = stateToBlocks(blocksToUpdate([typed])) as typeof table[];
+    assert.equal((blocks[0].props as { columns?: string }).columns, typed.props.columns);
+    const prepared = prepareBlocksForExport([typed] as never, { origin: "https://example.com", pageId: "p", childPages: null, untitled: "Untitled" });
+    const markdown = await blocksToMarkdown(prepared);
+    // The heading as it is; the sealed text never.
+    assert.match(markdown, /\|\s*項目\s*\|\s*説明\s*\|/);
+    assert.match(markdown, /🔒/);
+    assert.doesNotMatch(markdown, /v1\.600000/);
+  });
+
   test("its summary row is written as a last row, the functions named as in a spreadsheet", async () => {
     const numbers = {
       type: "gridTable",

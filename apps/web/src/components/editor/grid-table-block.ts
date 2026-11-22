@@ -4,10 +4,23 @@ import { Node } from "@tiptap/core";
 import { Fragment, type Node as PMNode, type Schema, Slice } from "@tiptap/pm/model";
 import { ReplaceAroundStep } from "@tiptap/pm/transform";
 import { type EditorState, Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
-import type { EditorView, NodeView, ViewMutationRecord } from "@tiptap/pm/view";
-import { showConfirm } from "../dialog";
+import type { Decoration, EditorView, NodeView, ViewMutationRecord } from "@tiptap/pm/view";
+import { showChoice, showConfirm } from "../dialog";
 import { showNotice } from "../notice";
 import { tableFromTsv, trimTable } from "./grid-paste";
+import { type GridColumn, parseColumns, serializeColumns, shiftColumns } from "./grid-types";
+import {
+  type CellSpec,
+  type GridValueText,
+  changeColumnType,
+  cellControl,
+  columnRing,
+  editOption,
+  gridValuesPlugin,
+  lockColumn,
+  pastedValue,
+  unlockColumn,
+} from "./grid-values";
 import { clearColumn, columnPlugin, copyColumn, moveColumn, selectColumn, selectedColumn, styleColumn } from "./grid-columns";
 import {
   GRID_TABLE_NODES,
@@ -76,7 +89,7 @@ type GridText = {
   summaryThisColumn: string;
   summaryColumn: string;
   summaryApply: string;
-};
+} & GridValueText;
 
 // The parts of BlockNote's own dictionary the column menu uses (its color and
 // alignment names, as in its toolbar).
@@ -172,6 +185,7 @@ function insertColumn(view: EditorView, tablePos: number, at: number) {
   widths.splice(at, 0, widths.reduce((a, b) => a + b, 0) / widths.length);
   tr.setNodeAttribute(tablePos, "widths", JSON.stringify(widths.map((w) => Math.round(w * 100) / 100)));
   if (table.attrs.summary) tr.setNodeAttribute(tablePos, "summary", shiftSummary(table.attrs.summary, columns, at, 1));
+  if (table.attrs.columns) tr.setNodeAttribute(tablePos, "columns", shiftColumns(table.attrs.columns, columns, at, 1));
   const firstCell = childPositions(tr.doc.nodeAt(tablePos)!.child(0), rows[0])[at];
   tr.setSelection(TextSelection.near(tr.doc.resolve(firstCell + 1)));
   view.dispatch(tr.scrollIntoView());
@@ -203,6 +217,7 @@ function deleteColumn(view: EditorView, tablePos: number, at: number) {
   widths.splice(at, 1);
   tr.setNodeAttribute(tablePos, "widths", JSON.stringify(widths));
   if (table.attrs.summary) tr.setNodeAttribute(tablePos, "summary", shiftSummary(table.attrs.summary, columns, at, -1));
+  if (table.attrs.columns) tr.setNodeAttribute(tablePos, "columns", shiftColumns(table.attrs.columns, columns, at, -1));
   view.dispatch(tr);
 }
 
@@ -272,14 +287,19 @@ export function pasteIntoGrid(editor: Editor & { prosemirrorView: EditorView | u
   const cut = row0 + pasted.length > newRows || col0 + width > newColumns;
 
   const { schema } = state;
+  const rules = parseColumns(table.attrs.columns, columns);
+  let skipped = false;
   const rows: PMNode[] = [];
   for (let r = 0; r < newRows; r++) {
     const old = r < table.childCount ? table.child(r) : null;
     const cells: PMNode[] = [];
     for (let c = 0; c < newColumns; c++) {
       const oldCell = old && c < old.childCount ? old.child(c) : null;
-      const text = r >= row0 && c >= col0 ? pasted[r - row0]?.[c - col0] : undefined;
-      if (text !== undefined) cells.push(cellWithText(schema, oldCell?.attrs.id ?? newId(), text));
+      const raw = r >= row0 && c >= col0 ? pasted[r - row0]?.[c - col0] : undefined;
+      // A typed column's body cells: its values (masked ones: not pasted).
+      const text = raw === undefined || (r === 0 && table.attrs.headerRow === true) ? raw : pastedValue(rules[c] ?? null, raw);
+      if (raw !== undefined && text === null) skipped = true;
+      if (text !== undefined && text !== null) cells.push(cellWithText(schema, oldCell?.attrs.id ?? newId(), text));
       else cells.push(oldCell ?? emptyCell(schema));
     }
     rows.push(schema.nodes.gridRow.create({ id: old?.attrs.id ?? newId() }, cells));
@@ -300,6 +320,7 @@ export function pasteIntoGrid(editor: Editor & { prosemirrorView: EditorView | u
   tr.setSelection(TextSelection.near(tr.doc.resolve(cellPos + next.child(lastRow).child(lastCol).nodeSize - 1), -1));
   view.dispatch(tr.scrollIntoView());
   if (cut) showNotice(gridText(editor).pasteCut);
+  else if (skipped) showNotice(gridText(editor).maskedPasteSkipped);
   return true;
 }
 
@@ -553,7 +574,7 @@ const gridExtension = createExtension({
     ArrowDown: ({ editor }) => moveVertically(editor.prosemirrorView, "down"),
     ArrowUp: ({ editor }) => moveVertically(editor.prosemirrorView, "up"),
   },
-  prosemirrorPlugins: [gridStructurePlugin(), columnPlugin(() => newId())],
+  prosemirrorPlugins: [gridStructurePlugin(), columnPlugin(() => newId()), gridValuesPlugin()],
 });
 
 // --- Controls ---------------------------------------------------------------
@@ -992,12 +1013,19 @@ class GridCellView implements NodeView {
   dom: HTMLElement;
   contentDOM: HTMLElement;
   private controls: HTMLElement | null = null;
+  // A typed column's cell: its value's control (grid-values.ts), and what it
+  // was drawn for.
+  private valueBox: HTMLElement | null = null;
+  private drawnFor = "";
+  private text: GridText;
+  private editable: boolean;
 
   constructor(
-    node: PMNode,
+    private node: PMNode,
     private view: EditorView,
     private getPos: () => number | undefined,
     editor: Editor,
+    decorations: readonly Decoration[],
   ) {
     this.dom = document.createElement("div");
     this.dom.className = "kn-grid-cell";
@@ -1008,7 +1036,39 @@ class GridCellView implements NodeView {
     this.contentDOM = document.createElement("div");
     this.contentDOM.className = "kn-grid-cell-content";
     this.dom.append(this.contentDOM);
-    if (editor.isEditable) this.dom.append(this.makeControls(gridText(editor), editor.dictionary as unknown as BlockNoteText));
+    this.text = gridText(editor);
+    this.editable = editor.isEditable;
+    if (editor.isEditable) this.dom.append(this.makeControls(this.text, editor.dictionary as unknown as BlockNoteText));
+    this.drawValue(decorations);
+  }
+
+  // The control of a typed column's cell (its blocks hidden behind it, a
+  // user cell's mention aside), drawn again when its value or rule changes.
+  // Not while it's being typed into (it would lose the caret).
+  private drawValue(decorations: readonly Decoration[]) {
+    const spec = decorations.map((d) => (d as unknown as { spec: Partial<CellSpec> }).spec).find((s) => s?.knGrid) as CellSpec | undefined;
+    const drawFor = spec ? `${spec.knGrid}\u0000${JSON.stringify(this.node.toJSON())}` : "";
+    if (drawFor === this.drawnFor) return;
+    const typing = !!this.valueBox?.contains(document.activeElement) && document.activeElement instanceof HTMLInputElement && document.activeElement.type !== "checkbox";
+    if (typing && spec && this.drawnFor.startsWith(`${spec.knGrid}\u0000`)) return;
+    this.drawnFor = drawFor;
+    this.valueBox?.remove();
+    this.valueBox = null;
+    if (!spec) {
+      this.contentDOM.removeAttribute("contenteditable");
+      return;
+    }
+    this.contentDOM.contentEditable = "false";
+    this.valueBox = cellControl({
+      view: this.view,
+      cellPos: this.getPos,
+      cell: this.node,
+      spec,
+      editable: this.editable,
+      text: this.text,
+      menu: showCellMenu,
+    });
+    this.dom.insertBefore(this.valueBox, this.contentDOM);
   }
 
   private place() {
@@ -1147,8 +1207,85 @@ class GridCellView implements NodeView {
             })),
           ),
       },
+      { label: `${text.columnType}…`, ui: "GridTable.columnTypeItem", run: () => this.chooseType(anchor, text, table, current) },
+      ...this.typeItems(text, table, place.col, current),
       { label: text.deleteColumn, ui: "GridTable.deleteColumnItem", run: () => deleteColumn(view, current().tablePos, current().col), disabled: columns <= 1 },
     ]);
+  }
+
+  // The kinds a column can be (grid-types.ts), its own marked.
+  private chooseType(anchor: HTMLElement, text: GridText, table: PMNode, current: () => { tablePos: number; col: number }) {
+    const tableId = String(table.attrs.id ?? "");
+    const now = parseColumns(table.attrs.columns, columnCount(table))[current().col];
+    const kinds: { key: keyof GridText["types"]; column: GridColumn | null }[] = [
+      { key: "text", column: null },
+      { key: "number", column: { type: "number", grouping: now?.type === "number" ? now.grouping : true, decimals: now?.type === "number" ? now.decimals : null } },
+      { key: "date", column: { type: "date" } },
+      { key: "select", column: { type: "select", multiple: false, options: now?.type === "select" ? now.options : [] } },
+      { key: "multiSelect", column: { type: "select", multiple: true, options: now?.type === "select" ? now.options : [] } },
+      { key: "checkbox", column: { type: "checkbox" } },
+      { key: "user", column: { type: "user" } },
+      { key: "masked", column: { type: "masked" } },
+    ];
+    const same = (column: GridColumn | null) =>
+      column?.type === now?.type && (column?.type !== "select" || (now?.type === "select" && column.multiple === now.multiple));
+    showCellMenu(
+      anchor,
+      kinds.map((k) => ({
+        label: `${same(k.column) ? "✓ " : "   "}${text.types[k.key]}`,
+        ui: "GridTable.columnTypeOption",
+        run: () => void changeColumnType(this.view, tableId, current().col, k.column, text, text.types[k.key]),
+      })),
+    );
+  }
+
+  // Menu items for the column's type: a select column's options, a masked
+  // column's passphrase (hiding it again).
+  private typeItems(text: GridText, table: PMNode, col: number, current: () => { tablePos: number; col: number }) {
+    const tableId = String(table.attrs.id ?? "");
+    const column = parseColumns(table.attrs.columns, columnCount(table))[col];
+    if (column?.type === "select" && this.editable) {
+      return [
+        { label: text.renameOption, ui: "GridTable.renameOptionItem", run: () => void editOption(this.view, tableId, current().col, text, "rename"), disabled: column.options.length === 0 },
+        { label: text.deleteOption, ui: "GridTable.deleteOptionItem", run: () => void editOption(this.view, tableId, current().col, text, "delete"), disabled: column.options.length === 0 },
+      ];
+    }
+    if (column?.type === "number" && this.editable) {
+      const set = (next: GridColumn) => {
+        const t = tableAt(this.view.state, current().tablePos);
+        if (!t) return;
+        const list = parseColumns(t.attrs.columns, columnCount(t));
+        list[current().col] = next;
+        setTableAttr(this.view, current().tablePos, "columns", serializeColumns(list));
+      };
+      return [
+        {
+          label: `${column.grouping ? "✓ " : "   "}${text.numberGrouping}`,
+          ui: "GridTable.numberGroupingItem",
+          run: () => set({ ...column, grouping: !column.grouping }),
+        },
+        {
+          label: `${text.numberDecimals}…`,
+          ui: "GridTable.numberDecimalsItem",
+          run: () =>
+            void showChoice(
+              text.numberDecimals,
+              [{ value: "", label: text.numberDecimalsAsTyped }, ...[0, 1, 2, 3].map((d) => ({ value: String(d), label: String(d) }))],
+            ).then((choice) => {
+              if (choice !== null) set({ ...column, decimals: choice === "" ? null : Number(choice) });
+            }),
+        },
+      ];
+    }
+    if (column?.type === "masked") {
+      const open = !!columnRing(this.view.state, tableId, col);
+      return [
+        open
+          ? { label: text.maskedHide, ui: "GridTable.maskedHideItem", run: () => lockColumn(this.view, tableId, current().col) }
+          : { label: text.maskedShow, ui: "GridTable.maskedShowItem", run: () => void unlockColumn(this.view, tableId, current().col, text) },
+      ];
+    }
+    return [];
   }
 
   // Dragging the cell's right edge: this column and the next one share
@@ -1184,19 +1321,24 @@ class GridCellView implements NodeView {
     handle.addEventListener("pointercancel", up);
   }
 
-  update(node: PMNode): boolean {
+  update(node: PMNode, decorations: readonly Decoration[]): boolean {
     if (node.type.name !== "gridCell") return false;
+    this.node = node;
     this.dom.dataset.id = String(node.attrs.id ?? "");
+    this.drawValue(decorations);
     return true;
   }
 
   stopEvent(event: Event): boolean {
-    return !!this.controls?.contains(event.target as globalThis.Node);
+    const target = event.target as globalThis.Node;
+    return !!this.controls?.contains(target) || !!this.valueBox?.contains(target);
   }
 
   ignoreMutation(mutation: ViewMutationRecord): boolean {
     if (mutation.type === "selection") return false;
     if (this.controls?.contains(mutation.target)) return true;
+    if (this.valueBox?.contains(mutation.target)) return true;
+    if (mutation.type === "attributes" && mutation.target === this.contentDOM) return true;
     return mutation.type === "attributes" && mutation.target === this.dom;
   }
 }
@@ -1215,7 +1357,7 @@ const GridRowNode = Node.create(GRID_TABLE_NODES.gridRow as NodeConfig);
 const GridCellNode = Node.create(GRID_TABLE_NODES.gridCell as NodeConfig).extend({
   addNodeView() {
     const editor = (this.options as { editor: Editor }).editor;
-    return ({ node, view, getPos }) => new GridCellView(node, view, getPos, editor);
+    return ({ node, view, getPos, decorations }) => new GridCellView(node, view, getPos, editor, decorations);
   },
 });
 
