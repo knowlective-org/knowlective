@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import * as Y from "yjs";
-import { MAX_COORD, MAX_SIZE, MIN_SIZE, copyWhiteboard, readItems, whiteboardMap, whiteboardText } from "../src/lib/whiteboard";
+import { HEXAGON_RATIO, MAX_COORD, MAX_SIZE, MIN_SIZE, copyWhiteboard, hexagonInset, readItems, whiteboardMap, whiteboardText } from "../src/lib/whiteboard";
 import {
   connectorPoints,
   crossing,
   edgePoint,
   ellipsePort,
   fitCamera,
+  hexagonPoints,
+  hexagonPort,
   hopCrossings,
   hopPath,
   midpointOf,
@@ -281,6 +283,63 @@ describe("whiteboard geometry", () => {
     ];
     const run = connectorPoints(diamond("a", 0, 0), box("b", 300, 30), "elbow", AUTO, 0);
     assert.ok(corners.some((c) => c.x === run[0].x && c.y === run[0].y));
+  });
+
+  test("a hexagon keeps its 120° corners and is never taller than a regular one", () => {
+    const doc = new Y.Doc();
+    const map = whiteboardMap(doc);
+    for (const [id, w, h] of [["tall", 100, 300], ["flat", 300, 40], ["thin", 2, 100]] as const) {
+      const item = new Y.Map<unknown>();
+      for (const [k, v] of Object.entries({ type: "hexagon", x: 0, y: 0, w, h })) item.set(k, v);
+      map.set(id, item);
+    }
+    const sizes = Object.fromEntries(readItems(doc).map((i) => [i.id, i.type === "hexagon" ? [i.w, i.h] : null]));
+    // Too tall: as tall as a regular one.
+    assert.deepEqual(sizes.tall, [100, Math.floor(100 * HEXAGON_RATIO)]);
+    assert.deepEqual(sizes.flat, [300, 40]);
+    // Too narrow for the smallest height: widened.
+    assert.ok(sizes.thin![1] >= MIN_SIZE && sizes.thin![1] <= sizes.thin![0] * HEXAGON_RATIO);
+    // Every corner 120°, whatever its proportions.
+    for (const [w, h] of [[300, 40], [100, 100 * HEXAGON_RATIO]]) {
+      const corners = hexagonPoints({ x: 0, y: 0, w, h }).filter((_, i) => i % 2 === 0);
+      corners.forEach((p, i) => {
+        const a = corners[(i + 5) % 6];
+        const b = corners[(i + 1) % 6];
+        const angle = Math.acos(((a.x - p.x) * (b.x - p.x) + (a.y - p.y) * (b.y - p.y)) / (Math.hypot(a.x - p.x, a.y - p.y) * Math.hypot(b.x - p.x, b.y - p.y)));
+        assert.ok(Math.abs((angle * 180) / Math.PI - 120) < 1e-6, `${w}×${h} corner ${i}: ${(angle * 180) / Math.PI}`);
+      });
+    }
+    // Its corners are at the middles of its left and right sides.
+    const corners = hexagonPoints({ x: 0, y: 0, w: 300, h: 40 }).filter((_, i) => i % 2 === 0);
+    assert.deepEqual(corners[0], { x: 300, y: 20 });
+    assert.deepEqual(corners[3], { x: 0, y: 20 });
+    assert.equal(corners[4].x, hexagonInset(40));
+  });
+
+  test("a hexagon is connected at its corners and the middles of its sides only", () => {
+    const box = (id: string, x: number, y: number) => ({ id, type: "rect" as const, x, y, w: 120, h: 80, text: "", textX: 0, textY: 0, textMarks: [], color: "white" as const, z: 0, src: "", link: "", connectorEnds: "spread" as const });
+    const hexagon = (id: string, x: number, y: number) => ({ ...box(id, x, y), type: "hexagon" as const });
+    const points = hexagonPoints(hexagon("a", 0, 0));
+    assert.equal(points.length, 12);
+    const isPoint = (p: { x: number; y: number }) => points.some((q) => Math.abs(q.x - p.x) < 1e-6 && Math.abs(q.y - p.y) < 1e-6);
+    // Straight: whatever the direction, one of its twelve points.
+    for (let deg = 0; deg < 360; deg += 7) {
+      const toward = { x: 60 + 500 * Math.cos((deg * Math.PI) / 180), y: 40 + 500 * Math.sin((deg * Math.PI) / 180) };
+      assert.ok(isPoint(hexagonPort(hexagon("a", 0, 0), toward, 0)), `${deg}°`);
+      assert.ok(isPoint(connectorPoints(hexagon("a", 0, 0), { ...box("b", 0, 0), x: toward.x - 60, y: toward.y - 40 }, "straight", AUTO, 0)[0]), `${deg}°`);
+    }
+    // Straight right: its right corner; straight down: the middle of its bottom.
+    assert.deepEqual(hexagonPort(hexagon("a", 0, 0), { x: 500, y: 40 }, 0), { x: 120, y: 40 });
+    assert.deepEqual(hexagonPort(hexagon("a", 0, 0), { x: 60, y: 500 }, 0), { x: 60, y: 80 });
+    // The gap is outward.
+    assert.deepEqual(hexagonPort(hexagon("a", 0, 0), { x: 500, y: 40 }, 4), { x: 124, y: 40 });
+    // Elbow: its left or right corner, or the middle of its top or bottom.
+    const run = connectorPoints(hexagon("a", 0, 0), box("b", 300, 30), "elbow", AUTO, 0);
+    assert.ok([{ x: 120, y: 40 }, { x: 0, y: 40 }, { x: 60, y: 0 }, { x: 60, y: 80 }].some((c) => c.x === run[0].x && c.y === run[0].y));
+    // The outline: halfway up a slanted side.
+    const mid = { x: hexagonInset(80) / 2, y: 20 };
+    const edge = edgePoint(hexagon("a", 0, 0), { x: 60 + (mid.x - 60) * 3, y: 40 + (mid.y - 40) * 3 }, 0);
+    assert.ok(Math.abs(edge.x - hexagonInset(80) / 2) < 1e-6 && Math.abs(edge.y - 20) < 1e-6, JSON.stringify(edge));
   });
 
   test("an ellipse is connected at its points at 45° steps only", () => {

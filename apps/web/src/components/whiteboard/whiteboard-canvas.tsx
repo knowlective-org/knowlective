@@ -26,6 +26,7 @@ import {
   type ConnectorItem,
   DEFAULT_COLOR,
   DEFAULT_SIZE,
+  HEXAGON_RATIO,
   ITEM_COLORS,
   type ItemColor,
   type LineItem,
@@ -44,6 +45,8 @@ import {
   type Stroke,
   type TextField,
   type WhiteboardItem,
+  hexagonInset,
+  hexagonSize,
   isBox,
   isShapeType,
   readItem,
@@ -80,6 +83,7 @@ import {
   type Rect,
   boundsOf,
   connectorPoints,
+  hexagonPolygon,
   fitCamera,
   fractionAlong,
   hopCrossings,
@@ -141,7 +145,7 @@ type Gesture =
   // A connector's end dragged to another box; `fixed` is the box at its other end.
   | { kind: "reconnect"; id: string; end: "from" | "to"; fixed: string }
   // A rectangle or ellipse being drawn: made once the pointer has moved.
-  | { kind: "draw"; type: "rect" | "ellipse" | "diamond"; start: Point; id: string | null }
+  | { kind: "draw"; type: "rect" | "ellipse" | "diamond" | "hexagon"; start: Point; id: string | null }
   // A box's text being moved (its offset from where it would be).
   | { kind: "moveText"; id: string; start: Point; origin: Point }
   // A line being drawn (likewise), or one of a line's ends dragged.
@@ -259,6 +263,7 @@ const TOOL_KEYS: Record<string, Tool> = {
   r: "rect",
   o: "ellipse",
   d: "diamond",
+  x: "hexagon",
   t: "text",
   l: "line",
   c: "connector",
@@ -1126,7 +1131,7 @@ export function WhiteboardCanvas({
       }
       return;
     }
-    if (tool === "rect" || tool === "ellipse" || tool === "diamond") {
+    if (tool === "rect" || tool === "ellipse" || tool === "diamond" || tool === "hexagon") {
       undo.current?.stopCapturing();
       gesture.current = { kind: "draw", type: tool, start: world, id: null };
       return;
@@ -1299,6 +1304,8 @@ export function WhiteboardCanvas({
           h = clampSize(snap.h);
           setGuides(snap.guides);
         } else setGuides([]);
+        // A hexagon: no taller than a regular one (Shift: a regular one).
+        if (box?.type === "hexagon") ({ w, h } = hexagonSize(w, e.shiftKey ? MAX_SIZE : h));
         writeSoon(() => change(() => setField(g.id, { w, h })));
         return;
       }
@@ -1324,17 +1331,20 @@ export function WhiteboardCanvas({
         let dx = world.x - g.start.x;
         let dy = world.y - g.start.y;
         if (!g.id && Math.hypot(dx * camera.zoom, dy * camera.zoom) < 4) return;
-        // Shift: a square or a circle, as big as the larger side.
+        // Shift: a square or a circle, as big as the larger side (a regular
+        // hexagon, as wide as dragged).
         if (e.shiftKey) {
           const side = Math.max(Math.abs(dx), Math.abs(dy));
           dx = Math.sign(dx || 1) * side;
-          dy = Math.sign(dy || 1) * side;
+          dy = Math.sign(dy || 1) * (g.type === "hexagon" ? side * HEXAGON_RATIO : side);
         }
+        // A hexagon is never taller than a regular one.
+        const size =
+          g.type === "hexagon" ? hexagonSize(clampSize(Math.abs(dx)), clampSize(Math.abs(dy))) : { w: clampSize(Math.abs(dx)), h: clampSize(Math.abs(dy)) };
         const fields = {
-          x: clampCoord(Math.min(g.start.x, g.start.x + dx)),
-          y: clampCoord(Math.min(g.start.y, g.start.y + dy)),
-          w: clampSize(Math.abs(dx)),
-          h: clampSize(Math.abs(dy)),
+          x: clampCoord(dx < 0 ? g.start.x - size.w : g.start.x),
+          y: clampCoord(dy < 0 ? g.start.y - size.h : g.start.y),
+          ...size,
         };
         if (!g.id) {
           g.id = addItem({ type: g.type, ...fields, text: "", color: DEFAULT_COLOR[g.type] });
@@ -1633,6 +1643,7 @@ export function WhiteboardCanvas({
     { tool: "rect", label: t("tools.rect"), icon: "rect", dataUi: "rectToolButton" },
     { tool: "ellipse", label: t("tools.ellipse"), icon: "ellipse", dataUi: "ellipseToolButton" },
     { tool: "diamond", label: t("tools.diamond"), icon: "diamond", dataUi: "diamondToolButton" },
+    { tool: "hexagon", label: t("tools.hexagon"), icon: "hexagon", dataUi: "hexagonToolButton" },
     { tool: "text", label: t("tools.text"), icon: "text", dataUi: "textToolButton" },
     { tool: "line", label: t("tools.line"), icon: "line", dataUi: "lineToolButton" },
     { tool: "connector", label: t("tools.connector"), icon: "connector", dataUi: "connectorToolButton" },
@@ -2579,6 +2590,7 @@ function Box({
         // board's width).
         ...(item.type === "ellipse" && { paddingInline: Math.round(item.w * 0.15) }),
         ...(item.type === "diamond" && { paddingInline: Math.round(item.w * 0.22), paddingBlock: Math.round(item.h * 0.12) }),
+        ...(item.type === "hexagon" && { paddingInline: Math.round(hexagonInset(item.h) * 0.8) }),
         ["--item-color" as string]: `var(--color-wb-${item.color})`,
       }}
       data-wb-id={item.id}
@@ -2588,6 +2600,11 @@ function Box({
       {item.type === "diamond" && (
         <svg className={styles.diamond} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
           <polygon points="50,0 100,50 50,100 0,50" />
+        </svg>
+      )}
+      {item.type === "hexagon" && (
+        <svg className={styles.diamond} viewBox={`0 0 ${item.w} ${item.h}`} aria-hidden>
+          <polygon points={hexagonPolygon(item.w, item.h)} />
         </svg>
       )}
       {item.type === "image" ? (

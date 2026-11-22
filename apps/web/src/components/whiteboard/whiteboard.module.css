@@ -44,7 +44,7 @@
   box-shadow: inset 0 0 0 2px var(--color-primary);
 }
 
-.viewport:is([data-tool="sticky"], [data-tool="rect"], [data-tool="ellipse"], [data-tool="text"], [data-tool="connector"]) {
+.viewport:is([data-tool="sticky"], [data-tool="rect"], [data-tool="ellipse"], [data-tool="diamond"], [data-tool="hexagon"], [data-tool="text"], [data-tool="connector"]) {
   cursor: crosshair;
 }
 
@@ -152,8 +152,8 @@
   border-radius: 50%;
 }
 
-/* A diamond: its outline drawn behind the text, the box itself bare. */
-.box[data-type="diamond"] {
+/* A diamond or a hexagon: its outline drawn behind the text, the box itself bare. */
+.box:is([data-type="diamond"], [data-type="hexagon"]) {
   font-size: 14px;
   background: transparent;
 }

@@ -1,5 +1,5 @@
-import { type BoxItem, type ItemColor, type Stroke, type WhiteboardItem, isBox } from "@/lib/whiteboard";
-import { boundsOf, connectorPoints, endLabelPlace, hopCrossings, lineRect, midpointOf, routePath, spreadEnds } from "./geometry";
+import { type BoxItem, type ItemColor, type Stroke, type WhiteboardItem, hexagonInset, isBox } from "@/lib/whiteboard";
+import { boundsOf, connectorPoints, endLabelPlace, hexagonPolygon, hopCrossings, lineRect, midpointOf, routePath, spreadEnds } from "./geometry";
 import { type TextColor, type TextMark, styledRuns, textStyleCss } from "@/lib/whiteboard-marks";
 import { parseRichTextAt } from "./rich-text";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
@@ -89,6 +89,11 @@ function boxSvg(b: BoxItem, colors: ExportColors, images: Map<string, string>): 
       font = "font-size:14px";
       break;
     }
+    case "hexagon":
+      shape = `<polygon transform="translate(${b.x} ${b.y})" points="${hexagonPolygon(b.w, b.h)}" fill="${fill}" ${stroke}/>`;
+      pad = `6px ${Math.round(hexagonInset(b.h) * 0.8)}px`;
+      font = "font-size:14px";
+      break;
     case "text":
       pad = "2px 4px";
       font = "font-size:16px;line-height:1.35";

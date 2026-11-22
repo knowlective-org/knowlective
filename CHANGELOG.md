@@ -10,6 +10,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Whiteboards have hexagons (the hexagon tool, X): level top and bottom, corners at the middle of the left and right, every inner angle 120°. Their width and height can be anything but taller than a regular hexagon (Shift: a regular one). Connectors meet them at a corner or the middle of a side (elbow connectors: the left and right corners and the middles of the top and bottom)
+
 - People can set a picture of themselves on the account screen (made a small square in the browser; PNG, JPEG or WebP). It's shown by their name: at the bottom of the sidebar, on their chat messages, in the "@" menus, as a TODO's assignee and in the admin console's user list. Without one, the first letter of their name is shown. Like names, only to people who are logged in
 
 - Review chats beside the page, like comments: "Start a chat" in a top-level block's ⋮⋮ menu opens a chat about that block in a pane on the right, which stays in view as the page scrolls. Blocks with a chat show a mark with the number of messages; a chat can be resolved (the mark goes) and reopened, and a new message reopens it. They aren't part of the page: not printed, exported or searched. Anyone who can open the page reads them; those who can edit it post and resolve. Everything a chat block has works in them (replies, reactions, mentions, files, notifications)

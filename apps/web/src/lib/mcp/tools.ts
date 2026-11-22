@@ -465,7 +465,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
       title: "Edit a whiteboard",
       description: [
         "Adds, changes and removes a whiteboard's items at once (get_page shows them). Items:",
-        "- boxes: { type: sticky | rect | ellipse | diamond | text, x, y, w, h, text, color }; color: yellow, orange, pink, purple, blue, green, gray, white, transparent",
+        "- boxes: { type: sticky | rect | ellipse | diamond | hexagon | text, x, y, w, h, text, color }; color: yellow, orange, pink, purple, blue, green, gray, white, transparent",
         "- connectors between boxes: { type: connector, from, to, text, arrows: end | both | start | none, route: straight | elbow, stroke: solid | bold | dashed | double }",
         "- lines: { type: line, x1, y1, x2, y2, arrows, stroke }",
         "Texts may have styles on parts of them (textMarks, startTextMarks, endTextMarks: ranges of the text that are bold, italic, underlined, struck through or colored); they're shown by get_page but can't be written here, and writing a text takes its styles away.",

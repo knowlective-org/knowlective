@@ -1057,6 +1057,70 @@ test.describe("Whiteboard", () => {
     }
   });
 
+  test("hexagons: drawn, resized and changed into, never taller than a regular one", async ({ browser }) => {
+    const context = await browser.newContext({ storageState: authFile("editor") });
+    const page = await context.newPage();
+    try {
+      await createWhiteboard(page, "E2E ホワイトボードの六角形");
+      const c = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
+      const draw = async (x: number, y: number, w: number, h: number, shift = false) => {
+        await page.getByTestId("Whiteboard.hexagonToolButton").click();
+        await page.mouse.move(c.x + x, c.y + y);
+        await page.mouse.down();
+        if (shift) await page.keyboard.down("Shift");
+        await page.mouse.move(c.x + x + w, c.y + y + h, { steps: 6 });
+        await page.mouse.up();
+        if (shift) await page.keyboard.up("Shift");
+        await page.keyboard.press("Escape");
+      };
+      const hexagons = page.locator('[data-ui="Whiteboard.item"][data-type="hexagon"]');
+      const sizeOf = async (n: number) => {
+        const b = (await hexagons.nth(n).boundingBox())!;
+        return [Math.round(b.width), Math.round(b.height)];
+      };
+      // Flat: as dragged.
+      await draw(60, 60, 240, 60);
+      await expect(hexagons).toHaveCount(1);
+      expect(await sizeOf(0)).toEqual([240, 60]);
+      await expect(hexagons.nth(0).locator("polygon")).toHaveCount(1);
+      // Dragged taller than a regular one: as tall as one (100 × 86).
+      await draw(60, 200, 100, 200);
+      await expect(hexagons).toHaveCount(2);
+      expect(await sizeOf(1)).toEqual([100, 86]);
+      // With Shift: a regular one, as wide as dragged.
+      await draw(400, 60, 140, 30, true);
+      await expect(hexagons).toHaveCount(3);
+      expect(await sizeOf(2)).toEqual([140, 121]);
+
+      // Made taller by its handle: no taller than a regular one.
+      await hexagons.nth(0).click();
+      const handle = hexagons.nth(0).getByTestId("Whiteboard.resizeHandle");
+      const h = (await handle.boundingBox())!;
+      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2 + 400, { steps: 6 });
+      await page.mouse.up();
+      await expect.poll(() => sizeOf(0)).toEqual([240, 207]);
+
+      // Changed into from a sticky note (square): kept no taller than a regular one.
+      await page.keyboard.press("Escape");
+      await page.getByTestId("Whiteboard.stickyToolButton").click();
+      await page.mouse.click(c.x + 700, c.y + 300);
+      await page.keyboard.press("Escape");
+      const sticky = page.locator('[data-ui="Whiteboard.item"][data-type="sticky"]');
+      await expect(sticky).toHaveCount(1);
+      await page.getByTestId("Whiteboard.shapeMenuButton").click();
+      await page.locator('[data-ui="Whiteboard.shapeButton"][data-id="hexagon"]').click();
+      await expect(hexagons).toHaveCount(4);
+      expect(await sizeOf(3)).toEqual([100, 86]);
+
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      await trashOpenPage(page);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("diamonds; text moved anywhere, and running out below a shape too small for it", async ({ browser }) => {
     const context = await browser.newContext({ storageState: authFile("editor") });
     const page = await context.newPage();
