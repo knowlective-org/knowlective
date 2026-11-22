@@ -594,6 +594,7 @@ export default {
     exitFullscreenHint: "Exit full screen (Esc)",
     connectFrom: "Drag to another item to connect them",
     moveEnd: "Drag onto another item to attach this end there",
+    shapeTools: "Choose a shape",
     moveLineEnd: "Drag to move this end (with Shift at 45° steps)",
     shapes: {
       sticky: "Sticky note",

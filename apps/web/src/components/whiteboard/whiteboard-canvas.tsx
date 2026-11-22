@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   type CSSProperties,
+  Fragment,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -256,6 +257,12 @@ function wheelZoomFactor(e: WheelEvent): number {
 // Connectors whose crossings are worked out (hops); more are drawn straight.
 const MAX_HOPPING_CONNECTORS = 300;
 
+// The shapes drawn by dragging: one button in the toolbar (the last one
+// used), the others in its menu.
+const DRAWN_SHAPES = ["rect", "ellipse", "diamond", "hexagon"] as const;
+type DrawnShape = (typeof DRAWN_SHAPES)[number];
+const isDrawnShape = (tool: string): tool is DrawnShape => (DRAWN_SHAPES as readonly string[]).includes(tool);
+
 const TOOL_KEYS: Record<string, Tool> = {
   v: "select",
   h: "hand",
@@ -385,6 +392,14 @@ export function WhiteboardCanvas({
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [textColorOpen, setTextColorOpen, textColorRef] = useBarMenu();
   const [shapeOpen, setShapeOpen, shapeRef] = useBarMenu();
+  const [shapeToolsOpen, setShapeToolsOpen, shapeToolsRef] = useBarMenu();
+  // The shape the toolbar's shape button draws: the last one chosen.
+  const [lastShape, setLastShape] = useState<DrawnShape>("rect");
+  const shownShape = isDrawnShape(tool) ? tool : lastShape;
+  const chooseTool = (next: Tool) => {
+    setTool(next);
+    if (isDrawnShape(next)) setLastShape(next);
+  };
   const templatesRef = useRef<HTMLDivElement>(null);
   // The item whose text is being edited, and which text (a connector has three).
   const [editingText, setEditingText] = useState<{ id: string; field: TextField } | null>(null);
@@ -1601,7 +1616,7 @@ export function WhiteboardCanvas({
       moveSelection(arrows[key].x * step, arrows[key].y * step);
       return;
     }
-    if (!mod && !e.altKey && TOOL_KEYS[key]) setTool(TOOL_KEYS[key]);
+    if (!mod && !e.altKey && TOOL_KEYS[key]) chooseTool(TOOL_KEYS[key]);
   };
 
   const editText = (id: string, field: TextField, text: string, marks: TextMark[]) => {
@@ -1640,10 +1655,6 @@ export function WhiteboardCanvas({
     { tool: "select", label: t("tools.select"), icon: "select", dataUi: "selectToolButton" },
     { tool: "hand", label: t("tools.hand"), icon: "hand", dataUi: "handToolButton" },
     { tool: "sticky", label: t("tools.sticky"), icon: "sticky", dataUi: "stickyToolButton" },
-    { tool: "rect", label: t("tools.rect"), icon: "rect", dataUi: "rectToolButton" },
-    { tool: "ellipse", label: t("tools.ellipse"), icon: "ellipse", dataUi: "ellipseToolButton" },
-    { tool: "diamond", label: t("tools.diamond"), icon: "diamond", dataUi: "diamondToolButton" },
-    { tool: "hexagon", label: t("tools.hexagon"), icon: "hexagon", dataUi: "hexagonToolButton" },
     { tool: "text", label: t("tools.text"), icon: "text", dataUi: "textToolButton" },
     { tool: "line", label: t("tools.line"), icon: "line", dataUi: "lineToolButton" },
     { tool: "connector", label: t("tools.connector"), icon: "connector", dataUi: "connectorToolButton" },
@@ -1948,21 +1959,78 @@ export function WhiteboardCanvas({
       {!readOnly && (
         <div className={styles.toolbar} role="toolbar" aria-label={t("toolsLabel")} data-ui="Whiteboard.toolbar" data-wb-controls>
           {tools.map((x) => (
-            <button
-              key={x.tool}
-              type="button"
-              className={styles.toolButton}
-              aria-pressed={tool === x.tool}
-              aria-label={x.label}
-              title={x.label}
-              data-ui={`Whiteboard.${x.dataUi}`}
-              onClick={() => {
-                setTool(x.tool);
-                viewportRef.current?.focus({ preventScroll: true });
-              }}
-            >
-              <Icon name={x.icon} />
-            </button>
+            <Fragment key={x.tool}>
+              <button
+                type="button"
+                className={styles.toolButton}
+                aria-pressed={tool === x.tool}
+                aria-label={x.label}
+                title={x.label}
+                data-ui={`Whiteboard.${x.dataUi}`}
+                onClick={() => {
+                  setTool(x.tool);
+                  viewportRef.current?.focus({ preventScroll: true });
+                }}
+              >
+                <Icon name={x.icon} />
+              </button>
+              {x.tool === "sticky" && (
+                // The shapes: one button drawing the last one chosen, the
+                // others in a menu beside it (its corner mark).
+                <div className={styles.toolPick} ref={shapeToolsRef}>
+                  <button
+                    type="button"
+                    className={styles.toolButton}
+                    aria-pressed={isDrawnShape(tool)}
+                    aria-label={t(`tools.${shownShape}`)}
+                    title={t(`tools.${shownShape}`)}
+                    data-ui="Whiteboard.shapeToolButton"
+                    data-id={shownShape}
+                    onClick={() => {
+                      chooseTool(shownShape);
+                      setShapeToolsOpen(false);
+                      viewportRef.current?.focus({ preventScroll: true });
+                    }}
+                  >
+                    <Icon name={shownShape} />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.toolMore}
+                    aria-label={t("shapeTools")}
+                    title={t("shapeTools")}
+                    aria-expanded={shapeToolsOpen}
+                    aria-haspopup="menu"
+                    data-ui="Whiteboard.shapeToolsButton"
+                    onClick={() => setShapeToolsOpen(!shapeToolsOpen)}
+                  />
+                  {shapeToolsOpen && (
+                    <div className={styles.toolMenu} role="menu" aria-label={t("shapeTools")} data-ui="Whiteboard.shapeToolMenu">
+                      {DRAWN_SHAPES.map((shape) => (
+                        <button
+                          key={shape}
+                          type="button"
+                          role="menuitemradio"
+                          className={styles.toolButton}
+                          aria-checked={tool === shape}
+                          aria-label={t(`tools.${shape}`)}
+                          title={t(`tools.${shape}`)}
+                          data-ui="Whiteboard.shapeToolItem"
+                          data-id={shape}
+                          onClick={() => {
+                            chooseTool(shape);
+                            setShapeToolsOpen(false);
+                            viewportRef.current?.focus({ preventScroll: true });
+                          }}
+                        >
+                          <Icon name={shape} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </Fragment>
           ))}
           <span className={styles.toolSeparator} />
           <div className={styles.templatePick} ref={templatesRef}>

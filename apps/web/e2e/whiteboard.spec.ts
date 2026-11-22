@@ -30,6 +30,13 @@ async function addSticky(page: Page, x: number, y: number, text: string) {
   await expect(page.getByTestId("Whiteboard.textInput")).toHaveCount(0);
 }
 
+// Picks a shape drawn by dragging, from the menu of the toolbar's shape button.
+async function pickShape(page: Page, shape: "rect" | "ellipse" | "diamond" | "hexagon") {
+  await page.getByTestId("Whiteboard.shapeToolsButton").click();
+  await page.locator(`[data-ui="Whiteboard.shapeToolItem"][data-id="${shape}"]`).click();
+  await expect(page.getByTestId("Whiteboard.shapeToolButton")).toHaveAttribute("data-id", shape);
+}
+
 const item = (page: Page, text: string) => page.getByTestId("Whiteboard.item").filter({ hasText: text });
 
 test.describe("Whiteboard", () => {
@@ -340,7 +347,7 @@ test.describe("Whiteboard", () => {
       await createWhiteboard(page, "E2E ホワイトボードの図形");
       const canvas = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
       const drag = async (tool: string, from: [number, number], to: [number, number], shift = false) => {
-        await page.getByTestId(`Whiteboard.${tool}ToolButton`).click();
+        await pickShape(page, tool as "rect" | "ellipse");
         await page.mouse.move(canvas.x + from[0], canvas.y + from[1]);
         await page.mouse.down();
         if (shift) await page.keyboard.down("Shift");
@@ -431,7 +438,7 @@ test.describe("Whiteboard", () => {
     const page = await context.newPage();
     try {
       await createWhiteboard(page, "E2E ホワイトボードの文字の編集");
-      await page.getByTestId("Whiteboard.rectToolButton").click();
+      await pickShape(page, "rect");
       await clickBoard(page, 300, 200);
       await page.keyboard.press("Escape");
       const rect = page.locator('[data-ui="Whiteboard.item"][data-type="rect"]');
@@ -585,7 +592,7 @@ test.describe("Whiteboard", () => {
       await createWhiteboard(page, "E2E ホワイトボードの枠とコネクター");
       const canvas = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
       // A frame: a rectangle, made transparent, then boxes on it.
-      await page.getByTestId("Whiteboard.rectToolButton").click();
+      await pickShape(page, "rect");
       await page.mouse.move(canvas.x + 60, canvas.y + 60);
       await page.mouse.down();
       await page.mouse.move(canvas.x + 620, canvas.y + 280, { steps: 6 });
@@ -1064,7 +1071,7 @@ test.describe("Whiteboard", () => {
       await createWhiteboard(page, "E2E ホワイトボードの六角形");
       const c = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
       const draw = async (x: number, y: number, w: number, h: number, shift = false) => {
-        await page.getByTestId("Whiteboard.hexagonToolButton").click();
+        await pickShape(page, "hexagon");
         await page.mouse.move(c.x + x, c.y + y);
         await page.mouse.down();
         if (shift) await page.keyboard.down("Shift");
@@ -1114,6 +1121,26 @@ test.describe("Whiteboard", () => {
       await expect(hexagons).toHaveCount(4);
       expect(await sizeOf(3)).toEqual([100, 86]);
 
+      // The toolbar's shape button draws the last shape chosen, from its
+      // menu or by key.
+      const shapeButton = page.getByTestId("Whiteboard.shapeToolButton");
+      await expect(shapeButton).toHaveAttribute("data-id", "hexagon");
+      await expect(page.getByTestId("Whiteboard.rectToolButton")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await page.mouse.click(c.x + 900, c.y + 450);
+      await page.keyboard.press("o");
+      await expect(shapeButton).toHaveAttribute("data-id", "ellipse");
+      await expect(shapeButton).toHaveAttribute("aria-pressed", "true");
+      await page.getByTestId("Whiteboard.selectToolButton").click();
+      await expect(shapeButton).toHaveAttribute("aria-pressed", "false");
+      await shapeButton.click();
+      await expect(shapeButton).toHaveAttribute("aria-pressed", "true");
+      await expect(shapeButton).toHaveAttribute("data-id", "ellipse");
+      await page.getByTestId("Whiteboard.shapeToolsButton").click();
+      await expect(page.locator('[data-ui="Whiteboard.shapeToolItem"]')).toHaveCount(4);
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("Whiteboard.shapeToolMenu")).toHaveCount(0);
+
       await expect(page.getByTestId("PageView.status")).toHaveCount(0);
       await trashOpenPage(page);
     } finally {
@@ -1127,7 +1154,7 @@ test.describe("Whiteboard", () => {
     try {
       await createWhiteboard(page, "E2E ホワイトボードのひし形");
       // Drawn by dragging with the diamond tool.
-      await page.getByTestId("Whiteboard.diamondToolButton").click();
+      await pickShape(page, "diamond");
       await page.mouse.move(...(await (async () => {
         const c = (await page.getByTestId("Whiteboard.canvas").boundingBox())!;
         return [c.x + 150, c.y + 100] as const;

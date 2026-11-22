@@ -588,6 +588,7 @@ const ja: MessageShape<typeof en> = {
     exitFullscreenHint: "全画面を終了（Esc）",
     connectFrom: "ほかの項目へドラッグしてつなぐ",
     moveEnd: "ほかの項目へドラッグして、この端を付け替える",
+    shapeTools: "図形を選ぶ",
     moveLineEnd: "ドラッグでこの端を動かす（Shift で 45° ごと）",
     shapes: {
       sticky: "付箋",
