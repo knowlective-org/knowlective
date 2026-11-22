@@ -10,6 +10,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Added
 
+- Without a picture, a person's avatar is a mosaic of triangles in shades of one color, with their initial on it. The color (a suggested one or any other) and another pattern can be chosen on the account screen; until then, their cursor's color is used
+
 - Whiteboard text can be highlighted, in yellow, green, blue, pink or orange: from the highlight button of the bar above the selection (for the selected words while typing, or the whole text of the selected items), or Ctrl/⌘+Shift+H for yellow (again takes it off). Shown in PNG and SVG exports too
 
 - Whiteboards have hexagons (the hexagon tool, X): level top and bottom, corners at the middle of the left and right, every inner angle 120°. Their width and height can be anything but taller than a regular hexagon (Shift: a regular one). Connectors meet them at a corner or the middle of a side (elbow connectors: the left and right corners and the middles of the top and bottom)

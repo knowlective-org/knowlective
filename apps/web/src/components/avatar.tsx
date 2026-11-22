@@ -1,28 +1,37 @@
-import { initialOf } from "@/lib/avatar-check";
+import { type AvatarLook, initialOf } from "@/lib/avatar-check";
+import { mosaicBackground } from "@/lib/avatar-mosaic";
 import { resolveAppUrl } from "@/lib/base-path";
 import { cursorColorFor } from "@/lib/cursor-color";
 import styles from "./avatar.module.css";
 
-// A person's picture (lib/avatar.ts), or the first character of their name
-// on their color (the cursor's) when they have none. Beside their name, so
-// it's left out of what's read aloud.
+// A person's picture (lib/avatar.ts), or without one, a mosaic in shades of
+// their color (their cursor's unless they chose one) with the first
+// character of their name on it (lib/avatar-mosaic.ts). `look` missing: the
+// mosaic in their cursor's color. Beside their name, so it's left out of
+// what's read aloud.
 export function Avatar({
   userId,
   name,
-  url,
+  look,
   size = 24,
   className,
 }: {
   userId: string;
   name: string | null;
-  url: string | null | undefined;
+  look: AvatarLook | null | undefined;
   size?: number;
   className?: string;
 }) {
+  const url = look?.url ?? null;
   return (
     <span
       className={className ? `${styles.avatar} ${className}` : styles.avatar}
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.5), ["--avatar-color" as string]: cursorColorFor(userId) }}
+      style={{
+        width: size,
+        height: size,
+        fontSize: Math.round(size * 0.48),
+        ...(!url && { backgroundImage: mosaicBackground(userId, look?.seed ?? 0, look?.color ?? cursorColorFor(userId)) }),
+      }}
       aria-hidden
       data-ui="Avatar"
       data-id={userId}

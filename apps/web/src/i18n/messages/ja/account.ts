@@ -16,7 +16,12 @@ const ja: MessageShape<typeof en> = {
       note: "画面と、あなたに届くメールの言語です。",
     },
     avatar: {
-      note: "名前の横に表示する画像です。設定しないと、名前の最初の1文字を表示します。",
+      note: "名前の横に表示する画像です。設定しないと、好きな色のモザイク模様に名前の最初の1文字を重ねて表示します。",
+      mosaicColor: "模様の色",
+      otherColor: "ほかの色を選ぶ",
+      anotherPattern: "別の模様",
+      resetColor: "色を元に戻す",
+      notSaved: "保存できませんでした。",
       choose: "画像を選ぶ",
       remove: "削除",
       badType: "PNG・JPEG・WebP の画像を選んでください。",

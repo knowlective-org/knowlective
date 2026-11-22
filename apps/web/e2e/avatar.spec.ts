@@ -60,3 +60,55 @@ test("a picture set on the account screen is shown by the name, to people logged
     await withPrisma((prisma) => prisma.user.update({ where: { id: editorId }, data: { avatarEnc: null, avatarType: null, avatarUpdatedAt: null } }));
   }
 });
+
+test("without a picture, a mosaic in a color of one's choice, and another pattern on request", async ({ page }) => {
+  const editorId = await withPrisma((prisma) =>
+    prisma.user.findFirstOrThrow({ where: { name: ACCOUNTS.editor.name }, select: { id: true } }).then((u) => u.id),
+  );
+  const reset = () =>
+    withPrisma((prisma) =>
+      prisma.user.update({ where: { id: editorId }, data: { avatarEnc: null, avatarType: null, avatarUpdatedAt: null, avatarColor: null, avatarSeed: 0 } }),
+    );
+  const stored = () => withPrisma((prisma) => prisma.user.findUniqueOrThrow({ where: { id: editorId }, select: { avatarColor: true, avatarSeed: true } }));
+  await reset();
+  try {
+    await page.goto("account");
+    const section = page.getByTestId("AvatarSection");
+    const own = page.getByTestId("Sidebar.user").getByTestId("Avatar");
+    const mosaic = () => own.evaluate((el) => getComputedStyle(el).backgroundImage);
+    // A mosaic (an SVG) with the initial on it.
+    await expect(own).toHaveAttribute("data-initial", ACCOUNTS.editor.name.trim()[0].toUpperCase());
+    const first = await mosaic();
+    expect(first).toContain("data:image/svg+xml");
+    await expect(section.getByTestId("AvatarSection.resetColorButton")).toHaveCount(0);
+
+    // A suggested color.
+    await section.locator('[data-ui="AvatarSection.colorPresetButton"][data-id="#6b4fa3"]').click();
+    await expect(section.getByTestId("AvatarSection.status")).toContainText("保存しました");
+    await expect.poll(stored).toEqual({ avatarColor: "#6b4fa3", avatarSeed: 0 });
+    await expect.poll(mosaic).not.toBe(first);
+    await expect(section.locator('[data-ui="AvatarSection.colorPresetButton"][data-id="#6b4fa3"]')).toHaveAttribute("aria-pressed", "true");
+    const purple = await mosaic();
+
+    // Another pattern, in the same color.
+    await section.getByTestId("AvatarSection.patternButton").click();
+    await expect.poll(stored).toEqual({ avatarColor: "#6b4fa3", avatarSeed: 1 });
+    await expect.poll(mosaic).not.toBe(purple);
+
+    // Any color, from the picker.
+    await section.getByTestId("AvatarSection.colorInput").fill("#c0562b");
+    await expect.poll(stored).toEqual({ avatarColor: "#c0562b", avatarSeed: 1 });
+
+    // Back to the cursor's color.
+    await section.getByTestId("AvatarSection.resetColorButton").click();
+    await expect.poll(stored).toEqual({ avatarColor: null, avatarSeed: 1 });
+    await expect(section.getByTestId("AvatarSection.resetColorButton")).toHaveCount(0);
+
+    // With a picture, the picture (and no mosaic settings).
+    await section.getByTestId("AvatarSection.fileInput").setInputFiles({ name: "me.png", mimeType: "image/png", buffer: PNG });
+    await expect(own.locator("img")).toHaveCount(1);
+    await expect(section.getByTestId("AvatarSection.patternButton")).toHaveCount(0);
+  } finally {
+    await reset();
+  }
+});

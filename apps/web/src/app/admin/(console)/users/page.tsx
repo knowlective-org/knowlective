@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
+import { avatarLook } from "@/lib/avatar-check";
 import { getFormatter, getTranslations } from "next-intl/server";
 import type { SiteRole } from "shared";
 import { prisma } from "@/lib/db";
@@ -136,6 +137,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
               createdAt: true,
               disabledAt: true,
               avatarUpdatedAt: true,
+              avatarColor: true,
+              avatarSeed: true,
               groups: { select: { group: { select: { name: true } } } },
               _count: { select: { passkeys: true, apiKeys: true } },
             },
@@ -296,7 +299,11 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
                         <Avatar
                           userId={u.id}
                           name={u.name ?? u.email}
-                          url={u.avatarUpdatedAt && `/admin/users/${u.id}/avatar?v=${u.avatarUpdatedAt.getTime()}`}
+                          // The picture through the admin console (its cookie is sent only there).
+                          look={{
+                            ...avatarLook(u),
+                            url: u.avatarUpdatedAt && `/admin/users/${u.id}/avatar?v=${u.avatarUpdatedAt.getTime()}`,
+                          }}
                           size={22}
                         />
                         {u.name ?? "-"}

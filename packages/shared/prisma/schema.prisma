@@ -66,11 +66,16 @@ model User {
   // many (the most recently changed) and a row to show the rest. Null = all.
   sidebarChildLimit Int?
   // A picture of the person (apps/web/src/lib/avatar.ts): a square PNG, JPEG
-  // or WebP, encrypted with the data key (AAD: the user's id). None: their
-  // initial is shown.
+  // or WebP, encrypted with the data key (AAD: the user's id). None: a
+  // mosaic with their initial (avatarColor, avatarSeed).
   avatarEnc       Bytes?
   avatarType      String?
   avatarUpdatedAt DateTime?
+  // Without a picture: a mosaic in shades of this color ("#rrggbb"; null:
+  // their cursor color), its pattern drawn from their id and `avatarSeed`
+  // (which "Another pattern" counts up). apps/web/src/lib/avatar-mosaic.ts.
+  avatarColor     String?
+  avatarSeed      Int       @default(0)
 
   pages             Page[]               @relation("PageCreatedBy")
   updatedPages      Page[]               @relation("PageUpdatedBy")

@@ -1,0 +1,38 @@
+/* The mosaic's color and pattern, under the note. */
+.mosaic {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+  margin-block: 8px 4px;
+}
+
+.label {
+  margin-right: 4px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  cursor: pointer;
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--color-border-strong);
+}
+
+.swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.picker {
+  width: 36px;
+  height: 26px;
+  padding: 1px;
+  cursor: pointer;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+}

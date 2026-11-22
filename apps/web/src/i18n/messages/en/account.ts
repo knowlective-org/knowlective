@@ -16,7 +16,12 @@ export default {
       note: "The language of the screens and of the emails sent to you.",
     },
     avatar: {
-      note: "Your picture, shown by your name. Without one, the first letter of your name is shown.",
+      note: "Your picture, shown by your name. Without one, the first letter of your name is shown on a mosaic in a color you like.",
+      mosaicColor: "Mosaic color",
+      otherColor: "Choose another color",
+      anotherPattern: "Another pattern",
+      resetColor: "Reset the color",
+      notSaved: "That couldn't be saved.",
       choose: "Choose a picture",
       remove: "Remove",
       badType: "Choose a PNG, JPEG or WebP picture.",
