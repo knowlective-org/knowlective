@@ -65,6 +65,14 @@ export function mosaicShades(color: string): string[] {
   return [0.92, 0.76, 0.56, 0.36].map((l) => hex(h, sat, l));
 }
 
+// The outline of the initial on the mosaic: a deep shade of the same hue,
+// darker than any of the mosaic's.
+export function mosaicOutline(color: string): string {
+  const [h, s] = hsl(isAvatarColor(color) ? color : "#4d5560");
+  const sat = s < 0.05 ? 0 : Math.max(0.25, Math.min(0.7, s));
+  return hex(h, sat, 0.18);
+}
+
 // The mosaic as an SVG (a square N × N, scaled to fit), for a CSS background.
 export function mosaicSvg(userId: string, seed: number, color: string): string {
   const shades = mosaicShades(color);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { avatarLook } from "../src/lib/avatar-check";
-import { AVATAR_COLOR_PRESETS, isAvatarColor, mosaicBackground, mosaicShades, mosaicSvg } from "../src/lib/avatar-mosaic";
+import { AVATAR_COLOR_PRESETS, isAvatarColor, mosaicBackground, mosaicOutline, mosaicShades, mosaicSvg } from "../src/lib/avatar-mosaic";
 
 // The mosaic shown for people without a picture (lib/avatar-mosaic.ts).
 //   pnpm --filter web test:unit
@@ -64,4 +64,11 @@ describe("avatar mosaic", () => {
     assert.ok(!/["'()\s]/.test(bg.slice('url("data:image/svg+xml,'.length, -2)), "nothing that ends the url");
     assert.equal(decodeURIComponent(bg.slice('url("data:image/svg+xml,'.length, -2)), mosaicSvg("user-1", 3, "#1f5f8b"));
   });
+});
+
+test("the initial's outline: a deep shade of the same hue, darker than the mosaic", () => {
+  const outline = mosaicOutline("#2f7d6d");
+  const sum = (c: string) => [1, 3, 5].reduce((s, i) => s + parseInt(c.slice(i, i + 2), 16), 0);
+  for (const shade of mosaicShades("#2f7d6d")) assert.ok(sum(outline) < sum(shade), `${outline} vs ${shade}`);
+  assert.ok(sum(outline) < 200);
 });

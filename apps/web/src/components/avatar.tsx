@@ -1,5 +1,5 @@
 import { type AvatarLook, initialOf } from "@/lib/avatar-check";
-import { mosaicBackground } from "@/lib/avatar-mosaic";
+import { mosaicBackground, mosaicOutline } from "@/lib/avatar-mosaic";
 import { resolveAppUrl } from "@/lib/base-path";
 import { cursorColorFor } from "@/lib/cursor-color";
 import styles from "./avatar.module.css";
@@ -23,14 +23,18 @@ export function Avatar({
   className?: string;
 }) {
   const url = look?.url ?? null;
+  const color = look?.color ?? cursorColorFor(userId);
   return (
     <span
       className={className ? `${styles.avatar} ${className}` : styles.avatar}
       style={{
         width: size,
         height: size,
-        fontSize: Math.round(size * 0.48),
-        ...(!url && { backgroundImage: mosaicBackground(userId, look?.seed ?? 0, look?.color ?? cursorColorFor(userId)) }),
+        fontSize: Math.round(size * 0.6),
+        ...(!url && {
+          backgroundImage: mosaicBackground(userId, look?.seed ?? 0, color),
+          ["--avatar-outline" as string]: mosaicOutline(color),
+        }),
       }}
       aria-hidden
       data-ui="Avatar"

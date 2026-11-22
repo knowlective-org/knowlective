@@ -15,13 +15,13 @@
   border-radius: 50%;
 }
 
-/* The initial on the mosaic: white, outlined so it reads on its light shades too. */
+/* The initial on the mosaic: white, outlined in a deep shade of its color
+   (--avatar-outline) so it reads on the light shades too. */
 .avatar[data-initial]::before {
   content: attr(data-initial);
-  text-shadow:
-    0 0 1px rgba(0, 0, 0, 0.7),
-    0 0 2px rgba(0, 0, 0, 0.45),
-    0 0 4px rgba(0, 0, 0, 0.25);
+  font-weight: 700;
+  -webkit-text-stroke: 0.14em var(--avatar-outline, #1f2328);
+  paint-order: stroke fill;
 }
 
 .avatar[data-image] {
