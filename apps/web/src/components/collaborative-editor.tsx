@@ -33,6 +33,7 @@ import { EditorFormattingToolbar, EditorSideMenu } from "./editor/block-type-men
 import { ReviewLayout, ReviewProvider } from "./editor/review-pane";
 import { useAdoptFiles } from "./editor/adopt-files";
 import { dragCopyExtension } from "./editor/drag-copy";
+import { blockClicksExtension } from "./editor/block-clicks";
 import { syncGuardExtension } from "./editor/sync-guard";
 import { keepTabInEditor } from "./editor/tab-stays";
 import { pasteIntoCode } from "./editor/code-block";
@@ -575,6 +576,9 @@ function EditorBody({
         dragCopyExtension(),
         // An editor that missed a remote change doesn't write deleted blocks back.
         syncGuardExtension(),
+        // A click in a table, board, whiteboard… is for what was clicked, not a
+        // selection of the whole block.
+        blockClicksExtension(),
         blockLockExtension(provider.document, {
           // Labels are drawn as the editor is made, before `text` is set.
           label: (lock) => t(lock === "edit" ? "editor.blockLock.editLabel" : "editor.blockLock.deleteLabel"),

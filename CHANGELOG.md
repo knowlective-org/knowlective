@@ -42,6 +42,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- A click in a child page list, table, board or calendar, a chat, an embedded whiteboard (and the other blocks of their own like them) is for what was clicked: the editor no longer selects the whole block first. Such a block is selected, moved or deleted with its ⋮⋮ handle
+
 - The whiteboard's toolbar has one button for the shapes drawn by dragging (rectangle, ellipse, diamond, hexagon): it draws the last one chosen, and its corner mark opens the others. Their keys (R, O, D, X) still work and change the button too
 
 - The product's name is written in lower case, "knowlective", everywhere: the default site name (and "powered by knowlective"), screen titles, emails, the admin console, the authenticator app and passkey names given to new registrations, and the documentation. A site name or email sender name still set to the old default "KNOWLECTIVE" is changed to it; one set to anything else stays as it is. Environment variable names (`KNOWLECTIVE_…`) don't change
