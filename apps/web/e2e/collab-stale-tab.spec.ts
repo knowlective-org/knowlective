@@ -33,9 +33,10 @@ test("a stale tab redraws from the shared document instead of bringing deleted b
     const binding = editor.state.plugins.find((p: any) => p.key === "y-sync$").getState(editor.state).binding;
     binding.type.unobserveDeep(binding._observeFunction);
   });
-  // Deleted in the other tab, which this one doesn't hear.
-  await other.getByTestId("ChildCalendarBlock.monthStatus").click();
-  await other.keyboard.press("Delete");
+  // Deleted in the other tab (from its ⋮⋮ menu), which this one doesn't hear.
+  await other.getByTestId("ChildCalendarBlock").hover();
+  await other.locator(".bn-side-menu [draggable=true]").click();
+  await other.getByRole("menuitem", { name: "削除", exact: true }).click();
   await expect(other.getByTestId("ChildCalendarBlock")).toHaveCount(0);
 
   // An edit here: the calendar isn't written back; this tab is redrawn instead
