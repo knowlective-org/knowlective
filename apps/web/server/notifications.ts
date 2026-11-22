@@ -35,6 +35,7 @@ const FOLLOW_QUIET_MS = 60 * 60_000;
 const OVERDUE_INTERVAL_MS = 60 * 60_000;
 
 const excerptAad = (id: string) => `knowlective:notification:${id}`;
+const viaAad = (id: string) => `knowlective:notification-via:${id}`;
 
 type NotifyEvent = {
   kind: NotificationKind;
@@ -42,6 +43,8 @@ type NotifyEvent = {
   actorId: string | null;
   recipients: Iterable<string>;
   excerpt?: string;
+  // A message's sender app or API key (MESSAGE).
+  via?: string | null;
 };
 
 export function createNotifier(prisma: PrismaClient) {
@@ -71,7 +74,9 @@ export function createNotifier(prisma: PrismaClient) {
     }));
 
   async function notify(event: NotifyEvent): Promise<void> {
-    const ids = [...new Set(event.recipients)].filter((id) => id !== event.actorId);
+    // Not to the one who did it, but a message: one sends it to oneself on
+    // purpose (a script or an AI app telling its owner it's done).
+    const ids = [...new Set(event.recipients)].filter((id) => event.kind === "MESSAGE" || id !== event.actorId);
     if (ids.length === 0) return;
     const users = await prisma.user.findMany({
       where: { id: { in: ids }, disabledAt: null },
@@ -100,6 +105,7 @@ export function createNotifier(prisma: PrismaClient) {
         pageId: event.pageId,
         actorId: event.actorId,
         excerptEnc: excerpt ? Uint8Array.from(encrypt(key, Buffer.from(excerpt, "utf8"), excerptAad(id))) : null,
+        viaEnc: event.via ? Uint8Array.from(encrypt(key, Buffer.from(event.via, "utf8"), viaAad(id))) : null,
       };
     });
     await prisma.notification.createMany({ data: rows });
@@ -132,7 +138,12 @@ export function createNotifier(prisma: PrismaClient) {
       const untitled = t("common.untitled");
       const message = details
         ? {
-            title: t(`notifications.kind.${event.kind}`, { actor: actorName || t("notifications.someone"), page: page?.title || untitled }),
+            title: t(`notifications.kind.${event.kind}`, {
+              actor: event.via
+                ? t("notifications.actorVia", { actor: actorName || t("notifications.someone"), via: event.via })
+                : actorName || t("notifications.someone"),
+              page: page?.title || untitled,
+            }),
             body: excerpt ? excerpt.replace(/\s+/g, " ").slice(0, EXCERPT_LENGTH) : "",
           }
         : { title: siteName, body: t(`notifications.push.${event.kind}`) };
@@ -292,7 +303,7 @@ export function createNotifier(prisma: PrismaClient) {
   }
 
   async function messageSent(event: MessageSentEvent) {
-    await notify({ kind: "MESSAGE", pageId: event.pageId, actorId: event.actorId, recipients: event.recipientIds, excerpt: event.text });
+    await notify({ kind: "MESSAGE", pageId: event.pageId, actorId: event.actorId, recipients: event.recipientIds, excerpt: event.text, via: event.via });
   }
 
   // Unfinished TODOs whose date has passed (the day after it, in the server's

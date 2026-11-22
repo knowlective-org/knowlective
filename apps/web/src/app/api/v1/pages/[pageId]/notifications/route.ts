@@ -5,10 +5,11 @@ import { MAX_MESSAGE_LENGTH, MAX_MESSAGE_RECIPIENTS } from "@/lib/page-message-t
 type Context = RouteContext<"/api/v1/pages/[pageId]/notifications">;
 
 // POST { userIds, text }: a message about the page, as a notification from
-// the key's owner to these people (from …/people), lib/page-message.ts. The
-// text is shown whole, with http(s) URLs as links. Needs edit access.
+// the key's owner to these people (from …/people; the owner too), with the
+// key's name as what sent it, lib/page-message.ts. The text is shown whole,
+// with http(s) URLs as links. Needs edit access.
 export async function POST(request: Request, ctx: Context) {
-  return withApiKey(request, "WRITE", async ({ user }) => {
+  return withApiKey(request, "WRITE", async ({ user, key }) => {
     const { pageId } = await ctx.params;
     if (!/^application\/json\b/i.test(request.headers.get("content-type") ?? "")) {
       return apiError("invalid_body", "Send the body as JSON (Content-Type: application/json).");
@@ -22,7 +23,7 @@ export async function POST(request: Request, ctx: Context) {
       return apiError("invalid_body", "The body isn't valid JSON.");
     }
     if (!body || typeof body !== "object") return apiError("invalid_body");
-    const result = await sendPageMessage(user.id, pageId, body.userIds, body.text);
+    const result = await sendPageMessage(user.id, `key:${key.id}`, pageId, body.userIds, body.text);
     if ("error" in result) {
       const e = result.error;
       switch (e.code) {

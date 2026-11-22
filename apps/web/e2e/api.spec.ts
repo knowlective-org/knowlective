@@ -356,6 +356,15 @@ test.describe("Public API", () => {
     expect(refused.status()).toBe(400);
     expect((await refused.json()).error.message).toContain(outsider);
     expect((await request.post(`api/v1/pages/${parentId}/notifications`, { headers: auth(key), data: { userIds: [viewer.id], text: "" } })).status()).toBe(400);
+
+    // To the key's owner too, shown with the key's name as what sent it.
+    const owner = people.find((p) => p.name === ACCOUNTS.editor.name)!;
+    const own = await request.post(`api/v1/pages/${parentId}/notifications`, { headers: auth(key), data: { userIds: [owner.id], text: `自分へ ${stamp}` } });
+    expect(own.status()).toBe(200);
+    expect((await own.json()).recipients).toBe(1);
+    await page.goto("notifications");
+    const mine = page.getByTestId("NotificationsPage.messageItem").filter({ hasText: `自分へ ${stamp}` });
+    await expect(mine.getByTestId("NotificationsPage.itemLink")).toContainText(`${ACCOUNTS.editor.name}（E2E 子ページと通知）`);
   });
 
   test.describe("with a passkey", () => {

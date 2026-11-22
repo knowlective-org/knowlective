@@ -9,6 +9,8 @@ export default {
     markAllRead: "Mark all as read",
     unread: "Unread",
     someone: "Someone",
+    // A message's sender and what sent it (an app or an API key).
+    actorVia: "{actor} ({via})",
     // {actor}: who did it; {page}: the page's title.
     kind: {
       CHAT_MESSAGE: "{actor} posted in the chat on {page}",
