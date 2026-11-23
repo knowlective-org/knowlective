@@ -8,6 +8,10 @@ import { type TextMark, readMarks } from "./whiteboard-marks";
 // Used by the browser and the collab server: only Yjs (and the dependency-
 // free whiteboard-marks.ts) as dependencies.
 export const WHITEBOARD_FIELD = "whiteboard";
+// A presentation's slide: its background, next to the items.
+export const SLIDE_FIELD = "slide";
+// The text sizes a box can be given (on slides). Missing: its type's own.
+export const FONT_SIZES = [14, 18, 24, 28, 32, 40, 48, 64, 80, 96] as const;
 
 export const ITEM_TYPES = ["sticky", "rect", "ellipse", "diamond", "hexagon", "text", "image", "connector", "line"] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
@@ -74,6 +78,8 @@ export type BoxItem = {
   // viewer's own access: nothing about the page is kept here but its id.
   link: string;
   connectorEnds: ConnectorEnds;
+  // The text's size in px (FONT_SIZES). Missing: the type's own.
+  fontSize?: number;
 };
 
 // The text fields of an item: a connector has text halfway along it and by
@@ -259,6 +265,20 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
     src: type === "image" ? matching(map.get("src"), FILE_URL) : "",
     link: matching(map.get("link"), PAGE_ID),
     connectorEnds: map.get("connectorEnds") === "merge" ? "merge" : "spread",
+    ...((FONT_SIZES as readonly unknown[]).includes(map.get("fontSize")) ? { fontSize: map.get("fontSize") as number } : {}),
+  };
+}
+
+export type SlideBackground = { color: ItemColor | null; image: string | null };
+
+// A slide's background, checked like the items.
+export function readSlideBackground(doc: Y.Doc): SlideBackground {
+  const slide = doc.getMap<unknown>(SLIDE_FIELD);
+  const color = slide.get("background");
+  const image = matching(slide.get("backgroundImage"), FILE_URL);
+  return {
+    color: color !== "transparent" && (ITEM_COLORS as readonly unknown[]).includes(color) ? (color as ItemColor) : null,
+    image: image || null,
   };
 }
 
@@ -266,6 +286,8 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
 export function whiteboardFileIds(doc: Y.Doc): string[] {
   const ids = new Set<string>();
   for (const item of readItems(doc)) if (isBox(item) && item.src) ids.add(item.src.slice("/api/files/".length));
+  const background = readSlideBackground(doc).image;
+  if (background) ids.add(background.slice("/api/files/".length));
   return [...ids];
 }
 
@@ -285,7 +307,7 @@ export function readItems(doc: Y.Doc): WhiteboardItem[] {
 }
 
 export function hasWhiteboardContent(doc: Y.Doc): boolean {
-  return whiteboardMap(doc).size > 0;
+  return whiteboardMap(doc).size > 0 || doc.getMap(SLIDE_FIELD).size > 0;
 }
 
 // The board's text for search: one item per line, top to bottom, left to
@@ -317,4 +339,10 @@ export function copyWhiteboard(source: Y.Doc, target: Y.Doc, mapText: (s: string
     }
     to.set(id, item);
   }
+  // A slide's background.
+  const slide = target.getMap<unknown>(SLIDE_FIELD);
+  for (const key of [...slide.keys()]) slide.delete(key);
+  const background = readSlideBackground(source);
+  if (background.color) slide.set("background", background.color);
+  if (background.image) slide.set("backgroundImage", background.image);
 }

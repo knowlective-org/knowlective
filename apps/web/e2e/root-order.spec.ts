@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { HOME_PAGE_ID, authFile } from "./accounts";
+import { ACCOUNTS, HOME_PAGE_ID, authFile } from "./accounts";
+import { userWhere, withPrisma } from "./db";
 import { openPage } from "./helpers";
 
 // The knowledge roots, top to bottom, as the sidebar lists them.
@@ -28,6 +29,12 @@ test.describe("Knowledge root order", () => {
     await page.mouse.move(from.x + 64, from.y + from.height / 2 - 4, { steps: 5 });
     await page.mouse.move(to.x + 60, to.y + 4, { steps: 15 });
     await page.mouse.up();
+    // The list changes at once; reloading before the save is done would cancel it.
+    await expect
+      .poll(() =>
+        withPrisma(async (prisma) => (await prisma.user.findUniqueOrThrow({ where: await userWhere(prisma, ACCOUNTS.editor.email), select: { rootOrder: true } })).rootOrder.length),
+      )
+      .toBeGreaterThan(0);
     // Now right before it (other roots, like the personal root, may come first).
     const e2eFirst = async () => {
       const now = await rootNames(page);

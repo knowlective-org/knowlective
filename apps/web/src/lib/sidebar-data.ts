@@ -106,7 +106,9 @@ function sidebarTree(t: VisibleTree, favicons: Map<string, string>, publicIds: S
       canEdit: atLeast(p.access, "EDIT"),
       locked: p.lock !== null,
       // A shortcut has no child pages.
-      canAddChild: atLeast(p.access, "EDIT") && !p.lock?.coversChildren && !p.shortcut,
+      // (A presentation's slides are added on its own screen.)
+      canAddChild: atLeast(p.access, "EDIT") && !p.lock?.coversChildren && !p.shortcut && p.kind !== "PRESENTATION",
+      presentation: p.kind === "PRESENTATION",
       // A shortcut: the page it opens (null: one the viewer can't open).
       shortcut: p.shortcut,
     })),

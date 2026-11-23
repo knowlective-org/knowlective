@@ -11,7 +11,14 @@ import { AppShell } from "@/components/app-shell";
 import { InitialTitleContext } from "@/components/editor-placeholder";
 import { Sidebar, type SidebarTree } from "@/components/sidebar";
 import { Breadcrumb } from "./breadcrumb";
-import { EditorLoader, StaticDocumentLoader, StaticWhiteboardLoader, WhiteboardLoader } from "./editor-loader";
+import {
+  EditorLoader,
+  PresentationLoader,
+  StaticDocumentLoader,
+  StaticPresentationLoader,
+  StaticWhiteboardLoader,
+  WhiteboardLoader,
+} from "./editor-loader";
 import { PageMenu, ShareButton } from "./page-menu";
 import { FollowButton } from "./follow-button";
 import { RootFavicon } from "@/components/root-favicon";
@@ -70,8 +77,8 @@ export function PageView({
   pageId: string;
   // Page.title, shown while the editor loads.
   initialTitle: string;
-  // A document (BlockNote) or a whiteboard.
-  kind: "DOCUMENT" | "WHITEBOARD";
+  // A document (BlockNote), a whiteboard or a presentation.
+  kind: "DOCUMENT" | "WHITEBOARD" | "PRESENTATION";
   // EDIT access to the page.
   canEdit: boolean;
   // Set while the page is locked: nobody can edit it, whatever their access.
@@ -135,12 +142,13 @@ export function PageView({
             pageId={pageId}
             title={liveTitle ?? initialTitle}
             whiteboard={kind === "WHITEBOARD"}
+            presentation={kind === "PRESENTATION"}
             canEdit={canEdit}
             lock={lock ? { own: lock.own } : null}
             canManage={canManage}
             isRootPage={isRootPage}
             personal={personal}
-            hasChildren={sidebar.trees.some((tree) => tree.pages.some((p) => p.parentId === pageId))}
+            hasChildren={kind !== "PRESENTATION" && sidebar.trees.some((tree) => tree.pages.some((p) => p.parentId === pageId))}
           />
           )}
         </div>
@@ -177,7 +185,13 @@ export function PageView({
           </p>
         )}
         <InitialTitleContext.Provider value={initialTitle}>
-          {kind === "WHITEBOARD" ? (
+          {kind === "PRESENTATION" ? (
+            user ? (
+              <PresentationLoader pageId={pageId} readOnly={readOnly} onTitleChange={setLiveTitle} />
+            ) : (
+              <StaticPresentationLoader pageId={pageId} state={guestState ?? ""} dataUi="PageView.publicDocument" />
+            )
+          ) : kind === "WHITEBOARD" ? (
             user ? (
               <WhiteboardLoader pageId={pageId} readOnly={readOnly} onTitleChange={setLiveTitle} />
             ) : (

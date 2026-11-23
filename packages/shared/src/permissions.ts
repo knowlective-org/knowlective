@@ -398,6 +398,7 @@ export async function getTreeWithAccess(prisma: PrismaClient, userId: string, ro
   const pages = await prisma.page.findMany({
     where: { rootId },
     select: {
+      kind: true,
       id: true,
       parentId: true,
       title: true,
@@ -526,7 +527,8 @@ export function restoreDestinations(tree: Awaited<ReturnType<typeof getTreeWithA
     if (depth > MAX_PAGE_DEPTH) return;
     for (const p of pages) {
       if (p.parentId !== parentId || !live.has(p.id)) continue;
-      if (atLeast(access.get(p.id) ?? null, "EDIT")) result.push({ id: p.id, title: p.title, depth });
+      // A presentation holds only slides, and a slide nothing.
+      if (p.kind !== "PRESENTATION" && p.kind !== "SLIDE" && atLeast(access.get(p.id) ?? null, "EDIT")) result.push({ id: p.id, title: p.title, depth });
       visit(p.id, depth + 1);
     }
   };

@@ -21,7 +21,7 @@ import { cardImageForGuest, faviconForViewer } from "@/lib/root-favicon";
 // and Open Graph / Twitter card tags (lib/seo.ts) with the root's favicon.
 export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">): Promise<Metadata> {
   const { user, page } = await loadPage((await params).pageId);
-  if (!page || page.kind === "SHORTCUT") return {};
+  if (!page || page.kind === "SHORTCUT" || page.kind === "SLIDE") return {};
   const title = (await getDisplayTitle())(page.title);
   if (user) return { title };
   const [description, base, brand, cardImage] = await Promise.all([
@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: PageProps<"/pages/[pageId]">)
 export default async function PageEditorRoute({ params }: PageProps<"/pages/[pageId]">) {
   const { user, page } = await loadPage((await params).pageId);
   // Checked by the layout already (404, the login screen, a shortcut's target).
-  if (!page || page.kind === "SHORTCUT") notFound();
+  if (!page || page.kind === "SHORTCUT" || page.kind === "SLIDE") notFound();
 
   // Someone else's personal root (an auditor): recorded, and said so. The
   // owner's root page says auditors may look, while they may.

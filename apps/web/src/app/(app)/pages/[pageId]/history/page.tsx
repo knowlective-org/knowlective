@@ -1,3 +1,5 @@
+import { loadDataKey } from "shared";
+import { openSnapshot } from "@/lib/presentation-history";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,6 +17,7 @@ import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { noteAuditorView } from "@/lib/personal-root-audit";
+import { PresentationHistory } from "./presentation-history";
 import { HistoryView } from "./history-view";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -43,6 +46,21 @@ export default async function PageHistoryRoute({ params }: PageProps<"/pages/[pa
     getTranslations("history"),
     getDisplayTitle(),
   ]);
+  // A presentation's own history: what it was made of at each time.
+  const snapshots =
+    page.kind === "PRESENTATION"
+      ? await prisma.presentationSnapshot.findMany({
+          where: { pageId },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, createdAt: true, kind: true, createdById: true, sealed: true },
+        })
+      : [];
+  const dataKey = snapshots.length > 0 ? await loadDataKey(prisma) : null;
+  const snapshotAuthors = await prisma.user.findMany({
+    where: { id: { in: [...new Set(snapshots.flatMap((s) => (s.createdById ? [s.createdById] : [])))] } },
+    select: { id: true, name: true, emailEnc: true },
+  });
+  const authorNames = new Map(await Promise.all(snapshotAuthors.map(async (u) => [u.id, await displayName(u)] as const)));
   const editorIds = [...new Set(versions.flatMap((v) => v.editorIds))];
   const editors = await prisma.user.findMany({ where: { id: { in: editorIds } }, select: { id: true, name: true, emailEnc: true } });
   const names = new Map(await Promise.all(editors.map(async (u) => [u.id, await displayName(u)] as const)));
@@ -60,9 +78,24 @@ export default async function PageHistoryRoute({ params }: PageProps<"/pages/[pa
           {t("saving", { minutes: VERSION_INTERVAL_MS / 60000 })}
           {atLeast(page.access, "EDIT") ? t("restoreHint") : ""}
         </p>
+        {page.kind === "PRESENTATION" && (
+          <PresentationHistory
+            pageId={page.id}
+            canRestore={atLeast(page.access, "EDIT") && !page.lock}
+            snapshots={snapshots.map((s) => ({
+              id: s.id,
+              createdAt: s.createdAt.toISOString(),
+              kind: s.kind === "BEFORE_RESTORE" || s.kind === "RESTORED" ? s.kind : "AUTO",
+              // Only how many: the notes in it aren't for everyone who can view.
+              slides: openSnapshot(dataKey!, page.id, s.id, s.sealed).slides.length,
+              by: s.createdById ? (authorNames.get(s.createdById) ?? t("deletedUser")) : null,
+            }))}
+          />
+        )}
         <HistoryView
           pageId={page.id}
-          whiteboard={page.kind === "WHITEBOARD"}
+          whiteboard={page.kind === "WHITEBOARD" || page.kind === "SLIDE"}
+          maskWithoutVersions={page.kind === "SLIDE"}
           canRestore={atLeast(page.access, "EDIT")}
           versions={versions.map((v) => ({
             id: v.id,

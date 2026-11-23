@@ -1,3 +1,5 @@
+import { SLIDE_ERROR_MESSAGES, slideList } from "@/lib/api/slides";
+import { type SlideError, addSlideTo, approveSlideFiles, moveSlideTo, removeSlide, setSlideFlagFor } from "@/lib/presentation-ops";
 import { randomUUID } from "node:crypto";
 import * as Y from "yjs";
 import * as z from "zod";
@@ -208,7 +210,8 @@ export function registerTools(server: McpServer, caller: McpCaller) {
         .map((p) => ({ id: p.id, title: p.title, kind: p.kind }));
       const { markdown: body, ...meta } = detail;
       const head = { ...meta, url: await pageUrl(id), children };
-      if (page.kind === "WHITEBOARD") {
+      if (page.kind === "PRESENTATION") return json({ ...head, children: undefined, slides: await slideList(userId, id) });
+      if (page.kind === "WHITEBOARD" || page.kind === "SLIDE") {
         const doc = new Y.Doc();
         const state = await currentPageState(id);
         if (state) Y.applyUpdate(doc, state);
@@ -355,6 +358,21 @@ export function registerTools(server: McpServer, caller: McpCaller) {
   );
 
   server.registerTool(
+    "list_slides",
+    {
+      title: "List a presentation's slides",
+      description:
+        "A presentation's slides in order: id, position, the number shown on it (null: none), and whether it or only its number is hidden. Read or change a slide's content with get_page and edit_whiteboard on its id.",
+      inputSchema: z.object({ pageId }),
+      annotations: readOnly,
+    },
+    async ({ pageId: id }) => {
+      const slides = await slideList(userId, id);
+      return slides ? json({ slides }) : fail(NOT_FOUND);
+    },
+  );
+
+  server.registerTool(
     "list_page_people",
     {
       title: "People on a page",
@@ -432,12 +450,12 @@ export function registerTools(server: McpServer, caller: McpCaller) {
         parentId: pageId.describe("The page to create it under"),
         title: z.string().max(MAX_TITLE_LENGTH),
         markdown: markdown.optional(),
-        kind: z.enum(["DOCUMENT", "WHITEBOARD"]).optional().describe("Default DOCUMENT"),
+        kind: z.enum(["DOCUMENT", "WHITEBOARD", "PRESENTATION"]).optional().describe("Default DOCUMENT"),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async ({ parentId, title, markdown: md, kind = "DOCUMENT" }) => {
-      if (kind === "WHITEBOARD" && md) return fail("A whiteboard has no Markdown content (draw on it with edit_whiteboard).");
+      if (kind && kind !== "DOCUMENT" && md) return fail("A whiteboard has no Markdown content (draw on it with edit_whiteboard).");
       const created = await insertChildPage(userId, parentId, normalizeTitle(title), kind);
       if ("error" in created) {
         if (created.error === "lockedWithChildren") return fail("The parent page is locked with its child pages.");
@@ -547,6 +565,79 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     },
   );
 
+  const slideFailure = (result: { error: SlideError; message?: string }) => fail(result.message ?? SLIDE_ERROR_MESSAGES[result.error]);
+
+  server.registerTool(
+    "add_slide",
+    {
+      title: "Add a slide",
+      description: "Adds an empty slide to a presentation, after `afterId` (default: at the end). A presentation has at most 200 slides.",
+      inputSchema: z.object({ pageId, afterId: z.string().max(64).optional() }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id, afterId }) => {
+      const result = await addSlideTo(userId, id, afterId ?? null);
+      return result.error ? slideFailure(result) : json({ id: result.id });
+    },
+  );
+
+  server.registerTool(
+    "update_slide",
+    {
+      title: "Hide or move a slide",
+      description:
+        "Hides a slide from presenting and the PDF (`hidden`), hides only its number (`numberHidden`), moves it before another slide (`beforeId`, null: last), or into another presentation (`presentationId`). Its files are copied there only if listed in `copyFiles`: the answer's `pendingFiles` names those left, for the person to approve (then call this again with `copyFiles` alone).",
+      inputSchema: z.object({
+        pageId,
+        slideId: z.string().min(1).max(64),
+        hidden: z.boolean().optional(),
+        numberHidden: z.boolean().optional(),
+        beforeId: z.string().max(64).nullable().optional(),
+        presentationId: z.string().max(64).optional(),
+        copyFiles: z.array(z.string().max(64)).max(200).optional(),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ pageId: id, slideId, hidden, numberHidden, beforeId, presentationId, copyFiles }) => {
+      if (hidden === undefined && numberHidden === undefined && beforeId === undefined && presentationId === undefined && copyFiles === undefined) {
+        return fail("Nothing to change.");
+      }
+      if (hidden !== undefined) {
+        const result = await setSlideFlagFor(userId, id, slideId, "hidden", hidden);
+        if (result.error) return slideFailure(result);
+      }
+      if (numberHidden !== undefined) {
+        const result = await setSlideFlagFor(userId, id, slideId, "numberHidden", numberHidden);
+        if (result.error) return slideFailure(result);
+      }
+      let pendingFiles: { id: string; name: string }[] = [];
+      if (beforeId !== undefined || presentationId !== undefined) {
+        const result = await moveSlideTo(userId, id, slideId, beforeId ?? null, presentationId ?? id, copyFiles ?? []);
+        if (result.error) return slideFailure(result);
+        pendingFiles = result.pendingFiles;
+      } else if (copyFiles !== undefined) {
+        const result = await approveSlideFiles(userId, id, slideId, copyFiles);
+        if (result.error) return slideFailure(result);
+        pendingFiles = result.pendingFiles;
+      }
+      return json({ slides: (await slideList(userId, presentationId ?? id)) ?? [], pendingFiles });
+    },
+  );
+
+  server.registerTool(
+    "delete_slide",
+    {
+      title: "Delete a slide",
+      description: "Moves a slide to the trash.",
+      inputSchema: z.object({ pageId, slideId: z.string().min(1).max(64) }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ pageId: id, slideId }) => {
+      const result = await removeSlide(userId, id, slideId);
+      return result.error ? slideFailure(result) : json({ ok: true });
+    },
+  );
+
   server.registerTool(
     "post_chat",
     {
@@ -613,8 +704,8 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     async ({ pageId: id, add, update, remove }) => {
       const access = await getPageAccess(prisma, userId, id);
       if (!access) return fail(NOT_FOUND);
-      const page = await prisma.page.findUniqueOrThrow({ where: { id }, select: { kind: true } });
-      if (page.kind !== "WHITEBOARD") return fail("The page isn't a whiteboard.");
+      const page = await prisma.page.findUniqueOrThrow({ where: { id }, select: { kind: true, parentId: true } });
+      if (page.kind !== "WHITEBOARD" && page.kind !== "SLIDE") return fail("The page isn't a whiteboard or a slide.");
       if (!atLeast(access.access, "EDIT")) return fail("You can't edit this page.");
       if (!canEditPage(access)) return fail("The page is locked.");
       const doc = new Y.Doc();
@@ -624,7 +715,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
       if ("error" in plan) return fail(plan.error);
       // Images: attachments of this page only, as in the API.
       const fileIds = [...new Set(imageFileIds(plan.ops))];
-      if (fileIds.length > 0 && (await prisma.fileObject.count({ where: { id: { in: fileIds }, pageId: id } })) !== fileIds.length) {
+      if (fileIds.length > 0 && (await prisma.fileObject.count({ where: { id: { in: fileIds }, pageId: { in: page.kind === "SLIDE" && page.parentId ? [id, page.parentId] : [id] } } })) !== fileIds.length) {
         return fail("An image's \"src\" must be an attachment of this page.");
       }
       await changeWhiteboard(id, userId, plan.ops);

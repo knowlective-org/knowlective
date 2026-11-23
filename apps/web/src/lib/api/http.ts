@@ -32,7 +32,9 @@ export type ApiErrorCode =
   | "not_document"
   | "not_whiteboard"
   | "chat_locked"
-  | "too_deep";
+  | "too_deep"
+  | "too_many_slides"
+  | "conflict";
 
 const STATUS: Record<ApiErrorCode, number> = {
   api_disabled: 403,
@@ -50,6 +52,8 @@ const STATUS: Record<ApiErrorCode, number> = {
   not_whiteboard: 409,
   chat_locked: 423,
   too_deep: 400,
+  too_many_slides: 409,
+  conflict: 409,
 };
 
 const MESSAGES: Record<ApiErrorCode, string> = {
@@ -65,6 +69,8 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   page_locked: "The page is locked.",
   blocks_locked: "Some of the page's blocks are locked, so its body can't be replaced (the title can).",
   too_deep: "The page would be nested too deep.",
+  too_many_slides: "A presentation can have at most 200 slides.",
+  conflict: "The pages have changed, or it can't go there.",
   not_document:
     "The page isn't a document: a whiteboard's content can't be written as Markdown (its title can), and a shortcut can't be changed here.",
   not_whiteboard: "The page isn't a whiteboard.",

@@ -20,11 +20,11 @@ export async function openPage(page: Page, pageId: string) {
 
 // Adds a page under parentId through the sidebar: the row's "＋" and its
 // menu. The caller waits for the new page.
-export async function addPageFromTree(page: Page, parentId: string, kind: "document" | "whiteboard" = "document") {
+export async function addPageFromTree(page: Page, parentId: string, kind: "document" | "whiteboard" | "presentation" = "document") {
   // The add button only shows while its row is hovered.
   await page.locator(`[data-ui="DocTree.link"][data-id="${parentId}"]`).hover();
   await page.locator(`[data-ui="AddPageMenu.toggleButton"][data-id="${parentId}"]`).click();
-  await page.getByTestId(kind === "document" ? "AddPageMenu.documentItem" : "AddPageMenu.whiteboardItem").click();
+  await page.getByTestId(`AddPageMenu.${kind}Item`).click();
 }
 
 // Adds a page under the E2E home page, titles it, and returns its id. The

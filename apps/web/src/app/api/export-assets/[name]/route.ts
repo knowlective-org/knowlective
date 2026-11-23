@@ -23,6 +23,19 @@ const FILES: Record<string, { file: string; type: string }> = {
     file: "@expo-google-fonts/noto-sans-jp/700Bold/NotoSansJP_700Bold.ttf",
     type: "font/ttf",
   },
+  // For what Noto Sans JP doesn't have, in a presentation's PDF.
+  "NotoSansKR-Regular.ttf": {
+    file: "@expo-google-fonts/noto-sans-kr/400Regular/NotoSansKR_400Regular.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansKR-Bold.ttf": {
+    file: "@expo-google-fonts/noto-sans-kr/700Bold/NotoSansKR_700Bold.ttf",
+    type: "font/ttf",
+  },
+  "NotoEmoji-Regular.ttf": {
+    file: "@expo-google-fonts/noto-emoji/400Regular/NotoEmoji_400Regular.ttf",
+    type: "font/ttf",
+  },
 };
 
 // auth: public — files from installed packages (Typst compiler, fonts); no user data.

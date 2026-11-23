@@ -18,6 +18,17 @@ export const WhiteboardLoader = dynamic(
   { ssr: false, loading: () => <EditorPlaceholder /> },
 );
 
+// A presentation page (lib/presentation.ts), likewise browser-only.
+export const PresentationLoader = dynamic(
+  () => import("@/components/presentation/presentation-editor").then((m) => m.PresentationEditor),
+  { ssr: false, loading: () => <EditorPlaceholder /> },
+);
+
+export const StaticPresentationLoader = dynamic(
+  () => import("@/components/presentation/static-presentation").then((m) => m.StaticPresentation),
+  { ssr: false, loading: () => <EditorPlaceholder /> },
+);
+
 export const StaticWhiteboardLoader = dynamic(
   () => import("@/components/whiteboard/static-whiteboard").then((m) => m.StaticWhiteboard),
   { ssr: false, loading: () => <EditorPlaceholder /> },

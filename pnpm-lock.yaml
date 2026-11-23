@@ -47,8 +47,14 @@ importers:
       '@blocknote/xl-typst-compiler':
         specifier: 0.54.2
         version: 0.54.2
+      '@expo-google-fonts/noto-emoji':
+        specifier: 0.4.8
+        version: 0.4.8
       '@expo-google-fonts/noto-sans-jp':
         specifier: ^0.4.4
+        version: 0.4.4
+      '@expo-google-fonts/noto-sans-kr':
+        specifier: 0.4.4
         version: 0.4.4
       '@hocuspocus/extension-database':
         specifier: ^4.6.0
@@ -786,8 +792,14 @@ packages:
       '@noble/hashes':
         optional: true
 
+  '@expo-google-fonts/noto-emoji@0.4.8':
+    resolution: {integrity: sha512-zuq8xBS8nfdgqHXIwfdotQNObA22aMLdPJbFmzJt1AUjbBE4hP/K3az/GftD3e2/JTzRnX30C5lmpuNkVewRlA==}
+
   '@expo-google-fonts/noto-sans-jp@0.4.4':
     resolution: {integrity: sha512-1vl2U7uYG5JAXGERZaLMXtfOSgyOU4Qhq30OOPrbAHjOu8AW9Pral/qN9Anta9fjd6eVRTijiNqcgy2TowzrDA==}
+
+  '@expo-google-fonts/noto-sans-kr@0.4.4':
+    resolution: {integrity: sha512-zePBzeh74ja/0Jiw3T/9+V6Ie3+eONlIl5o1dQQYsOCmfXjJttMz0rGv1oB2AWlzX/TPiL7J3IP3M9Ga7CBvWA==}
 
   '@floating-ui/core@1.8.0':
     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
@@ -5566,7 +5578,11 @@ snapshots:
 
   '@exodus/bytes@1.16.0': {}
 
+  '@expo-google-fonts/noto-emoji@0.4.8': {}
+
   '@expo-google-fonts/noto-sans-jp@0.4.4': {}
+
+  '@expo-google-fonts/noto-sans-kr@0.4.4': {}
 
   '@floating-ui/core@1.8.0':
     dependencies:

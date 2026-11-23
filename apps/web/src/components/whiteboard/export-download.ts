@@ -15,7 +15,7 @@ const PNG_SCALE = 2;
 const MAX_CANVAS_SIDE = 16_000;
 const MAX_CANVAS_AREA = 120_000_000;
 
-function themeColors(): ExportColors {
+export function themeColors(): ExportColors {
   const style = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
   return {
@@ -39,7 +39,7 @@ const asDataUrl = (blob: Blob) =>
 
 // The board's images as data: URLs, by src. One that can't be fetched is
 // left out (drawn as a gray box).
-async function imageData(srcs: string[]): Promise<Map<string, string>> {
+export async function imageData(srcs: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   await Promise.all(
     srcs.map(async (src) => {

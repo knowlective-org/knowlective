@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
-import { addDateColumn, loadChildTable, setCellValue } from "@/app/(app)/pages/[pageId]/child-pages-actions";
+import { addDateColumn, loadCalendarTable, setCellValue } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { createChildPageInPlace } from "@/app/(app)/actions";
 import { showAlert } from "@/components/dialog";
 import { useDisplayTitle } from "@/i18n/use-display-title";
@@ -67,7 +67,7 @@ function ChildCalendar({
   // leaves its columns alone.
   const { linked, sourceId } = useLinkedView(source);
   const parentId = sourceId || pageId;
-  const { data, reload } = useChildrenData(loadChildTable, sourceId);
+  const { data, reload } = useChildrenData(loadCalendarTable, sourceId);
   const linkedPlaceholder = useLinkedPlaceholder("childCalendar", data?.page);
   const t = useTranslations("editor");
   const failed = t("save.failed");

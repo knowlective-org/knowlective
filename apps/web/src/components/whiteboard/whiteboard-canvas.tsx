@@ -2,20 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import {
-  type CSSProperties,
-  Fragment,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
-  type RefObject,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, Fragment, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore } from "react";
 import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import {
@@ -113,6 +100,8 @@ import { Icon, type IconName } from "@/components/icons";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 import { ALIGNMENTS, type Alignment, type Guide, align, distribute, snapMove, snapResize } from "./snap";
 import { TEMPLATES, type TemplateName, buildTemplate, templateBounds } from "./templates";
+import { type NumberPosition, SLIDE_FRAME } from "@/lib/presentation";
+import { FONT_SIZES, SLIDE_FIELD, readSlideBackground } from "@/lib/whiteboard";
 import styles from "./whiteboard.module.css";
 
 type Tool = "select" | "hand" | WhiteboardItem["type"];
@@ -314,6 +303,7 @@ export function WhiteboardCanvas({
   dataUi = "Whiteboard",
   pageId,
   embedded = false,
+  slide,
 }: {
   doc: Y.Doc;
   readOnly: boolean;
@@ -324,7 +314,22 @@ export function WhiteboardCanvas({
   pageId?: string;
   // Shown in a document (the whiteboard block): a lower board in its frame.
   embedded?: boolean;
+  // A presentation's slide: the board has a frame of the slide's size to fit
+  // and snap to, and the slide's number (none: null) on top of everything.
+  slide?: { number: number | null; position: NumberPosition };
 }) {
+  const isSlide = slide !== undefined;
+  // A slide's background (by anyone, as it changes).
+  const subscribeBackground = useCallback(
+    (onChange: () => void) => {
+      const field = doc.getMap(SLIDE_FIELD);
+      field.observe(onChange);
+      return () => field.unobserve(onChange);
+    },
+    [doc],
+  );
+  const backgroundKey = useSyncExternalStore(subscribeBackground, () => JSON.stringify(readSlideBackground(doc)), () => "");
+  const slideBackground = useMemo(() => (backgroundKey ? (JSON.parse(backgroundKey) as ReturnType<typeof readSlideBackground>) : null), [backgroundKey]);
   const t = useTranslations("whiteboard");
   const tRoot = useTranslations();
   const router = useRouter();
@@ -484,8 +489,8 @@ export function WhiteboardCanvas({
   useLayoutEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
-    setCamera(fitCamera(boundsOf(itemRects(readItems(doc))), el.clientWidth, el.clientHeight));
-  }, [doc]);
+    setCamera(fitCamera(isSlide ? SLIDE_FRAME : boundsOf(itemRects(readItems(doc))), el.clientWidth, el.clientHeight));
+  }, [doc, isSlide]);
 
   // Scroll pans; Ctrl/⌘ + scroll (and a trackpad pinch, which browsers send
   // as that) zooms at the pointer. Not passive, to keep the page from scrolling.
@@ -586,7 +591,10 @@ export function WhiteboardCanvas({
   };
 
   const addBox = (type: BoxItem["type"], at: Point) => {
-    const { w, h } = DEFAULT_SIZE[type];
+    // A slide is seen from further away: bigger boxes and text to start with.
+    const scale = isSlide ? 2 : 1;
+    const w = DEFAULT_SIZE[type].w * scale;
+    const h = DEFAULT_SIZE[type].h * scale;
     const id = addItem({
       type,
       x: clampCoord(at.x - w / 2),
@@ -595,6 +603,7 @@ export function WhiteboardCanvas({
       h,
       text: "",
       color: DEFAULT_COLOR[type],
+      ...(isSlide ? { fontSize: 28 } : {}),
     });
     if (!id) return;
     setSelected(new Set([id]));
@@ -768,7 +777,7 @@ export function WhiteboardCanvas({
     change(() => at.forEach((p, id) => setField(id, { x: clampCoord(p.x), y: clampCoord(p.y) })));
 
   // Where boxes snap to: every box but the ones being moved.
-  const snapTargets = (moving: Set<string>): Rect[] => boxes.filter((b) => !moving.has(b.id));
+  const snapTargets = (moving: Set<string>): Rect[] => [...boxes.filter((b) => !moving.has(b.id)), ...(isSlide ? [SLIDE_FRAME] : [])];
 
   // Removes the items and the connectors attached to them.
   const removeItems = (ids: Set<string>) => {
@@ -811,6 +820,7 @@ export function WhiteboardCanvas({
                 h: b.h,
                 text: b.text,
                 ...(b.textX || b.textY ? { textX: b.textX, textY: b.textY } : {}),
+                ...(b.fontSize ? { fontSize: b.fontSize } : {}),
                 ...(b.src ? { src: b.src } : {}),
                 ...(b.link ? { link: b.link } : {}),
                 ...(b.connectorEnds === "merge" ? { connectorEnds: b.connectorEnds } : {}),
@@ -1022,7 +1032,7 @@ export function WhiteboardCanvas({
 
   const fit = () => {
     const el = viewportRef.current;
-    if (el) setCamera(fitCamera(boundsOf(itemRects(items)), el.clientWidth, el.clientHeight));
+    if (el) setCamera(fitCamera(isSlide ? SLIDE_FRAME : boundsOf(itemRects(items)), el.clientWidth, el.clientHeight));
   };
   // Zooms at the middle of the board: to the next step (ZOOM_STEPS) up or
   // down, or to a given zoom.
@@ -1694,7 +1704,7 @@ export function WhiteboardCanvas({
   const lineHandles = !readOnly && single?.type === "line" ? lineEnds(single) : null;
 
   return (
-    <div className={embedded ? `${styles.root} ${styles.embedded}` : styles.root} data-ui={dataUi} data-fullscreen={fullscreen || undefined}>
+    <div className={embedded ? `${styles.root} ${styles.embedded}` : styles.root} data-slide={isSlide ? "" : undefined} data-ui={dataUi} data-fullscreen={fullscreen || undefined}>
       <div
         ref={viewportRef}
         className={styles.viewport}
@@ -1782,6 +1792,20 @@ export function WhiteboardCanvas({
             ["--zoom" as string]: camera.zoom,
           }}
         >
+          {isSlide && (
+            <div
+              className={styles.slideFrame}
+              style={{
+                width: SLIDE_FRAME.w,
+                height: SLIDE_FRAME.h,
+                ...(slideBackground?.color ? { background: `var(--color-wb-${slideBackground.color})` } : {}),
+                ...(slideBackground?.image
+                  ? { backgroundImage: `url("${resolveAppUrl(slideBackground.image)}")`, backgroundSize: "cover", backgroundPosition: "center" }
+                  : {}),
+              }}
+              data-ui="Whiteboard.slideFrame"
+            />
+          )}
           <svg className={styles.lines} aria-hidden>
             <defs>
               {(["normal", "large"] as const).flatMap((size) =>
@@ -1930,6 +1954,18 @@ export function WhiteboardCanvas({
                 return { left: r.x, top: r.y, width: r.w, height: r.h };
               })()}
             />
+          )}
+          {slide && slide.number !== null && (
+            <div
+              className={styles.slideNumberArea}
+              style={{ width: SLIDE_FRAME.w, height: SLIDE_FRAME.h }}
+              data-position={slide.position}
+              data-on-image={slideBackground?.image ? "" : undefined}
+            >
+              <span className={styles.slideNumber} data-ui="Whiteboard.slideNumber">
+                {slide.number}
+              </span>
+            </div>
           )}
         </div>
         {cursors.map((c) => {
@@ -2085,6 +2121,38 @@ export function WhiteboardCanvas({
           data-wb-controls
           onClick={focusBoard}
         >
+          {isSlide && !readOnly && [...selection].some((id) => isBox(byId.get(id)) && byId.get(id)?.type !== "image") && (
+            <select
+              className={styles.fontSizeSelect}
+              aria-label={t("fontSize")}
+              title={t("fontSize")}
+              value={(() => {
+                const first = [...selection].map((id) => byId.get(id)).find((i) => isBox(i) && i.type !== "image");
+                return isBox(first) ? (first.fontSize ?? "") : "";
+              })()}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                const size = Number(e.target.value);
+                change(() => {
+                  for (const id of selection) {
+                    const item = byId.get(id);
+                    if (isBox(item) && item.type !== "image") map.get(id)?.set("fontSize", size);
+                  }
+                });
+                focusBoard();
+              }}
+              data-ui="Whiteboard.fontSizeSelect"
+            >
+              <option value="" disabled>
+                {t("fontSize")}
+              </option>
+              {FONT_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          )}
           {colorable && ITEM_COLORS.map((color) => (
             <button
               key={color}
@@ -2732,7 +2800,10 @@ function Box({
       ) : (
         <div
           className={styles.textPlace}
-          style={item.textX || item.textY ? { transform: `translate(${item.textX}px, ${item.textY}px)` } : undefined}
+          style={{
+            ...(item.textX || item.textY ? { transform: `translate(${item.textX}px, ${item.textY}px)` } : {}),
+            ...(item.fontSize ? { fontSize: item.fontSize, lineHeight: 1.3 } : {}),
+          }}
         >
           {editing ? (
             <TextEditor

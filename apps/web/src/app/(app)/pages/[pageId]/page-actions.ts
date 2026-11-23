@@ -10,6 +10,7 @@ import { displayName } from "@/lib/emails";
 import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { closeDocuments, notifyChildrenChanged, reconnectDocuments } from "@/lib/collab-events";
+import { beforePresentationChange } from "@/lib/presentation-changes";
 
 export type PageInfo = {
   createdBy: string;
@@ -91,13 +92,15 @@ async function deletionTarget(
   const t = await getTranslations("pageActions");
   const CANNOT_DELETE = t("cannotDelete");
   if (typeof pageId !== "string") return { error: CANNOT_DELETE };
-  const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, parentId: true } });
+  const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, parentId: true, kind: true } });
   if (!page) return { error: CANNOT_DELETE };
   const { pages, access, live, locks } = await getTreeWithAccess(prisma, userId, page.rootId);
   if (!live.has(pageId) || !atLeast(access.get(pageId) ?? null, "EDIT")) return { error: CANNOT_DELETE };
   if (!page.parentId) return { error: t("rootCannotDelete") };
   const descendants = liveDescendants(pages, live, pageId);
   if (locks.has(pageId)) return { error: t("lockedCannotDelete") };
+  // Even a lock on a presentation alone keeps its slides as they are.
+  if (page.kind === "SLIDE" && locks.has(page.parentId)) return { error: t("presentationLocked") };
   if (descendants.some((id) => locks.has(id))) {
     return { error: t("lockedChildCannotDelete") };
   }
@@ -112,6 +115,10 @@ export async function deletePage(pageId: string): Promise<{ parentId: string } |
   const user = await requireUser();
   const target = await deletionTarget(user.id, pageId);
   if ("error" in target) return target;
+  // A slide leaving its presentation: how it was stays in the history.
+  if ((await prisma.page.findUnique({ where: { id: target.parentId }, select: { kind: true } }))?.kind === "PRESENTATION") {
+    await beforePresentationChange(target.parentId, user.id);
+  }
   await prisma.page.update({ where: { id: pageId }, data: { deletedAt: new Date(), deletedById: user.id } });
   closeDocuments([pageId, ...target.descendants]);
   notifyChildrenChanged(target.parentId);

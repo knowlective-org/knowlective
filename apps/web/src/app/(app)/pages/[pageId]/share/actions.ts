@@ -43,8 +43,11 @@ async function requireManager(pageId: string) {
   if (!result || !atLeast(result.access, "MANAGE")) redirect(`/pages/${pageId}`);
   const page = await prisma.page.findUniqueOrThrow({
     where: { id: pageId },
-    select: { title: true, root: { select: { rootPageId: true } } },
+    select: { title: true, kind: true, parentId: true, root: { select: { rootPageId: true } } },
   });
+  // A slide has no grants of its own: everyone who can open the presentation
+  // sees the same slides.
+  if (page.kind === "SLIDE") redirect(`/pages/${page.parentId}/share`);
   return { user, page, isRootPage: page.root.rootPageId === pageId };
 }
 

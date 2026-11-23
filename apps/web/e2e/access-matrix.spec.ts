@@ -49,6 +49,7 @@ test.describe("Access matrix", () => {
   });
 
   test("screens and routes answer each account as they should", async ({ browser }) => {
+    test.setTimeout(240_000);
     const pagePath = `/pages/${pageId}`;
     const matrix: { path: string; expect: Record<Account, Outcome> }[] = [
       { path: `pages/${pageId}`, expect: { guest: "login", outsider: "404", viewer: "ok", editor: "ok", admin: "ok" } },
@@ -88,6 +89,7 @@ test.describe("Access matrix", () => {
         "api/v1/me",
         `api/v1/pages/${pageId}/chats`, `api/v1/pages/${pageId}/chats/x/messages`,
         `api/v1/pages/${pageId}/whiteboard`,
+        `api/v1/pages/${pageId}/slides`,
         `api/v1/pages/${pageId}/children`,
         `api/v1/pages/${pageId}/people`,
       ]) {

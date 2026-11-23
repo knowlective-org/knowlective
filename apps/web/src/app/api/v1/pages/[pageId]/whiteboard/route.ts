@@ -18,12 +18,13 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024;
 async function boardOf(userId: string, pageId: string) {
   const access = await getPageAccess(prisma, userId, pageId);
   if (!access) return apiError("not_found");
-  const page = await prisma.page.findUniqueOrThrow({ where: { id: pageId }, select: { kind: true } });
-  if (page.kind !== "WHITEBOARD") return apiError("not_whiteboard");
+  const page = await prisma.page.findUniqueOrThrow({ where: { id: pageId }, select: { kind: true, parentId: true } });
+  // A presentation's slide is a board too.
+  if (page.kind !== "WHITEBOARD" && page.kind !== "SLIDE") return apiError("not_whiteboard");
   const doc = new Y.Doc();
   const state = await currentPageState(pageId);
   if (state) Y.applyUpdate(doc, state);
-  return { access, doc };
+  return { access, doc, filePages: page.kind === "SLIDE" && page.parentId ? [pageId, page.parentId] : [pageId] };
 }
 
 // GET: the board's items, back to front (lib/whiteboard.ts: boxes —
@@ -67,7 +68,8 @@ export async function POST(request: Request, ctx: Context) {
     // Images: attachments of this page only.
     const fileIds = [...new Set(imageFileIds(plan.ops))];
     if (fileIds.length > 0) {
-      const files = await prisma.fileObject.count({ where: { id: { in: fileIds }, pageId } });
+      // (A slide's images are attachments of its presentation.)
+      const files = await prisma.fileObject.count({ where: { id: { in: fileIds }, pageId: { in: board.filePages } } });
       if (files !== fileIds.length) return apiError("invalid_body", "An image's \"src\" must be an attachment of this page.");
     }
     await changeWhiteboard(pageId, user.id, plan.ops);

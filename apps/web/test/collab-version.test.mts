@@ -10,7 +10,7 @@ import { COLLAB_CLIENT_VERSION } from "../src/lib/collab-version";
 // record the new outline and version below.
 //   pnpm --filter web test:unit
 
-const RECORDED_VERSION = 13;
+const RECORDED_VERSION = 14;
 const RECORDED = [
   "mark backgroundColor(stringValue)",
   "mark bold()",

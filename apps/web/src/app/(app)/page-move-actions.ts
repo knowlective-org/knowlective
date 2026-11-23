@@ -11,6 +11,8 @@ import { auditTranslator } from "@/i18n/audit";
 import { displayTitleWith, getDisplayTitle } from "@/i18n/display-title";
 import { type AccessChange, MoveConflictError, executeMove, planMove } from "@/lib/page-move";
 import { createShortcut, resolveShortcuts } from "@/lib/shortcuts";
+import { beforePresentationChange } from "@/lib/presentation-changes";
+import { type PendingFile, adoptSlideImages, pendingSlideFiles } from "@/lib/presentation-ops";
 
 // Page moves and reordering (lib/page-move.ts), from the sidebar's drag and
 // drop and the page menu's "move".
@@ -22,6 +24,9 @@ export type MoveCheck = {
   toRootTitle: string | null;
   descendants: number;
   accessChanges: AccessChange[];
+  // A slide going to another presentation: files it would copy there, shown
+  // to the mover to approve.
+  pendingFiles: PendingFile[];
 };
 
 // What a move would do, for the confirmation shown before a page changes
@@ -40,15 +45,26 @@ export async function checkMovePage(
     toRootTitle: plan.toRootTitle,
     descendants: plan.liveDescendantIds.length,
     accessChanges: plan.accessChanges,
+    pendingFiles: plan.slide && plan.parentChanges ? await pendingSlideFiles(user.id, plan.pageId, plan.toParentId) : [],
   };
 }
 
 // Moves `pageId` under `parentId`, before `beforeId` (null = last). Checked
 // again here: the confirmation may be stale.
-export async function movePage(pageId: string, parentId: string, beforeId: string | null): Promise<{ error?: string }> {
+export async function movePage(
+  pageId: string,
+  parentId: string,
+  beforeId: string | null,
+  // A slide's files the mover approved copying (checked again when copied).
+  copyFileIds: string[] = [],
+): Promise<{ error?: string }> {
   const user = await requireUser();
   const plan = await planMove(user.id, pageId, parentId, beforeId);
   if ("error" in plan) return plan;
+  if (plan.slide) {
+    await beforePresentationChange(plan.fromParentId, user.id);
+    if (plan.parentChanges) await beforePresentationChange(plan.toParentId, user.id);
+  }
   try {
     await executeMove(plan);
   } catch (err) {
@@ -59,6 +75,8 @@ export async function movePage(pageId: string, parentId: string, beforeId: strin
   }
 
   if (plan.parentChanges) {
+    // A slide's images become its new presentation's, as far as approved.
+    if (plan.slide) await adoptSlideImages(user.id, plan.pageId, plan.toParentId, copyFileIds);
     const audit = await auditTranslator();
     const displayTitle = displayTitleWith(audit);
     // With the pages' titles, or hidden (lib/audit-pages.ts; the root's name isn't).
@@ -146,7 +164,7 @@ export async function loadMoveDestinations(
         depth,
         // Nothing goes under a shortcut; a new shortcut can't go under a page
         // locked with its children.
-        selectable: atLeast(p.access, "EDIT") && !p.shortcut && !(shortcut && p.lock?.coversChildren),
+        selectable: atLeast(p.access, "EDIT") && !p.shortcut && p.kind !== "PRESENTATION" && !(shortcut && p.lock?.coversChildren),
         current: !shortcut && id === page.parentId,
       });
       for (const child of childrenOf.get(id) ?? []) visit(child.id, depth + 1, out);
@@ -172,7 +190,8 @@ export async function createPageShortcut(pageId: string, parentId: string): Prom
   const result = await createShortcut(user.id, pageId, parentId);
   if ("error" in result) {
     const t = await getTranslations("pageShortcut");
-    return { error: t(result.error) };
+    // Shortcuts are never slides, so the slide errors don't apply.
+    return { error: t(result.error === "presentationLocked" || result.error === "tooManySlides" ? "notAllowed" : result.error) };
   }
   return {};
 }

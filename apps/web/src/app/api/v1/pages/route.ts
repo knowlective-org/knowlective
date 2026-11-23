@@ -20,8 +20,9 @@ export async function GET(request: Request) {
 
 // POST { parentId, title?, markdown?, kind? }: a new page under `parentId`,
 // last among its siblings. Needs EDIT on the parent, as in the sidebar.
-// `kind`: "DOCUMENT" (the default) or "WHITEBOARD" (no markdown; its items
-// through …/whiteboard).
+// `kind`: "DOCUMENT" (the default), "WHITEBOARD" (no markdown; its items
+// through …/whiteboard) or "PRESENTATION" (no markdown; its slides through
+// …/slides).
 export async function POST(request: Request) {
   return withApiKey(request, "WRITE", async ({ user }) => {
     const read = await readPageInput(request);
@@ -31,8 +32,10 @@ export async function POST(request: Request) {
       return apiError("invalid_body", "\"parentId\" (the page to create the page under) is required.");
     }
     const kind = body.kind ?? "DOCUMENT";
-    if (kind !== "DOCUMENT" && kind !== "WHITEBOARD") return apiError("invalid_body", "\"kind\" must be \"DOCUMENT\" or \"WHITEBOARD\".");
-    if (kind === "WHITEBOARD" && input.markdown !== undefined) return apiError("not_document");
+    if (kind !== "DOCUMENT" && kind !== "WHITEBOARD" && kind !== "PRESENTATION") {
+      return apiError("invalid_body", "\"kind\" must be \"DOCUMENT\", \"WHITEBOARD\" or \"PRESENTATION\".");
+    }
+    if (kind !== "DOCUMENT" && input.markdown !== undefined) return apiError("not_document");
     const created = await insertChildPage(user.id, body.parentId, input.title ?? "", kind);
     if ("error" in created) {
       if (created.error === "lockedWithChildren") return apiError("page_locked", "The parent page is locked with its child pages.");

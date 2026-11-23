@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getFile, getStorageConfig } from "@/lib/storage";
 import { contentDisposition } from "@/lib/content-disposition";
 import { parseByteRange } from "@/lib/byte-range";
+import { guestMayGetFile } from "@/lib/presentation-data";
 
 // GET /api/files/<id>
 // Serves an attachment to users who can view the page it was attached to
@@ -68,6 +69,8 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/files/[fileI
   });
   // A file whose page was deleted (pageId set to null) is no longer served.
   if (!file?.pageId || !(await getPageAccess(prisma, user?.id ?? null, file.pageId))) return notFound();
+  // A public presentation's hidden slides stay out of reach.
+  if (!user && !(await guestMayGetFile({ id: file.id, pageId: file.pageId }))) return notFound();
   // Downloads not allowed from this network (lib/network-policy.ts).
   if (!(await requestNetworkCaps()).download) {
     return new Response("Downloading files isn't allowed from this network", { status: 403 });

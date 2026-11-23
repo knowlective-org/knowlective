@@ -10,6 +10,9 @@ import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { notifyChildrenChanged } from "@/lib/collab-events";
 import { nextSortOrder } from "@/lib/page-move";
+import { MAX_SLIDES } from "@/lib/presentation";
+import { hasRoomForSlide, lockPresentations } from "@/lib/presentation-tree";
+import { beforePresentationChange } from "@/lib/presentation-changes";
 
 // Brings a page in the trash back, with its subtree.
 //
@@ -24,13 +27,30 @@ export async function restorePage(pageId: string, newParentId?: string): Promise
   if (typeof pageId !== "string") return { error: CANNOT_RESTORE };
   const page = await prisma.page.findUnique({
     where: { id: pageId },
-    select: { rootId: true, parentId: true, deletedAt: true, title: true },
+    select: { rootId: true, parentId: true, deletedAt: true, title: true, kind: true },
   });
   if (!page?.deletedAt || !page.parentId) return { error: CANNOT_RESTORE };
   const tree = await getTreeWithAccess(prisma, user.id, page.rootId);
-  const { pages, access, live } = tree;
+  const { pages, access, live, locks } = tree;
   const editable = (id: string) => atLeast(access.get(id) ?? null, "EDIT");
   if (!editable(pageId)) return { error: CANNOT_RESTORE };
+
+  if (page.kind === "SLIDE") {
+    // A slide only goes back into its own presentation, within the limit.
+    const deckId = page.parentId;
+    if (!live.has(deckId)) return { error: t("presentationInTrash") };
+    if (locks.has(deckId)) return { error: t("presentationLocked") };
+    await beforePresentationChange(deckId, user.id);
+    const restored = await prisma.$transaction(async (tx) => {
+      await lockPresentations(tx, [deckId]);
+      if (!(await hasRoomForSlide(tx, deckId))) return false;
+      await tx.page.update({ where: { id: pageId }, data: { deletedAt: null, deletedById: null } });
+      return true;
+    });
+    if (!restored) return { error: t("tooManySlides", { max: MAX_SLIDES }) };
+    notifyChildrenChanged(deckId);
+    return {};
+  }
 
   if (live.has(page.parentId)) {
     await prisma.page.update({ where: { id: pageId }, data: { deletedAt: null, deletedById: null } });
@@ -44,6 +64,9 @@ export async function restorePage(pageId: string, newParentId?: string): Promise
     return { error: t("parentInTrash") };
   }
   const byId = new Map(pages.map((p) => [p.id, p]));
+  // Presentations hold only slides, and slides nothing.
+  const destinationKind = byId.get(newParentId)?.kind;
+  if (destinationKind === "PRESENTATION" || destinationKind === "SLIDE") return { error: t("parentInTrash") };
   const depthOf = (id: string) => {
     let depth = 0;
     for (let cursor = byId.get(id)?.parentId ?? null; cursor && depth <= MAX_PAGE_DEPTH; depth++) {

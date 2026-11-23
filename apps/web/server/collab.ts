@@ -28,6 +28,10 @@ import { COLLAB_CLIENT_VERSION } from "../src/lib/collab-version";
 import { lockedBlockIds } from "../src/lib/block-locks";
 import { BLOCKS_LOCKED, CHILDREN_CHANGED, PAGE_DELETED, PAGE_MOVED, notifyChildrenChanged, registerCollabBridge } from "../src/lib/collab-events";
 import { VERSION_INTERVAL_MS, versionAad, type PageVersionKind } from "../src/lib/page-versions";
+import { CHECKPOINT_EVERY, encodeVersion } from "../src/lib/version-chain";
+import { storedVersionState } from "../src/lib/version-store";
+import { captureSnapshot, snapshotDue } from "../src/lib/presentation-history";
+import { PresentingLimiter, admitPresenting, isSlideId, readPresenting } from "../src/lib/presentation-stage";
 import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 import { copyWhiteboard, hasWhiteboardContent } from "../src/lib/whiteboard";
 import { applyWhiteboardOps } from "../src/lib/whiteboard-ops";
@@ -83,7 +87,25 @@ export async function createCollab() {
     restoredFromId?: string,
   ) {
     const id = randomUUID();
-    const state = Y.encodeStateAsUpdate(document);
+    const key = await loadDataKey(prisma);
+    // A difference from the latest version when it can be one
+    // (lib/version-chain.ts). A masked version was rebuilt, so nothing
+    // follows from it; one that can't be read just means saving whole.
+    const latest = await prisma.pageVersion.findFirst({
+      where: { pageId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, depth: true, maskedAt: true },
+    });
+    let base: { id: string; depth: number; state: Uint8Array } | null = null;
+    if (latest && !latest.maskedAt && latest.depth + 1 < CHECKPOINT_EVERY) {
+      base = await storedVersionState(prisma, key, pageId, latest.id)
+        .then((state) => ({ id: latest.id, depth: latest.depth, state }))
+        .catch((err) => {
+          console.error("[collab] reading the latest version failed; saving a whole one", err);
+          return null;
+        });
+    }
+    const { state, baseId, depth } = encodeVersion(document, base);
     await prisma.pageVersion.create({
       data: {
         id,
@@ -91,7 +113,9 @@ export async function createCollab() {
         kind,
         title: normalizeTitle(document.getText(TITLE_FIELD).toString()),
         editorIds,
-        state: Uint8Array.from(encrypt(await loadDataKey(prisma), state, versionAad(pageId, id))),
+        state: Uint8Array.from(encrypt(key, state, versionAad(pageId, id))),
+        baseId,
+        depth,
         restoredFromId,
       },
     });
@@ -113,6 +137,11 @@ export async function createCollab() {
       }
       pendingEditors.delete(pageId);
       await saveVersion(pageId, document, "AUTO", [...editors]);
+      // A slide's new version: its presentation's history follows.
+      const page = await prisma.page.findUnique({ where: { id: pageId }, select: { kind: true, parentId: true } });
+      if (page?.kind === "SLIDE" && page.parentId && (await snapshotDue(prisma, page.parentId))) {
+        await captureSnapshot(prisma, page.parentId, "AUTO", [...editors][0] ?? null);
+      }
     } catch (err) {
       console.error("[collab] saving a page version failed", err);
     }
@@ -139,7 +168,7 @@ export async function createCollab() {
         const title = normalizeTitle(document.getText(TITLE_FIELD).toString());
         const editorId = editedBy.get(documentName);
         editedBy.delete(documentName);
-        const page = await prisma.page.findUnique({ where: { id: documentName }, select: { title: true, parentId: true } });
+        const page = await prisma.page.findUnique({ where: { id: documentName }, select: { title: true, parentId: true, kind: true } });
         // Search index (title, body, attachment names) from the state just stored.
         await reindexPage(prisma, documentName, Uint8Array.from(state));
         // Never fails the store: the content is saved either way.
@@ -151,6 +180,10 @@ export async function createCollab() {
           where: { id: documentName },
           data: { title, ...(editorId && { updatedById: editorId, updatedAt: new Date() }) },
         });
+        // Editing a slide is editing its presentation.
+        if (editorId && page.kind === "SLIDE" && page.parentId) {
+          await prisma.page.update({ where: { id: page.parentId }, data: { updatedById: editorId, updatedAt: new Date() } });
+        }
         notifyChildrenChanged(page.parentId);
         await maybeSaveVersion(documentName, document, false);
       },
@@ -166,6 +199,15 @@ export async function createCollab() {
 
   // The Yjs client each connection speaks for, in awareness (cursors).
   const awarenessClientOf = new WeakMap<object, number>();
+  const presentingLimiter = new PresentingLimiter();
+  // A slide that can be presented: in this presentation, live and not hidden.
+  const isShownSlide = async (presentationId: string, slideId: string) => {
+    const slide = await prisma.page.findFirst({
+      where: { id: slideId, parentId: presentationId, kind: "SLIDE", deletedAt: null, parent: { kind: "PRESENTATION" } },
+      select: { parent: { select: { presentation: { select: { hiddenSlideIds: true } } } } },
+    });
+    return !!slide && !slide.parent?.presentation?.hiddenSlideIds.includes(slideId);
+  };
 
   const hocuspocus = new Hocuspocus({
     extensions,
@@ -258,7 +300,7 @@ export async function createCollab() {
     // entry of Hocuspocus's own (the scratch awareness it decodes into), so
     // empty states are let through — unless they would blank another
     // client's cursor.
-    async beforeHandleAwareness({ context, connection, states, awareness }) {
+    async beforeHandleAwareness({ context, connection, states, awareness, documentName }) {
       const ctx = context as CollabContext | undefined;
       if (!connection || !ctx?.cursor) return;
       let own = awarenessClientOf.get(connection);
@@ -278,6 +320,25 @@ export async function createCollab() {
           continue;
         }
         if ("user" in state) (state as { user: unknown }).user = { ...ctx.cursor };
+        // A presentation's stage (lib/presentation-stage.ts): the browser
+        // says which slide, the server whether that's allowed, and when it
+        // started. Any field of the kind on another page is dropped.
+        const fields = state as Record<string, unknown>;
+        if ("viewing" in fields && !isSlideId(fields.viewing)) delete fields.viewing;
+        if ("presenting" in fields) {
+          const entries = [...awareness.getStates()];
+          const admitted = await admitPresenting({
+            wanted: fields.presenting,
+            current: readPresenting(awareness.getStates().get(clientId)?.presenting),
+            someoneElsePresenting: entries.some(([id, s]) => id !== clientId && readPresenting(s?.presenting)),
+            key: `${ctx.userId}:${documentName}`,
+            now: Date.now(),
+            limiter: presentingLimiter,
+            isShown: (slideId) => isShownSlide(documentName, slideId),
+          });
+          if (admitted) fields.presenting = admitted;
+          else delete fields.presenting;
+        }
       }
     },
     async onChange({ documentName, context }) {
@@ -471,10 +532,13 @@ export async function createCollab() {
     // edit). The state just before is saved first, so a restore can itself
     // be undone. Access is checked by the caller.
     async restoreVersion(pageId, versionId, userId) {
-      const version = await prisma.pageVersion.findUnique({ where: { id: versionId } });
-      if (!version || version.pageId !== pageId) throw new Error("Version not found");
+      // No version: back to empty (a presentation's slide from before it had any).
       const snapshot = new Y.Doc();
-      Y.applyUpdate(snapshot, decrypt(await loadDataKey(prisma), version.state, versionAad(pageId, versionId)));
+      if (versionId !== null) {
+        const version = await prisma.pageVersion.findUnique({ where: { id: versionId } });
+        if (!version || version.pageId !== pageId) throw new Error("Version not found");
+        Y.applyUpdate(snapshot, await storedVersionState(prisma, await loadDataKey(prisma), pageId, versionId));
+      }
 
       const connection = await hocuspocus.openDirectConnection(pageId, { userId });
       try {
@@ -498,7 +562,7 @@ export async function createCollab() {
           // A whiteboard page's canvas (empty on a document page).
           copyWhiteboard(snapshot, doc);
         });
-        await saveVersion(pageId, document, "RESTORED", [userId], versionId);
+        await saveVersion(pageId, document, "RESTORED", [userId], versionId ?? undefined);
         // The restore itself is in the RESTORED version.
         pendingEditors.delete(pageId);
       } finally {
