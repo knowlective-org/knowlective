@@ -12,6 +12,12 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 - The API and MCP can read the tables in a page's body (tables, extended tables and child page tables, linked views too): list them (`GET /api/v1/pages/<id>/tables`, MCP `list_tables`), and read one whole or only some of its columns (`GET /api/v1/pages/<id>/tables/<table id>` with `?column=<name>`, MCP `get_table`). Values come by column name and by the column's type; masked values can't be read
 
+- The API and MCP can change a single block: list a page's blocks with their ids (`GET /api/v1/pages/<id>/blocks`, MCP `list_blocks`), change one's text or settings (`PATCH …/blocks/<block id>`, `update_block`), insert blocks beside it (`POST …/blocks`, `insert_blocks`) or delete it (`DELETE …/blocks/<block id>`, `delete_block`). A block keeps its id, type and nested blocks; settings include those of knowlective's own blocks (a TODO's state, a diagram's code, a child table's title…), each value checked; an extended table's cells take their column's value. Page and block locks, the page's history and notifications apply as for other writes; masked values can't be read or written
+
+### Fixed
+
+- MCP's `replace_section` replaced a section holding a mention, losing the mention; it's now refused, as for the other blocks Markdown can't carry back
+
 ## [0.5.0] - 2026-11-22
 
 ### Added
