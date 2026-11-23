@@ -11,7 +11,7 @@ const fragment = (over: Partial<TextFragment> = {}): TextFragment => ({
   h: 20,
   size: 16,
   color: "rgb(31, 35, 40)",
-  bold: false,
+  weight: 400,
   italic: false,
   underline: false,
   strike: false,
@@ -54,7 +54,7 @@ test("one page per slide, an empty one included", () => {
 });
 
 test("text sits where the browser laid it out, without added spacing", () => {
-  const source = presentationTypst([{ layers: [{ asset: null, fragments: [fragment({ bold: true })] }], number: null }], options);
+  const source = presentationTypst([{ layers: [{ asset: null, fragments: [fragment({ weight: 700 })] }], number: null }], options);
   assert.ok(source.includes("dx: 50pt, dy: 100pt"));
   assert.ok(source.includes("weight: 700"));
   assert.ok(source.includes("cjk-latin-spacing: none"));

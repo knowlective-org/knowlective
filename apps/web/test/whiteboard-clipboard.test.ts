@@ -22,6 +22,8 @@ const box = (id: string, x: number, y: number, text = ""): WhiteboardItem => ({
   src: "",
   link: "",
   connectorEnds: "spread",
+  border: "solid",
+  borderColor: null,
 });
 
 const connector = (id: string, from: string, to: string): WhiteboardItem => ({

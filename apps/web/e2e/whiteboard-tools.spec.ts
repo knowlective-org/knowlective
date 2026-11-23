@@ -47,6 +47,37 @@ async function dropFile(page: Page, file: { name: string; mimeType: string; buff
 
 const item = (page: Page, text: string) => page.getByTestId("Whiteboard.item").filter({ hasText: text });
 
+test("a box's outline and text weight can be chosen, and a copy keeps them", async ({ page }) => {
+  const board = await createWhiteboard(page, "E2E outline");
+  await addSticky(page, 200, 200, "outlined");
+  const note = item(page, "outlined");
+  await expect(note.getByTestId("Whiteboard.outline")).toHaveCount(0);
+
+  await note.click();
+  await page.getByTestId("Whiteboard.borderMenuButton").click();
+  await page.locator('[data-ui="Whiteboard.borderItem"][data-id="double"]').click();
+  await expect(note.getByTestId("Whiteboard.outline")).toHaveAttribute("data-id", "double");
+  await expect(note.locator('[data-ui="Whiteboard.outline"] rect')).toHaveCount(2);
+  await page.locator('[data-ui="Whiteboard.borderColorItem"][data-id="red"]').click();
+  const stroke = await note.locator('[data-ui="Whiteboard.outline"] rect').first().evaluate((el) => getComputedStyle(el).stroke);
+  expect(stroke).not.toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-wb-line")));
+
+  await page.getByTestId("Whiteboard.fontWeightSelect").selectOption("900");
+  await expect(note.locator('[data-ui="Whiteboard.outline"] ~ div').first()).toHaveCSS("font-weight", "900");
+
+  await page.getByTestId("Whiteboard.duplicateButton").click();
+  await expect(item(page, "outlined")).toHaveCount(2);
+  await expect(page.locator('[data-ui="Whiteboard.outline"][data-id="double"]')).toHaveCount(2);
+
+  await page.getByTestId("Whiteboard.borderMenuButton").click();
+  await page.locator('[data-ui="Whiteboard.borderItem"][data-id="none"]').click();
+  await expect(page.locator('[data-ui="Whiteboard.outline"][data-id="double"]')).toHaveCount(1);
+
+  await page.goto(`pages/${board.id}`);
+  await expect(page.locator('[data-ui="Whiteboard.outline"][data-id="double"]')).toHaveCount(1);
+  await trashOpenPage(page);
+});
+
 // A 2 × 1 PNG.
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGP4z8DAwPAfAAcAAf9+CLHQAAAAAElFTkSuQmCC", "base64");
 

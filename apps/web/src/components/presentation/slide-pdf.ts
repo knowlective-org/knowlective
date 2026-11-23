@@ -22,7 +22,7 @@ export type TextFragment = {
   h: number;
   size: number;
   color: string;
-  bold: boolean;
+  weight: number;
   italic: boolean;
   underline: boolean;
   strike: boolean;
@@ -61,7 +61,7 @@ function fragmentTypst(f: TextFragment, ink: string, strLit: StrLit): string {
   const color = typstColor(f.color) ?? ink;
   // The box of the text is the font's ascent to descent, as in the browser.
   const text =
-    `text(size: ${pt(f.size)}, fill: ${color}, weight: ${f.bold ? 700 : 400}, ` +
+    `text(size: ${pt(f.size)}, fill: ${color}, weight: ${f.weight}, ` +
     `top-edge: "ascender", bottom-edge: "descender", cjk-latin-spacing: none, ${strLit(f.text)})`;
   // Noto Sans JP has no italic of its own.
   out += place(f.x, f.y, f.italic ? `skew(ax: -12deg, origin: bottom + left, ${text})` : text);

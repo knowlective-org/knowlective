@@ -208,7 +208,8 @@ export function textStyleCss(
   highlight: (c: HighlightColor) => string,
 ): Record<string, string> {
   const css: Record<string, string> = {};
-  if (style.bold) css.fontWeight = "700";
+  // Heavier than the text around it, whatever the box's weight.
+  if (style.bold) css.fontWeight = "bolder";
   if (style.italic) css.fontStyle = "italic";
   const lines = [style.underline && "underline", style.strike && "line-through"].filter(Boolean);
   if (lines.length > 0) css.textDecorationLine = lines.join(" ");

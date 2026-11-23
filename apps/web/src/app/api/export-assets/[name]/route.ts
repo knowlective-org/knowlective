@@ -32,6 +32,63 @@ const FILES: Record<string, { file: string; type: string }> = {
     file: "@expo-google-fonts/noto-sans-kr/700Bold/NotoSansKR_700Bold.ttf",
     type: "font/ttf",
   },
+  // The other weights a box's text can have.
+  "NotoSansJP-Thin.ttf": {
+    file: "@expo-google-fonts/noto-sans-jp/100Thin/NotoSansJP_100Thin.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansKR-Thin.ttf": {
+    file: "@expo-google-fonts/noto-sans-kr/100Thin/NotoSansKR_100Thin.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansJP-ExtraLight.ttf": {
+    file: "@expo-google-fonts/noto-sans-jp/200ExtraLight/NotoSansJP_200ExtraLight.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansKR-ExtraLight.ttf": {
+    file: "@expo-google-fonts/noto-sans-kr/200ExtraLight/NotoSansKR_200ExtraLight.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansJP-Light.ttf": {
+    file: "@expo-google-fonts/noto-sans-jp/300Light/NotoSansJP_300Light.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansKR-Light.ttf": {
+    file: "@expo-google-fonts/noto-sans-kr/300Light/NotoSansKR_300Light.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansJP-Medium.ttf": {
+    file: "@expo-google-fonts/noto-sans-jp/500Medium/NotoSansJP_500Medium.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansKR-Medium.ttf": {
+    file: "@expo-google-fonts/noto-sans-kr/500Medium/NotoSansKR_500Medium.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansJP-SemiBold.ttf": {
+    file: "@expo-google-fonts/noto-sans-jp/600SemiBold/NotoSansJP_600SemiBold.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansKR-SemiBold.ttf": {
+    file: "@expo-google-fonts/noto-sans-kr/600SemiBold/NotoSansKR_600SemiBold.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansJP-ExtraBold.ttf": {
+    file: "@expo-google-fonts/noto-sans-jp/800ExtraBold/NotoSansJP_800ExtraBold.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansKR-ExtraBold.ttf": {
+    file: "@expo-google-fonts/noto-sans-kr/800ExtraBold/NotoSansKR_800ExtraBold.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansJP-Black.ttf": {
+    file: "@expo-google-fonts/noto-sans-jp/900Black/NotoSansJP_900Black.ttf",
+    type: "font/ttf",
+  },
+  "NotoSansKR-Black.ttf": {
+    file: "@expo-google-fonts/noto-sans-kr/900Black/NotoSansKR_900Black.ttf",
+    type: "font/ttf",
+  },
   "NotoEmoji-Regular.ttf": {
     file: "@expo-google-fonts/noto-emoji/400Regular/NotoEmoji_400Regular.ttf",
     type: "font/ttf",

@@ -1,5 +1,5 @@
 import * as Y from "yjs";
-import { type TextMark, readMarks } from "./whiteboard-marks";
+import { TEXT_COLORS, type TextColor, type TextMark, readMarks } from "./whiteboard-marks";
 
 // A whiteboard page (Page.kind = WHITEBOARD) keeps its canvas in the page's
 // Yjs document, next to the title: Y.Map(WHITEBOARD_FIELD) of items by id,
@@ -12,6 +12,9 @@ export const WHITEBOARD_FIELD = "whiteboard";
 export const SLIDE_FIELD = "slide";
 // The text sizes a box can be given (on slides). Missing: its type's own.
 export const FONT_SIZES = [14, 18, 24, 28, 32, 40, 48, 64, 80, 96] as const;
+// The weights a box's text can be given. Missing: 400.
+export const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
+export type FontWeight = (typeof FONT_WEIGHTS)[number];
 
 export const ITEM_TYPES = ["sticky", "rect", "ellipse", "diamond", "hexagon", "text", "image", "connector", "line"] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
@@ -41,6 +44,13 @@ export type Route = (typeof ROUTES)[number];
 // two thin lines side by side. Missing (as before it could be chosen): "solid".
 export const STROKES = ["solid", "bold", "dashed", "double"] as const;
 export type Stroke = (typeof STROKES)[number];
+
+// A box's outline: none, or drawn like a line. Missing: its type's own
+// (defaultBorder()).
+export const BORDERS = ["none", ...STROKES] as const;
+export type Border = (typeof BORDERS)[number];
+export const defaultBorder = (type: string): Border =>
+  type === "rect" || type === "ellipse" || type === "diamond" || type === "hexagon" ? "solid" : "none";
 
 // Where the ends of several connectors meet a box at the same point: spread
 // a little apart along its side, or kept on top of each other. Missing:
@@ -80,6 +90,11 @@ export type BoxItem = {
   connectorEnds: ConnectorEnds;
   // The text's size in px (FONT_SIZES). Missing: the type's own.
   fontSize?: number;
+  // The text's weight (FONT_WEIGHTS). Missing: 400.
+  fontWeight?: FontWeight;
+  border: Border;
+  // One of the text colors. Null: the board's line color.
+  borderColor: TextColor | null;
 };
 
 // The text fields of an item: a connector has text halfway along it and by
@@ -266,6 +281,9 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
     link: matching(map.get("link"), PAGE_ID),
     connectorEnds: map.get("connectorEnds") === "merge" ? "merge" : "spread",
     ...((FONT_SIZES as readonly unknown[]).includes(map.get("fontSize")) ? { fontSize: map.get("fontSize") as number } : {}),
+    ...((FONT_WEIGHTS as readonly unknown[]).includes(map.get("fontWeight")) ? { fontWeight: map.get("fontWeight") as FontWeight } : {}),
+    border: (BORDERS as readonly unknown[]).includes(map.get("border")) ? (map.get("border") as Border) : defaultBorder(type as string),
+    borderColor: (TEXT_COLORS as readonly unknown[]).includes(map.get("borderColor")) ? (map.get("borderColor") as TextColor) : null,
   };
 }
 

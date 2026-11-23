@@ -94,7 +94,7 @@ describe("whiteboard lining up", () => {
 
 describe("connector ends meeting a box at one point", () => {
   const box = (id: string, connectorEnds: "spread" | "merge" = "spread"): BoxItem => ({
-    id, type: "rect", x: 0, y: 200, w: 100, h: 50, text: "", textX: 0, textY: 0, textMarks: [], color: "white", z: 0, src: "", link: "", connectorEnds,
+    id, type: "rect", x: 0, y: 200, w: 100, h: 50, text: "", textX: 0, textY: 0, textMarks: [], color: "white", z: 0, src: "", link: "", connectorEnds, border: "solid", borderColor: null,
   });
   // Into the top of box c (x 0–100) at x 50: from the left, the right, and straight down.
   const lines = [
@@ -215,7 +215,7 @@ describe("whiteboard export", () => {
       },
     });
     const { svg } = whiteboardSvg(readItems(doc), colors);
-    assert.ok(svg.includes('<span style="font-weight:700">bold</span> and <span style="text-decoration-line:underline;color:#a00">red</span>'));
+    assert.ok(svg.includes('<span style="font-weight:bolder">bold</span> and <span style="text-decoration-line:underline;color:#a00">red</span>'));
     assert.ok(svg.includes('<li><span style="font-style:italic;text-decoration-line:line-through">item</span></li>'));
     assert.ok(!svg.includes("javascript"));
   });
@@ -229,7 +229,7 @@ describe("whiteboard export", () => {
     assert.deepEqual(items.map((i) => i.color), ["transparent", "transparent"]);
     const { svg } = whiteboardSvg(items, colors);
     assert.ok(svg.includes('<rect x="0" y="0" width="100" height="100" fill="none"/>'));
-    assert.ok(svg.includes('rx="6" fill="none" stroke="#555" stroke-width="2"/>'));
+    assert.ok(svg.includes('rx="5" fill="none" stroke="#555" stroke-width="2"/>'));
   });
 
   test("connectors and lines in their strokes; an unknown stroke is a normal line", () => {
