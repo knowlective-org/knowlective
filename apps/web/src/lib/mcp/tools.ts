@@ -23,6 +23,7 @@ import { postChat, siteChatWords } from "@/lib/chat-post";
 import type { SectionError } from "@/lib/body-edit";
 import { childProperties } from "@/lib/api/child-properties";
 import { MAX_TABLE_ROWS, listPageTables, readPageTable } from "@/lib/api/page-tables";
+import { MAX_BLOCKS, type BlockWriteResult, blockProblem, deleteBlock, insertBlocks, listPageBlocks, updateBlock } from "@/lib/api/blocks";
 import { pagePeople } from "@/lib/page-people";
 import { sendPageMessage } from "@/lib/page-message";
 import { MAX_MESSAGE_LENGTH, MAX_MESSAGE_RECIPIENTS } from "@/lib/page-message-text";
@@ -67,6 +68,23 @@ async function editableDocument(userId: string, id: string): Promise<{ rootId: s
   const page = await prisma.page.findUniqueOrThrow({ where: { id }, select: { kind: true } });
   if (page.kind !== "DOCUMENT") return fail("The page isn't a document (a whiteboard or a shortcut).");
   return { rootId: access.rootId };
+}
+
+function blockResult(result: BlockWriteResult): string | null {
+  if ("problem" in result) return blockProblem(result.problem);
+  if ("error" in result) {
+    switch (result.error) {
+      case "not_found":
+        return NOT_FOUND;
+      case "forbidden":
+        return "You can't edit this page.";
+      case "page_locked":
+        return "The page is locked.";
+      case "not_document":
+        return "The page isn't a document (a whiteboard or a shortcut).";
+    }
+  }
+  return null;
 }
 
 function sectionProblem(error: SectionError): string {
@@ -318,6 +336,25 @@ export function registerTools(server: McpServer, caller: McpCaller) {
   );
 
   server.registerTool(
+    "list_blocks",
+    {
+      title: "List a page's blocks",
+      description:
+        "A page's blocks in order, with their ids: type, parent, depth, text (inline Markdown; mentions as <@userId>), and the settings (props) that update_block can change. An extended table's cells are listed as type gridCell. `styledText`: the text has colors or underlines that writing it back would lose. Masked content is never included. When `nextOffset` isn't null, call again with it as `offset`.",
+      inputSchema: z.object({
+        pageId,
+        offset: z.number().int().min(0).optional(),
+        limit: z.number().int().min(1).max(MAX_BLOCKS).optional().describe("Blocks to return (default: 500)"),
+      }),
+      annotations: readOnly,
+    },
+    async ({ pageId: id, offset, limit }) => {
+      if (!(await getPageAccess(prisma, userId, id))) return fail(NOT_FOUND);
+      return json(await listPageBlocks(id, { offset, limit }));
+    },
+  );
+
+  server.registerTool(
     "list_page_people",
     {
       title: "People on a page",
@@ -452,8 +489,61 @@ export function registerTools(server: McpServer, caller: McpCaller) {
       if ("content" in page) return page;
       const body = await adoptFilesInBody(userId, id, await markdownToBody(md));
       const problem = await editPageBody(id, userId, { kind: "section", target: { heading, level, occurrence }, body });
-      if (problem) return fail(sectionProblem(problem));
+      if (problem) return fail(sectionProblem(problem as SectionError));
       return json({ id, url: await pageUrl(id) });
+    },
+  );
+
+  server.registerTool(
+    "update_block",
+    {
+      title: "Change one block",
+      description:
+        "Changes one block (its id from list_blocks), keeping its id, type and nested blocks. `content`: its text as inline Markdown (<@userId> mentions someone; a code block's text is taken as it is; a table block takes one Markdown table; a gridCell takes its column's value: a number, date, option name(s), true/false, or a person's id). `props`: settings, only those list_blocks shows for that block (e.g. a heading's level, a TODO's checked / assignee / due, a diagram's code, a child table's title). Refused for locked blocks and masked values. The page's history keeps what was there.",
+      inputSchema: z.object({
+        pageId,
+        blockId: z.string().min(1).max(64),
+        content: z.union([z.string().max(MAX_MARKDOWN_BYTES), z.number(), z.boolean(), z.array(z.string().max(200)).max(50), z.null()]).optional(),
+        props: z.record(z.string().max(40), z.unknown()).optional(),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ pageId: id, blockId, content, props }) => {
+      const problem = blockResult(await updateBlock(userId, id, blockId, { content, props }));
+      return problem ? fail(problem) : json({ id, blockId, url: await pageUrl(id) });
+    },
+  );
+
+  server.registerTool(
+    "insert_blocks",
+    {
+      title: "Insert blocks beside a block",
+      description: "Adds new blocks (Markdown; <@userId> mentions someone) just before or after one block (its id from list_blocks), at the same level.",
+      inputSchema: z.object({
+        pageId,
+        blockId: z.string().min(1).max(64),
+        position: z.enum(["before", "after"]),
+        markdown: markdown.describe("The new blocks"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id, blockId, position, markdown: md }) => {
+      const problem = blockResult(await insertBlocks(userId, id, blockId, position, md));
+      return problem ? fail(problem) : json({ id, url: await pageUrl(id) });
+    },
+  );
+
+  server.registerTool(
+    "delete_block",
+    {
+      title: "Delete one block",
+      description: "Removes one block (its id from list_blocks) with the blocks nested in it. Refused if it or anything in it is locked. The page's history keeps it.",
+      inputSchema: z.object({ pageId, blockId: z.string().min(1).max(64) }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ pageId: id, blockId }) => {
+      const problem = blockResult(await deleteBlock(userId, id, blockId));
+      return problem ? fail(problem) : json({ id, url: await pageUrl(id) });
     },
   );
 

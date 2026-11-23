@@ -1,3 +1,4 @@
+import type { BlockEdit, BlockEditError } from "./block-edit";
 import type { WhiteboardOps } from "./whiteboard-ops";
 import type { SectionError, SectionTarget } from "./body-edit";
 
@@ -36,7 +37,7 @@ type CollabBridge = {
   saveCurrentVersion(pageId: string): Promise<void>;
   replaceContent(pageId: string, userId: string, content: { title?: string; body?: Uint8Array }): Promise<void>;
   changeWhiteboard(pageId: string, userId: string, ops: WhiteboardOps): Promise<void>;
-  editBody(pageId: string, userId: string, edit: BodyEdit): Promise<SectionError | null>;
+  editBody(pageId: string, userId: string, edit: BodyEdit): Promise<SectionError | BlockEditError | null>;
   liveState(pageId: string): Uint8Array | null;
 };
 
@@ -122,12 +123,14 @@ export async function changeWhiteboard(pageId: string, userId: string, ops: Whit
 // the BlockNote fragment (markdownToBody).
 export type BodyEdit =
   | { kind: "append"; body: Uint8Array }
-  | { kind: "section"; target: SectionTarget; body: Uint8Array };
+  | { kind: "section"; target: SectionTarget; body: Uint8Array }
+  // One block changed, inserted beside or deleted (lib/block-edit.ts).
+  | { kind: "block"; edit: BlockEdit };
 
 // Makes the edit as `userId` through the live document; null when done, or
 // why the section couldn't be replaced. Access and the page lock are checked
 // by the caller. Throws outside the custom server.
-export async function editPageBody(pageId: string, userId: string, edit: BodyEdit): Promise<SectionError | null> {
+export async function editPageBody(pageId: string, userId: string, edit: BodyEdit): Promise<SectionError | BlockEditError | null> {
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   if (!bridge) throw new Error("The collaboration server is not running");
   return bridge.editBody(pageId, userId, edit);

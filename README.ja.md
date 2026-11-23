@@ -330,6 +330,10 @@ DB の変更は要らない（`User.locale` と `InstanceConfig.defaultLocale` �
 | `GET /api/v1/pages/<id>/children` | 子ページ（並び順）と、そのページの子ページテーブルの列の値（`properties`。列名ごと。`?property=<列名>`（複数可）で一部だけ）。選択肢は選択肢の名前、ユーザーは `{ id, name }`、マスク列は `{ "masked": true }` |
 | `GET /api/v1/pages/<id>/tables` | ページの本文にある表（テーブル・拡張テーブル・子ページテーブル。リンクビューも）：`id`・`kind`・`title`・上の見出し `heading`・`columns`・`rowCount` |
 | `GET /api/v1/pages/<id>/tables/<表の id>` | 1つの表の値：全部の列か、`?column=<列名>`（複数可）で指定した列だけ。`?offset=`・`?limit=`（5,000 まで、既定は 1,000）で行を分けて取れる。値は列名ごとに、数値・日付・true/false・選択肢の名前（複数なら配列）・人（`id`・`name`）・文字・null。鍵の列は `{ "masked": true }` だけ |
+| `GET /api/v1/pages/<id>/blocks` | ページのブロック（順番どおり）と id：`type`・`parentId`・`text`（インラインの Markdown。メンションは `<@ユーザー id>`）・変更できる設定 `props`。拡張テーブルのセルは `gridCell`。鍵でマスクした内容は含まない。`?offset=`・`?limit=`（2,000 まで） |
+| `PATCH /api/v1/pages/<id>/blocks/<ブロック id>` | 1つのブロックを変更する（id・種類・下のブロックは残る）：`{ "content": "...", "props": { ... } }`（どちらか一方でもよい）。セルは列の種類に合う値。編集の権限が必要で、ロックしたブロックと鍵の値は断る |
+| `POST /api/v1/pages/<id>/blocks` | ブロックの前後に新しいブロックを入れる：`{ "blockId": "...", "position": "before" \| "after", "markdown": "..." }` |
+| `DELETE /api/v1/pages/<id>/blocks/<ブロック id>` | 1つのブロックを、下のブロックごと消す |
 | `GET /api/v1/pages/<id>/people` | ページを開けて、メンションや通知を送れる人（`id`・`name`） |
 | `POST /api/v1/pages/<id>/notifications` | その人たち（`…/people` から）に、ページについての通知を送る：`{ "userIds": ["..."], "text": "..." }`（2,000 文字まで。http(s) の URL はリンクになる）。編集の権限が必要 |
 | `GET /api/v1/pages/<id>/chats` | ページのチャットブロック（`id`・`title`） |

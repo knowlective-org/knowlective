@@ -114,6 +114,11 @@ function findSection(
   return { index, end };
 }
 
+// A mention is an element beside the text nodes (in a table, inside its cells).
+function holdsMention(node: Y.XmlElement): boolean {
+  return node.toArray().some((child) => child instanceof Y.XmlElement && (child.nodeName === "mention" || holdsMention(child)));
+}
+
 // The block types in `node` and below that aren't plain (see PLAIN_BLOCKS),
 // and whether there's an inline node (a mention) in its text.
 function collectTypes(node: Y.XmlElement, out: Set<string>) {
@@ -124,12 +129,7 @@ function collectTypes(node: Y.XmlElement, out: Set<string>) {
       if (!PLAIN_BLOCKS.has(type)) out.add(type);
       else if (type === "heading" && (content.getAttribute("isToggleable") as unknown) === true) out.add("toggleHeading");
       else if (type === "codeBlock" && content.getAttribute("preview")) out.add("codePreview");
-      for (const child of content.toArray()) {
-        if (!(child instanceof Y.XmlText)) continue;
-        for (const op of child.toDelta() as { insert: unknown }[]) {
-          if (typeof op.insert !== "string") out.add("mention");
-        }
-      }
+      if (holdsMention(content)) out.add("mention");
     }
   } else if (node.nodeName !== "blockGroup") {
     // columnList, gridTable…

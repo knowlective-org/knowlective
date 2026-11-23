@@ -32,6 +32,8 @@ import { reindexPage, reindexStalePages } from "../src/lib/search-index";
 import { copyWhiteboard, hasWhiteboardContent } from "../src/lib/whiteboard";
 import { applyWhiteboardOps } from "../src/lib/whiteboard-ops";
 import { appendBlocks, checkSection, replaceSection } from "../src/lib/body-edit";
+import { type BlockEditError, applyBlockEdit, checkBlockEdit } from "../src/lib/block-edit";
+import type { SectionError } from "../src/lib/body-edit";
 import { startSemanticSearch } from "./semantic-search";
 import { createNotifier } from "./notifications";
 import { FALLBACK_LOCALE, isLocale, negotiateLocale } from "../src/i18n/locales";
@@ -433,15 +435,24 @@ export async function createCollab() {
         if (edit.kind === "section") {
           const problem = checkSection(document, edit.target);
           if ("code" in problem) return problem;
+        } else if (edit.kind === "block") {
+          const problem = checkBlockEdit(document, edit.edit);
+          if (problem) return problem;
         }
         const before = pendingEditors.get(pageId);
         if (before?.size) {
           pendingEditors.delete(pageId);
           await saveVersion(pageId, document, "AUTO", [...before]);
         }
+        let problem: SectionError | BlockEditError | null = null;
+        if (edit.kind === "block") {
+          await connection.transact((doc) => {
+            problem = applyBlockEdit(doc, edit.edit);
+          });
+          return problem;
+        }
         const body = new Y.Doc();
         Y.applyUpdate(body, edit.body);
-        let problem: Awaited<ReturnType<typeof replaceSection>> = null;
         await connection.transact((doc) => {
           if (edit.kind === "append") appendBlocks(doc, body);
           else problem = replaceSection(doc, edit.target, body);
