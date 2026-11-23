@@ -33,7 +33,7 @@ type CollabBridge = {
   closeDocuments(pageIds: string[]): void;
   reconnectDocuments(pageIds: string[]): void;
   disconnectUsers(userIds: string[]): void;
-  restoreVersion(pageId: string, versionId: string, userId: string): Promise<void>;
+  restoreVersion(pageId: string, versionId: string | null, userId: string): Promise<void>;
   saveCurrentVersion(pageId: string): Promise<void>;
   replaceContent(pageId: string, userId: string, content: { title?: string; body?: Uint8Array }): Promise<void>;
   changeWhiteboard(pageId: string, userId: string, ops: WhiteboardOps): Promise<void>;
@@ -83,7 +83,7 @@ export function disconnectUsers(userIds: string[]) {
 
 // Replaces a page's content with one of its saved versions (page history).
 // Throws outside the custom server: there is no document to change.
-export async function restoreVersion(pageId: string, versionId: string, userId: string) {
+export async function restoreVersion(pageId: string, versionId: string | null, userId: string) {
   const bridge = (globalThis as Record<symbol, unknown>)[BRIDGE_KEY] as CollabBridge | undefined;
   if (!bridge) throw new Error("The collaboration server is not running");
   await bridge.restoreVersion(pageId, versionId, userId);

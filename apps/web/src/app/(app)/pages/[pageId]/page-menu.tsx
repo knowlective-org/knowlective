@@ -65,6 +65,7 @@ export function PageMenu({
   pageId,
   title,
   whiteboard,
+  presentation = false,
   canEdit,
   lock,
   canManage,
@@ -77,6 +78,8 @@ export function PageMenu({
   title: string;
   // A whiteboard page: exported as an image (PNG or SVG), not as Markdown or PDF.
   whiteboard: boolean;
+  // A presentation page: no Markdown or whiteboard export.
+  presentation?: boolean;
   // EDIT access to the page.
   canEdit: boolean;
   // Set while the page is locked; `own` if the lock is on this very page.
@@ -296,7 +299,23 @@ export function PageMenu({
                 ))}
               </>
             )}
-            {!whiteboard && (
+            {presentation && (
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                data-ui="PageMenu.exportPresentationPdf"
+                onClick={() => {
+                  setOpen(false);
+                  // The presentation screen holds the slides and writes the file.
+                  window.dispatchEvent(new Event(EXPORT_PDF_EVENT));
+                }}
+              >
+                <span>{t("exportPdf")}</span>
+                <span className={styles.menuNote}>.pdf</span>
+              </button>
+            )}
+            {!whiteboard && !presentation && (
             <>
             <button
               type="button"

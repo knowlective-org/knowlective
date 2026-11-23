@@ -41,12 +41,16 @@ export function HistoryView({
   whiteboard,
   canRestore,
   versions,
+  maskWithoutVersions = false,
 }: {
   pageId: string;
   // A whiteboard page: versions are previewed as a board.
   whiteboard: boolean;
   canRestore: boolean;
   versions: VersionItem[];
+  // A slide: its speaker notes are in its presentation's snapshots, so there
+  // can be something to mask before it has any version.
+  maskWithoutVersions?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(
@@ -79,9 +83,16 @@ export function HistoryView({
 
   if (versions.length === 0) {
     return (
-      <p className={styles.note} data-ui="HistoryView.empty">
-        {t("empty")}
-      </p>
+      <>
+        {canRestore && maskWithoutVersions && (
+          <div className={historyStyles.tools}>
+            <MaskPanel pageId={pageId} onDone={() => router.refresh()} />
+          </div>
+        )}
+        <p className={styles.note} data-ui="HistoryView.empty">
+          {t("empty")}
+        </p>
+      </>
     );
   }
 

@@ -173,6 +173,12 @@ enum PageKind {
   // A shortcut: an entry in the tree that opens another page
   // (Page.shortcutTargetId). It has no content of its own.
   SHORTCUT
+  // A presentation: its slides are its child pages (kind SLIDE), in sibling
+  // order. Its settings are in PresentationSettings.
+  PRESENTATION
+  // One slide of a presentation: a fixed-size canvas in the page's Yjs
+  // document. Never shown as a page of its own (lib/presentation.ts).
+  SLIDE
 }
 
 model Page {
@@ -248,6 +254,9 @@ model Page {
   followers      PageFollow[]
   todoItems      PageTodoItem[]
   mentions       PageMention[]
+  presentation   PresentationSettings?
+  presentationSnapshots PresentationSnapshot[]
+  slideNote      SlideNote?
   notifyIndex    PageNotifyIndex?
 
   @@index([rootId])
@@ -316,6 +325,53 @@ enum PageVersionKind {
 // A saved state of a page's document (title + body), for page history. `state` is
 // a full Yjs update encrypted with the DEK, AAD bound to (pageId, id)
 // (apps/web/src/lib/page-versions.ts). The title is plaintext like Page.title.
+// A presentation's settings (Page.kind = PRESENTATION), kept on the parent so
+// that slide numbers and the shown slides are known without opening every
+// slide's document. Slide ids aren't secret; checked by lib/presentation.ts.
+model PresentationSettings {
+  pageId               String   @id
+  page                 Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  numberingEnabled     Boolean  @default(false)
+  numberStart          Int      @default(1)
+  // "left", "center" or "right", along the bottom of the slide.
+  numberPosition       String   @default("right")
+  // Left out of presenting and the PDF, and not counted in the numbering.
+  hiddenSlideIds       String[] @default([])
+  // Shown and counted, without its number (a cover).
+  numberHiddenSlideIds String[] @default([])
+  updatedAt            DateTime @updatedAt
+}
+
+// What a presentation was made of at a moment: its slides in order with each
+// one's version, their notes and the settings, encrypted as one value
+// (apps/web/src/lib/presentation-history.ts).
+model PresentationSnapshot {
+  id          String   @id
+  pageId      String
+  page        Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  // "AUTO", "BEFORE_RESTORE" or "RESTORED".
+  kind        String
+  createdById String?
+  sealed      Bytes
+  // The slides in it (not secret), to find a slide's copies wherever it has
+  // been since: masking its notes reaches them all.
+  slideIds    String[] @default([])
+
+  @@index([pageId, createdAt])
+  @@index([slideIds], type: Gin)
+}
+
+// A slide's speaker notes, for people with edit access: outside the slide's
+// Yjs document, which everyone who can view it receives. Encrypted.
+model SlideNote {
+  slideId     String   @id
+  slide       Page     @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  textEnc     Bytes
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+}
+
 model PageVersion {
   id             String          @id
   pageId         String
@@ -325,7 +381,13 @@ model PageVersion {
   title          String
   // Users whose edits went into this version since the previous one.
   editorIds      String[]
+  // The version's Yjs state, or what changed since `baseId`
+  // (apps/web/src/lib/version-chain.ts).
   state          Bytes
+  // The version this one is a difference from (null: `state` is whole).
+  baseId         String?
+  // How many differences from the last whole version.
+  depth          Int             @default(0)
   restoredFromId String?
   // Set when text in this version was masked (e.g. a password typed by
   // mistake): `state` and `title` were rebuilt with the text replaced, so the

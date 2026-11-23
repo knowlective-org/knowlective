@@ -806,3 +806,66 @@
     display: none;
   }
 }
+
+/* A presentation's slide: a fixed frame on a plain surround. */
+.root[data-slide] {
+  font-family: var(--font-slide), sans-serif;
+  background-color: var(--color-hover);
+  background-image: none;
+}
+
+.slideFrame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--color-wb-board);
+  box-shadow: 0 0 0 calc(1px / var(--zoom, 1)) var(--color-border-strong);
+}
+
+/* Above every item, and never in the way of the pointer. */
+.slideNumberArea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1000000;
+  display: flex;
+  align-items: flex-end;
+  padding: 32px 48px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.slideNumberArea[data-position="left"] {
+  justify-content: flex-start;
+}
+
+.slideNumberArea[data-position="center"] {
+  justify-content: center;
+}
+
+.slideNumberArea[data-position="right"] {
+  justify-content: flex-end;
+}
+
+.slideNumber {
+  padding: 4px 14px;
+  border-radius: 6px;
+  color: var(--color-wb-ink);
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+/* On a picture the number's color can't be worked out: a plate behind it. */
+.slideNumberArea[data-on-image] .slideNumber {
+  padding: 8px 20px;
+  background: color-mix(in srgb, var(--color-wb-board) 80%, transparent);
+}
+
+.fontSizeSelect {
+  height: 28px;
+  padding: 0 4px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: inherit;
+}

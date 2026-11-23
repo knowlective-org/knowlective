@@ -4,10 +4,11 @@ import { prisma } from "@/lib/db";
 import { notifyChildrenChanged } from "@/lib/collab-events";
 import { nextSortOrder } from "@/lib/page-move";
 import { reindexPage } from "@/lib/search-index";
+import { hasRoomForSlide, lockPresentations } from "@/lib/presentation-tree";
 
 // Why a page can't be created under a parent. "notAllowed" for a missing
 // parent and a forbidden one alike, so page ids can't be probed.
-export type CreatePageError = "notAllowed" | "lockedWithChildren" | "tooDeep";
+export type CreatePageError = "notAllowed" | "lockedWithChildren" | "tooDeep" | "presentationLocked" | "tooManySlides";
 
 // Creates a child page under `parentId` (last among its siblings). Needs EDIT
 // on the parent; the child inherits the parent's grants, so no grant is
@@ -36,7 +37,12 @@ export async function insertChildPage(
     select: { id: true, parentId: true, kind: true },
   });
   // Nothing goes under a shortcut (it opens another page; it has no children).
-  if (tree.find((p) => p.id === parentId)?.kind === "SHORTCUT") return { error: "notAllowed" };
+  const parentKind = tree.find((p) => p.id === parentId)?.kind;
+  if (parentKind === "SHORTCUT" || parentKind === "SLIDE") return { error: "notAllowed" };
+  // A presentation holds slides and nothing else; a slide is in nothing else.
+  if ((parentKind === "PRESENTATION") !== (kind === "SLIDE")) return { error: "notAllowed" };
+  // Even a lock on the presentation alone stops slides being added.
+  if (kind === "SLIDE" && parentAccess.lock) return { error: "presentationLocked" };
   const parentOf = new Map(tree.map((p) => [p.id, p.parentId]));
   let depth = 0;
   for (let cursor = parentOf.get(parentId) ?? null; cursor; cursor = parentOf.get(cursor) ?? null) {
@@ -44,22 +50,46 @@ export async function insertChildPage(
   }
   if (depth + 1 > MAX_PAGE_DEPTH) return { error: "tooDeep" };
 
-  const page = await prisma.page.create({
-    // An empty title shows as "untitled" until renamed. The collab server seeds the
-    // document's title from this when the page is first opened.
-    data: {
-      title,
-      kind,
-      shortcutTargetId: kind === "SHORTCUT" ? shortcutTargetId : null,
-      rootId: parentAccess.rootId,
-      parentId,
-      createdById: userId,
-      sortOrder: await nextSortOrder(parentId),
-    },
-    select: { id: true },
-  });
+  // An empty title shows as "untitled" until renamed. The collab server seeds the
+  // document's title from this when the page is first opened.
+  const data = {
+    title,
+    kind,
+    shortcutTargetId: kind === "SHORTCUT" ? shortcutTargetId : null,
+    rootId: parentAccess.rootId,
+    parentId,
+    createdById: userId,
+  };
+  let firstSlideId: string | null = null;
+  let page: { id: string } | null;
+  if (kind === "SLIDE") {
+    page = await prisma.$transaction(async (tx) => {
+      await lockPresentations(tx, [parentId]);
+      if (!(await hasRoomForSlide(tx, parentId))) return null;
+      const last = await tx.page.aggregate({ where: { parentId }, _max: { sortOrder: true } });
+      return tx.page.create({ data: { ...data, sortOrder: (last._max.sortOrder ?? -1) + 1 }, select: { id: true } });
+    });
+    if (!page) return { error: "tooManySlides" };
+  } else if (kind === "PRESENTATION") {
+    // A presentation starts with one empty slide and its settings.
+    const sortOrder = await nextSortOrder(parentId);
+    const created = await prisma.$transaction(async (tx) => {
+      const deck = await tx.page.create({ data: { ...data, sortOrder }, select: { id: true } });
+      await tx.presentationSettings.create({ data: { pageId: deck.id } });
+      const slide = await tx.page.create({
+        data: { ...data, title: "", kind: "SLIDE", parentId: deck.id, sortOrder: 0 },
+        select: { id: true },
+      });
+      return { deck, slide };
+    });
+    page = created.deck;
+    firstSlideId = created.slide.id;
+  } else {
+    page = await prisma.page.create({ data: { ...data, sortOrder: await nextSortOrder(parentId) }, select: { id: true } });
+  }
   // Findable by title right away, before anyone opens it.
   await reindexPage(prisma, page.id);
+  if (firstSlideId) await reindexPage(prisma, firstSlideId);
   notifyChildrenChanged(parentId);
   return page;
 }

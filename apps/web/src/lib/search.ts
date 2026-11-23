@@ -54,6 +54,11 @@ export type SearchResult = {
   // Found by meaning only (no matching words): the snippet is the passage.
   bySemantic: boolean;
   updatedAt: string;
+  // Found on a slide: its presentation (the title and path are the
+  // presentation's; `id` is the slide, whose address opens it there).
+  presentationId?: string;
+  // That slide is hidden from presenting and the PDF.
+  hiddenSlide?: boolean;
 };
 
 export type SearchOutcome = {
@@ -148,15 +153,15 @@ export async function searchPages(
   const status = semanticSearchStatus();
   // Semantic search when asked for or chosen, and available.
   const mode: SearchMode = status === "ready" ? (requested ?? choice.mode) : "keyword";
-  const outcome = (results: SearchResult[]): SearchOutcome => ({
-    results,
+  const outcome = async (found: SearchResult[]): Promise<SearchOutcome> => ({
+    results: await oneResultPerPresentation(found, visible, ctx.displayTitle),
     mode,
     reason: requested ? null : choice.reason,
     semantic: status,
   });
 
   // Pages the user can open, with their visible ancestors.
-  const trees = await getVisibleTrees(prisma, userId);
+  const trees = await getVisibleTrees(prisma, userId, { slides: true });
   const visible = new Map(
     trees.flatMap((t) => t.pages.map((p) => [p.id, p] as const)),
   );
@@ -199,6 +204,53 @@ export async function searchPages(
     });
   }
   return outcome(results);
+}
+
+// A presentation appears once, at its best place: opening the first slide
+// that matched, if any did.
+async function oneResultPerPresentation(
+  results: SearchResult[],
+  visible: Map<string, VisiblePage>,
+  displayTitle: (title: string) => string,
+): Promise<SearchResult[]> {
+  const deckOf = (r: SearchResult) => {
+    const page = visible.get(r.id);
+    if (page?.kind === "PRESENTATION") return page.id;
+    return page?.kind === "SLIDE" ? page.parentId : null;
+  };
+  const firstSlide = new Map<string, SearchResult>();
+  for (const r of results) {
+    const deck = deckOf(r);
+    if (deck && visible.get(r.id)?.kind === "SLIDE" && !firstSlide.has(deck)) firstSlide.set(deck, r);
+  }
+  const settings = firstSlide.size
+    ? await prisma.presentationSettings.findMany({ where: { pageId: { in: [...firstSlide.keys()] } }, select: { pageId: true, hiddenSlideIds: true } })
+    : [];
+  const hidden = new Map(settings.map((s) => [s.pageId, new Set(s.hiddenSlideIds)]));
+  const seen = new Set<string>();
+  const out: SearchResult[] = [];
+  for (const r of results) {
+    const deck = deckOf(r);
+    if (!deck) {
+      out.push(r);
+      continue;
+    }
+    if (seen.has(deck)) continue;
+    seen.add(deck);
+    const slide = firstSlide.get(deck);
+    if (!slide) {
+      out.push(r);
+      continue;
+    }
+    out.push({
+      ...slide,
+      title: visible.get(deck)?.title ?? "",
+      path: pathOf(visible, deck, displayTitle),
+      presentationId: deck,
+      hiddenSlide: hidden.get(deck)?.has(slide.id) ?? false,
+    });
+  }
+  return out;
 }
 
 type SearchContext = {

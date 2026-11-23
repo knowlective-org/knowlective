@@ -42,6 +42,8 @@ export type DocTreeNode = {
   // A shortcut (lib/shortcuts.ts): the page it opens, null when the viewer
   // can't open it (its title is then not shown either).
   shortcut?: { targetId: string | null } | null;
+  // A presentation: it holds slides, and takes no other page.
+  presentation?: boolean;
 };
 
 // The visible part of one knowledge root's page tree. It starts at the
@@ -161,7 +163,13 @@ export function DocTree({
   const targetFor = (node: DocTreeNode, zone: DropZone): { zone: DropZone; target: MoveTarget } | null => {
     const d = getDraggedPage();
     if (!d || d.subtree.has(node.id) || (personal && !d.personal)) return null;
+    // A slide goes into another presentation, wherever on its row it's dropped.
+    if (d.slide) {
+      if (!node.presentation || !node.canEdit || !d.canEdit || node.id === d.parentId) return null;
+      return { zone: "into", target: { parentId: node.id, beforeId: null } };
+    }
     const into = (): { zone: DropZone; target: MoveTarget } | null => {
+      if (node.presentation) return null;
       if (!node.canEdit || (node.id !== d.parentId && !d.canEdit)) return null;
       return { zone: "into", target: { parentId: node.id, beforeId: null } };
     };
@@ -250,11 +258,11 @@ export function DocTree({
   };
 
   const [creating, startCreating] = useTransition();
-  const addChild = (parentId: string, whiteboard = false) =>
+  const addChild = (parentId: string, kind: NewPageKind = "DOCUMENT") =>
     startCreating(async () => {
       // On success the action redirects to the new page, which remounts the
       // tree with the path to it expanded.
-      const result = await createChildPage(parentId, whiteboard);
+      const result = await createChildPage(parentId, kind);
       if (result?.error) await showAlert(result.error, { title: t("cannotCreate") });
     });
 
@@ -418,7 +426,7 @@ export function DocTree({
               🔒
             </span>
           )}
-          {node.canAddChild && <AddPageMenu parentId={node.id} disabled={creating} onAdd={(whiteboard) => addChild(node.id, whiteboard)} />}
+          {node.canAddChild && <AddPageMenu parentId={node.id} disabled={creating} onAdd={(kind) => addChild(node.id, kind)} />}
         </div>
         {isOpen && children.length > 0 && depth < maxDepth && (
           <ul className={styles.list}>
@@ -467,10 +475,13 @@ function recentChildren(children: DocTreeNode[], onPath: Set<string>, limit: num
   return open ? [...listed, open] : listed;
 }
 
-// The row's "＋": a menu to add a child page, a document or a whiteboard.
+type NewPageKind = "DOCUMENT" | "WHITEBOARD" | "PRESENTATION";
+
+// The row's "＋": a menu to add a child page: a document, a whiteboard or a
+// presentation.
 // Put in the body, position: fixed: inside the sidebar (sticky, so a stacking
 // context of its own) it would go under the page beside it.
-function AddPageMenu({ parentId, disabled, onAdd }: { parentId: string; disabled: boolean; onAdd: (whiteboard: boolean) => void }) {
+function AddPageMenu({ parentId, disabled, onAdd }: { parentId: string; disabled: boolean; onAdd: (kind: NewPageKind) => void }) {
   const t = useTranslations("docTree");
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -504,9 +515,9 @@ function AddPageMenu({ parentId, disabled, onAdd }: { parentId: string; disabled
     };
   }, [open]);
 
-  const choose = (whiteboard: boolean) => {
+  const choose = (kind: NewPageKind) => {
     setPos(null);
-    onAdd(whiteboard);
+    onAdd(kind);
   };
 
   return (
@@ -549,7 +560,7 @@ function AddPageMenu({ parentId, disabled, onAdd }: { parentId: string; disabled
               role="menuitem"
               className={styles.addMenuItem}
               data-ui="AddPageMenu.documentItem"
-              onClick={() => choose(false)}
+              onClick={() => choose("DOCUMENT")}
             >
               <span className={styles.addMenuIcon} aria-hidden>
                 📄
@@ -561,12 +572,24 @@ function AddPageMenu({ parentId, disabled, onAdd }: { parentId: string; disabled
               role="menuitem"
               className={styles.addMenuItem}
               data-ui="AddPageMenu.whiteboardItem"
-              onClick={() => choose(true)}
+              onClick={() => choose("WHITEBOARD")}
             >
               <span className={styles.addMenuIcon} aria-hidden>
                 ▦
               </span>
               {t("addWhiteboard")}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.addMenuItem}
+              data-ui="AddPageMenu.presentationItem"
+              onClick={() => choose("PRESENTATION")}
+            >
+              <span className={styles.addMenuIcon} aria-hidden>
+                ▭
+              </span>
+              {t("addPresentation")}
             </button>
           </div>,
           document.body,

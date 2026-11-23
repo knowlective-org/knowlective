@@ -54,6 +54,7 @@ const ja: MessageShape<typeof en> = {
     addChild: "子ページを追加",
     addDocument: "ブロックページ",
     addWhiteboard: "ホワイトボード",
+    addPresentation: "プレゼンテーション",
     cannotCreate: "ページを作成できません",
     shortcut: "ショートカット",
     shortcutUnavailable: "（開けないページ）",
@@ -83,6 +84,9 @@ const ja: MessageShape<typeof en> = {
     loading: "読み込み中…",
   },
   movePage: {
+    filesToCopy: "このスライドは次のファイルを表示しています。移動先を開ける全員に見せてよい場合だけ複製してください：",
+    moveWithFiles: "ファイルも複製して移動",
+    moveWithoutFiles: "複製せずに移動",
     confirm: "「{title}」{descendants, plural, =0 {} other {（とその下の#ページ）}}を「{parent}」の下に移動しますか？",
     toRoot: "ナレッジルート「{root}」に移ります。",
     sameAccess: "権限は移動先から引き継ぎます（見られる人は変わりません）。",
@@ -100,6 +104,8 @@ const ja: MessageShape<typeof en> = {
   pageErrors: {
     badOrder: "並び順が不正です。",
     cannotCreateHere: "このページの下にはページを作成できません。",
+    presentationLocked: "プレゼンテーションがロックされているので、スライドの追加・削除・並べ替えはできません。",
+    tooManySlides: "1つのプレゼンテーションのスライドは {max, number} 枚までです。",
     lockedWithChildren: "子ページも含めてロックされているため、この下にはページを作成できません。",
     tooDeep: "ページの階層は{max, number}段までです。",
     treeChanged: "ページの構成が変わっています。画面を更新してから、もう一度お試しください。",
@@ -224,6 +230,7 @@ const ja: MessageShape<typeof en> = {
   },
   pageActions: {
     cannotDelete: "このページは削除できません。",
+    presentationLocked: "プレゼンテーションがロックされているので、スライドの追加・削除・並べ替えはできません。",
     rootCannotDelete: "ナレッジルートのページは削除できません。",
     lockedCannotDelete: "このページはロックされているため、削除できません。先にロックを解除してください。",
     lockedChildCannotDelete: "ロックされている子ページが含まれているため、削除できません。",
@@ -377,10 +384,14 @@ const ja: MessageShape<typeof en> = {
     errors: {
       cannotRestore: "このページは元に戻せません。",
       parentInTrash: "元の親ページがごみ箱にあります。戻す場所を、編集できるページから選んでください。",
+      presentationInTrash: "プレゼンテーションがごみ箱にあります。先にプレゼンテーションを元に戻してください。",
+      presentationLocked: "プレゼンテーションがロックされているので、スライドの追加・削除・並べ替えはできません。",
+      tooManySlides: "1つのプレゼンテーションのスライドは {max, number} 枚までです。",
       tooDeep: "ページの階層が{max, number}段を超えるため、そこには戻せません。",
     },
   },
   search: {
+    hiddenSlide: "非表示のスライド",
     title: "検索",
     placeholder: "タイトル・本文・添付ファイル名を検索",
     submit: "検索",
@@ -470,6 +481,11 @@ const ja: MessageShape<typeof en> = {
     lockedChild: "ロックされている子ページが含まれているため、移動できません。",
     intoItself: "ページを、そのページ自身やその下のページの中には移動できません。",
     intoShortcut: "ショートカットの下にはページを置けません。",
+    intoSlide: "スライドの下にはページを置けません。",
+    slideOutOfPresentation: "スライドはプレゼンテーションにだけ移動できます。",
+    intoPresentation: "プレゼンテーションの中にはスライドだけを置けます。",
+    presentationLocked: "プレゼンテーションがロックされているので、スライドの追加・削除・並べ替えはできません。",
+    tooManySlides: "1つのプレゼンテーションのスライドは {max, number} 枚までです。",
     tooDeep: "ページの階層が{max, number}段を超えるため、そこには移動できません。",
   },
 };

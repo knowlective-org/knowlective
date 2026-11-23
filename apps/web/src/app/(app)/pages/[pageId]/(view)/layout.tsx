@@ -1,5 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
+import { prisma } from "@/lib/db";
+import { loadDeck } from "@/lib/presentation-data";
 import { shortcutTarget } from "@/lib/shortcuts";
 import { loadPage } from "./load-page";
 
@@ -21,6 +23,14 @@ export default async function PageGate({ children, params }: LayoutProps<"/pages
     const target = await shortcutTarget(user?.id ?? null, page.shortcutTargetId);
     if (!target) notFound();
     redirect(`/pages/${target}`);
+  }
+  // A slide isn't a page of its own: it opens in its presentation, if the
+  // viewer gets it there (someone not logged in doesn't get a hidden one).
+  if (page.kind === "SLIDE") {
+    const slide = await prisma.page.findUnique({ where: { id: page.id }, select: { parentId: true } });
+    const deck = await loadDeck(user?.id ?? null, slide?.parentId);
+    if (!deck?.slides.some((s) => s.id === page.id)) notFound();
+    redirect(`/pages/${deck.id}?slide=${encodeURIComponent(page.id)}`);
   }
   return children;
 }

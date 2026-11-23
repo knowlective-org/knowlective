@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { Geist, Geist_Mono, Newsreader, Noto_Sans_JP } from "next/font/google";
 import { connection } from "next/server";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -26,6 +26,14 @@ const newsreader = Newsreader({
   variable: "--font-brand",
   weight: "600",
   subsets: ["latin"],
+});
+
+// A presentation's slides: one font for everyone, so text breaks into lines
+// the same on every screen and in the PDF. Loaded only where it's used.
+const slideFont = Noto_Sans_JP({
+  variable: "--font-slide",
+  weight: ["400", "700"],
+  preload: false,
 });
 
 // Every screen's title ends with the site's name (left at the top of the
@@ -59,7 +67,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // (suppressHydrationWarning: the sidebar script below may set data-sidebar
     // on <html> before React hydrates it.)
-    <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`} data-ui="RootLayout" suppressHydrationWarning>
+    <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} ${slideFont.variable}`} data-ui="RootLayout" suppressHydrationWarning>
       <head>
         {/* Overrides the defaults in globals.css. Values are validated #rrggbb only. */}
         <style id="knowlective-theme" dangerouslySetInnerHTML={{ __html: themeCss(theme) }} />

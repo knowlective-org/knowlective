@@ -55,6 +55,7 @@ export default {
     addChild: "Add a child page",
     addDocument: "Page",
     addWhiteboard: "Whiteboard",
+    addPresentation: "Presentation",
     cannotCreate: "Can't create the page",
     shortcut: "Shortcut",
     shortcutUnavailable: "(A page you can't open)",
@@ -84,6 +85,9 @@ export default {
     loading: "Loading…",
   },
   movePage: {
+    filesToCopy: "The slide shows these files. Copy them into the destination only if everyone who can open it may see them:",
+    moveWithFiles: "Move and copy the files",
+    moveWithoutFiles: "Move without copying",
     confirm: "Move \"{title}\"{descendants, plural, =0 {} one { (and # page under it)} other { (and # pages under it)}} under \"{parent}\"?",
     toRoot: "It moves to the knowledge root \"{root}\".",
     sameAccess: "It takes its permissions from the new place (who can see it doesn't change).",
@@ -101,6 +105,8 @@ export default {
   pageErrors: {
     badOrder: "The order is invalid.",
     cannotCreateHere: "Pages can't be created under this page.",
+    presentationLocked: "The presentation is locked, so its slides can't be added, removed or reordered.",
+    tooManySlides: "A presentation can have at most {max, number} slides.",
     lockedWithChildren: "This page is locked with its child pages, so pages can't be created under it.",
     tooDeep: "Pages can be nested at most {max, number} levels deep.",
     treeChanged: "The pages have changed. Refresh the screen and try again.",
@@ -225,6 +231,7 @@ export default {
   },
   pageActions: {
     cannotDelete: "This page can't be deleted.",
+    presentationLocked: "The presentation is locked, so its slides can't be added, removed or reordered.",
     rootCannotDelete: "A knowledge root's page can't be deleted.",
     lockedCannotDelete: "This page is locked, so it can't be deleted. Unlock it first.",
     lockedChildCannotDelete: "It has locked child pages, so it can't be deleted.",
@@ -380,10 +387,14 @@ export default {
     errors: {
       cannotRestore: "This page can't be restored.",
       parentInTrash: "The original parent page is in the trash. Choose a page you can edit to restore it under.",
+      presentationInTrash: "The presentation is in the trash. Restore the presentation first.",
+      presentationLocked: "The presentation is locked, so its slides can't be added, removed or reordered.",
+      tooManySlides: "A presentation can have at most {max, number} slides.",
       tooDeep: "It can't go there: pages would be nested more than {max, number} levels deep.",
     },
   },
   search: {
+    hiddenSlide: "Hidden slide",
     title: "Search",
     placeholder: "Search titles, text and attachment names",
     submit: "Search",
@@ -473,6 +484,11 @@ export default {
     lockedChild: "It has locked child pages, so it can't be moved.",
     intoItself: "A page can't be moved into itself or a page under it.",
     intoShortcut: "Pages can't go under a shortcut.",
+    intoSlide: "Pages can't go under a slide.",
+    slideOutOfPresentation: "A slide can only be moved to a presentation.",
+    intoPresentation: "Only slides can go in a presentation.",
+    presentationLocked: "The presentation is locked, so its slides can't be added, removed or reordered.",
+    tooManySlides: "A presentation can have at most {max, number} slides.",
     tooDeep: "It can't go there: pages would be nested more than {max, number} levels deep.",
   },
 } as const;

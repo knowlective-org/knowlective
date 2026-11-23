@@ -2,6 +2,8 @@ import { MAX_PAGE_DEPTH, PAGE_ORDER, type PageAccess, type Prisma, atLeast, getG
 import { getTreeWithAccess } from "@/lib/page-access";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
+import { MAX_SLIDES } from "@/lib/presentation";
+import { carrySlideFlags, hasRoomForSlide, liveSlideCount, lockPresentations } from "@/lib/presentation-tree";
 
 // Moving a page (with its subtree) under another parent, possibly in another
 // knowledge root, and/or changing its position among its siblings.
@@ -31,6 +33,8 @@ export type MovePlan = {
   // Insert before this sibling; null = at the end.
   beforeId: string | null;
   parentChanges: boolean;
+  // A presentation's slide (lib/presentation.ts).
+  slide: boolean;
   fromRootId: string;
   toRootId: string;
   // Title of the destination knowledge root's root page, for cross-root moves.
@@ -53,12 +57,17 @@ export async function planMove(
   if (typeof pageId !== "string" || typeof parentId !== "string") return { error: CANNOT_MOVE };
   if (beforeId !== null && typeof beforeId !== "string") return { error: CANNOT_MOVE };
   const [page, parent] = await Promise.all([
-    prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, parentId: true, title: true } }),
+    prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, parentId: true, title: true, kind: true } }),
     prisma.page.findUnique({ where: { id: parentId }, select: { rootId: true, title: true, kind: true } }),
   ]);
   if (!page) return { error: CANNOT_MOVE };
   // A shortcut has no child pages (lib/shortcuts.ts).
   if (parent?.kind === "SHORTCUT") return { error: t("intoShortcut") };
+  // A slide is only ever in a presentation, which holds nothing but slides.
+  const slide = page.kind === "SLIDE";
+  if (parent?.kind === "SLIDE") return { error: t("intoSlide") };
+  if (parent && slide && parent.kind !== "PRESENTATION") return { error: t("slideOutOfPresentation") };
+  if (parent?.kind === "PRESENTATION" && !slide) return { error: t("intoPresentation") };
   if (!page.parentId) return { error: t("rootPage") };
 
   const source = await getTreeWithAccess(prisma, userId, page.rootId);
@@ -90,6 +99,13 @@ export async function planMove(
   }
   if (dest.locks.get(parentId)?.coversChildren) {
     return { error: t("destinationLocked") };
+  }
+  // Even a lock on a presentation alone keeps its slides as they are.
+  if (slide && (source.locks.has(page.parentId) || dest.locks.has(parentId))) {
+    return { error: t("presentationLocked") };
+  }
+  if (slide && page.parentId !== parentId && (await liveSlideCount(prisma, parentId)) >= MAX_SLIDES) {
+    return { error: t("tooManySlides", { max: MAX_SLIDES }) };
   }
 
   const childrenOf = new Map<string, string[]>();
@@ -148,6 +164,7 @@ export async function planMove(
     toParentTitle: parent.title,
     beforeId,
     parentChanges,
+    slide,
     fromRootId: page.rootId,
     toRootId: parent.rootId,
     toRootTitle: parent.rootId !== page.rootId ? titleIn(dest, destRootPageId) : null,
@@ -191,6 +208,11 @@ export async function executeMove(plan: MovePlan): Promise<void> {
       for (let id: string | null = plan.toParentId, i = 0; id && i <= MAX_PAGE_DEPTH; i++) {
         if (id === plan.pageId) throw new MoveConflictError();
         id = (await tx.page.findUnique({ where: { id }, select: { parentId: true } }))?.parentId ?? null;
+      }
+      if (plan.slide) {
+        await lockPresentations(tx, [plan.fromParentId, plan.toParentId]);
+        if (!(await hasRoomForSlide(tx, plan.toParentId))) throw new MoveConflictError();
+        await carrySlideFlags(tx, plan.pageId, plan.fromParentId, plan.toParentId);
       }
       await tx.$executeRaw`UPDATE "Page" SET "parentId" = ${plan.toParentId} WHERE "id" = ${plan.pageId}`;
       if (plan.toRootId !== plan.fromRootId) {

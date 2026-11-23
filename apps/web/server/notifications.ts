@@ -262,9 +262,12 @@ export function createNotifier(prisma: PrismaClient) {
 
     if (editorId) {
       const now = new Date();
+      // A slide's changes are its presentation's: that's what can be followed.
+      const stored = await prisma.page.findUnique({ where: { id: pageId }, select: { kind: true, parentId: true } });
+      const followedId = stored?.kind === "SLIDE" && stored.parentId ? stored.parentId : pageId;
       const followers = await prisma.pageFollow.findMany({
         where: {
-          pageId,
+          pageId: followedId,
           userId: { not: editorId },
           OR: [{ notifiedAt: null }, { notifiedAt: { lt: new Date(now.getTime() - FOLLOW_QUIET_MS) } }],
         },
@@ -272,8 +275,8 @@ export function createNotifier(prisma: PrismaClient) {
       });
       if (followers.length > 0) {
         const ids = followers.map((f) => f.userId);
-        await prisma.pageFollow.updateMany({ where: { pageId, userId: { in: ids } }, data: { notifiedAt: now } });
-        await notify({ kind: "PAGE_CHANGED", pageId, actorId: editorId, recipients: ids });
+        await prisma.pageFollow.updateMany({ where: { pageId: followedId, userId: { in: ids } }, data: { notifiedAt: now } });
+        await notify({ kind: "PAGE_CHANGED", pageId: followedId, actorId: editorId, recipients: ids });
       }
     }
   }

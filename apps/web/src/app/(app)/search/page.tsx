@@ -94,6 +94,11 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
                 {displayTitle(r.title)}
               </Link>
               {r.bySemantic && <span className={searchStyles.badge}>{t("bySemantic")}</span>}
+              {r.hiddenSlide && (
+                <span className={searchStyles.badge} data-ui="SearchPage.hiddenSlideStatus">
+                  {t("hiddenSlide")}
+                </span>
+              )}
               {r.snippet && (
                 <p className={searchStyles.snippet}>
                   {r.snippet.map((part, i) => (part.hit ? <mark key={i}>{part.text}</mark> : <span key={i}>{part.text}</span>))}

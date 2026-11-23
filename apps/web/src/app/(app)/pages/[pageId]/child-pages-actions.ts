@@ -85,6 +85,13 @@ export async function loadChildTable(pageId: string): Promise<ChildTableData | n
   return childTableFor(user?.id ?? null, pageId);
 }
 
+// For a child page calendar: slides have no place on one.
+export async function loadCalendarTable(pageId: string): Promise<ChildTableData | null> {
+  const user = await getCurrentUser();
+  const data = await childTableFor(user?.id ?? null, pageId);
+  return data?.presentation ? null : data;
+}
+
 // The page's values in its parent's child page table, for the properties
 // shown under its title: null when the parent has no columns, or the caller
 // can't open the parent (the columns are the parent's).

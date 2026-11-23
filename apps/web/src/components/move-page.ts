@@ -3,7 +3,7 @@
 import { type MoveCheck, checkMovePage, movePage } from "@/app/(app)/page-move-actions";
 import { useTranslations } from "next-intl";
 import { useDisplayTitle } from "@/i18n/use-display-title";
-import { showAlert, showConfirm } from "./dialog";
+import { showAlert, showChoice, showConfirm } from "./dialog";
 
 export type DraggedPage = {
   id: string;
@@ -16,6 +16,8 @@ export type DraggedPage = {
   // From the user's personal root: it can go anywhere. Others never go into
   // a personal root (lib/page-move.ts).
   personal: boolean;
+  // A presentation's slide: it can only go into another presentation.
+  slide?: boolean;
 };
 
 // The page being dragged in the sidebar. Module-level so a drop can land in
@@ -69,7 +71,22 @@ export function useConfirmAndMovePage() {
       await showAlert(check.error, { title: t("movePage.cannotMove") });
       return false;
     }
-    if (
+    let copyFileIds: string[] = [];
+    if (check.parentChanges && check.pendingFiles.length > 0) {
+      // Anyone who can edit a slide can put a file's URL on it: its files are
+      // copied only if the person moving it says so, having seen their names.
+      const names = check.pendingFiles.map((f) => `・${f.name}`).join("\n");
+      const choice = await showChoice(
+        `${confirmMessage(input.title, check)}\n\n${t("movePage.filesToCopy")}\n${names}`,
+        [
+          { value: "copy" as const, label: t("movePage.moveWithFiles") },
+          { value: "keep" as const, label: t("movePage.moveWithoutFiles") },
+        ],
+        { title: t("movePage.title") },
+      );
+      if (!choice) return false;
+      if (choice === "copy") copyFileIds = check.pendingFiles.map((f) => f.id);
+    } else if (
       check.parentChanges &&
       !(await showConfirm(confirmMessage(input.title, check), {
         title: t("movePage.title"),
@@ -78,7 +95,7 @@ export function useConfirmAndMovePage() {
     ) {
       return false;
     }
-    const result = await movePage(input.pageId, input.parentId, input.beforeId);
+    const result = await movePage(input.pageId, input.parentId, input.beforeId, copyFileIds);
     if (result.error) {
       await showAlert(result.error, { title: t("movePage.cannotMove") });
       return false;

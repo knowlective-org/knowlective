@@ -17,11 +17,18 @@ import type { ChildTableData, ChildTableRow } from "@/lib/page-property-types";
 // blocks show pages with content and values, which a shortcut doesn't have.
 export async function visibleTreeOf(userId: string | null, pageId: unknown) {
   if (typeof pageId !== "string") return null;
-  const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true } });
+  const page = await prisma.page.findUnique({
+    where: { id: pageId },
+    select: { rootId: true, kind: true, presentation: { select: { hiddenSlideIds: true } } },
+  });
   if (!page) return null;
-  const tree = await getVisibleTree(prisma, userId, page.rootId);
+  // A presentation's slides are its child pages here (linked tables and
+  // boards); someone not logged in doesn't get the hidden ones.
+  const isDeck = page.kind === "PRESENTATION";
+  const tree = await getVisibleTree(prisma, userId, page.rootId, { slides: isDeck });
   if (!tree) return null;
-  const pages = tree.pages.filter((p) => p.kind !== "SHORTCUT");
+  const hidden = new Set(isDeck && userId === null ? (page.presentation?.hiddenSlideIds ?? []) : []);
+  const pages = tree.pages.filter((p) => p.kind !== "SHORTCUT" && !hidden.has(p.id));
   return pages.some((p) => p.id === pageId) ? { ...tree, pages } : null;
 }
 
@@ -54,9 +61,11 @@ export async function childTableFor(userId: string | null, pageId: string): Prom
     row[v.defId] = openValue(key, v);
     valuesOf.set(v.pageId, row);
   }
-  const rows: ChildTableRow[] = children.map((c) => ({
+  const isDeck = tree.pages.find((p) => p.id === pageId)?.kind === "PRESENTATION";
+  const rows: ChildTableRow[] = children.map((c, i) => ({
     id: c.id,
-    title: c.title,
+    // Slides usually have no title of their own: their place in the deck.
+    title: c.title || (isDeck ? `#${i + 1}` : c.title),
     icon: c.icon,
     canEdit: atLeast(access.get(c.id) ?? null, "EDIT") && !locked.has(c.id),
     createdAt: c.createdAt.toISOString(),
@@ -88,6 +97,7 @@ export async function childTableFor(userId: string | null, pageId: string): Prom
 
   const self = tree.pages.find((p) => p.id === pageId);
   return {
+    presentation: isDeck,
     page: { title: self?.title ?? "", icon: self?.icon ?? null },
     canEditColumns: atLeast(access.get(pageId) ?? null, "EDIT") && !locked.has(pageId),
     columns,

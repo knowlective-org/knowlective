@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { MAX_SLIDES } from "@/lib/presentation";
 import { getTranslations } from "next-intl/server";
 import { MAX_PAGE_DEPTH, createCollabToken } from "shared";
 import { prisma } from "@/lib/db";
@@ -66,14 +67,19 @@ async function createError(result: { error: CreatePageError }): Promise<{ error:
   const t = await getTranslations("pageErrors");
   if (result.error === "lockedWithChildren") return { error: t("lockedWithChildren") };
   if (result.error === "tooDeep") return { error: t("tooDeep", { max: MAX_PAGE_DEPTH }) };
+  if (result.error === "presentationLocked") return { error: t("presentationLocked") };
+  if (result.error === "tooManySlides") return { error: t("tooManySlides", { max: MAX_SLIDES }) };
   return { error: t("cannotCreateHere") };
 }
 
 // Creates an untitled child page under `parentId` and opens it (the
-// sidebar's + button, and its whiteboard button for `whiteboard`).
-export async function createChildPage(parentId: string, whiteboard = false): Promise<{ error: string }> {
+// sidebar's + menu: a document, a whiteboard or a presentation).
+export async function createChildPage(
+  parentId: string,
+  kind: "DOCUMENT" | "WHITEBOARD" | "PRESENTATION" = "DOCUMENT",
+): Promise<{ error: string }> {
   const user = await requireUser();
-  const result = await insertChildPage(user.id, parentId, "", whiteboard === true ? "WHITEBOARD" : "DOCUMENT");
+  const result = await insertChildPage(user.id, parentId, "", kind === "WHITEBOARD" || kind === "PRESENTATION" ? kind : "DOCUMENT");
   if ("error" in result) return createError(result);
   redirect(`/pages/${result.id}`);
 }
@@ -82,6 +88,13 @@ export async function createChildPage(parentId: string, whiteboard = false): Pro
 // table's "new page" row).
 export async function createChildPageInPlace(parentId: string, title: string): Promise<{ id: string } | { error: string }> {
   const user = await requireUser();
-  const result = await insertChildPage(user.id, parentId, normalizeTitle(typeof title === "string" ? title : ""));
+  // A new row in a linked view of a presentation is a slide.
+  const parent = typeof parentId === "string" ? await prisma.page.findUnique({ where: { id: parentId }, select: { kind: true } }) : null;
+  const result = await insertChildPage(
+    user.id,
+    parentId,
+    normalizeTitle(typeof title === "string" ? title : ""),
+    parent?.kind === "PRESENTATION" ? "SLIDE" : "DOCUMENT",
+  );
   return "error" in result ? createError(result) : result;
 }

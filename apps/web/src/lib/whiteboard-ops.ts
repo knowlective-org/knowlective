@@ -3,6 +3,7 @@ import {
   BOX_TYPES,
   MAX_ITEMS,
   PAGE_ID,
+  SLIDE_FIELD,
   type WhiteboardItem,
   isBox,
   TEXT_FIELDS,
@@ -25,13 +26,15 @@ export type WhiteboardOps = {
   // Fields to set on an item (null: take the field away), creating it if new.
   set: { id: string; fields: Record<string, string | number | null> }[];
   remove: string[];
+  // A slide's background image (lib/whiteboard.ts), when it changes.
+  backgroundImage?: string;
 };
 
 export const MAX_OPS = 1000;
 
 // The fields that can be written, by kind of item. (`type` too: a shape's
 // can change into another shape, the others' can't change.)
-const BOX_FIELDS = ["x", "y", "w", "h", "text", "textX", "textY", "color", "z", "src", "link", "connectorEnds"];
+const BOX_FIELDS = ["x", "y", "w", "h", "text", "textX", "textY", "color", "z", "src", "link", "connectorEnds", "fontSize"];
 const CONNECTOR_FIELDS = ["from", "to", "arrows", "route", "stroke", "fromSide", "toSide", "text", "startText", "endText", "color", "z"];
 const LINE_FIELDS = ["x1", "y1", "x2", "y2", "arrows", "stroke", "color", "z"];
 
@@ -52,6 +55,7 @@ export function applyWhiteboardOps(doc: Y.Doc, ops: WhiteboardOps): void {
     }
   }
   for (const id of ops.remove) map.delete(id);
+  if (ops.backgroundImage) doc.getMap<unknown>(SLIDE_FIELD).set("backgroundImage", ops.backgroundImage);
 }
 
 type Fail = { error: string };

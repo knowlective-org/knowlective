@@ -8,6 +8,26 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-23
+
+### Added
+
+- Presentation pages (the sidebar's "＋" menu). Each slide is a 16:9 canvas edited like a whiteboard, with up to 200 slides: add, delete and drag them to reorder or into another presentation in the sidebar; text sizes and a background color or image; page numbers (position, start number, hidden on single slides); slides hidden from presenting and the PDF. Slides aren't pages of their own: they're left out of the sidebar and page lists, and their address opens them in their presentation.
+- Presenting: on your own screen, or asking everyone viewing to switch. Each person chooses whether to; those who do follow the presenter's slide. Anyone who can view the presentation can present.
+- A presentation's PDF, with real, selectable text placed as on screen (Korean and emoji through extra fonts, loaded only when needed).
+- Speaker notes per slide, only for people with edit access, and not searched.
+- A presentation's history: restore the whole of it (slides, order, content, notes and settings) to an earlier point.
+- Slides are searched (one result per presentation, opening the slide found) and can be listed in linked tables and boards. The API and MCP can list, add, hide, move and delete slides and edit their content.
+
+### Changed
+
+- Page versions are now stored as differences from the previous version, with a whole version every 20, for all pages. Existing versions are left as they are.
+
+### Upgrade notes
+
+- Run the migrations (done on start in the Docker image). Back up the database first: **once versions have been saved as differences, an older release can't read them**, so going back to one means restoring that backup.
+- Editors left open across the update are asked to reload (the collaboration version changed).
+
 ## [0.6.0] - 2026-11-23
 
 ### Added

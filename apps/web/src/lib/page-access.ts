@@ -28,6 +28,13 @@ export async function requestNetworkCaps(): Promise<NetworkCaps> {
 
 const capped = (access: PageAccess, caps: NetworkCaps): PageAccess => (caps.write ? access : "VIEW");
 
+// A presentation's slides aren't pages of their own to anyone listing pages
+// (lib/presentation.ts): left out unless the caller asks for them.
+const withoutSlides = <T extends { pages: { kind: string }[] }>(tree: T): T => ({
+  ...tree,
+  pages: tree.pages.filter((p) => p.kind !== "SLIDE"),
+});
+
 export async function getPageAccess(prisma: PrismaClient, userId: string | null, pageId: string) {
   const caps = await requestNetworkCaps();
   if (!caps.read) return null;
@@ -35,17 +42,24 @@ export async function getPageAccess(prisma: PrismaClient, userId: string | null,
   return result && { ...result, access: capped(result.access, caps) };
 }
 
-export async function getVisibleTrees(prisma: PrismaClient, userId: string | null) {
+export async function getVisibleTrees(prisma: PrismaClient, userId: string | null, options: { slides?: boolean } = {}) {
   const caps = await requestNetworkCaps();
   if (!caps.read) return [];
-  const trees = await permissions.getVisibleTrees(prisma, userId);
+  const found = await permissions.getVisibleTrees(prisma, userId);
+  const trees = options.slides ? found : found.map(withoutSlides);
   return caps.write ? trees : trees.map((t) => ({ ...t, pages: t.pages.map((p) => ({ ...p, access: capped(p.access, caps) })) }));
 }
 
-export async function getVisibleTree(prisma: PrismaClient, userId: string | null, rootId: string) {
+export async function getVisibleTree(
+  prisma: PrismaClient,
+  userId: string | null,
+  rootId: string,
+  options: { slides?: boolean } = {},
+) {
   const caps = await requestNetworkCaps();
   if (!caps.read) return null;
-  const tree = await permissions.getVisibleTree(prisma, userId, rootId);
+  const found = await permissions.getVisibleTree(prisma, userId, rootId);
+  const tree = found && (options.slides ? found : withoutSlides(found));
   return tree && (caps.write ? tree : { ...tree, pages: tree.pages.map((p) => ({ ...p, access: capped(p.access, caps) })) });
 }
 

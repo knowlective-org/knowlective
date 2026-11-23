@@ -57,6 +57,11 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
   const page = await findAccessiblePage(user.id, pageId);
   if (!page) notFound();
   if (!atLeast(page.access, "MANAGE")) redirect(`/pages/${pageId}`);
+  // A slide's access is its presentation's.
+  if (page.kind === "SLIDE") {
+    const slide = await prisma.page.findUnique({ where: { id: pageId }, select: { parentId: true } });
+    redirect(`/pages/${slide?.parentId}/share`);
+  }
   const [t, ta, displayTitle] = await Promise.all([getTranslations(), getTranslations("access"), getDisplayTitle()]);
   const errorCode = String((await searchParams).error ?? "");
   const error = errorCode in ERRORS ? t(`share.errors.${ERRORS[errorCode as keyof typeof ERRORS]}`) : null;

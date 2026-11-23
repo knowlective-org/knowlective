@@ -58,6 +58,8 @@ export type PageProperties = Pick<ChildTableData, "columns" | "assignees" | "use
 export type ChildTableData = {
   // The page whose child pages these are (shown by linked views).
   page: { title: string; icon: string | null };
+  // The page is a presentation (its rows are slides).
+  presentation?: boolean;
   canEditColumns: boolean;
   columns: PropertyColumn[];
   rows: ChildTableRow[];
