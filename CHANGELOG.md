@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-23
+
 ### Added
 
 - Presentation pages (the sidebar's "＋" menu). Each slide is a 16:9 canvas edited like a whiteboard, with up to 200 slides: add, delete and drag them to reorder or into another presentation in the sidebar; text sizes and a background color or image; page numbers (position, start number, hidden on single slides); slides hidden from presenting and the PDF. Slides aren't pages of their own: they're left out of the sidebar and page lists, and their address opens them in their presentation.
