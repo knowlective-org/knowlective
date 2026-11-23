@@ -31,7 +31,8 @@ function fill(group: Y.XmlElement, specs: Spec[]) {
     const text = new Y.XmlText();
     content.insert(0, [text]);
     text.insert(0, spec.text ?? "");
-    if (spec.mention) text.insertEmbed(text.length, new Y.XmlElement("mention"));
+    // As y-prosemirror stores an inline node: an element beside the text.
+    if (spec.mention) content.insert(content.length, [new Y.XmlElement("mention")]);
     if (spec.nested) {
       const nested = new Y.XmlElement("blockGroup");
       container.insert(1, [nested]);
