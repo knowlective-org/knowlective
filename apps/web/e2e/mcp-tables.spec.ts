@@ -60,13 +60,12 @@ test("a page's tables: listed, read whole and by column, not by someone who can'
   const mcp = await connect(baseURL!, key);
   const outsider = await connect(baseURL!, await keyFor("outsider", "READ"));
   try {
-    expect((await mcp.call("append_to_page", { pageId: id, markdown: "## 表の節\n\n| 名前 | 値 |\n| --- | --- |\n| りんご | 3 |\n| みかん | 5 |\n" })).isError).toBeFalsy();
-    await expect(editorBody(page).locator("table")).toBeVisible();
-
-    // An extended table and a child page table, from the editor.
+    // A child page table and an extended table from the editor (each leaves
+    // the caret in a new paragraph after it), then a table through MCP.
     await editorBody(page).click();
-    await page.keyboard.press("Control+End");
-    await page.keyboard.press("Enter");
+    await page.keyboard.type("/子ページテーブル");
+    await page.getByRole("option", { name: /子ページテーブル/ }).first().click();
+    await expect(page.getByTestId("ChildTableBlock")).toBeVisible();
     await page.keyboard.type("/拡張テーブル");
     await page.getByRole("option", { name: /拡張テーブル/ }).click();
     const cells = page.getByTestId("GridTable.cell");
@@ -74,10 +73,8 @@ test("a page's tables: listed, read whole and by column, not by someone who can'
     await page.keyboard.type("項目");
     await clickInEditor(cells.nth(3).locator(".bn-inline-content").first());
     await page.keyboard.type("拡張の値");
-    await page.keyboard.press("Control+End");
-    await page.keyboard.type("/子ページテーブル");
-    await page.getByRole("option", { name: /子ページテーブル/ }).first().click();
-    await expect(page.getByTestId("ChildTableBlock")).toBeVisible();
+    expect((await mcp.call("append_to_page", { pageId: id, markdown: "## 表の節\n\n| 名前 | 値 |\n| --- | --- |\n| りんご | 3 |\n| みかん | 5 |\n" })).isError).toBeFalsy();
+    await expect(editorBody(page).locator("table")).toBeVisible();
 
     const child = data(await mcp.call("create_page", { parentId: id, title: "E2E 子の行" })).id as string;
     await withPrisma(async (prisma) => {
@@ -94,7 +91,8 @@ test("a page's tables: listed, read whole and by column, not by someone who can'
         tables = data(await mcp.call("list_tables", { pageId: id })).tables;
         return tables.map((t) => t.kind);
       })
-      .toEqual(["table", "extendedTable", "childTable"]);
+      .toEqual(["childTable", "extendedTable", "table"]);
+    tables.reverse();
     expect(tables[0]).toMatchObject({ heading: "表の節", rowCount: 2 });
     expect(tables[2].rowCount).toBe(1);
 
