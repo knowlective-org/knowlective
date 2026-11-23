@@ -32,7 +32,7 @@ const newsreader = Newsreader({
 // the same on every screen and in the PDF. Loaded only where it's used.
 const slideFont = Noto_Sans_JP({
   variable: "--font-slide",
-  weight: ["400", "700"],
+  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
   preload: false,
 });
 

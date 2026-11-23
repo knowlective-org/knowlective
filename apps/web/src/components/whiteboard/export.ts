@@ -2,6 +2,7 @@ import { type BoxItem, type ItemColor, type Stroke, type WhiteboardItem, hexagon
 import { boundsOf, connectorPoints, endLabelPlace, hexagonPolygon, hopCrossings, lineRect, midpointOf, routePath, spreadEnds } from "./geometry";
 import { type HighlightColor, type TextColor, type TextMark, styledRuns, textStyleCss } from "@/lib/whiteboard-marks";
 import { parseRichTextAt } from "./rich-text";
+import { boxOutlines } from "./outline";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 
 // A whiteboard as one SVG file, for the page menu's export (and, drawn onto a
@@ -79,10 +80,22 @@ const html = (x: number, y: number, w: number, h: number, style: string, inner: 
   `<div xmlns="http://www.w3.org/1999/xhtml" style="box-sizing:border-box;width:${w}px;height:${h}px;display:flex;${style}">${inner}</div>` +
   `</foreignObject>`;
 
+// A box's outline, over its fill.
+function outlineSvg(b: BoxItem, colors: ExportColors): string {
+  const color = b.borderColor ? colors.text[b.borderColor] : colors.line;
+  return boxOutlines(b.type, b.w, b.h, b.border)
+    .map((o) => {
+      const paint = `fill="none" stroke="${color}" stroke-width="${o.width}"${o.dash ? ` stroke-dasharray="${o.dash}"` : ""}`;
+      if (o.kind === "rect") return `<rect x="${b.x + o.x}" y="${b.y + o.y}" width="${o.w}" height="${o.h}" rx="${o.rx}" ${paint}/>`;
+      if (o.kind === "ellipse") return `<ellipse cx="${b.x + o.cx}" cy="${b.y + o.cy}" rx="${o.rx}" ry="${o.ry}" ${paint}/>`;
+      return `<polygon transform="translate(${b.x} ${b.y})" points="${o.points}" ${paint}/>`;
+    })
+    .join("");
+}
+
 function boxSvg(b: BoxItem, colors: ExportColors, images: Map<string, string>, options: SvgOptions): { shape: string; text: string } {
   // "none" rather than the CSS keyword, for SVG viewers outside browsers.
   const fill = b.color === "transparent" ? "none" : colors.items[b.color];
-  const stroke = `stroke="${colors.line}" stroke-width="2"`;
   let shape = "";
   let pad = "0";
   let font = "font-size:14px;line-height:1.4";
@@ -92,25 +105,25 @@ function boxSvg(b: BoxItem, colors: ExportColors, images: Map<string, string>, o
       pad = "8px 10px";
       break;
     case "rect":
-      shape = `<rect x="${b.x + 1}" y="${b.y + 1}" width="${b.w - 2}" height="${b.h - 2}" rx="6" fill="${fill}" ${stroke}/>`;
+      shape = `<rect x="${b.x + 1}" y="${b.y + 1}" width="${b.w - 2}" height="${b.h - 2}" rx="6" fill="${fill}"/>`;
       pad = "6px 10px";
       font = "font-size:14px";
       break;
     case "ellipse":
-      shape = `<ellipse cx="${b.x + b.w / 2}" cy="${b.y + b.h / 2}" rx="${b.w / 2 - 1}" ry="${b.h / 2 - 1}" fill="${fill}" ${stroke}/>`;
+      shape = `<ellipse cx="${b.x + b.w / 2}" cy="${b.y + b.h / 2}" rx="${b.w / 2 - 1}" ry="${b.h / 2 - 1}" fill="${fill}"/>`;
       pad = `6px ${10 + Math.round(b.w * 0.15)}px`;
       font = "font-size:14px";
       break;
     case "diamond": {
       const cx = b.x + b.w / 2;
       const cy = b.y + b.h / 2;
-      shape = `<polygon points="${cx},${b.y} ${b.x + b.w},${cy} ${cx},${b.y + b.h} ${b.x},${cy}" fill="${fill}" ${stroke}/>`;
+      shape = `<polygon points="${cx},${b.y} ${b.x + b.w},${cy} ${cx},${b.y + b.h} ${b.x},${cy}" fill="${fill}"/>`;
       pad = `${Math.round(b.h * 0.12)}px ${Math.round(b.w * 0.22)}px`;
       font = "font-size:14px";
       break;
     }
     case "hexagon":
-      shape = `<polygon transform="translate(${b.x} ${b.y})" points="${hexagonPolygon(b.w, b.h)}" fill="${fill}" ${stroke}/>`;
+      shape = `<polygon transform="translate(${b.x} ${b.y})" points="${hexagonPolygon(b.w, b.h)}" fill="${fill}"/>`;
       pad = `6px ${Math.round(hexagonInset(b.h) * 0.8)}px`;
       font = "font-size:14px";
       break;
@@ -121,14 +134,17 @@ function boxSvg(b: BoxItem, colors: ExportColors, images: Map<string, string>, o
     case "image": {
       const data = images.get(b.src);
       return {
-        shape: data
-          ? `<image x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" href="${escapeXml(data)}" preserveAspectRatio="xMidYMid meet"/>`
-          : `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${colors.items.gray}"/>`,
+        shape:
+          (data
+            ? `<image x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" href="${escapeXml(data)}" preserveAspectRatio="xMidYMid meet"/>`
+            : `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${colors.items.gray}"/>`) + outlineSvg(b, colors),
         text: "",
       };
     }
   }
   if (b.fontSize) font = `font-size:${b.fontSize}px;line-height:1.3`;
+  if (b.fontWeight) font += `;font-weight:${b.fontWeight}`;
+  shape += outlineSvg(b, colors);
   const text = b.text.trim()
     ? html(
         b.x + b.textX,

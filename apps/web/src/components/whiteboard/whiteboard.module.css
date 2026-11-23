@@ -139,9 +139,8 @@
 }
 
 .box:is([data-type="rect"], [data-type="ellipse"]) {
-  padding: 6px 10px;
+  padding: 8px 12px;
   font-size: 14px;
-  border: 2px solid var(--color-wb-line);
 }
 
 .box[data-type="rect"] {
@@ -168,9 +167,36 @@
 
 .diamond polygon {
   fill: var(--item-color);
-  stroke: var(--color-wb-line);
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
+}
+
+/* A box's outline (outline.ts): over its fill and image, under its text. */
+.outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  pointer-events: none;
+}
+
+.borderMenu {
+  display: grid;
+  grid-template-columns: repeat(5, auto);
+  gap: 2px;
+  /* Under its button, not centered: the bar's left end would cut it off. */
+  left: 0;
+  width: max-content;
+  transform: none;
+}
+
+.fontWeightSelect {
+  height: 28px;
+  padding: 0 4px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: inherit;
 }
 
 /* The text, where it's been moved to (it may be outside the box). */
@@ -812,6 +838,13 @@
   font-family: var(--font-slide), sans-serif;
   background-color: var(--color-hover);
   background-image: none;
+}
+
+/* The surround's color is translucent: in full screen, nothing shows through. */
+.root[data-slide][data-fullscreen] {
+  background-color: var(--color-surface);
+  background-image: linear-gradient(var(--color-hover), var(--color-hover));
+  background-size: auto;
 }
 
 .slideFrame {

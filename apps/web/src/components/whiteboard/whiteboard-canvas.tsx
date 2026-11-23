@@ -8,12 +8,15 @@ import type { Awareness } from "y-protocols/awareness";
 import {
   ARROW_ENDS,
   type ArrowEnds,
+  BORDERS,
+  type Border,
   type BoxItem,
   CONNECTOR_ENDS,
   type ConnectorEnds,
   type ConnectorItem,
   DEFAULT_COLOR,
   DEFAULT_SIZE,
+  FONT_WEIGHTS,
   HEXAGON_RATIO,
   ITEM_COLORS,
   type ItemColor,
@@ -33,6 +36,7 @@ import {
   type Stroke,
   type TextField,
   type WhiteboardItem,
+  defaultBorder,
   hexagonInset,
   hexagonSize,
   isBox,
@@ -48,6 +52,7 @@ import {
   type StyleFlag,
   TEXT_COLORS,
   type TextMark,
+  type TextColor,
   type TextStyle,
   applyStyle,
   marksField,
@@ -97,6 +102,7 @@ import { Avatar } from "@/components/avatar";
 import { type CursorUser, badgeInk, readCursorUser } from "@/lib/avatar-mosaic";
 import { TextEditor, type TextEditorHandle, highlightVar, textColorVar } from "./text-editor";
 import { Icon, type IconName } from "@/components/icons";
+import { boxOutlines } from "./outline";
 import { ARROW_HEADS, STROKE_DRAW } from "./stroke";
 import { ALIGNMENTS, type Alignment, type Guide, align, distribute, snapMove, snapResize } from "./snap";
 import { TEMPLATES, type TemplateName, buildTemplate, templateBounds } from "./templates";
@@ -401,6 +407,8 @@ export function WhiteboardCanvas({
   const [textColorOpen, setTextColorOpen, textColorRef] = useBarMenu();
   const [highlightOpen, setHighlightOpen, highlightRef] = useBarMenu();
   const [shapeOpen, setShapeOpen, shapeRef] = useBarMenu();
+  const [borderOpen, setBorderOpen, borderRef] = useBarMenu();
+  const [fillOpen, setFillOpen, fillRef] = useBarMenu();
   const [shapeToolsOpen, setShapeToolsOpen, shapeToolsRef] = useBarMenu();
   // The shape the toolbar's shape button draws: the last one chosen.
   const [lastShape, setLastShape] = useState<DrawnShape>("rect");
@@ -491,6 +499,12 @@ export function WhiteboardCanvas({
     if (!el) return;
     setCamera(fitCamera(isSlide ? SLIDE_FRAME : boundsOf(itemRects(readItems(doc))), el.clientWidth, el.clientHeight));
   }, [doc, isSlide]);
+
+  // A slide fills the space it has, in full screen and back.
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (el && isSlide) setCamera(fitCamera(SLIDE_FRAME, el.clientWidth, el.clientHeight));
+  }, [fullscreen, isSlide]);
 
   // Scroll pans; Ctrl/⌘ + scroll (and a trackpad pinch, which browsers send
   // as that) zooms at the pointer. Not passive, to keep the page from scrolling.
@@ -630,7 +644,7 @@ export function WhiteboardCanvas({
         for (const [k, v] of Object.entries(fields)) item.set(k, v);
         map.set(key, item);
       };
-      put(id, { type: from.type, x: box.x, y: box.y, w: from.w, h: from.h, text: "", ...(from.src ? { src: from.src } : {}), color: from.color, z: ++z });
+      put(id, { type: from.type, x: box.x, y: box.y, w: from.w, h: from.h, text: "", ...(from.src ? { src: from.src } : {}), ...boxStyleFields(from), color: from.color, z: ++z });
       const toSide = sideToward(box, { x: from.x + from.w / 2, y: from.y + from.h / 2 });
       put(newId(), { type: "connector", from: fromId, to: id, ...newConnectorStyle(), ...sideFields(fromSide, toSide), text: "", color: DEFAULT_COLOR.connector, z: ++z });
     });
@@ -820,7 +834,7 @@ export function WhiteboardCanvas({
                 h: b.h,
                 text: b.text,
                 ...(b.textX || b.textY ? { textX: b.textX, textY: b.textY } : {}),
-                ...(b.fontSize ? { fontSize: b.fontSize } : {}),
+                ...boxStyleFields(b),
                 ...(b.src ? { src: b.src } : {}),
                 ...(b.link ? { link: b.link } : {}),
                 ...(b.connectorEnds === "merge" ? { connectorEnds: b.connectorEnds } : {}),
@@ -1021,6 +1035,9 @@ export function WhiteboardCanvas({
   };
   const setConnectorEnds = (connectorEnds: ConnectorEnds) =>
     change(() => selection.forEach((id) => isBox(byId.get(id)) && setField(id, { connectorEnds })));
+  const setBorder = (border: Border) => change(() => selection.forEach((id) => isBox(byId.get(id)) && setField(id, { border })));
+  const setBorderColor = (borderColor: TextColor | null) =>
+    change(() => selection.forEach((id) => isBox(byId.get(id)) && setField(id, { borderColor })));
   const setStroke = (stroke: Stroke) => {
     if (connectorSelected) rememberConnectorStyle({ stroke });
     change(() => selection.forEach((id) => hasArrows(byId.get(id)) && setField(id, { stroke })));
@@ -2153,20 +2170,125 @@ export function WhiteboardCanvas({
               ))}
             </select>
           )}
-          {colorable && ITEM_COLORS.map((color) => (
-            <button
-              key={color}
-              type="button"
-              className={styles.swatch}
-              style={{ background: `var(--color-wb-${color})` }}
-              aria-label={t(`colors.${color}`)}
-              title={t(`colors.${color}`)}
-              aria-pressed={single ? single.color === color : undefined}
-              data-ui="Whiteboard.colorButton"
-              data-id={color}
-              onClick={() => setColor(color)}
-            />
-          ))}
+          {selectedBoxes.some((b) => b.type !== "image") && (
+            <select
+              className={styles.fontWeightSelect}
+              aria-label={t("fontWeight")}
+              title={t("fontWeight")}
+              value={selectedBoxes.find((b) => b.type !== "image")?.fontWeight ?? 400}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                const fontWeight = Number(e.target.value);
+                change(() => selectedBoxes.forEach((b) => b.type !== "image" && setField(b.id, { fontWeight })));
+                focusBoard();
+              }}
+              data-ui="Whiteboard.fontWeightSelect"
+            >
+              {FONT_WEIGHTS.map((weight) => (
+                <option key={weight} value={weight}>
+                  {weight} {t(`fontWeights.${weight}`)}
+                </option>
+              ))}
+            </select>
+          )}
+          {selectedBoxes.length > 0 && (
+            <div className={styles.barPick} ref={borderRef}>
+              <button
+                type="button"
+                className={styles.barButton}
+                aria-label={t("border")}
+                title={t("border")}
+                aria-expanded={borderOpen}
+                aria-haspopup="menu"
+                data-ui="Whiteboard.borderMenuButton"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setBorderOpen(!borderOpen);
+                }}
+              >
+                <Icon name="rect" size={18} />
+              </button>
+              {borderOpen && (
+                <div className={`${styles.barMenu} ${styles.borderMenu}`} role="menu" aria-label={t("border")} data-ui="Whiteboard.borderMenu" onClick={(e) => e.stopPropagation()}>
+                  {BORDERS.map((border) => (
+                    <button
+                      key={border}
+                      type="button"
+                      role="menuitemradio"
+                      className={styles.barButton}
+                      aria-label={border === "none" ? t("borderNone") : t(`strokes.${border}`)}
+                      title={border === "none" ? t("borderNone") : t(`strokes.${border}`)}
+                      aria-checked={selectedBoxes[0]?.border === border}
+                      data-ui="Whiteboard.borderItem"
+                      data-id={border}
+                      onClick={() => setBorder(border)}
+                    >
+                      <Icon name={border === "none" ? "noBorder" : STROKE_ICONS[border]} size={18} />
+                    </button>
+                  ))}
+                  {([null, ...TEXT_COLORS] as const).map((color) => (
+                    <button
+                      key={color ?? "default"}
+                      type="button"
+                      role="menuitemradio"
+                      className={styles.swatch}
+                      style={{ background: color ? textColorVar(color) : "var(--color-wb-line)" }}
+                      aria-label={`${t("borderColor")}: ${color ? t(`textColors.${color}`) : t("borderColorDefault")}`}
+                      title={`${t("borderColor")}: ${color ? t(`textColors.${color}`) : t("borderColorDefault")}`}
+                      aria-checked={(selectedBoxes[0]?.borderColor ?? null) === color}
+                      data-ui="Whiteboard.borderColorItem"
+                      data-id={color ?? "default"}
+                      onClick={() => setBorderColor(color)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {colorable && (
+            // One button (the color now) with the colors in a menu: the bar stays on one row.
+            <div className={styles.barPick} ref={fillRef}>
+              <button
+                type="button"
+                className={styles.swatch}
+                style={{ background: `var(--color-wb-${(single ?? selectedBoxes[0])?.color ?? "white"})` }}
+                aria-label={t("fillColor")}
+                title={t("fillColor")}
+                aria-expanded={fillOpen}
+                aria-haspopup="menu"
+                data-ui="Whiteboard.colorMenuButton"
+                data-id={(single ?? selectedBoxes[0])?.color}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFillOpen(!fillOpen);
+                }}
+              />
+              {fillOpen && (
+                <div className={`${styles.barMenu} ${styles.swatchMenu}`} role="menu" aria-label={t("fillColor")} data-ui="Whiteboard.colorMenu">
+                  {ITEM_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      role="menuitemradio"
+                      className={styles.swatch}
+                      style={{ background: `var(--color-wb-${color})` }}
+                      aria-label={t(`colors.${color}`)}
+                      title={t(`colors.${color}`)}
+                      aria-checked={single ? single.color === color : false}
+                      data-ui="Whiteboard.colorButton"
+                      data-id={color}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setColor(color);
+                        setFillOpen(false);
+                        focusBoard();
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {colorable && <span className={styles.separator} />}
           {shapeSelected && (
             <>
@@ -2666,6 +2788,15 @@ function StrokePaths({ d, stroke, arrows, selected, markerId }: { d: string; str
 // A connector's or line's stroke, as stored (none stored for the usual one).
 const strokeField = (stroke: Stroke) => (stroke === "solid" ? {} : { stroke });
 
+// A box's outline and text styles, as stored (a copy keeps them).
+const boxStyleFields = (b: BoxItem) => ({
+  ...(b.fontSize ? { fontSize: b.fontSize } : {}),
+  ...(b.fontWeight ? { fontWeight: b.fontWeight } : {}),
+  // Only a chosen one: a box changed into another shape takes that shape's.
+  ...(b.border !== defaultBorder(b.type) ? { border: b.border } : {}),
+  ...(b.borderColor ? { borderColor: b.borderColor } : {}),
+});
+
 // Dots on the middle of each side of the box under the pointer: dragging
 // one draws a connector from the box (like the connector tool).
 // While a connector's end is dragged over a box, the side it would go to is
@@ -2743,12 +2874,16 @@ function Box({
     measure.current = onMeasure;
   });
   const isText = item.type === "text";
+  // A text item's outline goes around the height it has on screen.
+  const [shownHeight, setShownHeight] = useState<number | null>(null);
+  const outlineHeight = isText ? (shownHeight ?? item.h) : item.h;
   useEffect(() => {
     const el = ref.current;
     if (!isText || !el) return;
     // The layout size: the board's zoom (a transform) doesn't change it.
     const observer = new ResizeObserver((entries) => {
       const size = entries[0]?.borderBoxSize?.[0]?.blockSize ?? el.offsetHeight;
+      setShownHeight(size);
       measure.current?.(size);
     });
     observer.observe(el);
@@ -2769,7 +2904,7 @@ function Box({
         // An ellipse's or diamond's text stays inside its outline, not in
         // the corners of the box around it (a percentage would be of the
         // board's width).
-        ...(item.type === "ellipse" && { paddingInline: Math.round(item.w * 0.15) }),
+        ...(item.type === "ellipse" && { paddingInline: Math.round(item.w * 0.15) + 2 }),
         ...(item.type === "diamond" && { paddingInline: Math.round(item.w * 0.22), paddingBlock: Math.round(item.h * 0.12) }),
         ...(item.type === "hexagon" && { paddingInline: Math.round(hexagonInset(item.h) * 0.8) }),
         ["--item-color" as string]: `var(--color-wb-${item.color})`,
@@ -2788,6 +2923,16 @@ function Box({
           <polygon points={hexagonPolygon(item.w, item.h)} />
         </svg>
       )}
+      {item.border !== "none" && (
+        <svg className={styles.outline} viewBox={`0 0 ${item.w} ${outlineHeight}`} preserveAspectRatio="none" aria-hidden data-ui="Whiteboard.outline" data-id={item.border}>
+          {boxOutlines(item.type, item.w, outlineHeight, item.border).map((o, i) => {
+            const paint = { stroke: item.borderColor ? textColorVar(item.borderColor) : "var(--color-wb-line)", strokeWidth: o.width, strokeDasharray: o.dash };
+            if (o.kind === "rect") return <rect key={i} x={o.x} y={o.y} width={o.w} height={o.h} rx={o.rx} {...paint} />;
+            if (o.kind === "ellipse") return <ellipse key={i} cx={o.cx} cy={o.cy} rx={o.rx} ry={o.ry} {...paint} />;
+            return <polygon key={i} points={o.points} {...paint} />;
+          })}
+        </svg>
+      )}
       {item.type === "image" ? (
         item.src ? (
           // eslint-disable-next-line @next/next/no-img-element -- an attachment, served with an access check
@@ -2803,6 +2948,8 @@ function Box({
           style={{
             ...(item.textX || item.textY ? { transform: `translate(${item.textX}px, ${item.textY}px)` } : {}),
             ...(item.fontSize ? { fontSize: item.fontSize, lineHeight: 1.3 } : {}),
+            // The board's usual font may have only two weights.
+            ...(item.fontWeight ? { fontWeight: item.fontWeight, fontFamily: "var(--font-slide), sans-serif" } : {}),
           }}
         >
           {editing ? (

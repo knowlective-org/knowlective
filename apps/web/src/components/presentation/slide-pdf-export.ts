@@ -23,14 +23,14 @@ const HANGUL = /[ᄀ-ᇿ㄰-㆏ꥠ-꥿가-퟿]/u;
 const EMOJI = /\p{Extended_Pictographic}/u;
 
 type FontFile = { family: string; file: string; weight: string };
-const JAPANESE: FontFile[] = [
-  { family: "Noto Sans JP", file: "NotoSansJP-Regular.ttf", weight: "400" },
-  { family: "Noto Sans JP", file: "NotoSansJP-Bold.ttf", weight: "700" },
-];
-const KOREAN: FontFile[] = [
-  { family: "Noto Sans KR", file: "NotoSansKR-Regular.ttf", weight: "400" },
-  { family: "Noto Sans KR", file: "NotoSansKR-Bold.ttf", weight: "700" },
-];
+const WEIGHT_NAMES: Record<number, string> = { 100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold", 900: "Black" };
+const notoFont = (lang: "JP" | "KR", weight: number): FontFile => ({
+  family: `Noto Sans ${lang}`,
+  file: `NotoSans${lang}-${WEIGHT_NAMES[weight]}.ttf`,
+  weight: String(weight),
+});
+// CSS's "bolder" (a bold part of a text in a box of that weight).
+const bolder = (weight: number) => (weight < 400 ? 400 : weight < 600 ? 700 : 900);
 const EMOJI_FONT: FontFile[] = [{ family: "Noto Emoji", file: "NotoEmoji-Regular.ttf", weight: "400" }];
 
 // Kept for the page's lifetime: they're large. Each is given to both the
@@ -98,7 +98,7 @@ function readFragments(root: Element, origin: DOMRect): TextFragment[] {
     const style = {
       size: parseFloat(css.fontSize),
       color: css.color,
-      bold: Number(css.fontWeight) >= 600,
+      weight: Number(css.fontWeight) || 400,
       italic: css.fontStyle === "italic",
       underline: decoration.includes("underline"),
       strike: decoration.includes("line-through"),
@@ -210,7 +210,18 @@ export async function exportPresentationPdf(deckId: string, title: string, lang:
     .flatMap((c) => c.items)
     .map((i) => ("text" in i ? `${i.text}${"startText" in i ? `${i.startText}${i.endText}` : ""}` : ""))
     .join("");
-  const fonts = [...JAPANESE, ...(HANGUL.test(text) ? KOREAN : []), ...(EMOJI.test(text) ? EMOJI_FONT : [])];
+  // Each weight is ~6MB: only those in use.
+  const weights = new Set([400, 700]);
+  for (const item of contents.flatMap((c) => c.items)) {
+    if (!isBox(item) || !item.fontWeight) continue;
+    weights.add(item.fontWeight);
+    if (item.textMarks.some((m) => m.bold)) weights.add(bolder(item.fontWeight));
+  }
+  const fonts = [
+    ...[...weights].map((w) => notoFont("JP", w)),
+    ...(HANGUL.test(text) ? [...weights].map((w) => notoFont("KR", w)) : []),
+    ...(EMOJI.test(text) ? EMOJI_FONT : []),
+  ];
   const fontBytes = await Promise.all(fonts.map(loadFont));
   await document.fonts.ready;
 

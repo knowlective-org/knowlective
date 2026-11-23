@@ -8,6 +8,15 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- Whiteboards and slides: a box's outline can be removed, drawn thick, dashed or double, and given a color, and its text can be set to any font weight from 100 to 900.
+
+### Fixed
+
+- A presentation's full-screen button now fills the window with the slide, with nothing of the page showing behind it.
+- The space below a slide's background color bar was missing.
+
 ## [0.7.0] - 2026-11-23
 
 ### Added

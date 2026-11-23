@@ -249,6 +249,7 @@ test.describe("Presentation", () => {
     await expect(result).toContainText(title);
     await result.getByRole("link", { name: title }).click();
     await page.waitForURL((url) => url.pathname.endsWith(`/pages/${id}`) && !!url.searchParams.get("slide"));
+    await expect(page.getByTestId("PresentationEditor.slideRow")).toHaveCount(2);
     expect([slide, ...(await slideIds(page))]).toContain(new URL(page.url()).searchParams.get("slide"));
     await trashOpenPage(page);
   });
@@ -266,6 +267,23 @@ test.describe("Presentation", () => {
     await page.locator('[data-ui="SlideBackgroundBar.colorButton"][data-id="blue"]').click();
     await expect(page.locator('[data-ui="SlideBackgroundBar.colorButton"][data-id="blue"]')).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+    // The bar keeps its distance from the slide.
+    const bar = (await page.getByTestId("SlideBackgroundBar").boundingBox())!;
+    const board = page.getByTestId("Whiteboard");
+    expect((await board.boundingBox())!.y - (bar.y + bar.height)).toBeGreaterThanOrEqual(12);
+
+    // Full screen: the slide as large as the window allows, nothing behind it.
+    await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+    const before = (await page.getByTestId("Whiteboard.slideFrame").boundingBox())!;
+    await page.getByTestId("Whiteboard.fullscreenButton").click();
+    await expect(board).toHaveAttribute("data-fullscreen", "true");
+    const viewport = page.viewportSize()!;
+    expect(await board.boundingBox()).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height });
+    await expect.poll(async () => (await page.getByTestId("Whiteboard.slideFrame").boundingBox())!.width).toBeGreaterThan(before.width);
+    expect(await board.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(255, 255, 255)");
+    await page.getByTestId("Whiteboard.fullscreenButton").click();
+    await expect(board).not.toHaveAttribute("data-fullscreen");
 
     const moved = new URL(page.url()).searchParams.get("slide")!;
     await page.reload();

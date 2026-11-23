@@ -11,6 +11,10 @@
   margin: 0;
 }
 
+.stage > .backgroundBar {
+  margin-bottom: 12px;
+}
+
 .list {
   display: flex;
   flex-direction: column;

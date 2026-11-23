@@ -602,6 +602,7 @@ test.describe("Whiteboard", () => {
       await page.keyboard.press("Escape");
       const frame = page.locator('[data-ui="Whiteboard.item"][data-type="rect"]');
       await frame.click({ position: { x: 20, y: 20 } });
+      await page.getByTestId("Whiteboard.colorMenuButton").click();
       await page.locator('[data-ui="Whiteboard.colorButton"][data-id="transparent"]').click();
       await expect(frame).toHaveAttribute("data-color", "transparent");
       await page.keyboard.press("Escape");
@@ -905,6 +906,7 @@ test.describe("Whiteboard", () => {
       await expect(note).toHaveAttribute("data-type", "ellipse");
 
       // Its background made transparent: the board shows through it.
+      await page.getByTestId("Whiteboard.colorMenuButton").click();
       await page.locator('[data-ui="Whiteboard.colorButton"][data-id="transparent"]').click();
       await expect(note).toHaveAttribute("data-color", "transparent");
       await expect(note).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
@@ -1109,7 +1111,7 @@ test.describe("Whiteboard", () => {
       await draw(60, 60, 240, 60);
       await expect(hexagons).toHaveCount(1);
       expect(await sizeOf(0)).toEqual([240, 60]);
-      await expect(hexagons.nth(0).locator("polygon")).toHaveCount(1);
+      await expect(hexagons.nth(0).locator('[data-ui="Whiteboard.outline"] polygon')).toHaveCount(1);
       // Dragged taller than a regular one: as tall as one (100 × 86).
       await draw(60, 200, 100, 200);
       await expect(hexagons).toHaveCount(2);
@@ -1187,7 +1189,7 @@ test.describe("Whiteboard", () => {
       await page.keyboard.press("Escape");
       const diamond = page.locator('[data-ui="Whiteboard.item"][data-type="diamond"]');
       await expect(diamond).toHaveText("分岐");
-      await expect(diamond.locator("polygon")).toHaveCount(1);
+      await expect(diamond.locator('[data-ui="Whiteboard.outline"] polygon')).toHaveCount(1);
       const size = (await diamond.boundingBox())!;
       expect([Math.round(size.width), Math.round(size.height)]).toEqual([180, 120]);
 
