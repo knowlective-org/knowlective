@@ -25,6 +25,8 @@ type MarkdownBridge = {
   markdownToBody(markdown: string): Promise<Uint8Array>;
   // The body (BlockNote fragment) of a document's Yjs state, as Markdown.
   bodyToMarkdown(state: Uint8Array, options: MarkdownExportOptions): Promise<string>;
+  // The body of a document's Yjs state, as plain blocks.
+  bodyToBlocks(state: Uint8Array): Promise<unknown[]>;
 };
 
 const BRIDGE_KEY = Symbol.for("knowlective.markdown");
@@ -42,3 +44,4 @@ function bridge(): MarkdownBridge {
 export const markdownToBody = (markdown: string) => bridge().markdownToBody(markdown);
 export const bodyToMarkdown = (state: Uint8Array, options: MarkdownExportOptions) =>
   bridge().bodyToMarkdown(state, options);
+export const bodyToBlocks = (state: Uint8Array) => bridge().bodyToBlocks(state);
