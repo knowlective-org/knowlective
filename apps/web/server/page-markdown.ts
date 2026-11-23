@@ -43,5 +43,8 @@ export function startMarkdownBridge() {
       const blocks = e.stateToBlocks(state) as ExportBlock[];
       return e.blocksToMarkdown(prepareBlocksForExport(blocks, { ...options, mermaid: "code" }));
     },
+    async bodyToBlocks(state) {
+      return (await load()).stateToBlocks(state);
+    },
   });
 }

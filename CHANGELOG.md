@@ -8,6 +8,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- The API and MCP can read the tables in a page's body (tables, extended tables and child page tables, linked views too): list them (`GET /api/v1/pages/<id>/tables`, MCP `list_tables`), and read one whole or only some of its columns (`GET /api/v1/pages/<id>/tables/<table id>` with `?column=<name>`, MCP `get_table`). Values come by column name and by the column's type; masked values can't be read
+
 ## [0.5.0] - 2026-11-22
 
 ### Added

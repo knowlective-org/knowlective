@@ -328,6 +328,8 @@ DB の変更は要らない（`User.locale` と `InstanceConfig.defaultLocale` �
 | `POST /api/v1/pages` | ページを作る：`{ "parentId": "...", "title": "...", "markdown": "..." }`（`title`・`markdown` は省略可）。親の下の最後に入る。`"kind": "WHITEBOARD"` でホワイトボード（`markdown` なし） |
 | `PATCH /api/v1/pages/<id>` | タイトルと本文（全体）を置き換える：`{ "title": "...", "markdown": "..." }`（どちらか一方でもよい） |
 | `GET /api/v1/pages/<id>/children` | 子ページ（並び順）と、そのページの子ページテーブルの列の値（`properties`。列名ごと。`?property=<列名>`（複数可）で一部だけ）。選択肢は選択肢の名前、ユーザーは `{ id, name }`、マスク列は `{ "masked": true }` |
+| `GET /api/v1/pages/<id>/tables` | ページの本文にある表（テーブル・拡張テーブル・子ページテーブル。リンクビューも）：`id`・`kind`・`title`・上の見出し `heading`・`columns`・`rowCount` |
+| `GET /api/v1/pages/<id>/tables/<表の id>` | 1つの表の値：全部の列か、`?column=<列名>`（複数可）で指定した列だけ。`?offset=`・`?limit=`（5,000 まで、既定は 1,000）で行を分けて取れる。値は列名ごとに、数値・日付・true/false・選択肢の名前（複数なら配列）・人（`id`・`name`）・文字・null。鍵の列は `{ "masked": true }` だけ |
 | `GET /api/v1/pages/<id>/people` | ページを開けて、メンションや通知を送れる人（`id`・`name`） |
 | `POST /api/v1/pages/<id>/notifications` | その人たち（`…/people` から）に、ページについての通知を送る：`{ "userIds": ["..."], "text": "..." }`（2,000 文字まで。http(s) の URL はリンクになる）。編集の権限が必要 |
 | `GET /api/v1/pages/<id>/chats` | ページのチャットブロック（`id`・`title`） |

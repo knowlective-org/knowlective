@@ -22,6 +22,7 @@ import { MAX_CHAT_MESSAGE_LENGTH } from "@/lib/chat";
 import { postChat, siteChatWords } from "@/lib/chat-post";
 import type { SectionError } from "@/lib/body-edit";
 import { childProperties } from "@/lib/api/child-properties";
+import { MAX_TABLE_ROWS, listPageTables, readPageTable } from "@/lib/api/page-tables";
 import { pagePeople } from "@/lib/page-people";
 import { sendPageMessage } from "@/lib/page-message";
 import { MAX_MESSAGE_LENGTH, MAX_MESSAGE_RECIPIENTS } from "@/lib/page-message-text";
@@ -273,6 +274,46 @@ export function registerTools(server: McpServer, caller: McpCaller) {
       if (!result) return fail(NOT_FOUND);
       if ("unknown" in result) return fail(`The page's child pages have no property named ${result.unknown.map((n) => JSON.stringify(n)).join(", ")}.`);
       return json(result);
+    },
+  );
+
+  server.registerTool(
+    "list_tables",
+    {
+      title: "List a page's tables",
+      description:
+        "The tables in a page's body, in order: tables, extended tables and child page tables (linked views too), each with its id, kind, title, the heading above it, its columns and number of rows. `available: false`: a child page table whose pages you can't read. Read one with get_table.",
+      inputSchema: z.object({ pageId }),
+      annotations: readOnly,
+    },
+    async ({ pageId: id }) => {
+      if (!(await getPageAccess(prisma, userId, id))) return fail(NOT_FOUND);
+      return json({ tables: await listPageTables(userId, id) });
+    },
+  );
+
+  server.registerTool(
+    "get_table",
+    {
+      title: "Read a table",
+      description:
+        "One table's values (its id from list_tables): every column, or only those named in `columns`. Each row has `values` by column name: a number, a date \"YYYY-MM-DD\", a checkbox true/false, an option's name (several: a list), a person { id, name }, text, or null when empty; a masked value can't be read here ({ masked: true }). A child page table's rows also have the page's id, title and url. Columns sharing a name are \"name (2)\", …; without a header, \"Column 1\", …. When `nextOffset` isn't null, call again with it as `offset` for the rest.",
+      inputSchema: z.object({
+        pageId,
+        tableId: z.string().min(1).max(64).describe("The table's id (from list_tables)"),
+        columns: z.array(z.string().min(1).max(200)).max(100).optional().describe("Column names to return (default: all)"),
+        offset: z.number().int().min(0).optional().describe("Rows to skip (default: 0)"),
+        limit: z.number().int().min(1).max(MAX_TABLE_ROWS).optional().describe("Rows to return (default: 1000)"),
+      }),
+      annotations: readOnly,
+    },
+    async ({ pageId: id, tableId, columns, offset, limit }) => {
+      if (!(await getPageAccess(prisma, userId, id))) return fail(NOT_FOUND);
+      const table = await readPageTable(userId, id, tableId, { columns, offset, limit });
+      if (!table) return fail("The page has no such table.");
+      if ("unavailable" in table) return fail("You can't read this table's pages.");
+      if ("unknown" in table) return fail(`The table has no column named ${table.unknown.map((n) => JSON.stringify(n)).join(", ")}.`);
+      return json(table);
     },
   );
 
