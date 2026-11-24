@@ -250,6 +250,7 @@ const ja: MessageShape<typeof en> = {
     value: "値が不正です。",
     defaultStatus: "ステータス",
     defaultDate: "日付",
+    defaultEndDate: "終了日",
     defaultStatusOptions: {
       todo: "未着手",
       doing: "進行中",

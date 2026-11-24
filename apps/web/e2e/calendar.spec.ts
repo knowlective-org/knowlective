@@ -83,3 +83,74 @@ test("child pages go on the calendar by their date: added on a day, dragged to a
   await openPage(page, calendar.id);
   await trashOpenPage(page);
 });
+
+test("the calendar as a Gantt chart: a week, a month or three months, with bars moved and resized", async ({ page }) => {
+  test.setTimeout(120_000);
+  const calendar = await createPage(page, "E2E ガント");
+  await insertCalendar(page);
+  await page.getByTestId("ChildCalendarBlock.createDateButton").click();
+  const now = new Date();
+  const today = local(now);
+  const after = (n: number) => local(new Date(now.getFullYear(), now.getMonth(), now.getDate() + n));
+  await day(page, today).hover();
+  await day(page, today).getByTestId("ChildCalendarBlock.addButton").click();
+  await page.getByTestId("ChildCalendarBlock.addInput").fill("設計");
+  await page.keyboard.press("Enter");
+  await expect(day(page, today).getByTestId("ChildCalendarBlock.card")).toHaveText("設計");
+
+  await page.locator('[data-ui="ChildCalendarBlock.layoutButton"][data-id="gantt"]').click();
+  await expect(page.getByTestId("ChildCalendarBlock.gantt")).toBeVisible();
+  const days = page.getByTestId("ChildCalendarBlock.ganttDay");
+  await page.locator('[data-ui="ChildCalendarBlock.rangeButton"][data-id="week"]').click();
+  await expect(days).toHaveCount(7);
+  await page.locator('[data-ui="ChildCalendarBlock.rangeButton"][data-id="quarter"]').click();
+  expect(await days.count()).toBeGreaterThanOrEqual(89);
+  // A year and three years are drawn by month, with the bar still on them.
+  const months = page.getByTestId("ChildCalendarBlock.ganttMonth");
+  await page.locator('[data-ui="ChildCalendarBlock.rangeButton"][data-id="year"]').click();
+  await expect(months).toHaveCount(12);
+  await expect(days).toHaveCount(0);
+  await expect(page.getByTestId("ChildCalendarBlock.ganttBar")).toBeVisible();
+  await page.locator('[data-ui="ChildCalendarBlock.rangeButton"][data-id="threeYears"]').click();
+  await expect(months).toHaveCount(36);
+  await expect(page.getByTestId("ChildCalendarBlock.ganttYear")).toHaveCount(3);
+  await expect(page.getByTestId("ChildCalendarBlock.ganttBar")).toBeInViewport();
+  await page.locator('[data-ui="ChildCalendarBlock.rangeButton"][data-id="month"]').click();
+  await expect(days).toHaveCount(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate());
+
+  // One date so far: a one-day bar, until there is an end date column.
+  const bar = page.getByTestId("ChildCalendarBlock.ganttBar");
+  await expect(bar).toHaveAttribute("data-start", today);
+  await expect(bar).toHaveAttribute("data-end", today);
+  await expect(page.getByTestId("ChildCalendarBlock.ganttEndHandle")).toHaveCount(0);
+  await page.getByTestId("ChildCalendarBlock.createEndButton").click();
+  const handle = page.getByTestId("ChildCalendarBlock.ganttEndHandle");
+  await expect(handle).toBeVisible();
+
+  // Its end dragged two days on.
+  const width = (await page.locator(`[data-ui="ChildCalendarBlock.ganttDay"][data-id="${today}"]`).boundingBox())!.width;
+  const edge = (await handle.boundingBox())!;
+  await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(edge.x + edge.width / 2 + width * 2, edge.y + edge.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect(bar).toHaveAttribute("data-end", after(2));
+  await expect(page.getByTestId("ChildCalendarBlock.gantt")).toHaveAttribute("aria-busy", "false");
+
+  // By keyboard: the whole bar a day later.
+  await bar.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(bar).toHaveAttribute("data-start", after(1));
+  await expect(bar).toHaveAttribute("data-end", after(3));
+  await expect(page.getByTestId("ChildCalendarBlock.gantt")).toHaveAttribute("aria-busy", "false");
+
+  // The view and the dates are kept.
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("ChildCalendarBlock.gantt")).toBeVisible();
+  await expect(page.getByTestId("ChildCalendarBlock.ganttRow").filter({ hasText: "設計" })).toHaveCount(1);
+  await expect(page.locator('[data-ui="ChildCalendarBlock.rangeButton"][data-id="month"]')).toHaveAttribute("aria-pressed", "true");
+
+  await openPage(page, calendar.id);
+  await trashOpenPage(page);
+});

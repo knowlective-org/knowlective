@@ -25,7 +25,21 @@ import { postChat, siteChatWords } from "@/lib/chat-post";
 import type { SectionError } from "@/lib/body-edit";
 import { childProperties } from "@/lib/api/child-properties";
 import { MAX_TABLE_ROWS, listPageTables, readPageTable } from "@/lib/api/page-tables";
-import { MAX_BLOCKS, type BlockWriteResult, blockProblem, deleteBlock, insertBlocks, listPageBlocks, updateBlock } from "@/lib/api/blocks";
+import {
+  MAX_BLOCKS,
+  type BlockWriteResult,
+  blockProblem,
+  createGridTable,
+  deleteBlock,
+  deleteGridPart,
+  insertBlocks,
+  insertGridColumn,
+  insertGridRows,
+  listPageBlocks,
+  updateBlock,
+} from "@/lib/api/blocks";
+import { MAX_GRID_COLUMNS, MAX_GRID_ROWS } from "@/components/editor/grid-table-config";
+import { cellValue, columnRule, toRule } from "@/lib/api/grid-input";
 import { pagePeople } from "@/lib/page-people";
 import { sendPageMessage } from "@/lib/page-message";
 import { MAX_MESSAGE_LENGTH, MAX_MESSAGE_RECIPIENTS } from "@/lib/page-message-text";
@@ -343,7 +357,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     {
       title: "List a page's blocks",
       description:
-        "A page's blocks in order, with their ids: type, parent, depth, text (inline Markdown; mentions as <@userId>), and the settings (props) that update_block can change. An extended table's cells are listed as type gridCell. `styledText`: the text has colors or underlines that writing it back would lose. Masked content is never included. When `nextOffset` isn't null, call again with it as `offset`.",
+        "A page's blocks in order, with their ids: type, parent, depth, text (inline Markdown; mentions as <@userId>), and the settings (props) that update_block can change. An extended table (type gridTable, with its rowCount and columnTypes) has its cells listed as type gridCell, with their row and column counted from 0 (the header row is row 0); add or delete its rows and columns with add_table_rows, add_table_column, delete_table_rows and delete_table_column. `styledText`: the text has colors or underlines that writing it back would lose. Masked content is never included. When `nextOffset` isn't null, call again with it as `offset`.",
       inputSchema: z.object({
         pageId,
         offset: z.number().int().min(0).optional(),
@@ -562,6 +576,114 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     async ({ pageId: id, blockId }) => {
       const problem = blockResult(await deleteBlock(userId, id, blockId));
       return problem ? fail(problem) : json({ id, url: await pageUrl(id) });
+    },
+  );
+
+  // Extended tables (gridTable): made and grown here, as Markdown can't
+  // carry them. A cell's value is as update_block takes it.
+  const cellValues = "A cell: inline Markdown for a text column (<@userId> mentions someone); for a typed column its value: a number, a date (YYYY-MM-DD), option name(s), true/false, or a person's id. A masked column's cells stay empty (they're sealed in the browser).";
+  const tableId = z.string().min(1).max(64).describe("The extended table's block id (type gridTable, from list_blocks)");
+
+  server.registerTool(
+    "create_extended_table",
+    {
+      title: "Create an extended table",
+      description:
+        "Adds an extended table: a table whose cells hold any blocks, with typed columns (number, date, options, checkbox, person). Placed beside one block (its id from list_blocks), or at the end of the page. Returns the new table's id. A Markdown table (append_to_page) makes a plain table instead. " +
+        cellValues,
+      inputSchema: z.object({
+        pageId,
+        blockId: z.string().min(1).max(64).optional().describe("Put it beside this block (omitted: at the end of the page)"),
+        position: z.enum(["before", "after"]).optional().describe("Before or after the block (default: after)"),
+        rows: z.array(z.array(cellValue).max(MAX_GRID_COLUMNS)).min(1).max(MAX_GRID_ROWS).describe("The rows' cells, the header row first when headerRow; short rows are filled with empty cells"),
+        headerRow: z.boolean().optional().describe("The first row as column headings (default: true)"),
+        headerColumn: z.boolean().optional().describe("The first column as row titles (default: false)"),
+        columns: z.array(columnRule).max(MAX_GRID_COLUMNS).optional().describe("The columns' types, left to right (default: all text)"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id, blockId, position, rows, headerRow, headerColumn, columns }) => {
+      const result = await createGridTable(userId, id, { blockId, position, rows, headerRow, headerColumn, columns: (columns ?? []).map(toRule) });
+      const problem = blockResult(result);
+      return problem ? fail(problem) : json({ id, tableId: result.tableId, url: await pageUrl(id) });
+    },
+  );
+
+  server.registerTool(
+    "add_table_rows",
+    {
+      title: "Add rows to an extended table",
+      description:
+        "Adds rows to an extended table, at a row index (rows are counted from 0, the header row being row 0; omitted: at the end). Each row's values go left to right; missing ones are empty. " +
+        cellValues,
+      inputSchema: z.object({
+        pageId,
+        tableId,
+        at: z.number().int().min(0).max(MAX_GRID_ROWS).optional().describe("The index the first new row gets (omitted: after the last row)"),
+        rows: z.array(z.array(cellValue).max(MAX_GRID_COLUMNS)).min(1).max(MAX_GRID_ROWS),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id, tableId: table, at, rows }) => {
+      const problem = blockResult(await insertGridRows(userId, id, table, at ?? null, rows));
+      return problem ? fail(problem) : json({ id, tableId: table, url: await pageUrl(id) });
+    },
+  );
+
+  server.registerTool(
+    "add_table_column",
+    {
+      title: "Add a column to an extended table",
+      description:
+        "Adds one column to an extended table, at a column index (counted from 0; omitted: at the right end), with its type and its cells top to bottom (the heading first when the table has a header row; missing ones are empty). " +
+        cellValues,
+      inputSchema: z.object({
+        pageId,
+        tableId,
+        at: z.number().int().min(0).max(MAX_GRID_COLUMNS).optional().describe("The index the new column gets (omitted: after the last column)"),
+        type: columnRule.optional(),
+        cells: z.array(cellValue).max(MAX_GRID_ROWS).optional().describe("The column's cells, top to bottom"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id, tableId: table, at, type, cells }) => {
+      const problem = blockResult(await insertGridColumn(userId, id, table, at ?? null, cells ?? [], toRule(type)));
+      return problem ? fail(problem) : json({ id, tableId: table, url: await pageUrl(id) });
+    },
+  );
+
+  server.registerTool(
+    "delete_table_rows",
+    {
+      title: "Delete rows of an extended table",
+      description:
+        "Removes rows of an extended table with what's in their cells: `count` rows from the row index `at` (rows are counted from 0, the header row being row 0). Refused if anything in them is locked; a table keeps one row. The page's history keeps them.",
+      inputSchema: z.object({
+        pageId,
+        tableId,
+        at: z.number().int().min(0).max(MAX_GRID_ROWS),
+        count: z.number().int().min(1).max(MAX_GRID_ROWS).optional().describe("Rows to delete (default: 1)"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id, tableId: table, at, count }) => {
+      const problem = blockResult(await deleteGridPart(userId, id, table, "row", at, count ?? 1));
+      return problem ? fail(problem) : json({ id, tableId: table, url: await pageUrl(id) });
+    },
+  );
+
+  server.registerTool(
+    "delete_table_column",
+    {
+      title: "Delete a column of an extended table",
+      description:
+        "Removes one column of an extended table (counted from 0) with what's in its cells, its type and its summary. Refused if anything in it is locked; a table keeps one column. The page's history keeps it.",
+      inputSchema: z.object({ pageId, tableId, at: z.number().int().min(0).max(MAX_GRID_COLUMNS) }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id, tableId: table, at }) => {
+      const problem = blockResult(await deleteGridPart(userId, id, table, "column", at));
+      return problem ? fail(problem) : json({ id, tableId: table, url: await pageUrl(id) });
     },
   );
 

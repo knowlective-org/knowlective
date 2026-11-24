@@ -70,6 +70,13 @@ export const BLOCK_CONFIGS = {
       // / "updatedAt". Empty (or a column that no longer exists) uses the
       // page's first date column.
       dateBy: { default: "" },
+      // Calendar or Gantt chart, for everyone who sees the block.
+      layout: { default: "calendar" },
+      // What the Gantt chart spans: "week", "month", "quarter" (3 months), "year" or "threeYears".
+      ganttRange: { default: "month" },
+      // The Gantt chart's end dates: a date column's id, "none", or empty for
+      // the first date column other than the one for the start.
+      endBy: { default: "" },
       // A linked view's page (lib/linked-views.ts): "" shows this page's own
       // child pages, LINKED_UNSET one not chosen yet, a page id that page's.
       source: { default: "" },

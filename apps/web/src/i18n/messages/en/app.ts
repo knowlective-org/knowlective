@@ -251,6 +251,7 @@ export default {
     value: "The value is invalid.",
     defaultStatus: "Status",
     defaultDate: "Date",
+    defaultEndDate: "End date",
     defaultStatusOptions: {
       todo: "Not started",
       doing: "In progress",

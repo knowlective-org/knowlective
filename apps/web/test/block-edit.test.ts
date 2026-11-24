@@ -120,6 +120,87 @@ describe("changing one block", () => {
     assert.equal(checkBlockEdit(doc, { kind: "delete", blockId: "r1", newId: "x" })?.code, "not_a_block");
   });
 
+  test("an extended table made: header row as text, typed values checked, at the end or beside a block", () => {
+    const doc = docOf(textBlock("a", "前"));
+    const create = (rows: string[][], extra: Partial<Extract<BlockEdit, { kind: "createGrid" }>> = {}): BlockEdit => ({
+      kind: "createGrid",
+      blockId: null,
+      position: "after",
+      rows: rows.map((r) => r.map((text) => ({ text }))),
+      headerRow: true,
+      headerColumn: false,
+      columns: [null, { type: "number" }],
+      people: ["u1"],
+      idPrefix: "t",
+      ...extra,
+    });
+    // The heading of a number column is text; a value that isn't a number is refused, with where.
+    assert.deepEqual(checkBlockEdit(doc, create([["名前", "数"], ["x", "たくさん"]])), { code: "invalid_cell", row: 1, column: 1, type: "number" });
+    assert.equal(checkBlockEdit(doc, create([["a", "b", "c"]], { columns: [{ type: "masked" }] })), null);
+    assert.equal(checkBlockEdit(doc, create([["a"], ["秘密"]], { columns: [{ type: "masked" }] }))?.code, "masked_cell");
+    assert.equal(applyBlockEdit(doc, create([["名前", "数"], ["x", "1,200"], ["y"]])), null);
+    assert.deepEqual(ids(doc), ["a", "t"]);
+    const table = group(doc).get(1) as Y.XmlElement;
+    assert.equal(table.nodeName, "gridTable");
+    assert.equal(table.length, 3);
+    // Short rows are filled; every row as wide as the table.
+    assert.deepEqual(table.toArray().map((r) => (r as Y.XmlElement).length), [2, 2, 2]);
+    assert.equal(JSON.parse(table.getAttribute("columns") as string)[1].type, "number");
+    assert.equal(((table.get(1) as Y.XmlElement).get(1) as Y.XmlElement).toString().includes("1200"), true);
+    // Beside a block.
+    assert.equal(applyBlockEdit(doc, create([["前に"]], { blockId: "a", position: "before", idPrefix: "u", columns: [] })), null);
+    assert.deepEqual(ids(doc), ["u", "a", "t"]);
+    // On an empty page, the empty paragraph goes.
+    const empty = docOf(textBlock("e", ""));
+    assert.equal(applyBlockEdit(empty, create([["x"]], { columns: [] })), null);
+    assert.deepEqual(ids(empty), ["t"]);
+  });
+
+  test("an extended table's rows and columns added and deleted; rules, widths and summary follow", () => {
+    const doc = gridDoc([{ type: "number" }, null]);
+    (group(doc).get(0) as Y.XmlElement).setAttribute("summary", JSON.stringify([{ fn: "sum" }, null]));
+    const table = () => group(doc).get(0) as Y.XmlElement;
+    const rows = (values: string[][]) => values.map((r) => r.map((text) => ({ text })));
+    // Not above the header row; values by the columns' types.
+    assert.equal(checkBlockEdit(doc, { kind: "gridRows", blockId: "t", at: 0, rows: rows([["1"]]), people: [], idPrefix: "n" })?.code, "header_row");
+    assert.equal(checkBlockEdit(doc, { kind: "gridRows", blockId: "t", at: null, rows: rows([["x"]]), people: [], idPrefix: "n" })?.code, "invalid_cell");
+    assert.equal(checkBlockEdit(doc, { kind: "gridRows", blockId: "t", at: null, rows: rows([["1", "a", "b"]]), people: [], idPrefix: "n" })?.code, "too_many_values");
+    assert.equal(checkBlockEdit(doc, { kind: "gridRows", blockId: "c0", at: null, rows: rows([["1"]]), people: [], idPrefix: "n" })?.code, "not_a_grid_table");
+    assert.equal(applyBlockEdit(doc, { kind: "gridRows", blockId: "t", at: 1, rows: rows([["5", "上"], ["6"]]), people: [], idPrefix: "n" }), null);
+    assert.equal(table().length, 4);
+    assert.equal((table().get(3) as Y.XmlElement).getAttribute("id"), "r1");
+
+    // A select column at the left: its heading is text, its values options.
+    const rule = { type: "select", multiple: false, options: [{ name: "済" }] };
+    assert.equal(checkBlockEdit(doc, { kind: "gridColumn", blockId: "t", at: 0, cells: [{ text: "状態" }, { text: "未知" }], rule, people: [], idPrefix: "m" })?.code, "invalid_cell");
+    assert.equal(applyBlockEdit(doc, { kind: "gridColumn", blockId: "t", at: 0, cells: [{ text: "状態" }, { text: "済" }], rule, people: [], idPrefix: "m" }), null);
+    assert.deepEqual(table().toArray().map((r) => (r as Y.XmlElement).length), [3, 3, 3, 3]);
+    const columns = JSON.parse(table().getAttribute("columns") as string);
+    assert.deepEqual(columns.map((c: { type: string } | null) => c?.type ?? null), ["select", "number", null]);
+    assert.deepEqual(JSON.parse(table().getAttribute("summary") as string), [null, { fn: "sum" }, null]);
+    assert.equal(JSON.parse(table().getAttribute("widths") as string).length, 3);
+
+    // Deleted: a column (its rule and summary go too), rows; a table keeps one of each.
+    assert.equal(applyBlockEdit(doc, { kind: "gridDelete", blockId: "t", axis: "column", at: 1, count: 1 }), null);
+    assert.deepEqual(JSON.parse(table().getAttribute("columns") as string).map((c: { type: string } | null) => c?.type ?? null), ["select", null]);
+    assert.deepEqual(JSON.parse(table().getAttribute("summary") as string), [null, null]);
+    assert.equal(checkBlockEdit(doc, { kind: "gridDelete", blockId: "t", axis: "row", at: 2, count: 5 })?.code, "out_of_range");
+    assert.equal(checkBlockEdit(doc, { kind: "gridDelete", blockId: "t", axis: "row", at: 0, count: 4 })?.code, "keeps_one");
+    assert.equal(applyBlockEdit(doc, { kind: "gridDelete", blockId: "t", axis: "row", at: 1, count: 2 }), null);
+    assert.equal(table().length, 2);
+  });
+
+  test("an extended table's locks: an edit lock stops every change; a lock inside stops deleting what holds it", () => {
+    const doc = gridDoc([null, null]);
+    doc.getMap("blockLocks").set("c1-p", "delete");
+    assert.equal(checkBlockEdit(doc, { kind: "gridDelete", blockId: "t", axis: "row", at: 1, count: 1 })?.code, "blocks_locked");
+    assert.equal(checkBlockEdit(doc, { kind: "gridDelete", blockId: "t", axis: "column", at: 1, count: 1 })?.code, "blocks_locked");
+    assert.equal(checkBlockEdit(doc, { kind: "gridDelete", blockId: "t", axis: "column", at: 0, count: 1 }), null);
+    doc.getMap("blockLocks").set("t", "edit");
+    assert.equal(checkBlockEdit(doc, { kind: "gridRows", blockId: "t", at: null, rows: [[{ text: "x" }]], people: [], idPrefix: "n" })?.code, "blocks_locked");
+    assert.equal(checkBlockEdit(doc, { kind: "gridColumn", blockId: "t", at: null, cells: [], rule: null, people: [], idPrefix: "n" })?.code, "blocks_locked");
+  });
+
   test("mentions in Markdown: only the page's people, not in code", () => {
     const { markdown, ids: found } = protectMentions("<@u1> と <@stranger>", ["u1"]);
     assert.deepEqual(found, ["u1"]);

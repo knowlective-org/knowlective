@@ -80,4 +80,31 @@ test.describe("The ⋮⋮ menu", () => {
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
     await trashOpenPage(page);
   });
+
+  test("turns a table into an extended table, its text kept", async ({ page }) => {
+    await createPage(page, "E2E 拡張テーブルに変換");
+    await typeInBody(page, "/表");
+    await page.getByRole("option", { name: /^表/ }).first().click();
+    const table = editorBody(page).locator('.bn-block-content[data-content-type="table"]');
+    await expect(table).toBeVisible();
+    await table.locator("th, td").first().click();
+    await page.keyboard.type("変換する左");
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("変換する右");
+
+    await table.hover();
+    await page.locator(".bn-side-menu [draggable=true]").click();
+    await page.getByTestId("BlockMenu.toGridTableItem").click();
+    const grid = editorBody(page).locator('[data-node-type="gridTable"]');
+    await expect(grid).toBeVisible();
+    await expect(table).toHaveCount(0);
+    const rows = grid.locator('[data-node-type="gridRow"]');
+    const cells = rows.first().locator('[data-node-type="gridCell"]');
+    // (A cell's text also has its menu button, ⋯.)
+    await expect(cells.nth(0)).toContainText("変換する左");
+    await expect(cells.nth(1)).toContainText("変換する右");
+    await expect(cells.nth(1)).not.toContainText("変換する左");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
 });

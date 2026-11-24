@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { atLeast, canEditPage } from "shared";
 import { currentPageState, markdownToBody } from "@/lib/api/page-content";
-import { type BlockEditError, type DocBlock, type ListedBlock, listBlocks, protectMentions, restoreMentions } from "@/lib/block-edit";
+import { type BlockEditError, type DocBlock, type GridCellInput, type ListedBlock, listBlocks, protectMentions, restoreMentions } from "@/lib/block-edit";
 import { type BodyEdit, editPageBody } from "@/lib/collab-events";
 import { CHECKED } from "@/components/editor/grid-types";
 import { prisma } from "@/lib/db";
@@ -141,5 +141,100 @@ export function blockProblem(problem: BlockEditError): string {
       return `"${problem.prop}" can't be set to that on this ${problem.type}.`;
     case "nothing_to_change":
       return "Send \"content\" or \"props\".";
+    case "not_a_grid_table":
+      return "That block isn't an extended table (type gridTable).";
+    case "out_of_range":
+      return `No ${problem.what} there: ${problem.what === "row" ? "rows" : "columns"} are counted from 0, up to ${problem.max}.`;
+    case "too_large":
+      return `An extended table has at most ${problem.max} ${problem.what}.`;
+    case "too_many_values":
+      return `More values than the table has columns (or rows), at row ${problem.row}.`;
+    case "keeps_one":
+      return `A table keeps at least one ${problem.what}.`;
+    case "header_row":
+      return "Rows can't be added above the header row (row 0). Add them at 1 or later.";
+    case "invalid_cell":
+      return `Row ${problem.row}, column ${problem.column}: not a valid value for a ${problem.type} column.`;
   }
+}
+
+// --- Extended tables ------------------------------------------------------------
+
+export const MAX_CELL_LENGTH = 10_000;
+
+// Text with nothing Markdown would change goes in as it is; the rest (bold,
+// links, mentions, lists…) through the Markdown conversion.
+const plainCell = (text: string) => !/[*_`~[\]\\<>#|!]|:\/\//.test(text) && !/^\s*([-+=]|\d+[.)])/m.test(text);
+
+async function cellInputs(userId: string, pageId: string, values: BlockValue[], people: string[]): Promise<GridCellInput[]> {
+  const out: GridCellInput[] = [];
+  for (const value of values) {
+    const text = valueText(value);
+    out.push(plainCell(text) ? { text } : { text, body: await toBody(userId, pageId, text, people) });
+  }
+  return out;
+}
+
+export type GridTableInput = {
+  // Beside this block, or (omitted) at the end of the page.
+  blockId?: string;
+  position?: "before" | "after";
+  rows: BlockValue[][];
+  headerRow?: boolean;
+  headerColumn?: boolean;
+  columns?: unknown[];
+};
+
+export async function createGridTable(userId: string, pageId: string, input: GridTableInput): Promise<BlockWriteResult & { tableId?: string }> {
+  const denied = await writable(userId, pageId);
+  if (denied) return { error: denied };
+  const people = (await pagePeople(prisma, pageId)).map((p) => p.id);
+  const rows: GridCellInput[][] = [];
+  for (const row of input.rows) rows.push(await cellInputs(userId, pageId, row, people));
+  const tableId = randomUUID();
+  const result = await run(pageId, userId, {
+    kind: "block",
+    edit: {
+      kind: "createGrid",
+      blockId: input.blockId ?? null,
+      position: input.position ?? "after",
+      rows,
+      headerRow: input.headerRow ?? true,
+      headerColumn: input.headerColumn ?? false,
+      columns: input.columns ?? [],
+      people,
+      idPrefix: tableId,
+    },
+  });
+  return "ok" in result ? { ...result, tableId } : result;
+}
+
+export async function insertGridRows(userId: string, pageId: string, tableId: string, at: number | null, values: BlockValue[][]): Promise<BlockWriteResult> {
+  const denied = await writable(userId, pageId);
+  if (denied) return { error: denied };
+  const people = (await pagePeople(prisma, pageId)).map((p) => p.id);
+  const rows: GridCellInput[][] = [];
+  for (const row of values) rows.push(await cellInputs(userId, pageId, row, people));
+  return run(pageId, userId, { kind: "block", edit: { kind: "gridRows", blockId: tableId, at, rows, people, idPrefix: randomUUID() } });
+}
+
+export async function insertGridColumn(
+  userId: string,
+  pageId: string,
+  tableId: string,
+  at: number | null,
+  values: BlockValue[],
+  rule: unknown,
+): Promise<BlockWriteResult> {
+  const denied = await writable(userId, pageId);
+  if (denied) return { error: denied };
+  const people = (await pagePeople(prisma, pageId)).map((p) => p.id);
+  const cells = await cellInputs(userId, pageId, values, people);
+  return run(pageId, userId, { kind: "block", edit: { kind: "gridColumn", blockId: tableId, at, cells, rule, people, idPrefix: randomUUID() } });
+}
+
+export async function deleteGridPart(userId: string, pageId: string, tableId: string, axis: "row" | "column", at: number, count = 1): Promise<BlockWriteResult> {
+  const denied = await writable(userId, pageId);
+  if (denied) return { error: denied };
+  return run(pageId, userId, { kind: "block", edit: { kind: "gridDelete", blockId: tableId, axis, at, count } });
 }
