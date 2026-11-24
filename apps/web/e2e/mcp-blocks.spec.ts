@@ -143,3 +143,80 @@ test("one block changed, inserted beside, deleted; settings checked; only by tho
   }
   await trashOpenPage(page);
 });
+
+test("an extended table made through MCP and the API, its rows and columns added and deleted, live in the editor", async ({ page, baseURL, request }) => {
+  await setMcp(true);
+  const { id } = await createPage(page, `E2E MCP 拡張テーブル ${Date.now()}`);
+  const key = await keyFor("editor", "WRITE");
+  const viewerKey = await keyFor("viewer", "WRITE");
+  const mcp = await connect(baseURL!, key);
+  const viewer = await connect(baseURL!, viewerKey);
+  const table = editorBody(page).locator('[data-node-type="gridTable"]');
+  const rowsOf = () => table.locator('[data-node-type="gridRow"]');
+  try {
+    const created = await mcp.call("create_extended_table", {
+      pageId: id,
+      rows: [["品目", "数量", "状態"], ["**りんご**", 3, "済"], ["みかん", "1,200"]],
+      columns: [null, { type: "number" }, { type: "select", options: ["済", "未"] }],
+    });
+    expect(created.isError).toBeFalsy();
+    const tableId = data(created).tableId as string;
+    await expect(table.locator("strong", { hasText: "りんご" })).toBeVisible();
+    await expect(rowsOf()).toHaveCount(3);
+    const listed = (data(await mcp.call("list_blocks", { pageId: id })).blocks as (Listed & { rowCount?: number; columnTypes?: string[] })[]).find((b) => b.id === tableId)!;
+    expect(listed).toMatchObject({ type: "gridTable", rowCount: 3, columnTypes: ["text", "number", "select"] });
+
+    // A value that doesn't fit its column is refused, with where.
+    const bad = await mcp.call("add_table_rows", { pageId: id, tableId, rows: [["ぶどう", "たくさん"]] });
+    expect(bad.isError).toBe(true);
+    expect(bad.content[0].text).toContain("column 1");
+    expect((await mcp.call("add_table_rows", { pageId: id, tableId, at: 1, rows: [["ぶどう", 5, "未"]] })).isError).toBeFalsy();
+    await expect(rowsOf()).toHaveCount(4);
+    await expect(rowsOf().nth(1)).toContainText("ぶどう");
+
+    expect((await mcp.call("add_table_column", { pageId: id, tableId, type: { type: "date" }, cells: ["期限", "2026-12-01"] })).isError).toBeFalsy();
+    await expect(rowsOf().first().locator('[data-node-type="gridCell"]')).toHaveCount(4);
+    await expect(rowsOf().first()).toContainText("期限");
+
+    expect((await mcp.call("delete_table_column", { pageId: id, tableId, at: 2 })).isError).toBeFalsy();
+    expect((await mcp.call("delete_table_rows", { pageId: id, tableId, at: 3 })).isError).toBeFalsy();
+    await expect(rowsOf()).toHaveCount(3);
+    await expect(rowsOf().first().locator('[data-node-type="gridCell"]')).toHaveCount(3);
+    await expect(table).not.toContainText("みかん");
+
+    // A viewer can't.
+    expect((await viewer.call("add_table_rows", { pageId: id, tableId, rows: [["x"]] })).isError).toBe(true);
+    expect((await viewer.call("create_extended_table", { pageId: id, rows: [["x"]] })).isError).toBe(true);
+    await expect(rowsOf()).toHaveCount(3);
+
+    // The same through the API.
+    const headers = { Authorization: `Bearer ${key}` };
+    const made = await request.post(`api/v1/pages/${id}/tables`, {
+      headers,
+      data: { rows: [["API の列", "数"], ["API の行", 7]], columns: [null, { type: "number" }] },
+    });
+    expect(made.ok()).toBe(true);
+    const apiTable = (await made.json()).tableId as string;
+    const second = editorBody(page).locator('[data-node-type="gridTable"]').nth(1);
+    await expect(second).toContainText("API の行");
+    const apiRows = second.locator('[data-node-type="gridRow"]');
+    const badRow = await request.post(`api/v1/pages/${id}/tables/${apiTable}/rows`, { headers, data: { rows: [["x", "多い"]] } });
+    expect(badRow.status()).toBe(400);
+    expect((await request.post(`api/v1/pages/${id}/tables/${apiTable}/rows`, { headers, data: { rows: [["API で足した行", 8]] } })).ok()).toBe(true);
+    await expect(apiRows).toHaveCount(3);
+    expect((await request.post(`api/v1/pages/${id}/tables/${apiTable}/columns`, { headers, data: { at: 1, cells: ["API の新しい列"] } })).ok()).toBe(true);
+    await expect(apiRows.first()).toContainText("API の新しい列");
+    expect((await request.delete(`api/v1/pages/${id}/tables/${apiTable}/columns?at=1`, { headers })).ok()).toBe(true);
+    await expect(apiRows.first()).not.toContainText("API の新しい列");
+    expect((await request.delete(`api/v1/pages/${id}/tables/${apiTable}/rows?at=1&count=2`, { headers })).ok()).toBe(true);
+    await expect(apiRows).toHaveCount(1);
+    expect((await request.delete(`api/v1/pages/${id}/tables/${apiTable}/rows?at=0`, { headers })).status()).toBe(400);
+    expect((await request.post(`api/v1/pages/${id}/tables/nope/rows`, { headers, data: { rows: [["x"]] } })).status()).toBe(404);
+    const viewerHeaders = { Authorization: `Bearer ${viewerKey}` };
+    expect((await request.post(`api/v1/pages/${id}/tables`, { headers: viewerHeaders, data: { rows: [["x"]] } })).status()).toBe(403);
+  } finally {
+    await mcp.close();
+    await viewer.close();
+  }
+  await trashOpenPage(page);
+});

@@ -1553,6 +1553,15 @@ export function WhiteboardCanvas({
     // What's under the pointer: the board captures the pointer on each
     // press, so the event itself is the board's, not the item's.
     const under = document.elementFromPoint(e.clientX, e.clientY);
+    // The handle that moves a box's text: its text back where it would be.
+    if (!readOnly && tool === "select" && under?.closest("[data-wb-textmove]")) {
+      const id = itemAt(under);
+      if (id && isBox(byId.get(id))) {
+        undo.current?.stopCapturing();
+        change(() => setField(id, { textX: 0, textY: 0 }));
+      }
+      return;
+    }
     if (readOnly || tool !== "select" || !under || under.closest("textarea, [data-wb-text-editor], button, [data-wb-controls]")) return;
     // An item's text is edited; the background does nothing.
     const hit = itemUnder(under, e.clientX, e.clientY);

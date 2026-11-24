@@ -1224,6 +1224,18 @@ test.describe("Whiteboard", () => {
       await expect.poll(async () => Math.round((await diamond.getByText("分岐").boundingBox())!.x)).toBe(Math.round(firstLine.x));
       await expect(page.getByTestId("Whiteboard.resetTextButton")).toHaveCount(0);
 
+      // Moved again; a double-click on the handle puts it back too.
+      const h2 = (await handle.boundingBox())!;
+      await page.mouse.move(h2.x + h2.width / 2, h2.y + h2.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(h2.x + h2.width / 2 + 120, h2.y + h2.height / 2 + 40, { steps: 6 });
+      await page.mouse.up();
+      await expect(page.getByTestId("Whiteboard.resetTextButton")).toHaveCount(1);
+      const h3 = (await handle.boundingBox())!;
+      await page.mouse.dblclick(h3.x + h3.width / 2, h3.y + h3.height / 2);
+      await expect.poll(async () => Math.round((await diamond.getByText("分岐").boundingBox())!.x)).toBe(Math.round(firstLine.x));
+      await expect(page.getByTestId("Whiteboard.resetTextButton")).toHaveCount(0);
+
       await expect(page.getByTestId("PageView.status")).toHaveCount(0);
       await trashOpenPage(page);
     } finally {

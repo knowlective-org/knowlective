@@ -302,3 +302,304 @@
     break-inside: avoid;
   }
 }
+
+/* Calendar or Gantt, and the Gantt chart's period. */
+.segments {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.segment {
+  height: 26px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.segment + .segment {
+  border-left: 1px solid var(--color-border);
+}
+
+.segment:hover {
+  background: var(--color-hover);
+}
+
+.segment[aria-pressed="true"] {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+}
+
+/* The Gantt chart: page titles stay on the left while the days scroll. */
+.ganttScroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.gantt {
+  --gantt-title: 180px;
+  min-width: calc(var(--gantt-title) + var(--gantt-days) * var(--gantt-day-min));
+}
+
+.ganttRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--gantt-title) minmax(0, 1fr);
+  min-height: 32px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ganttBody .ganttRow:last-child {
+  border-bottom: 0;
+}
+
+.ganttTitle {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 4px 8px;
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+.ganttHead,
+.ganttLanes {
+  display: grid;
+  grid-template-columns: repeat(var(--gantt-days), minmax(0, 1fr));
+}
+
+.ganttMonth {
+  grid-row: 1;
+  padding: 2px 4px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-left: 1px solid var(--color-border);
+}
+
+/* A year's months: only their number fits over three years. */
+.ganttMonth[data-long] {
+  padding: 2px 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+.ganttMonth[data-long][data-today] {
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.ganttDay {
+  min-width: 0;
+  padding: 2px 0;
+  overflow: visible;
+  font-size: 11px;
+  color: var(--color-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.gantt[data-range="quarter"] .ganttDay {
+  text-align: left;
+}
+
+.ganttDay[data-today] {
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.ganttBody {
+  position: relative;
+}
+
+/* Behind the rows, right of the titles. */
+.ganttLanes {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--gantt-title);
+  pointer-events: none;
+}
+
+.ganttLanes > div {
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 45%, transparent);
+}
+
+.gantt[data-range="quarter"] .ganttLanes > div {
+  border-right: 0;
+}
+
+.ganttLanes > [data-weekend] {
+  background: var(--color-hover);
+}
+
+.ganttLanes > [data-today] {
+  background: var(--color-primary-light);
+  box-shadow: inset 1px 0 0 var(--color-primary);
+}
+
+/* Today over a long period, whose columns are months. */
+.ganttTodayLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--color-primary);
+  opacity: 0.45;
+}
+
+/* Bars are placed in percentages of the days, so that three years of days
+   aren't a grid of a thousand columns in every row. */
+.ganttTrack {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.ganttBar {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-width: 4px;
+  height: 22px;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: 4px;
+  user-select: none;
+}
+
+.ganttBar[data-editable] {
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.ganttBar[data-dragging] {
+  cursor: grabbing;
+  opacity: 0.8;
+}
+
+.ganttBar:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+/* It goes on past the days shown. */
+.ganttBar[data-before] {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.ganttBar[data-after] {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.ganttBarText {
+  flex: 1;
+  min-width: 0;
+  /* Percentages of the bar: a day can be narrower than fixed padding. */
+  padding: 0 min(8px, 20%);
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Over the bar's ends and reaching 6px outside it, so that a bar only a few
+   pixels wide (a day of three months) can still be taken by an end or by its
+   middle. */
+.ganttHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: calc(6px + min(3px, 25%));
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.ganttHandle[data-edge="start"] {
+  left: -6px;
+}
+
+.ganttHandle[data-edge="end"] {
+  right: -6px;
+}
+
+.ganttHandle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: min(3px, 100%);
+  content: "";
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.ganttHandle[data-edge="start"]::after {
+  left: 6px;
+}
+
+.ganttHandle[data-edge="end"]::after {
+  right: 6px;
+}
+
+.ganttEmpty {
+  position: relative;
+  z-index: 1;
+  padding: 16px;
+  margin-left: var(--gantt-title);
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.ganttFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.ganttFoot .todayButton {
+  margin-left: 0;
+}
+
+@media (max-width: 600px) {
+  .gantt {
+    --gantt-title: 112px;
+  }
+}
+
+@media print {
+  .ganttScroll {
+    overflow: visible;
+  }
+
+  .gantt {
+    min-width: 0;
+  }
+
+  .ganttHandle,
+  .ganttFoot,
+  .segments {
+    display: none;
+  }
+}

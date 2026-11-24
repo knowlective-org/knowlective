@@ -25,6 +25,7 @@ import { blockLockOf, setBlockLocks } from "./block-lock";
 import type { BlockLock } from "@/lib/block-locks";
 import { HEADING_LEVELS, editorSchema, type KnowlectiveEditor } from "./schema";
 import { useReview } from "./review-pane";
+import { type TableContentLike, tableToGrid } from "./table-to-grid";
 
 // The block types a text block can be turned into: BlockNote's list, without
 // the heading levels the schema doesn't allow (the page title is the only H1;
@@ -66,6 +67,7 @@ function BlockMenu() {
   return (
     <DragHandleMenu>
       <BlockTypeItem />
+      <ToGridTableItem />
       <ReviewItem />
       <CopyBlockItem />
       <DuplicateBlockItem />
@@ -183,6 +185,38 @@ function ReviewItem() {
   return (
     <Components.Generic.Menu.Item className="bn-menu-item" data-ui="BlockMenu.reviewItem" onClick={() => review.open(block.id)}>
       {thread ? t("open") : t("start")}
+    </Components.Generic.Menu.Item>
+  );
+}
+
+// A table made an extended table (table-to-grid.ts), in one change (undone
+// at once). It keeps the block's id, so a "can't be deleted" lock and review
+// threads stay with it; a table whose content is locked isn't offered.
+function ToGridTableItem() {
+  const Components = useComponentsContext()!;
+  const { editor, block } = useMenuBlock();
+  const t = useTranslations("editor.blockMenu");
+  if (block === undefined || block.type !== "table" || !editor.isEditable || blockLockOf(editor, block.id) === "edit") return null;
+  const convert = () => {
+    const current = editor.getBlock(block.id);
+    if (!current || current.type !== "table") return;
+    const result = tableToGrid(current.content as unknown as TableContentLike, current.id);
+    if (!result.ok) {
+      showNotice(t("toGridTableTooLarge", { what: result.reason, max: result.max }));
+      return;
+    }
+    try {
+      editor.replaceBlocks([current.id], [result.block as never]);
+    } catch (e) {
+      console.warn("Converting the table failed", e);
+      showNotice(t("toGridTableFailed"));
+      return;
+    }
+    editor.focus();
+  };
+  return (
+    <Components.Generic.Menu.Item className="bn-menu-item" data-ui="BlockMenu.toGridTableItem" onClick={convert}>
+      {t("toGridTable")}
     </Components.Generic.Menu.Item>
   );
 }

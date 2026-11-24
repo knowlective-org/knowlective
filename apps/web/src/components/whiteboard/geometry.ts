@@ -201,11 +201,11 @@ export function straightened(line: LineItem): Pick<LineItem, "x1" | "y1" | "x2" 
   return { x1: mx, y1: my - s * half, x2: mx, y2: my + s * half };
 }
 
-// `to` turned to the nearest multiple of 45° around `from`, as far away (Shift
-// while drawing a line).
+// `to` turned to the nearest multiple of 15° around `from`, as far away (Shift
+// while drawing a line or dragging one of its ends).
 export function snapAngle(from: Point, to: Point): Point {
   const length = Math.hypot(to.x - from.x, to.y - from.y);
-  const step = Math.PI / 4;
+  const step = Math.PI / 12;
   const angle = Math.round(Math.atan2(to.y - from.y, to.x - from.x) / step) * step;
   return { x: from.x + Math.round(Math.cos(angle) * length * 1e6) / 1e6, y: from.y + Math.round(Math.sin(angle) * length * 1e6) / 1e6 };
 }

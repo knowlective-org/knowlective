@@ -192,7 +192,7 @@ export async function addStatusColumn(pageId: string): Promise<{ id: string } | 
 
 // The column a child page calendar starts with when the page has no date
 // column yet: "Date", named in the language of whoever adds it.
-export async function addDateColumn(pageId: string): Promise<{ id: string } | { error: string }> {
+export async function addDateColumn(pageId: string, purpose?: "end"): Promise<{ id: string } | { error: string }> {
   const user = await requireUser();
   const access = typeof pageId === "string" ? await getPageAccess(prisma, user.id, pageId) : null;
   if (!canEditPage(access)) return { error: await notAllowed() };
@@ -206,7 +206,7 @@ export async function addDateColumn(pageId: string): Promise<{ id: string } | { 
       id,
       pageId,
       type: "DATE",
-      name: sealColumnName(key, id, t("defaultDate")),
+      name: sealColumnName(key, id, t(purpose === "end" ? "defaultEndDate" : "defaultDate")),
       options: null,
       position: (existing._max.position ?? -1) + 1,
     },

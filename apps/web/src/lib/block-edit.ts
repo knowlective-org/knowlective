@@ -1,7 +1,9 @@
 import * as Y from "yjs";
 import { type BlockLock, lockedBlockIds } from "./block-locks";
 import { BODY_FIELD } from "./body-edit";
-import { CHECKED, type GridColumn, normalizeCheckbox, normalizeDate, normalizeNumber, parseColumns, selectedOptions } from "../components/editor/grid-types";
+import { CHECKED, type GridColumn, normalizeCheckbox, normalizeDate, normalizeNumber, parseColumns, selectedOptions, serializeColumns, shiftColumns } from "../components/editor/grid-types";
+import { MAX_GRID_COLUMNS, MAX_GRID_ROWS, gridWidths } from "../components/editor/grid-table-config";
+import { shiftSummary } from "../components/editor/grid-summary";
 import { parseVideoUrl } from "../components/editor/video-url";
 import { safeHttpUrl } from "./safe-url";
 
@@ -26,7 +28,39 @@ export type BlockEditError =
   | { code: "masked_cell" }
   | { code: "invalid_value" }
   | { code: "invalid_prop"; prop: string; type: string }
-  | { code: "nothing_to_change" };
+  | { code: "nothing_to_change" }
+  | { code: "not_a_grid_table" }
+  | { code: "out_of_range"; what: "row" | "column"; max: number }
+  | { code: "too_large"; what: "rows" | "columns"; max: number }
+  | { code: "too_many_values"; row: number }
+  | { code: "keeps_one"; what: "row" | "column" }
+  | { code: "header_row" }
+  | { code: "invalid_cell"; row: number; column: number; type: string };
+
+// A cell sent for an extended table: its text, and (when it's Markdown with
+// more than plain text) the same as a body. A typed column takes the text.
+export type GridCellInput = { text: string; body?: Uint8Array };
+
+// Making an extended table, or changing its rows and columns. `idPrefix`: a
+// fresh id for the new table (or this change); the new rows and cells get
+// "<idPrefix>-<n>".
+export type GridEdit =
+  | {
+      kind: "createGrid";
+      // Beside this block, or (null) at the end of the page.
+      blockId: string | null;
+      position: "before" | "after";
+      rows: GridCellInput[][];
+      headerRow: boolean;
+      headerColumn: boolean;
+      // The columns' rules (unchecked; parseColumns cleans them).
+      columns: unknown[];
+      people: string[];
+      idPrefix: string;
+    }
+  | { kind: "gridRows"; blockId: string; at: number | null; rows: GridCellInput[][]; people: string[]; idPrefix: string }
+  | { kind: "gridColumn"; blockId: string; at: number | null; cells: GridCellInput[]; rule: unknown; people: string[]; idPrefix: string }
+  | { kind: "gridDelete"; blockId: string; axis: "row" | "column"; at: number; count: number };
 
 export type BlockEdit =
   | {
@@ -44,7 +78,8 @@ export type BlockEdit =
       newId: string;
     }
   | { kind: "insert"; blockId: string; position: "before" | "after"; body: Uint8Array }
-  | { kind: "delete"; blockId: string; newId: string };
+  | { kind: "delete"; blockId: string; newId: string }
+  | GridEdit;
 
 // --- Settings ----------------------------------------------------------------
 
@@ -102,7 +137,14 @@ export const EDITABLE_PROPS: Record<string, Record<string, Check>> = {
   childPages: { title: TITLE, depth: (v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 10 ? v : INVALID), sort },
   childTable: { title: TITLE, sort, source: idOrEmpty },
   childBoard: { title: TITLE, groupBy: idOrEmpty, subGroupBy: idOrEmpty, sort, source: idOrEmpty },
-  childCalendar: { title: TITLE, dateBy: idOrEmpty, source: idOrEmpty },
+  childCalendar: {
+    title: TITLE,
+    dateBy: idOrEmpty,
+    endBy: idOrEmpty,
+    layout: (v) => (v === "calendar" || v === "gantt" ? v : INVALID),
+    ganttRange: (v) => (v === "week" || v === "month" || v === "quarter" || v === "year" || v === "threeYears" ? v : INVALID),
+    source: idOrEmpty,
+  },
   gridTable: { headerRow: flag, headerColumn: flag },
 };
 
@@ -373,12 +415,225 @@ function planDelete(found: Found, edit: Extract<BlockEdit, { kind: "delete" }>, 
   };
 }
 
-function plan(doc: Y.Doc, edit: BlockEdit): Plan {
+// --- Extended tables ----------------------------------------------------------------
+
+const ids = (prefix: string) => {
+  let n = 0;
+  return () => `${prefix}-${++n}`;
+};
+
+const tableWidth = (table: Y.XmlElement) => Math.max(1, ...table.toArray().map((r) => (r as Y.XmlElement).length));
+const hasHeaderRow = (table: Y.XmlElement) => (table.getAttribute("headerRow") as unknown) !== false;
+
+function element(name: string, id: string, children: Y.XmlElement[]): Y.XmlElement {
+  const e = new Y.XmlElement(name);
+  e.setAttribute("id", id);
+  e.insert(0, children);
+  return e;
+}
+
+// A new cell: a typed column's value (checked), or blocks (Markdown) / lines of text.
+function cellNode(input: GridCellInput, rule: GridColumn | null, people: string[], nextId: () => string): Y.XmlElement | "masked" | "invalid" {
+  const id = nextId();
+  if (rule?.type === "masked") {
+    // Sealed in the browser with the column's passphrase only.
+    return input.text === "" ? element("gridCell", id, [emptyParagraph(nextId())]) : "masked";
+  }
+  if (rule) {
+    const value = typedValue(input.text, rule, people);
+    return value ? element("gridCell", id, [valueBlock(nextId(), value)]) : "invalid";
+  }
+  const blocks = input.body ? bodyBlocks(input.body) : [];
+  if (blocks.length > 0 && !(blocks.length === 1 && isEmptyParagraph(blocks[0]))) {
+    return element("gridCell", id, clones(blocks) as Y.XmlElement[]);
+  }
+  return element("gridCell", id, [valueBlock(nextId(), { text: input.text })]);
+}
+
+// New rows of cells, `first` being the row index the first one gets.
+function rowNodes(
+  rows: GridCellInput[][],
+  width: number,
+  rules: (GridColumn | null)[],
+  header: boolean,
+  first: number,
+  people: string[],
+  nextId: () => string,
+): Y.XmlElement[] | BlockEditError {
+  const out: Y.XmlElement[] = [];
+  for (const [i, cells] of rows.entries()) {
+    const r = first + i;
+    if (cells.length > width) return { code: "too_many_values", row: r };
+    const made: Y.XmlElement[] = [];
+    for (let c = 0; c < width; c++) {
+      const rule = header && r === 0 ? null : rules[c];
+      const cell = cellNode(cells[c] ?? { text: "" }, rule, people, nextId);
+      if (cell === "masked") return { code: "masked_cell" };
+      if (cell === "invalid") return { code: "invalid_cell", row: r, column: c, type: rule?.type ?? "text" };
+      made.push(cell);
+    }
+    out.push(element("gridRow", nextId(), made));
+  }
+  return out;
+}
+
+// The table to change, if it can be changed.
+function editableTable(found: Found, locks: Map<string, BlockLock>): Y.XmlElement | BlockEditError {
+  const { node, ancestors } = found;
+  if (node.nodeName !== "gridTable") return { code: "not_a_grid_table" };
+  if (editLocked([...ancestors, node], locks)) return { code: "blocks_locked" };
+  return node;
+}
+
+function planCreateGrid(doc: Y.Doc, edit: Extract<GridEdit, { kind: "createGrid" }>, locks: Map<string, BlockLock>): Plan {
+  if (edit.rows.length === 0) return { code: "empty_content" };
+  if (edit.rows.length > MAX_GRID_ROWS) return { code: "too_large", what: "rows", max: MAX_GRID_ROWS };
+  const width = Math.max(1, ...edit.rows.map((r) => r.length), edit.columns.length);
+  if (width > MAX_GRID_COLUMNS) return { code: "too_large", what: "columns", max: MAX_GRID_COLUMNS };
+  const columns = serializeColumns(parseColumns(JSON.stringify(edit.columns), width));
+  const rules = parseColumns(columns, width);
+  const nextId = ids(edit.idPrefix);
+  const rows = rowNodes(edit.rows, width, rules, edit.headerRow, 0, edit.people, nextId);
+  if (!Array.isArray(rows)) return rows;
+
+  const table = element("gridTable", edit.idPrefix, rows);
+  table.setAttribute("headerRow", edit.headerRow as never);
+  table.setAttribute("headerColumn", edit.headerColumn as never);
+  table.setAttribute("widths", "");
+  table.setAttribute("summary", "");
+  table.setAttribute("columns", columns);
+
+  if (edit.blockId === null) {
+    return () => {
+      const fragment = doc.getXmlFragment(BODY_FIELD);
+      let group = fragment.get(0);
+      if (!(group instanceof Y.XmlElement)) {
+        // A page never opened in the editor: no body yet.
+        group = new Y.XmlElement("blockGroup");
+        fragment.insert(0, [group as Y.XmlElement]);
+      }
+      const blocks = group as Y.XmlElement;
+      const only = blocks.get(0);
+      if (blocks.length === 1 && only instanceof Y.XmlElement && isEmptyParagraph(only)) blocks.delete(0, 1);
+      blocks.insert(blocks.length, [table]);
+    };
+  }
   const found = findBlock(doc, edit.blockId);
   if (!found) return { code: "block_not_found" };
+  const { node, ancestors } = found;
+  if (!MOVABLE.has(node.nodeName)) return { code: "not_a_block", type: node.nodeName };
+  if (editLocked(ancestors, locks)) return { code: "blocks_locked" };
+  if (inTypedCell(ancestors)) return { code: "typed_cell" };
+  const parent = node.parent as Y.XmlElement;
+  return () => {
+    const index = parent.toArray().indexOf(node);
+    parent.insert(edit.position === "before" ? index : index + 1, [table]);
+  };
+}
+
+function planGridRows(found: Found, edit: Extract<GridEdit, { kind: "gridRows" }>, locks: Map<string, BlockLock>): Plan {
+  const table = editableTable(found, locks);
+  if (!(table instanceof Y.XmlElement)) return table;
+  const count = table.length;
+  const at = edit.at ?? count;
+  if (!Number.isInteger(at) || at < 0 || at > count) return { code: "out_of_range", what: "row", max: count };
+  const header = hasHeaderRow(table);
+  // Above the header row the new row would become the header.
+  if (header && at === 0) return { code: "header_row" };
+  if (edit.rows.length === 0) return { code: "empty_content" };
+  if (count + edit.rows.length > MAX_GRID_ROWS) return { code: "too_large", what: "rows", max: MAX_GRID_ROWS };
+  const width = tableWidth(table);
+  const rows = rowNodes(edit.rows, width, parseColumns(table.getAttribute("columns"), width), header, at, edit.people, ids(edit.idPrefix));
+  if (!Array.isArray(rows)) return rows;
+  return () => table.insert(at, rows);
+}
+
+function planGridColumn(found: Found, edit: Extract<GridEdit, { kind: "gridColumn" }>, locks: Map<string, BlockLock>): Plan {
+  const table = editableTable(found, locks);
+  if (!(table instanceof Y.XmlElement)) return table;
+  const width = tableWidth(table);
+  const at = edit.at ?? width;
+  if (!Number.isInteger(at) || at < 0 || at > width) return { code: "out_of_range", what: "column", max: width };
+  if (width + 1 > MAX_GRID_COLUMNS) return { code: "too_large", what: "columns", max: MAX_GRID_COLUMNS };
+  const rows = table.toArray() as Y.XmlElement[];
+  if (edit.cells.length > rows.length) return { code: "too_many_values", row: rows.length };
+  const header = hasHeaderRow(table);
+  const rule = parseColumns(JSON.stringify([edit.rule]), 1)[0];
+  const nextId = ids(edit.idPrefix);
+  const cells: Y.XmlElement[] = [];
+  for (const [r] of rows.entries()) {
+    const cellRule = header && r === 0 ? null : rule;
+    const cell = cellNode(edit.cells[r] ?? { text: "" }, cellRule, edit.people, nextId);
+    if (cell === "masked") return { code: "masked_cell" };
+    if (cell === "invalid") return { code: "invalid_cell", row: r, column: at, type: cellRule?.type ?? "text" };
+    cells.push(cell);
+  }
+  return () => {
+    rows.forEach((row, r) => row.insert(Math.min(at, row.length), [cells[r]]));
+    // As wide as the others are on average, as in the editor.
+    const widths = gridWidths(table.getAttribute("widths"), width);
+    widths.splice(at, 0, widths.reduce((a, b) => a + b, 0) / widths.length);
+    table.setAttribute("widths", JSON.stringify(widths.map((w) => Math.round(w * 100) / 100)));
+    const summary = table.getAttribute("summary");
+    if (summary) table.setAttribute("summary", shiftSummary(summary, width, at, 1));
+    const rules = parseColumns(shiftColumns(table.getAttribute("columns"), width, at, 1), width + 1);
+    rules[at] = rule;
+    table.setAttribute("columns", serializeColumns(rules));
+  };
+}
+
+function planGridDelete(found: Found, edit: Extract<GridEdit, { kind: "gridDelete" }>, locks: Map<string, BlockLock>): Plan {
+  const table = editableTable(found, locks);
+  if (!(table instanceof Y.XmlElement)) return table;
+  const rows = table.toArray() as Y.XmlElement[];
+  const { at, count } = edit;
+  if (edit.axis === "row") {
+    if (!Number.isInteger(at) || !Number.isInteger(count) || count < 1 || at < 0 || at + count > rows.length) {
+      return { code: "out_of_range", what: "row", max: rows.length - 1 };
+    }
+    if (count >= rows.length) return { code: "keeps_one", what: "row" };
+    // Any lock on what goes (a delete lock too).
+    if (rows.slice(at, at + count).some((row) => hasIdIn(row, locks))) return { code: "blocks_locked" };
+    return () => table.delete(at, count);
+  }
+  const width = tableWidth(table);
+  if (!Number.isInteger(at) || at < 0 || at >= width || count !== 1) return { code: "out_of_range", what: "column", max: width - 1 };
+  if (width <= 1) return { code: "keeps_one", what: "column" };
+  const going = rows.map((row) => (at < row.length && row.length > 1 ? (row.get(at) as Y.XmlElement) : null));
+  if (going.some((cell) => cell && hasIdIn(cell, locks))) return { code: "blocks_locked" };
+  return () => {
+    rows.forEach((row, r) => {
+      if (going[r]) row.delete(at, 1);
+    });
+    const widths = gridWidths(table.getAttribute("widths"), width);
+    widths.splice(at, 1);
+    table.setAttribute("widths", JSON.stringify(widths));
+    const summary = table.getAttribute("summary");
+    if (summary) table.setAttribute("summary", shiftSummary(summary, width, at, -1));
+    const columns = table.getAttribute("columns");
+    if (columns) table.setAttribute("columns", shiftColumns(columns, width, at, -1));
+  };
+}
+
+function plan(doc: Y.Doc, edit: BlockEdit): Plan {
   const locks = lockedBlockIds(doc);
-  if (edit.kind === "update") return planUpdate(found, edit, locks);
-  return edit.kind === "insert" ? planInsert(found, edit, locks) : planDelete(found, edit, locks);
+  if (edit.kind === "createGrid") return planCreateGrid(doc, edit, locks);
+  const found = findBlock(doc, edit.blockId);
+  if (!found) return { code: "block_not_found" };
+  switch (edit.kind) {
+    case "update":
+      return planUpdate(found, edit, locks);
+    case "insert":
+      return planInsert(found, edit, locks);
+    case "delete":
+      return planDelete(found, edit, locks);
+    case "gridRows":
+      return planGridRows(found, edit, locks);
+    case "gridColumn":
+      return planGridColumn(found, edit, locks);
+    case "gridDelete":
+      return planGridDelete(found, edit, locks);
+  }
 }
 
 // Why the edit can't be made, or null.
@@ -479,6 +734,9 @@ export type ListedBlock = {
   row?: number;
   column?: number;
   columnType?: string;
+  // An extended table's: its rows (the header row counted) and its columns' types.
+  rowCount?: number;
+  columnTypes?: string[];
 };
 
 const escapeMarkdown = (text: string) => text.replace(/([\\`*_[\]~])/g, "\\$1");
@@ -549,6 +807,8 @@ export function listBlocks(blocks: DocBlock[]): ListedBlock[] {
         const width = Math.max(0, ...rows.map((r) => r.children?.length ?? 0));
         const rules = parseColumns(b.props?.columns, width);
         const header = b.props?.headerRow !== false;
+        entry.rowCount = rows.length;
+        entry.columnTypes = rules.map((rule) => rule?.type ?? "text");
         rows.forEach((row, r) => {
           (row.children ?? []).forEach((cell, c) => {
             if (typeof cell.id !== "string") return;

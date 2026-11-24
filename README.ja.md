@@ -330,6 +330,11 @@ DB の変更は要らない（`User.locale` と `InstanceConfig.defaultLocale` �
 | `GET /api/v1/pages/<id>/children` | 子ページ（並び順）と、そのページの子ページテーブルの列の値（`properties`。列名ごと。`?property=<列名>`（複数可）で一部だけ）。選択肢は選択肢の名前、ユーザーは `{ id, name }`、マスク列は `{ "masked": true }` |
 | `GET /api/v1/pages/<id>/tables` | ページの本文にある表（テーブル・拡張テーブル・子ページテーブル。リンクビューも）：`id`・`kind`・`title`・上の見出し `heading`・`columns`・`rowCount` |
 | `GET /api/v1/pages/<id>/tables/<表の id>` | 1つの表の値：全部の列か、`?column=<列名>`（複数可）で指定した列だけ。`?offset=`・`?limit=`（5,000 まで、既定は 1,000）で行を分けて取れる。値は列名ごとに、数値・日付・true/false・選択肢の名前（複数なら配列）・人（`id`・`name`）・文字・null。鍵の列は `{ "masked": true }` だけ |
+| `POST /api/v1/pages/<id>/tables` | 拡張テーブルを作る：`{ "rows": [[...], ...], "blockId"?: "...", "position"?: "before" \| "after", "headerRow"?: true, "headerColumn"?: false, "columns"?: [{ "type": "number" }, ...] }`。そのブロックの前後か、ページの最後に入れ、`tableId` を返す。列の `type` は `text`・`number`（`grouping`・`decimals`）・`date`・`select`（`options`・`multiple`）・`checkbox`・`user`・`masked`（セルは空だけ）。セルは列の種類に合う値で、テキストの列はインラインの Markdown |
+| `POST /api/v1/pages/<id>/tables/<表の id>/rows` | 拡張テーブルに行を足す：`{ "rows": [[...]], "at"?: 2 }`（行は 0 から数え、見出しの行が 0。省略すると最後） |
+| `DELETE /api/v1/pages/<id>/tables/<表の id>/rows?at=<番号>&count=<数>` | 行を消す（既定は1行）。中にロックがあれば断り、最後の1行は消せない |
+| `POST /api/v1/pages/<id>/tables/<表の id>/columns` | 列を1つ足す：`{ "at"?: 1, "type"?: { ... }, "cells"?: [...] }`（セルは上から順。`at` を省略すると右端） |
+| `DELETE /api/v1/pages/<id>/tables/<表の id>/columns?at=<番号>` | 列を1つ、種類と集計ごと消す |
 | `GET /api/v1/pages/<id>/blocks` | ページのブロック（順番どおり）と id：`type`・`parentId`・`text`（インラインの Markdown。メンションは `<@ユーザー id>`）・変更できる設定 `props`。拡張テーブルのセルは `gridCell`。鍵でマスクした内容は含まない。`?offset=`・`?limit=`（2,000 まで） |
 | `PATCH /api/v1/pages/<id>/blocks/<ブロック id>` | 1つのブロックを変更する（id・種類・下のブロックは残る）：`{ "content": "...", "props": { ... } }`（どちらか一方でもよい）。セルは列の種類に合う値。編集の権限が必要で、ロックしたブロックと鍵の値は断る |
 | `POST /api/v1/pages/<id>/blocks` | ブロックの前後に新しいブロックを入れる：`{ "blockId": "...", "position": "before" \| "after", "markdown": "..." }` |

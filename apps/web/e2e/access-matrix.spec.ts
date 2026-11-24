@@ -101,6 +101,16 @@ test.describe("Access matrix", () => {
       expect([401, 403], `${account} notifications POST`).toContain(
         (await context.request.post(`api/v1/pages/${pageId}/notifications`, { data: { userIds: ["x"], text: "x" } })).status(),
       );
+      // Extended tables made and changed.
+      expect([401, 403], `${account} tables POST`).toContain(
+        (await context.request.post(`api/v1/pages/${pageId}/tables`, { data: { rows: [["x"]] } })).status(),
+      );
+      for (const part of ["rows", "columns"]) {
+        expect([401, 403], `${account} ${part} POST`).toContain(
+          (await context.request.post(`api/v1/pages/${pageId}/tables/x/${part}`, { data: { rows: [["x"]], cells: ["x"] } })).status(),
+        );
+        expect([401, 403], `${account} ${part} DELETE`).toContain((await context.request.delete(`api/v1/pages/${pageId}/tables/x/${part}?at=0`)).status());
+      }
       // The MCP server takes keys only too (404 while it's off).
       expect([401, 404], `${account} MCP`).toContain(
         (await context.request.post("api/mcp", { data: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} } })).status(),

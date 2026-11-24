@@ -17,6 +17,9 @@ import { useChildrenData, usePageEditor } from "./page-context";
 import { LinkedSource, LinkedUnsetNote, useLinkedPlaceholder, useLinkedView } from "./linked-view";
 import { type ColumnView, type Format, FilterPanel, Popover, cellReader, usePersonalView } from "./child-table-block";
 import { type Month, addMonths, localDay, monthOf, monthWeeks, todayKey } from "./calendar";
+import { CalendarAddInput } from "./calendar-add-input";
+import { ChildGantt, type GanttSpan } from "./child-gantt";
+import { GANTT_RANGES, type GanttRange, isGanttRange, pageSpan } from "./gantt";
 import { BLOCK_CONFIGS } from "./block-configs";
 import styles from "./child-calendar-block.module.css";
 
@@ -30,6 +33,10 @@ import styles from "./child-calendar-block.module.css";
 //
 // The dates can also come from when pages were created or last changed
 // (read only: nothing to set by dragging).
+//
+// The block can show the same pages as a Gantt chart (child-gantt.tsx), from a
+// start and an end date column. Which view and how long a period it shows are
+// the block's, for everyone.
 
 const BUILTIN_DATES = ["createdAt", "updatedAt"] as const;
 
@@ -39,6 +46,9 @@ export const childCalendarBlock = createReactBlockSpec(BLOCK_CONFIGS.childCalend
       blockId={block.id}
       title={block.props.title}
       dateBy={block.props.dateBy}
+      endBy={block.props.endBy}
+      layout={block.props.layout === "gantt" ? "gantt" : "calendar"}
+      ganttRange={isGanttRange(block.props.ganttRange) ? block.props.ganttRange : "month"}
       source={block.props.source}
       editable={editor.isEditable}
       onChange={(props) => editor.updateBlock(block, { props })}
@@ -50,6 +60,9 @@ function ChildCalendar({
   blockId,
   title,
   dateBy,
+  endBy,
+  layout,
+  ganttRange,
   source,
   editable,
   onChange,
@@ -57,9 +70,12 @@ function ChildCalendar({
   blockId: string;
   title: string;
   dateBy: string;
+  endBy: string;
+  layout: "calendar" | "gantt";
+  ganttRange: GanttRange;
   source: string;
   editable: boolean;
-  onChange: (props: { title?: string; dateBy?: string; source?: string }) => void;
+  onChange: (props: { title?: string; dateBy?: string; endBy?: string; layout?: "calendar" | "gantt"; ganttRange?: GanttRange; source?: string }) => void;
 }) {
   const { pageId } = usePageEditor();
   const router = useRouter();
@@ -77,10 +93,12 @@ function ChildCalendar({
   const [month, setMonth] = useState<Month>(() => monthOf(todayKey())!);
   // Dates shown before the server has them: page id → date ("" = none).
   const [moved, setMoved] = useState<Record<string, string>>({});
+  // The same for end dates (Gantt chart).
+  const [movedEnd, setMovedEnd] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
   const { view, setView } = usePersonalView(pageId, blockId);
   const [filterOpen, setFilterOpen] = useState(false);
-  const saving = Object.keys(moved).length > 0;
+  const saving = Object.keys(moved).length + Object.keys(movedEnd).length > 0;
   useReportSaving(saving);
 
   const format = useMemo<Format>(
@@ -99,6 +117,9 @@ function ChildCalendar({
   const builtin = (BUILTIN_DATES as readonly string[]).includes(dateBy) ? (dateBy as (typeof BUILTIN_DATES)[number]) : null;
   const column = builtin ? null : (dateColumns.find((c) => c.id === dateBy) ?? dateColumns[0] ?? null);
   const settable = !!column && editable;
+  // The end dates' column: the one chosen, else the next date column.
+  const others = dateColumns.filter((c) => c.id !== column?.id);
+  const endColumn = endBy === "none" ? null : (others.find((c) => c.id === endBy) ?? others[0] ?? null);
 
   const filterColumns = useMemo<ColumnView[]>(
     () => [
@@ -121,6 +142,34 @@ function ChildCalendar({
     if (!column) return "";
     const value = moved[row.id] ?? row.values[column.id] ?? "";
     return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  };
+  const endOf = (row: ChildTableRow): string => (endColumn ? (movedEnd[row.id] ?? row.values[endColumn.id] ?? "") : "");
+  const spanOf = (row: ChildTableRow): GanttSpan | null => {
+    const end = endOf(row);
+    const span = pageSpan(dateOf(row), end);
+    return span && { ...span, hasEnd: !!end && end === span.end };
+  };
+  // Both of a page's dates, each saved only if it changed.
+  const setSpan = async (row: ChildTableRow, start: string, end: string) => {
+    if (!column || !row.canEdit) return;
+    const startChanged = dateOf(row) !== start;
+    // No end given: the page's stays as it is (one before its start is
+    // ignored on the chart, not erased).
+    const endChanged = !!endColumn && !!end && endOf(row) !== end;
+    if (!startChanged && !endChanged) return;
+    if (startChanged) setMoved((m) => ({ ...m, [row.id]: start }));
+    if (endChanged) setMovedEnd((m) => ({ ...m, [row.id]: end }));
+    const write = async (columnId: string, value: string) => {
+      const result = await setCellValue(row.id, columnId, value).catch(() => ({ error: failed }));
+      return result.error ?? null;
+    };
+    // One after the other: the second isn't tried if the first is refused.
+    const error = (startChanged ? await write(column.id, start) : null) ?? (endChanged ? await write(endColumn!.id, end) : null);
+    if (error) await showAlert(error);
+    await reload();
+    const without = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).filter(([id]) => id !== row.id));
+    setMoved(without);
+    setMovedEnd(without);
   };
   const byDay = new Map<string, ChildTableRow[]>();
   const undated: ChildTableRow[] = [];
@@ -181,6 +230,40 @@ function ChildCalendar({
           <FilterPanel columns={filterColumns} data={data} filters={view.filters} onChange={(filters) => setView({ ...view, filters })} />
         </Popover>
       )}
+      {editable && data && (column || builtin) && (
+        <div className={styles.segments} role="group" aria-label={t("childCalendar.layout")}>
+          {(["calendar", "gantt"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={styles.segment}
+              aria-pressed={layout === value}
+              onClick={() => onChange({ layout: value })}
+              data-ui="ChildCalendarBlock.layoutButton"
+              data-id={value}
+            >
+              {t(`childCalendar.layouts.${value}`)}
+            </button>
+          ))}
+        </div>
+      )}
+      {editable && data && (column || builtin) && layout === "gantt" && (
+        <div className={styles.segments} role="group" aria-label={t("childCalendar.ganttRange")}>
+          {GANTT_RANGES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={styles.segment}
+              aria-pressed={ganttRange === value}
+              onClick={() => onChange({ ganttRange: value })}
+              data-ui="ChildCalendarBlock.rangeButton"
+              data-id={value}
+            >
+              {t(`childCalendar.ganttRanges.${value}`)}
+            </button>
+          ))}
+        </div>
+      )}
       {editable && data && (column || builtin) && sources.length > 1 && (
         <select
           className={styles.inlineSelect}
@@ -191,10 +274,47 @@ function ChildCalendar({
         >
           {sources.map((s) => (
             <option key={s.value} value={s.value}>
-              {t("childCalendar.dateByOption", { name: s.label })}
+              {t(layout === "gantt" ? "childCalendar.startByOption" : "childCalendar.dateByOption", { name: s.label })}
             </option>
           ))}
         </select>
+      )}
+      {editable && data && (column || builtin) && layout === "gantt" && others.length > 0 && (
+        <select
+          className={styles.inlineSelect}
+          data-ui="ChildCalendarBlock.endBySelect"
+          value={endColumn?.id ?? "none"}
+          onChange={(e) => onChange({ endBy: e.target.value })}
+          aria-label={t("childCalendar.endBy")}
+        >
+          <option value="none">{t("childCalendar.noEnd")}</option>
+          {others.map((c) => (
+            <option key={c.id} value={c.id}>
+              {t("childCalendar.endByOption", { name: c.name })}
+            </option>
+          ))}
+        </select>
+      )}
+      {editable && data?.canEditColumns && !linked && column && layout === "gantt" && others.length === 0 && (
+        <button
+          type="button"
+          className={styles.todayButton}
+          data-ui="ChildCalendarBlock.createEndButton"
+          disabled={creating}
+          onClick={async () => {
+            setCreating(true);
+            try {
+              const result = await addDateColumn(pageId, "end").catch(() => ({ error: failed }));
+              if ("error" in result) await showAlert(result.error);
+              else onChange({ endBy: result.id });
+              await reload();
+            } finally {
+              setCreating(false);
+            }
+          }}
+        >
+          {t("childCalendar.createEnd")}
+        </button>
       )}
     </div>
   );
@@ -247,25 +367,39 @@ function ChildCalendar({
   return (
     <div className={styles.block} contentEditable={false} data-ui="ChildCalendarBlock">
       {header}
-      <MonthNav month={month} onMonth={setMonth} />
+      {layout === "calendar" && <MonthNav month={month} onMonth={setMonth} />}
       {filterCount > 0 && rows.length === 0 && data.rows.length > 0 && (
         <p className={styles.muted} data-ui="ChildCalendarBlock.noMatchStatus">
           {t("childTable.noMatch")}
         </p>
       )}
-      <Grid
-        month={month}
-        byDay={byDay}
-        undated={undated}
-        data={data}
-        saving={saving}
-        settable={settable}
-        // New pages go under the page whose child pages these are (for a
-        // linked view, with EDIT there).
-        canAdd={settable && (!linked || data.canEditColumns)}
-        onMove={setDate}
-        onAdd={addPage}
-      />
+      {layout === "gantt" ? (
+        <ChildGantt
+          range={ganttRange}
+          rows={rows}
+          spanOf={spanOf}
+          saving={saving}
+          settable={settable}
+          resizable={!!endColumn}
+          canAdd={settable && (!linked || data.canEditColumns)}
+          onChange={setSpan}
+          onAdd={addPage}
+        />
+      ) : (
+        <Grid
+          month={month}
+          byDay={byDay}
+          undated={undated}
+          data={data}
+          saving={saving}
+          settable={settable}
+          // New pages go under the page whose child pages these are (for a
+          // linked view, with EDIT there).
+          canAdd={settable && (!linked || data.canEditColumns)}
+          onMove={setDate}
+          onAdd={addPage}
+        />
+      )}
     </div>
   );
 }
@@ -466,7 +600,7 @@ function Grid({
                     {cards.map(card)}
                   </div>
                   {adding === day.date && (
-                    <AddInput
+                    <CalendarAddInput
                       placeholder={t("newPagePlaceholder")}
                       onDone={async (text) => {
                         setAdding(null);
@@ -514,33 +648,5 @@ function Grid({
         </section>
       )}
     </div>
-  );
-}
-
-// A new page's title, typed in a day: Enter adds (empty is an untitled
-// page), Esc cancels, leaving it empty cancels.
-function AddInput({ placeholder, onDone }: { placeholder: string; onDone: (title: string | null) => Promise<void> }) {
-  const [busy, setBusy] = useState(false);
-  const submit = async (value: string | null) => {
-    if (busy) return;
-    setBusy(true);
-    await onDone(value === null ? null : value.replace(/\s+/g, " ").trim());
-  };
-  return (
-    <input
-      className={styles.addInput}
-      data-ui="ChildCalendarBlock.addInput"
-      placeholder={placeholder}
-      maxLength={200}
-      autoFocus
-      disabled={busy}
-      aria-label={placeholder}
-      onKeyDown={(e) => {
-        if (e.nativeEvent.isComposing) return;
-        if (e.key === "Enter") void submit(e.currentTarget.value);
-        if (e.key === "Escape") void submit(null);
-      }}
-      onBlur={(e) => void submit(e.currentTarget.value.trim() ? e.currentTarget.value : null)}
-    />
   );
 }

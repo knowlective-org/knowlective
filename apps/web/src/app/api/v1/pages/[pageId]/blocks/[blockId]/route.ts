@@ -1,18 +1,9 @@
-import { apiError, apiJson, withApiKey } from "@/lib/api/http";
+import { apiError, withApiKey } from "@/lib/api/http";
 import { MAX_MARKDOWN_BYTES } from "@/lib/api/page-content";
-import { type BlockValue, type BlockWriteResult, blockProblem, deleteBlock, updateBlock } from "@/lib/api/blocks";
+import { type BlockValue, deleteBlock, updateBlock } from "@/lib/api/blocks";
+import { blockWriteResponse as answer } from "@/lib/api/grid-input";
 
 type Context = RouteContext<"/api/v1/pages/[pageId]/blocks/[blockId]">;
-
-function answer(result: BlockWriteResult): Response {
-  if ("error" in result) return apiError(result.error);
-  if ("problem" in result) {
-    if (result.problem.code === "blocks_locked") return apiError("blocks_locked");
-    if (result.problem.code === "block_not_found") return apiError("not_found", blockProblem(result.problem));
-    return apiError("invalid_body", blockProblem(result.problem));
-  }
-  return apiJson({ ok: true });
-}
 
 const isValue = (v: unknown): v is BlockValue =>
   v === null || ["string", "number", "boolean"].includes(typeof v) || (Array.isArray(v) && v.every((x) => typeof x === "string"));
