@@ -12,6 +12,8 @@ export default {
     pageMoveRoot: " (into the knowledge root \"{root}\")",
     pageRestoreMove:
       "Restored the page \"{title}\" from the trash under \"{to}\" (its original parent \"{from}\" is in the trash). Permissions now come from the new place",
+    pageDelete:
+      "Moved the page \"{title}\"{descendants, plural, =0 {} one { and the # page under it} other { and the # pages under it}} to the trash{via, select, api { (through the API)} mcp { (through MCP)} other {}}",
     pageLock: "Locked the page \"{title}\"{withChildren, select, true { (with its child pages)} other {}}",
     pageUnlock: "Unlocked the page \"{title}\"",
     versionMask:

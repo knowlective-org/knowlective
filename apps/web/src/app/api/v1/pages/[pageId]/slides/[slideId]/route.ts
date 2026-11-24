@@ -65,7 +65,7 @@ export async function PATCH(request: Request, ctx: Context) {
 export async function DELETE(request: Request, ctx: Context) {
   return withApiKey(request, "WRITE", async ({ user }) => {
     const { pageId, slideId } = await ctx.params;
-    const result = await removeSlide(user.id, pageId, slideId);
+    const result = await removeSlide(user.id, pageId, slideId, "api");
     if (result.error) return slideErrorResponse(result);
     return apiJson({ ok: true });
   });

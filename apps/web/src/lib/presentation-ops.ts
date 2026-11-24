@@ -9,6 +9,7 @@ import { beforePresentationChange } from "@/lib/presentation-changes";
 import { type DeckView, loadDeck } from "@/lib/presentation-data";
 import { lockPresentations } from "@/lib/presentation-tree";
 import { FILE_URL, readItems, readSlideBackground, isBox } from "@/lib/whiteboard";
+import { recordPageDelete } from "@/lib/page-delete-audit";
 
 // Changing a presentation's slides, with the same checks wherever it's asked
 // from (the screen's Server Actions, the public API, MCP). The caller has
@@ -180,15 +181,21 @@ export async function approveSlideFiles(
   return { pendingFiles };
 }
 
-// To the trash, like any page (it can be restored from there).
-export async function removeSlide(userId: string, deckId: string, slideId: string): Promise<SlideResult> {
+// To the trash, like any page (it can be restored from there), recorded in
+// the audit log.
+export async function removeSlide(userId: string, deckId: string, slideId: string, via: "api" | "mcp"): Promise<SlideResult> {
   const deck = await changeableDeck(userId, deckId);
   if ("error" in deck) return deck;
   const slide = deck.slides.find((s) => s.id === slideId);
   if (!slide) return { error: "not_found" };
   if (!slide.canEdit) return { error: slide.canReadNotes ? "page_locked" : "forbidden" };
   await beforePresentationChange(deck.id, userId);
-  await prisma.page.update({ where: { id: slide.id }, data: { deletedAt: new Date(), deletedById: userId } });
+  const { title } = await prisma.page.update({
+    where: { id: slide.id },
+    data: { deletedAt: new Date(), deletedById: userId },
+    select: { title: true },
+  });
+  await recordPageDelete(userId, { id: slide.id, title, parentId: deck.id }, 0, via);
   closeDocuments([slide.id]);
   notifyChildrenChanged(deck.id);
   return {};

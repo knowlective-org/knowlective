@@ -41,6 +41,7 @@ import {
 import { MAX_GRID_COLUMNS, MAX_GRID_ROWS } from "@/components/editor/grid-table-config";
 import { cellValue, columnRule, toRule } from "@/lib/api/grid-input";
 import { pagePeople } from "@/lib/page-people";
+import { type PageDeleteError, trashPage } from "@/lib/api/page-delete";
 import { sendPageMessage } from "@/lib/page-message";
 import { MAX_MESSAGE_LENGTH, MAX_MESSAGE_RECIPIENTS } from "@/lib/page-message-text";
 import type { McpCaller } from "./auth";
@@ -422,6 +423,29 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     },
   );
 
+  const DELETE_PAGE_ERRORS: Record<PageDeleteError, string> = {
+    not_found: NOT_FOUND,
+    forbidden: "You can't edit this page.",
+    page_locked: "The page is locked.",
+    root_page: "A knowledge root's top page can't be deleted.",
+    has_children: "The page has child pages. Delete them first, one at a time from the bottom up (a presentation's slides with delete_slide).",
+  };
+
+  server.registerTool(
+    "delete_page",
+    {
+      title: "Delete a page",
+      description:
+        "Moves a page to the trash (people can restore it from there). Only a page without child pages: to delete a subtree, delete its pages from the bottom up. Needs edit access, and the page not locked. Make sure the person wants the page deleted.",
+      inputSchema: z.object({ pageId }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id }) => {
+      const result = await trashPage(userId, id, "mcp");
+      return "error" in result ? fail(DELETE_PAGE_ERRORS[result.error]) : json({ ok: true, parentId: result.parentId });
+    },
+  );
+
   server.registerTool(
     "send_notification",
     {
@@ -755,7 +779,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ pageId: id, slideId }) => {
-      const result = await removeSlide(userId, id, slideId);
+      const result = await removeSlide(userId, id, slideId, "mcp");
       return result.error ? slideFailure(result) : json({ ok: true });
     },
   );

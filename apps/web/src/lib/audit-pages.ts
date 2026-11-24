@@ -9,6 +9,7 @@
 const PAGE_KEYS: Record<string, readonly string[]> = {
   "page.move": ["pageId", "fromParentId", "toParentId"],
   "page.restore.move": ["pageId", "fromParentId", "toParentId"],
+  "page.delete": ["pageId"],
   "page.lock": ["pageId"],
   "page.unlock": ["pageId"],
   "page.version.mask": ["pageId"],

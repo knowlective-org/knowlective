@@ -10,6 +10,7 @@ const ja: MessageShape<typeof en> = {
     pageMoveFrom: "「{title}」の下から",
     pageMoveRoot: "（ナレッジルート「{root}」へ）",
     pageRestoreMove: "ページ「{title}」をごみ箱から「{to}」の下に戻した（元の親「{from}」はごみ箱にあるため。権限は移動先から引き継ぐ）",
+    pageDelete: "ページ「{title}」{descendants, plural, =0 {} other {とその下の#ページ}}をごみ箱に移動{via, select, api {（API から）} mcp {（MCP から）} other {}}",
     pageLock: "ページ「{title}」をロック{withChildren, select, true {（子ページも含む）} other {}}",
     pageUnlock: "ページ「{title}」のロックを解除",
     versionMask: "ページ「{title}」の履歴で、{versions}個の版の{matches}か所をマスク",

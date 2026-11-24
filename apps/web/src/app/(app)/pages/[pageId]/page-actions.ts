@@ -11,6 +11,7 @@ import { requireUser } from "@/lib/auth/session";
 import { recordAudit, userLabel } from "@/lib/audit";
 import { closeDocuments, notifyChildrenChanged, reconnectDocuments } from "@/lib/collab-events";
 import { beforePresentationChange } from "@/lib/presentation-changes";
+import { recordPageDelete } from "@/lib/page-delete-audit";
 
 export type PageInfo = {
   createdBy: string;
@@ -119,7 +120,12 @@ export async function deletePage(pageId: string): Promise<{ parentId: string } |
   if ((await prisma.page.findUnique({ where: { id: target.parentId }, select: { kind: true } }))?.kind === "PRESENTATION") {
     await beforePresentationChange(target.parentId, user.id);
   }
-  await prisma.page.update({ where: { id: pageId }, data: { deletedAt: new Date(), deletedById: user.id } });
+  const { title } = await prisma.page.update({
+    where: { id: pageId },
+    data: { deletedAt: new Date(), deletedById: user.id },
+    select: { title: true },
+  });
+  await recordPageDelete(user.id, { id: pageId, title, parentId: target.parentId }, target.descendants.length, "screen");
   closeDocuments([pageId, ...target.descendants]);
   notifyChildrenChanged(target.parentId);
   return { parentId: target.parentId };
