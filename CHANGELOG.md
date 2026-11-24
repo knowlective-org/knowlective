@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-24
+
 ### Added
 
 - Child page calendars can be shown as a Gantt chart over a week, a month, three months, a year or three years, from a start and an end date column. Bars can be moved and resized.
