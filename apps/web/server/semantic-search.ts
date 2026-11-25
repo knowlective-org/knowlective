@@ -326,7 +326,7 @@ class VectorStore {
 export function startSemanticSearch(prisma: PrismaClient): { stop(): Promise<void> } {
   const url = process.env.VECTOR_DATABASE_URL;
   if (!url) {
-    registerSemanticSearch({ status: () => "off", search: async () => [] });
+    registerSemanticSearch({ status: () => "off", search: async () => [], size: async () => null });
     return { stop: async () => {} };
   }
   const pool = new pg.Pool({ connectionString: url, max: 4 });
@@ -345,6 +345,10 @@ export function startSemanticSearch(prisma: PrismaClient): { stop(): Promise<voi
       if (!embed || pageIds.length === 0) return [];
       const [vector] = await embed([asQuery(query)]);
       return store.search(vector, pageIds, limit);
+    },
+    async size() {
+      const { rows } = await pool.query<{ size: string }>("SELECT pg_database_size(current_database())::text AS size");
+      return rows[0] ? Number(rows[0].size) : null;
     },
   });
 

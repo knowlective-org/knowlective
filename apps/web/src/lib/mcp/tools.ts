@@ -44,6 +44,7 @@ import { pagePeople } from "@/lib/page-people";
 import { type PageDeleteError, trashPage } from "@/lib/api/page-delete";
 import { sendPageMessage } from "@/lib/page-message";
 import { MAX_MESSAGE_LENGTH, MAX_MESSAGE_RECIPIENTS } from "@/lib/page-message-text";
+import { recordUsage } from "@/lib/usage";
 import type { McpCaller } from "./auth";
 
 // The MCP server's tools. Each acts as the caller (lib/mcp/auth.ts) through
@@ -117,7 +118,22 @@ function sectionProblem(error: SectionError): string {
   }
 }
 
+// Counts each tool call for the usage dashboard (lib/usage.ts): a tool
+// annotated read-only as a read, any other as a write.
+function countCalls(server: McpServer, caller: McpCaller) {
+  type Register = (name: string, config: { annotations?: { readOnlyHint?: boolean } }, callback: (...args: unknown[]) => unknown) => unknown;
+  const register = server.registerTool.bind(server) as unknown as Register;
+  const counted: Register = (name, config, callback) =>
+    register(name, config, (...args: unknown[]) => {
+      const metric = config.annotations?.readOnlyHint ? "read" : "write";
+      recordUsage(prisma, { userId: caller.userId, channel: "MCP", metric, via: caller.via, detail: name });
+      return callback(...args);
+    });
+  (server as unknown as { registerTool: Register }).registerTool = counted;
+}
+
 export function registerTools(server: McpServer, caller: McpCaller) {
+  countCalls(server, caller);
   const { userId } = caller;
   const readOnly = { readOnlyHint: true, openWorldHint: false } as const;
 

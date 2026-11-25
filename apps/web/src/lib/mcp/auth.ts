@@ -22,6 +22,9 @@ export type McpCaller = {
   scope: ApiKeyScope;
   // What the caller authenticated with, for the rate limit.
   credentialId: string;
+  // The API key ("key:<id>") or the connected app ("app:<client id>"), for
+  // the usage dashboard (lib/usage.ts).
+  via: string;
 };
 
 export async function mcpEnabled(): Promise<boolean> {
@@ -52,11 +55,11 @@ export async function authenticateMcp(request: Request): Promise<McpCaller | Mcp
   if (token.startsWith(ACCESS_TOKEN_PREFIX)) {
     const oauth = await authenticateAccessToken(token);
     if (!oauth) return INVALID;
-    caller = { userId: oauth.userId, siteRole: oauth.siteRole, scope: oauth.scope, credentialId: `grant:${oauth.grantId}` };
+    caller = { userId: oauth.userId, siteRole: oauth.siteRole, scope: oauth.scope, credentialId: `grant:${oauth.grantId}`, via: `app:${oauth.clientId}` };
   } else {
     const key = await authenticateApiKey(authorization);
     if ("error" in key) return INVALID;
-    caller = { userId: key.user.id, siteRole: key.user.siteRole, scope: key.key.scope, credentialId: `key:${key.key.id}` };
+    caller = { userId: key.user.id, siteRole: key.user.siteRole, scope: key.key.scope, credentialId: `key:${key.key.id}`, via: `key:${key.key.id}` };
   }
   const retryAfter = rateLimited(caller.credentialId);
   if (retryAfter !== null) return { status: 429, code: "rate_limited", message: "Too many requests. Wait a moment and try again.", retryAfter };

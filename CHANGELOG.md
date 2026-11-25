@@ -8,6 +8,15 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- Admin console → Overview → "Page history": a retention period in days. Versions older than it are deleted hourly, keeping each page's newest version from before the period (so a page can still be restored to any moment in the period), along with presentation history from before it. Off (kept forever) by default; setting it and each deletion are recorded in the audit log.
+- Admin console → "Usage": a dashboard for site admins (auditors read-only). It shows the data the site holds now (database, vector database, attachments, page bodies and history, by knowledge root) and activity over the last 7, 30, 90 or 365 days: edits in the editor, API calls and MCP calls per day, and per person (edits, pages created, chat messages, uploads, API and MCP reads / writes, stored files, last active), per API key or connected app, and per MCP tool. Counts start when this version is installed and are kept for two years. Only counts are stored, not what was read or written.
+
+### Upgrade notes
+
+- A database migration adds the `UsageDaily` table; it's applied on startup.
+
 ## [0.7.1] - 2026-11-24
 
 ### Added

@@ -42,6 +42,12 @@ export default {
     outboundProxy: "Changed the proxy for connections to the outside from \"{from}\" to \"{to}\"",
     outboundProxyOn: "{url} (reached directly: {bypass, select, none {nothing else} other {{bypass}}})",
     outboundProxyOff: "no proxy",
+    versionRetention: "Changed how long page history is kept from \"{from}\" to \"{to}\"",
+    versionRetentionForever: "forever",
+    versionRetentionDaysLabel: "{days, plural, one {# day} other {# days}}",
+    versionRetentionDeleted:
+      "Deleted {versions, plural, one {# version} other {# versions}} of {pages, plural, one {# page} other {# pages}} and {snapshots, plural, one {# presentation history entry} other {# presentation history entries}} older than {days, plural, one {# day} other {# days}} (retention period)",
+    systemActor: "System",
     auditorsPersonalRoots:
       "{allowed, select, true {Allowed the auditors to view everyone's personal knowledge root} other {Stopped the auditors from viewing everyone's personal knowledge root}}",
     personalPageView: "{where, select, history {Viewed the history of} other {Viewed}} a page ({pageId}) in the personal knowledge root of {owner}, as an auditor",
