@@ -95,6 +95,8 @@ export type BoxItem = {
   border: Border;
   // One of the text colors. Null: the board's line color.
   borderColor: TextColor | null;
+  // The group it's in (GROUP_ID), "" for none.
+  group: string;
 };
 
 // The text fields of an item: a connector has text halfway along it and by
@@ -144,9 +146,18 @@ export type LineItem = {
   textMarks: TextMark[];
   color: ItemColor;
   z: number;
+  // The group it's in, as a box's.
+  group: string;
 };
 
 export type WhiteboardItem = BoxItem | ConnectorItem | LineItem;
+
+// Boxes and lines can be grouped: picked, moved and scaled together. A group
+// is only the id its items share (field "group"), one level (no groups of
+// groups); connectors aren't in groups (they follow their boxes).
+export const GROUP_ID = /^[A-Za-z0-9_-]{1,64}$/;
+export const isGroupable = (item: WhiteboardItem | undefined): item is BoxItem | LineItem =>
+  !!item && item.type !== "connector";
 
 export const isBox = (item: WhiteboardItem | undefined): item is BoxItem =>
   !!item && (BOX_TYPES as readonly string[]).includes(item.type);
@@ -259,7 +270,7 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
   if (type === "line") {
     const rawArrows = map.get("arrows");
     const arrows = (ARROW_ENDS as readonly unknown[]).includes(rawArrows) ? (rawArrows as ArrowEnds) : "none";
-    return { id, type, x1: coord("x1"), y1: coord("y1"), x2: coord("x2"), y2: coord("y2"), arrows, stroke, text: "", textMarks: [], color, z };
+    return { id, type, x1: coord("x1"), y1: coord("y1"), x2: coord("x2"), y2: coord("y2"), arrows, stroke, text: "", textMarks: [], color, z, group: matching(map.get("group"), GROUP_ID) };
   }
   const size = {
     w: clamp(num(map.get("w"), MIN_SIZE), MIN_SIZE, MAX_SIZE),
@@ -284,6 +295,7 @@ export function readItem(id: string, map: Y.Map<unknown>): WhiteboardItem | null
     ...((FONT_WEIGHTS as readonly unknown[]).includes(map.get("fontWeight")) ? { fontWeight: map.get("fontWeight") as FontWeight } : {}),
     border: (BORDERS as readonly unknown[]).includes(map.get("border")) ? (map.get("border") as Border) : defaultBorder(type as string),
     borderColor: (TEXT_COLORS as readonly unknown[]).includes(map.get("borderColor")) ? (map.get("borderColor") as TextColor) : null,
+    group: matching(map.get("group"), GROUP_ID),
   };
 }
 

@@ -40,6 +40,7 @@ import {
   hexagonInset,
   hexagonSize,
   isBox,
+  isGroupable,
   isShapeType,
   readItem,
   readItems,
@@ -66,6 +67,7 @@ import { adoptPageFiles } from "@/app/(app)/pages/[pageId]/file-actions";
 import { showAlert } from "@/components/dialog";
 import { showNotice } from "@/components/notice";
 import { PagePickerDialog } from "@/components/page-picker-dialog";
+import { ReviewPaneView, useReview } from "@/components/editor/review-pane";
 import { resolveAppUrl } from "@/lib/base-path";
 import { beginSaving } from "@/lib/saving-status";
 import { UploadError, postFile } from "@/lib/upload-file";
@@ -88,6 +90,8 @@ import {
   midpointOf,
   rectFrom,
   routePath,
+  scaleFactor,
+  scaledFrom,
   sideToward,
   snapAngle,
   spreadEnds,
@@ -120,7 +124,9 @@ const MODIFIER_KEYS = new Set(["Alt", "Shift", "Control", "Meta"]);
 
 // What a pointer drag is doing, kept in a ref (it changes on every move).
 type Gesture =
-  | { kind: "pan"; start: Point; camera: Camera }
+  // `menu`: pressed with the right button; let go without moving, it opens
+  // the board's menu there (for `hit`, the item under it) instead.
+  | { kind: "pan"; start: Point; camera: Camera; menu?: { client: Point; hit: string | null } }
   | {
       kind: "move";
       start: Point;
@@ -134,10 +140,16 @@ type Gesture =
       // with the item it was copied from.
       copiedFrom?: Map<string, string>;
       // Shift + press on a selected item: taken out of the selection on a
-      // click, but kept (and moved) when dragged.
-      deselectOnClick?: string;
+      // click (with its group), but kept (and moved) when dragged.
+      deselectOnClick?: string[];
+      // A press on an item of a group selected whole: a click picks that
+      // item alone (to change it inside the group).
+      narrowTo?: string;
     }
   | { kind: "resize"; id: string; start: Point; origin: { w: number; h: number } }
+  // The selection's corner: its boxes and lines resized together, keeping
+  // their proportions (their text as it is), from the top left of `bounds`.
+  | { kind: "scale"; bounds: Rect; boxes: Map<string, Pick<BoxItem, "type" | "x" | "y" | "w" | "h">>; lines: Map<string, LineEnds> }
   | { kind: "marquee"; start: Point; base: Set<string> }
   // From a box's dot (its side), or anywhere on it with the connector tool.
   | { kind: "connect"; from: string; fromSide: Side | null }
@@ -274,6 +286,19 @@ const TOOL_KEYS: Record<string, Tool> = {
   c: "connector",
 };
 
+// New groups for copies of grouped items: each group with two or more of its
+// items among the copies gets a new id (a group of one is no group).
+function regrouper(chosen: { group?: string }[], newGroupId: () => string): (group: string | undefined) => string {
+  const count = new Map<string, number>();
+  for (const i of chosen) if (i.group) count.set(i.group, (count.get(i.group) ?? 0) + 1);
+  const renamed = new Map<string, string>();
+  return (group) => {
+    if (!group || (count.get(group) ?? 0) < 2) return "";
+    if (!renamed.has(group)) renamed.set(group, newGroupId());
+    return renamed.get(group)!;
+  };
+}
+
 const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -338,6 +363,10 @@ export function WhiteboardCanvas({
   const slideBackground = useMemo(() => (backgroundKey ? (JSON.parse(backgroundKey) as ReturnType<typeof readSlideBackground>) : null), [backgroundKey]);
   const t = useTranslations("whiteboard");
   const tRoot = useTranslations();
+  // Chats about items (review-pane.tsx): on a whiteboard page only (not a
+  // slide, nor a board shown in a document).
+  const reviewContext = useReview();
+  const review = embedded || isSlide ? null : reviewContext;
   const router = useRouter();
   const markerId = useId().replace(/:/g, "");
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -426,6 +455,11 @@ export function WhiteboardCanvas({
   const textEditor = useRef<TextEditorHandle | null>(null);
   const [editorStyle, setEditorStyle] = useState<TextStyle>({});
   const [marquee, setMarquee] = useState<{ a: Point; b: Point } | null>(null);
+  // The board's menu (the right button, or the menu key): where it opens in
+  // the board's frame, and the point on the board a paste goes to.
+  const [menu, setMenu] = useState<{ x: number; y: number; world: Point; keyboard: boolean } | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<{ from: string; to: Point } | null>(null);
   const [cursors, setCursors] = useState<RemoteCursor[]>([]);
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -455,7 +489,8 @@ export function WhiteboardCanvas({
   const boxes = useMemo(() => items.filter(isBox), [items]);
   const plainLines = useMemo(() => items.filter((i): i is LineItem => i.type === "line"), [items]);
   // The connectors' lines, back to front. Where one crosses a line below it
-  // (earlier in the stacking order), it hops over that line (hopCrossings:
+  // (earlier in the stacking order), it hops over that line — or, with no
+  // room for that by its corners, the line below hops (hopCrossings:
   // connectors between the same two boxes count as one line).
   const connectorPaths = useMemo(() => {
     const lines: {
@@ -492,6 +527,18 @@ export function WhiteboardCanvas({
   const connectorPoints_ = useMemo(() => new Map(connectorPaths.map((c) => [c.id, c.points])), [connectorPaths]);
   // Gone items (deleted by someone else) drop out of the selection.
   const selection = useMemo(() => new Set([...selected].filter((id) => byId.has(id))), [selected, byId]);
+  // The items picked together with `id`: its group's (it first), or itself.
+  const groupOf = (id: string): string[] => {
+    const item = byId.get(id);
+    const group = isGroupable(item) ? item.group : "";
+    if (!group) return [id];
+    return [id, ...items.filter((i) => i.id !== id && isGroupable(i) && i.group === group).map((i) => i.id)];
+  };
+  const withGroups = (ids: Iterable<string>) => {
+    const out = new Set<string>();
+    for (const id of ids) for (const member of groupOf(id)) out.add(member);
+    return out;
+  };
 
   // Shows the whole board when it opens.
   useLayoutEffect(() => {
@@ -819,6 +866,7 @@ export function WhiteboardCanvas({
       return null;
     }
     const copies = new Map(chosen.map((b) => [b.id, newId()]));
+    const regroup = regrouper(chosen, newId);
     let z = current.reduce((top, i) => Math.max(top, i.z), 0);
     change(() => {
       for (const b of chosen) {
@@ -841,7 +889,8 @@ export function WhiteboardCanvas({
                 color: b.color,
                 z: ++z,
               };
-        for (const [key, value] of Object.entries(fields)) item.set(key, value);
+        const group = regroup(b.group);
+        for (const [key, value] of Object.entries({ ...fields, ...(group ? { group } : {}) })) item.set(key, value);
         map.set(copies.get(b.id)!, item);
       }
       for (const c of current) {
@@ -886,7 +935,85 @@ export function WhiteboardCanvas({
     return true;
   };
 
-  const pasteClip = async (clip: Clip, key: string) => {
+  // Copy or cut from the menu: as Ctrl+C / Ctrl+X do (the same data), through
+  // the browser's copy command; where that isn't allowed, the clipboard API.
+  const copyFromMenu = async (cut: boolean) => {
+    const chosen = clipItems(items, selection);
+    if (chosen.length === 0) return;
+    const ids = new Set(selection);
+    let copied = false;
+    const onCopy = (e: ClipboardEvent) => {
+      if (e.clipboardData && copySelection(e.clipboardData)) {
+        e.preventDefault();
+        copied = true;
+      }
+    };
+    document.addEventListener("copy", onCopy);
+    try {
+      document.execCommand("copy");
+    } catch {
+      // (Not supported: the clipboard API below.)
+    } finally {
+      document.removeEventListener("copy", onCopy);
+    }
+    if (!copied) {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([clipHtml(pageId ?? "", chosen)], { type: "text/html" }),
+            "text/plain": new Blob([clipText(chosen)], { type: "text/plain" }),
+          }),
+        ]);
+      } catch {
+        showNotice(t("copyBlocked"));
+        return;
+      }
+    }
+    if (cut) removeItems(ids);
+  };
+
+  // Paste from the menu: what the clipboard holds (items, images or text),
+  // where the menu was opened. The browser may ask first, or refuse.
+  const pasteFromMenu = async (at: Point) => {
+    let html = "";
+    let text = "";
+    const files: File[] = [];
+    try {
+      for (const entry of await navigator.clipboard.read()) {
+        if (entry.types.includes("text/html")) html = await (await entry.getType("text/html")).text();
+        if (entry.types.includes("text/plain")) text = await (await entry.getType("text/plain")).text();
+        for (const type of entry.types) {
+          if (type.startsWith("image/")) files.push(new File([await entry.getType(type)], `image.${type.slice("image/".length)}`, { type }));
+        }
+      }
+    } catch {
+      try {
+        text = await navigator.clipboard.readText();
+      } catch {
+        showNotice(t("pasteBlocked"));
+        return;
+      }
+    }
+    const clip = html ? readClip(html) : null;
+    if (clip) return void pasteClip(clip, html, at);
+    if (files.length > 0 && pageId) return void addImages(files, at);
+    if (text.trim()) pasteText(text, at);
+  };
+
+  // Opens the menu at a point of the screen; for the item under it (picked
+  // with its group, unless already selected), or the board (nothing picked).
+  const openMenu = (client: Point, hit: string | null, keyboard = false) => {
+    const root = rootRef.current?.getBoundingClientRect();
+    if (!root || readOnly) return;
+    if (!keyboard) {
+      if (hit && !selection.has(hit)) setSelected(new Set(groupOf(hit)));
+      if (!hit) setSelected(new Set());
+    }
+    setEditing(null);
+    setMenu({ x: client.x - root.left, y: client.y - root.top, world: toWorld(camera, canvasPoint({ clientX: client.x, clientY: client.y })), keyboard });
+  };
+
+  const pasteClip = async (clip: Clip, key: string, place?: Point) => {
     if (clip.skipped > 0) showNotice(t("pasteSkipped", { count: clip.skipped }));
     let pasted = clip.items;
     const bounds = clipBounds(pasted);
@@ -907,19 +1034,22 @@ export function WhiteboardCanvas({
       done();
       pasted = pasted.map((i) => (isBox(i) && i.src ? { ...i, src: adopted[i.src.slice("/api/files/".length)] ?? i.src } : i));
     }
-    const at = pointerWorld.current ?? viewCenter();
+    const at = place ?? pointerWorld.current ?? viewCenter();
     const last = lastPaste.current;
     const count = last && last.key === key && last.at.x === at.x && last.at.y === at.y ? last.count + 1 : 0;
     lastPaste.current = { key, at, count };
     const dx = Math.round(at.x - bounds.x - bounds.w / 2) + count * 24;
     const dy = Math.round(at.y - bounds.y - bounds.h / 2) + count * 24;
     const ids = new Map(pasted.map((i) => [i.id, newId()]));
+    const regroup = regrouper(pasted.map((i) => (isGroupable(i) ? i : {})), newId);
     let z = topZ();
     undo.current?.stopCapturing();
     change(() => {
       for (const i of pasted) {
         const fields: Record<string, unknown> = {};
-        for (const [k, v] of Object.entries(i)) if (k !== "id" && v !== null && v !== "") fields[k] = v;
+        for (const [k, v] of Object.entries(i)) if (k !== "id" && k !== "group" && v !== null && v !== "") fields[k] = v;
+        const group = isGroupable(i) ? regroup(i.group) : "";
+        if (group) fields.group = group;
         if (i.type === "connector") Object.assign(fields, { from: ids.get(i.from), to: ids.get(i.to), text: i.text });
         else if (i.type === "line") Object.assign(fields, movedLine(i, dx, dy));
         else Object.assign(fields, { x: clampCoord(i.x + dx), y: clampCoord(i.y + dy), text: i.text });
@@ -936,7 +1066,7 @@ export function WhiteboardCanvas({
   };
 
   // Text from elsewhere: a text box with it.
-  const pasteText = (text: string) => {
+  const pasteText = (text: string, place?: Point) => {
     const lines = text.replace(/\r\n?/g, "\n").trim().slice(0, MAX_TEXT_LENGTH).split("\n");
     if (lines.join("").trim() === "") return;
     // About as wide as the longest line (wide characters twice), within reason.
@@ -944,7 +1074,7 @@ export function WhiteboardCanvas({
     const w = Math.min(480, Math.max(DEFAULT_SIZE.text.w, Math.max(...lines.map(width)) + 16));
     const rows = lines.reduce((n, line) => n + Math.max(1, Math.ceil((width(line) + 16) / w)), 0);
     const h = Math.min(MAX_SIZE, DEFAULT_SIZE.text.h * rows);
-    const at = pointerWorld.current ?? viewCenter();
+    const at = place ?? pointerWorld.current ?? viewCenter();
     const id = addItem({ type: "text", x: clampCoord(at.x - w / 2), y: clampCoord(at.y - h / 2), w, h, text: lines.join("\n"), color: DEFAULT_COLOR.text });
     if (id) {
       setSelected(new Set([id]));
@@ -965,6 +1095,24 @@ export function WhiteboardCanvas({
     const others = items.filter((i) => !selection.has(i.id));
     const order = front ? [...others, ...chosen] : [...chosen, ...others];
     change(() => order.forEach((item, index) => setField(item.id, { z: index + 1 })));
+  };
+
+  // Grouping: the selected boxes and lines (two or more, not all of one
+  // group already) put in a new group, out of the ones they were in.
+  const groupableSelected = [...selection].filter((id) => isGroupable(byId.get(id)));
+  const groupsSelected = new Set(groupableSelected.map((id) => (byId.get(id) as BoxItem | LineItem).group));
+  const canGroup = groupableSelected.length >= 2 && !(groupsSelected.size === 1 && !groupsSelected.has(""));
+  const canUngroup = groupableSelected.some((id) => (byId.get(id) as BoxItem | LineItem).group);
+  const groupSelection = () => {
+    if (!canGroup) return;
+    const group = newId();
+    undo.current?.stopCapturing();
+    change(() => groupableSelected.forEach((id) => setField(id, { group })));
+  };
+  const ungroupSelection = () => {
+    if (!canUngroup) return;
+    undo.current?.stopCapturing();
+    change(() => groupableSelected.forEach((id) => map.get(id)?.delete("group")));
   };
 
   const setColor = (color: ItemColor) => change(() => selection.forEach((id) => setField(id, { color })));
@@ -1129,6 +1277,10 @@ export function WhiteboardCanvas({
     }
     if (pointers.current.size > 2) return;
 
+    if (e.button === 2 && !readOnly) {
+      gesture.current = { kind: "pan", start: point, camera, menu: { client: { x: e.clientX, y: e.clientY }, hit: itemUnder(target, e.clientX, e.clientY) } };
+      return;
+    }
     if (e.button === 1 || e.button === 2 || tool === "hand" || spaceHeld || readOnly) {
       gesture.current = { kind: "pan", start: point, camera };
       return;
@@ -1204,14 +1356,36 @@ export function WhiteboardCanvas({
       }
       return;
     }
+    // The corner of several selected items: resized together.
+    if (target.closest("[data-wb-scale]") && scaleFrame) {
+      undo.current?.stopCapturing();
+      const scaled = new Map<string, Pick<BoxItem, "type" | "x" | "y" | "w" | "h">>();
+      const lines = new Map<string, LineEnds>();
+      for (const id of selection) {
+        const item = byId.get(id);
+        if (isBox(item)) {
+          scaled.set(id, { type: item.type, x: item.x, y: item.y, w: item.w, h: item.h });
+          if (item.type === "text") sizedHere.current.add(id);
+        } else if (item?.type === "line") lines.set(id, movedLine(item, 0, 0));
+      }
+      gesture.current = { kind: "scale", bounds: scaleFrame, boxes: scaled, lines };
+      return;
+    }
     if (hit) {
       const wasSelected = selection.has(hit);
+      // A group is picked whole; once it is, a click picks one of its items,
+      // and then another of them (until something else is picked).
+      const unit = groupOf(hit);
+      const wholeGroup = unit.length > 1 && unit.every((id) => selection.has(id));
+      const inside = unit.length > 1 && !wholeGroup && selection.size > 0 && [...selection].every((id) => unit.includes(id));
       let next = selection;
       if (e.shiftKey) {
         next = new Set(selection);
-        if (!wasSelected) next.add(hit);
-      } else if (!wasSelected) {
+        if (!wasSelected) unit.forEach((id) => next.add(id));
+      } else if (inside && !wasSelected) {
         next = new Set([hit]);
+      } else if (!wasSelected) {
+        next = new Set(unit);
       }
       if (editing !== hit) setEditing(null);
       undo.current?.stopCapturing();
@@ -1232,7 +1406,8 @@ export function WhiteboardCanvas({
         clicked: copies?.get(hit) ?? hit,
         wasSelected: wasSelected && !e.shiftKey && !copies,
         copiedFrom: copies ? new Map([...copies].map(([original, copy]) => [copy, original])) : undefined,
-        deselectOnClick: e.shiftKey && wasSelected && !copies ? hit : undefined,
+        deselectOnClick: e.shiftKey && wasSelected && !copies ? (wholeGroup ? unit : [hit]) : undefined,
+        narrowTo: wholeGroup && !e.shiftKey && !copies && selection.size === unit.length ? hit : undefined,
       };
       return;
     }
@@ -1267,6 +1442,9 @@ export function WhiteboardCanvas({
         return;
       }
       case "pan":
+        // Moved with the right button: a pan, not the menu.
+        if (g.menu && Math.hypot(point.x - g.start.x, point.y - g.start.y) >= 4) g.menu = undefined;
+        if (g.menu) return;
         setCamera({ ...g.camera, x: g.camera.x + point.x - g.start.x, y: g.camera.y + point.y - g.start.y });
         return;
       case "move": {
@@ -1350,13 +1528,37 @@ export function WhiteboardCanvas({
         writeSoon(() => change(() => setField(g.id, { w, h })));
         return;
       }
+      case "scale": {
+        const { bounds } = g;
+        // (A text item's height follows its width: only its width counts.)
+        const f = scaleFactor(bounds, world, [...g.boxes.values()].map((b) => (b.type === "text" ? { w: b.w, h: MIN_SIZE } : b)));
+        const corner = { x: bounds.x, y: bounds.y };
+        writeSoon(() =>
+          change(() => {
+            for (const [id, b] of g.boxes) {
+              const at = scaledFrom(corner, b, f);
+              let w = clampSize(b.w * f);
+              let h = clampSize(b.h * f);
+              if (b.type === "hexagon") ({ w, h } = hexagonSize(w, h));
+              // A text item's height follows its text (fitText).
+              setField(id, { x: clampCoord(at.x), y: clampCoord(at.y), w, ...(b.type === "text" ? {} : { h }) });
+            }
+            for (const [id, l] of g.lines) {
+              const a = scaledFrom(corner, { x: l.x1, y: l.y1 }, f);
+              const b = scaledFrom(corner, { x: l.x2, y: l.y2 }, f);
+              setField(id, { x1: clampCoord(a.x), y1: clampCoord(a.y), x2: clampCoord(b.x), y2: clampCoord(b.y) });
+            }
+          }),
+        );
+        return;
+      }
       case "marquee": {
         setMarquee({ a: g.start, b: world });
         const area = rectFrom(g.start, world);
         const next = new Set(g.base);
         for (const b of boxes) if (intersects(area, b)) next.add(b.id);
         for (const l of plainLines) if (intersects(area, lineRect(l))) next.add(l.id);
-        setSelected(next);
+        setSelected(withGroups(next));
         return;
       }
       case "connect":
@@ -1428,6 +1630,7 @@ export function WhiteboardCanvas({
     }
     gesture.current = null;
     flushWrite();
+    if (g?.kind === "pan" && g.menu) openMenu(g.menu.client, g.menu.hit);
     setDrag(null);
     setDropTarget(null);
     setGuides([]);
@@ -1460,13 +1663,15 @@ export function WhiteboardCanvas({
       if (id) setSelected(new Set([id]));
       setTool("select");
     }
+    // A click on an item of a group selected whole: that item alone.
+    if (g.kind === "move" && !g.moved && g.narrowTo) setSelected(new Set([g.narrowTo]));
     // A click on one of several selected: it becomes the key to line the
     // others up with (the first in the selection), the selection kept.
-    if (g.kind === "move" && !g.moved && g.wasSelected) setSelected((s) => new Set([g.clicked, ...s]));
+    else if (g.kind === "move" && !g.moved && g.wasSelected) setSelected((s) => new Set([g.clicked, ...s]));
     // Shift + click on a selected item: out of the selection.
     if (g.kind === "move" && !g.moved && g.deselectOnClick) {
       const out = g.deselectOnClick;
-      setSelected((s) => new Set([...s].filter((id) => id !== out)));
+      setSelected((s) => new Set([...s].filter((id) => !out.includes(id))));
     }
     // Alt + click without a drag: no copies left lying on the originals.
     if (g.kind === "move" && !g.moved && g.copiedFrom) {
@@ -1628,6 +1833,21 @@ export function WhiteboardCanvas({
       duplicate();
       return;
     }
+    if (mod && key === "g") {
+      e.preventDefault();
+      if (e.shiftKey) ungroupSelection();
+      else groupSelection();
+      return;
+    }
+    // The menu from the keyboard: by the selection, or in the middle.
+    if (key === "contextmenu" || (e.shiftKey && key === "f10")) {
+      e.preventDefault();
+      const rect = viewportRef.current!.getBoundingClientRect();
+      const around = boundsOf(itemRects(items.filter((i) => selection.has(i.id))));
+      const at = around ? toScreen(camera, { x: around.x + around.w, y: around.y + around.h }) : { x: rect.width / 2, y: rect.height / 2 };
+      openMenu({ x: rect.left + Math.min(rect.width - 8, Math.max(8, at.x)), y: rect.top + Math.min(rect.height - 8, Math.max(8, at.y)) }, null, true);
+      return;
+    }
     const flag: StyleFlag | null = !mod || e.altKey ? null : key === "b" && !e.shiftKey ? "bold" : key === "i" && !e.shiftKey ? "italic" : key === "u" && !e.shiftKey ? "underline" : key === "s" && e.shiftKey ? "strike" : null;
     if (flag && selection.size > 0) {
       e.preventDefault();
@@ -1728,9 +1948,71 @@ export function WhiteboardCanvas({
   })();
   // A single selected line's ends.
   const lineHandles = !readOnly && single?.type === "line" ? lineEnds(single) : null;
+  // Several boxes or lines selected: a frame around them, with a corner to
+  // resize them together.
+  const rectOf = (i: BoxItem | LineItem): Rect => (isBox(i) ? i : lineRect(i));
+  const scaleFrame = !readOnly && groupableSelected.length >= 2 ? boundsOf(groupableSelected.map((id) => rectOf(byId.get(id) as BoxItem | LineItem))) : null;
+  // The groups of the selected items, each outlined around all of its items.
+  const groupFrames = [...groupsSelected]
+    .filter(Boolean)
+    .flatMap((group) => {
+      const around = boundsOf(items.filter((i): i is BoxItem | LineItem => isGroupable(i) && i.group === group).map(rectOf));
+      return around ? [{ group, ...around }] : [];
+    });
+
+  // The menu's entries: what can be done with the selection (or on the board).
+  const mod = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘" : "Ctrl+";
+  const hasSelection = selection.size > 0;
+  // Chats about items: the one selected item's (started from the menu), and
+  // a mark by each item with an open thread (a click opens it).
+  const singleThread = single && review?.threads?.threads.find((th) => th.blockId === single.id && th.count > 0);
+  const chatEntry: MenuEntry | null =
+    review && single && (singleThread || review.threads?.canPost)
+      ? { key: "chat", label: singleThread ? t("chatOpen") : t("chatStart"), icon: "chat", disabled: false, run: () => review.open(single.id) }
+      : null;
+  const reviewActive = review?.activeId ?? null;
+  const reviewAnchor = (item: WhiteboardItem | undefined): Point | null => {
+    if (!item) return null;
+    if (isBox(item)) return { x: item.x + item.w, y: item.y };
+    if (item.type === "line") {
+      const r = lineRect(item);
+      return { x: r.x + r.w, y: r.y };
+    }
+    const points = connectorPoints_.get(item.id);
+    return points ? points[Math.floor(points.length / 2)] : null;
+  };
+  const reviewMarks = (review?.threads?.threads ?? []).flatMap((th) => {
+    if (th.count === 0 || (th.resolved && th.blockId !== reviewActive)) return [];
+    const at = reviewAnchor(byId.get(th.blockId));
+    return at ? [{ id: th.blockId, count: th.count, at: toScreen(camera, at) }] : [];
+  });
+  const reviewItem = reviewActive ? byId.get(reviewActive) : undefined;
+  const reviewFrame = (() => {
+    if (!reviewItem) return null;
+    if (isBox(reviewItem)) return { x: reviewItem.x, y: reviewItem.y, w: reviewItem.w, h: reviewItem.h };
+    if (reviewItem.type === "line") return lineRect(reviewItem);
+    const points = connectorPoints_.get(reviewItem.id);
+    return points ? boundsOf(points.map((p) => ({ x: p.x, y: p.y, w: 0, h: 0 }))) : null;
+  })();
+
+  const menuEntries: (MenuEntry | null)[] = [
+    { key: "cut", label: t("cut"), icon: "cut", shortcut: `${mod}X`, disabled: !hasSelection, run: () => void copyFromMenu(true) },
+    { key: "copy", label: t("copy"), icon: "copy", shortcut: `${mod}C`, disabled: !hasSelection, run: () => void copyFromMenu(false) },
+    { key: "paste", label: t("paste"), icon: "paste", shortcut: `${mod}V`, disabled: false, run: () => menu && void pasteFromMenu(menu.world) },
+    { key: "duplicate", label: t("duplicate"), icon: "duplicate", shortcut: `${mod}D`, disabled: groupableSelected.length === 0, run: duplicate },
+    null,
+    { key: "group", label: t("group"), icon: "group", shortcut: `${mod}G`, disabled: !canGroup, run: groupSelection },
+    { key: "ungroup", label: t("ungroup"), icon: "ungroup", shortcut: `${mod}Shift+G`, disabled: !canUngroup, run: ungroupSelection },
+    null,
+    { key: "bringToFront", label: t("bringToFront"), icon: "bringToFront", disabled: !hasSelection, run: () => restack(true) },
+    { key: "sendToBack", label: t("sendToBack"), icon: "sendToBack", disabled: !hasSelection, run: () => restack(false) },
+    null,
+    { key: "delete", label: t("delete"), icon: "delete", shortcut: "Delete", disabled: !hasSelection, danger: true, run: () => removeItems(selection) },
+    ...(chatEntry ? [null, chatEntry] : []),
+  ];
 
   return (
-    <div className={embedded ? `${styles.root} ${styles.embedded}` : styles.root} data-slide={isSlide ? "" : undefined} data-ui={dataUi} data-fullscreen={fullscreen || undefined}>
+    <div ref={rootRef} className={embedded ? `${styles.root} ${styles.embedded}` : styles.root} data-slide={isSlide ? "" : undefined} data-ui={dataUi} data-fullscreen={fullscreen || undefined}>
       <div
         ref={viewportRef}
         className={styles.viewport}
@@ -1937,6 +2219,22 @@ export function WhiteboardCanvas({
               data-id={alignKeyBox.id}
             />
           )}
+          {reviewFrame && (
+            <div
+              className={styles.reviewFrame}
+              style={{ left: reviewFrame.x, top: reviewFrame.y, width: reviewFrame.w, height: reviewFrame.h }}
+              data-ui="Whiteboard.reviewFrame"
+              data-id={reviewActive}
+            />
+          )}
+          {groupFrames.map((r) => (
+            <div key={r.group} className={styles.groupFrame} style={{ left: r.x, top: r.y, width: r.w, height: r.h }} data-ui="Whiteboard.groupFrame" data-id={r.group} />
+          ))}
+          {scaleFrame && !drag && (
+            <div className={styles.selectionFrame} style={{ left: scaleFrame.x, top: scaleFrame.y, width: scaleFrame.w, height: scaleFrame.h }} data-ui="Whiteboard.selectionFrame">
+              <span className={styles.scaleHandle} data-wb-scale aria-label={t("scaleSelection")} title={t("scaleSelection")} data-ui="Whiteboard.scaleHandle" />
+            </div>
+          )}
           {drag?.ghosts.map((r, i) => (
             <div key={i} className={styles.ghost} style={{ left: r.x, top: r.y, width: r.w, height: r.h }} data-ui="Whiteboard.dragOrigin" />
           ))}
@@ -1994,6 +2292,22 @@ export function WhiteboardCanvas({
             </div>
           )}
         </div>
+        {reviewMarks.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            className={m.id === reviewActive ? `${styles.reviewMark} ${styles.reviewMarkActive}` : styles.reviewMark}
+            style={{ transform: `translate(${m.at.x}px, ${m.at.y}px)` }}
+            onClick={() => (m.id === reviewActive ? review?.close() : review?.open(m.id))}
+            aria-label={t("chatMarker", { count: m.count })}
+            title={t("chatMarker", { count: m.count })}
+            data-ui="Whiteboard.chatMarkButton"
+            data-id={m.id}
+          >
+            <Icon name="chat" size={14} />
+            <span>{m.count}</span>
+          </button>
+        ))}
         {cursors.map((c) => {
           const p = toScreen(camera, c);
           return (
@@ -2620,6 +2934,28 @@ export function WhiteboardCanvas({
               <span className={styles.separator} />
             </>
           )}
+          {(canGroup || canUngroup) && (
+            <>
+              {canGroup && (
+                <button type="button" className={styles.barButton} aria-label={t("group")} title={`${t("group")} (${mod}G)`} data-ui="Whiteboard.groupButton" onClick={groupSelection}>
+                  <Icon name="group" size={18} />
+                </button>
+              )}
+              {canUngroup && (
+                <button
+                  type="button"
+                  className={styles.barButton}
+                  aria-label={t("ungroup")}
+                  title={`${t("ungroup")} (${mod}Shift+G)`}
+                  data-ui="Whiteboard.ungroupButton"
+                  onClick={ungroupSelection}
+                >
+                  <Icon name="ungroup" size={18} />
+                </button>
+              )}
+              <span className={styles.separator} />
+            </>
+          )}
           <button
             type="button"
             className={styles.barButton}
@@ -2708,6 +3044,28 @@ export function WhiteboardCanvas({
           <Icon name={fullscreen ? "exitFullscreen" : "fullscreen"} size={18} />
         </button>
       </div>
+      {review && reviewActive && (
+        <ReviewPaneView
+          key={reviewActive}
+          review={review}
+          blockId={reviewActive}
+          about={reviewItem ? ("text" in reviewItem ? reviewItem.text.trim() : "") : null}
+          labels={{ title: t("chatTitle"), gone: t("chatGone"), noText: t("chatNoText") }}
+          className={styles.reviewPane}
+        />
+      )}
+      {menu && !readOnly && (
+        <BoardMenu
+          menuRef={menuRef}
+          at={menu}
+          label={t("contextMenu")}
+          entries={menuEntries}
+          onClose={(refocus) => {
+            setMenu(null);
+            if (refocus) focusBoard();
+          }}
+        />
+      )}
       {linking && (
         <PagePickerDialog
           title={t("linkTitle")}
@@ -3075,6 +3433,103 @@ function ConnectorLabels({
 }
 
 // A menu opened from the selection bar: closes on a click elsewhere or Esc.
+type MenuEntry = { key: string; label: string; icon: IconName; shortcut?: string; disabled: boolean; danger?: boolean; run: () => void };
+
+// The board's menu (right button or menu key): kept inside the board's
+// frame; closed by a choice, Esc, a press elsewhere or the board scrolling.
+// The arrow keys move between its entries.
+function BoardMenu({
+  menuRef,
+  at,
+  label,
+  entries,
+  onClose,
+}: {
+  menuRef: RefObject<HTMLDivElement | null>;
+  at: { x: number; y: number };
+  label: string;
+  entries: (MenuEntry | null)[];
+  onClose: (refocus: boolean) => void;
+}) {
+  const [place, setPlace] = useState(at);
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    const frame = el?.offsetParent as HTMLElement | null;
+    if (!el || !frame) return;
+    setPlace({
+      x: Math.max(4, Math.min(at.x, frame.clientWidth - el.offsetWidth - 4)),
+      y: Math.max(4, Math.min(at.y, frame.clientHeight - el.offsetHeight - 4)),
+    });
+    el.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
+  }, [at, menuRef]);
+  useEffect(() => {
+    const down = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) close.current(false);
+    };
+    const gone = () => close.current(false);
+    document.addEventListener("pointerdown", down, true);
+    window.addEventListener("wheel", gone, { passive: true });
+    window.addEventListener("resize", gone);
+    return () => {
+      document.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("wheel", gone);
+      window.removeEventListener("resize", gone);
+    };
+  }, [menuRef]);
+  return (
+    <div
+      ref={menuRef}
+      className={styles.contextMenu}
+      role="menu"
+      aria-label={label}
+      data-ui="Whiteboard.contextMenu"
+      data-wb-controls
+      style={{ left: place.x, top: place.y }}
+      onContextMenu={(e) => e.preventDefault()}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" || e.key === "Tab") {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose(true);
+          return;
+        }
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+        e.preventDefault();
+        const buttons = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
+        const now = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        buttons[(now + (e.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length]?.focus();
+      }}
+    >
+      {entries.map((entry, i) =>
+        entry ? (
+          <button
+            key={entry.key}
+            type="button"
+            role="menuitem"
+            className={entry.danger ? `${styles.menuItem} ${styles.menuDanger}` : styles.menuItem}
+            disabled={entry.disabled}
+            data-ui={`Whiteboard.${entry.key}MenuItem`}
+            onClick={() => {
+              onClose(true);
+              entry.run();
+            }}
+          >
+            <Icon name={entry.icon} size={16} />
+            <span>{entry.label}</span>
+            {entry.shortcut && <span className={styles.menuShortcut}>{entry.shortcut}</span>}
+          </button>
+        ) : (
+          <div key={`separator-${i}`} role="separator" className={styles.menuSeparator} />
+        ),
+      )}
+    </div>
+  );
+}
+
 function useBarMenu(): [boolean, (open: boolean) => void, RefObject<HTMLDivElement | null>] {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

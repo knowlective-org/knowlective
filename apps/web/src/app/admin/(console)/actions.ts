@@ -29,6 +29,8 @@ import { searchEngineSettingChanged } from "@/lib/search-engines";
 import { manageableGroupIds } from "@/lib/group-access";
 import { saveTheme as storeTheme } from "@/lib/theme";
 import { MAX_BRAND_NAME_LENGTH, checkLogoSvg, getBrand, getBrandLogo, saveBrand } from "@/lib/brand";
+import { MAX_FAVICON_BYTES, checkFavicon } from "@/lib/favicon-check";
+import { saveSiteFavicon } from "@/lib/site-favicon";
 import { getSignupSettings, isSignupRole, parseDomains } from "@/lib/auth/signup";
 import { decrypt, loadDataKey } from "shared";
 import {
@@ -752,6 +754,33 @@ export async function saveBrandSettings(_prev: BrandState, formData: FormData): 
     );
   }
   // Every screen's sidebar shows it.
+  revalidatePath("/", "layout");
+  return { saved: true };
+}
+
+export type SiteFaviconState = { error?: string; saved?: boolean; removed?: boolean };
+
+// The site's favicon in the browser's tab (lib/site-favicon.ts): a PNG, ICO
+// or SVG, its type taken from its bytes and an SVG checked as the logo is
+// (lib/favicon-check.ts). "remove": back to the default.
+export async function saveSiteFaviconSettings(_prev: SiteFaviconState, formData: FormData): Promise<SiteFaviconState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const t = await getTranslations("admin.siteFavicon.errors");
+  const audit = await auditTranslator();
+  if (formData.get("remove") === "1") {
+    await saveSiteFavicon(null);
+    await recordAudit(actor, "brand.favicon", audit("audit.siteFavicon", { set: "false" }), { set: false });
+    revalidatePath("/", "layout");
+    return { removed: true };
+  }
+  const file = formData.get("favicon");
+  if (!(file instanceof File) || file.size === 0) return { error: t("required") };
+  if (file.size > MAX_FAVICON_BYTES) return { error: t("tooLarge") };
+  const checked = checkFavicon(new Uint8Array(await file.arrayBuffer()));
+  if ("error" in checked) return { error: t(checked.error) };
+  await saveSiteFavicon(checked);
+  await recordAudit(actor, "brand.favicon", audit("audit.siteFavicon", { set: "true" }), { set: true, type: checked.type });
+  // Every screen's head has it.
   revalidatePath("/", "layout");
   return { saved: true };
 }

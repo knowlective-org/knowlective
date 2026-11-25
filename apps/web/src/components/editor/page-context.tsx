@@ -1,6 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import type { HocuspocusProvider } from "@hocuspocus/provider";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { CHILDREN_CHANGED } from "@/lib/collab-events";
 
 // What custom blocks need from the page they're on. Provided by EditorBody
 // (collaborative-editor.tsx) around BlockNoteView; BlockNote renders blocks
@@ -14,6 +16,47 @@ export type PageEditorContextValue = {
 };
 
 export const PageEditorContext = createContext<PageEditorContextValue | null>(null);
+
+// The context for a page open over the collaboration connection (a document
+// or a whiteboard): its "children changed" notices come from the collab
+// server (lib/collab-events.ts), and after a reconnect, since notices sent
+// while offline are lost.
+export function useCollabPageContext(provider: HocuspocusProvider, pageId: string, userId: string | null): PageEditorContextValue {
+  const events = useMemo(() => new EventTarget(), []);
+  const value = useMemo<PageEditorContextValue>(
+    () => ({
+      pageId,
+      userId,
+      onChildrenChanged(listener) {
+        events.addEventListener(CHILDREN_CHANGED, listener);
+        return () => events.removeEventListener(CHILDREN_CHANGED, listener);
+      },
+    }),
+    [pageId, userId, events],
+  );
+  useEffect(() => {
+    const emit = () => events.dispatchEvent(new Event(CHILDREN_CHANGED));
+    const onStateless = ({ payload }: { payload: string }) => {
+      try {
+        if ((JSON.parse(payload) as { type?: string }).type === CHILDREN_CHANGED) emit();
+      } catch {
+        // Not ours.
+      }
+    };
+    let synced = false;
+    const onSynced = () => {
+      if (synced) emit();
+      synced = true;
+    };
+    provider.on("stateless", onStateless);
+    provider.on("synced", onSynced);
+    return () => {
+      provider.off("stateless", onStateless);
+      provider.off("synced", onSynced);
+    };
+  }, [provider, events]);
+  return value;
+}
 
 export function usePageEditor(): PageEditorContextValue {
   const ctx = useContext(PageEditorContext);

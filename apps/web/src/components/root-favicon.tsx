@@ -5,8 +5,8 @@ import { withBasePath } from "@/lib/base-path";
 
 // The knowledge root's favicon (lib/root-favicon.ts) in the browser's tab
 // while one of its pages is open; the site's icon again when it's left.
-// Done here rather than in the page's metadata: the site's file-based icon
-// (app/icon.svg) always wins over icons set in metadata. The site's icon
+// Done here rather than in the page's metadata, which can't take the site's
+// icon (lib/site-favicon.ts, set in the root layout) away. The site's icon
 // links are set aside (their rel changed) while ours is in, so it's the one
 // the browser uses, and put back as they were.
 export function RootFavicon({ href }: { href: string | null }) {

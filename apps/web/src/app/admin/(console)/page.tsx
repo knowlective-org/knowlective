@@ -15,6 +15,8 @@ import { DefaultLocaleForm } from "./default-locale-form";
 import { getTheme } from "@/lib/theme";
 import { ThemeForm } from "./theme-form";
 import { BrandForm } from "./brand-form";
+import { SiteFaviconForm } from "./site-favicon-form";
+import { siteFaviconHref } from "@/lib/site-favicon";
 import { MAX_BRAND_NAME_LENGTH, getBrand } from "@/lib/brand";
 import { getLinkPreviewSettings } from "@/lib/link-preview-settings";
 import { LinkPreviewSettingsForm } from "./link-preview-settings-form";
@@ -33,7 +35,7 @@ import { PublicRootOrderForm } from "./public-root-order-form";
 
 export default async function AdminOverviewPage() {
   const { actor, readOnly } = await requireAdminView(["SITE_ADMIN"]);
-  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages, landingOptions, guestLanding, locale, t, brand, outboundProxy] =
+  const [mail, site, requestOrigin, siteAdminCount, theme, linkPreview, publicPages, landingOptions, guestLanding, locale, t, brand, outboundProxy, favicon] =
     await Promise.all([
       getMailSettings(),
       prisma.instanceConfig.findUniqueOrThrow({
@@ -61,6 +63,7 @@ export default async function AdminOverviewPage() {
       getTranslations("admin.overview"),
       getBrand(),
       getOutboundProxySettings(prisma),
+      siteFaviconHref(),
     ]);
   const format = await getFormatter();
   const code = (chunks: React.ReactNode) => <code>{chunks}</code>;
@@ -118,6 +121,14 @@ export default async function AdminOverviewPage() {
           {t("brandLead")}
         </p>
         <BrandForm current={brand} maxNameLength={MAX_BRAND_NAME_LENGTH} />
+      </section>
+
+      <section className={styles.section} data-ui="AdminOverviewPage.faviconSection">
+        <h2 className={styles.sectionTitle}>{t("favicon")}</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          {t("faviconLead")}
+        </p>
+        <SiteFaviconForm href={favicon.href} custom={favicon.href !== "/icon.svg"} />
       </section>
 
       <section className={styles.section} data-ui="AdminOverviewPage.themeSection">

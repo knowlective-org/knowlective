@@ -1,4 +1,4 @@
-// Renders the app icons from src/app/icon.svg (app/manifest.ts, and the
+// Renders the app icons from public/icon.svg (app/manifest.ts, and the
 // iPhone home screen icon). Run after changing the icon:
 //   pnpm --filter web exec node scripts/app-icons.mjs
 // Uses the Playwright browser of the end-to-end tests.
@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const svg = readFileSync(path.join(web, "src/app/icon.svg"));
+const svg = readFileSync(path.join(web, "public/icon.svg"));
 const src = `data:image/svg+xml;base64,${svg.toString("base64")}`;
 // The icon's own background, for the icons that must be opaque.
 const BACKGROUND = "#f5f1d9";
@@ -20,7 +20,7 @@ const ICONS = [
   ["public/icons/icon-192.png", 192, 0.06, null],
   ["public/icons/icon-512.png", 512, 0.06, null],
   ["public/icons/icon-maskable-512.png", 512, 0.14, BACKGROUND],
-  ["src/app/apple-icon.png", 180, 0.08, BACKGROUND],
+  ["public/apple-icon.png", 180, 0.08, BACKGROUND],
 ];
 
 const browser = await chromium.launch();

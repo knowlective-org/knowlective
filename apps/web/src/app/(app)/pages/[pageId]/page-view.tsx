@@ -193,7 +193,7 @@ export function PageView({
             )
           ) : kind === "WHITEBOARD" ? (
             user ? (
-              <WhiteboardLoader pageId={pageId} readOnly={readOnly} onTitleChange={setLiveTitle} />
+              <WhiteboardLoader pageId={pageId} readOnly={readOnly} user={user} onTitleChange={setLiveTitle} />
             ) : (
               <StaticWhiteboardLoader state={guestState ?? ""} dataUi="PageView.publicDocument" />
             )

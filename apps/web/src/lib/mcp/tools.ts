@@ -852,6 +852,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
         "- boxes: { type: sticky | rect | ellipse | diamond | hexagon | text, x, y, w, h, text, color, border, borderColor, fontWeight }; color: yellow, orange, pink, purple, blue, green, gray, white, transparent; border: none | solid | bold | dashed | double; borderColor: red, brown, green, blue, purple, pink, gray; fontWeight: 100 to 900 in hundreds",
         "- connectors between boxes: { type: connector, from, to, text, arrows: end | both | start | none, route: straight | elbow, stroke: solid | bold | dashed | double }",
         "- lines: { type: line, x1, y1, x2, y2, arrows, stroke }",
+        "Boxes and lines with the same `group` (letters, digits, _ and -, up to 64) are a group: picked, moved and scaled together on the board. One level only; \"\" (or null) takes an item out of its group. Connectors aren't grouped.",
         "Texts may have styles on parts of them (textMarks, startTextMarks, endTextMarks: ranges of the text that are bold, italic, underlined, struck through or colored); they're shown by get_page but can't be written here, and writing a text takes its styles away.",
         "Added items may bring their own id, so connectors in the same call can join them. Removing a box removes its connectors. `update` items are { id, ...fields to change }.",
       ].join("\n"),

@@ -1,4 +1,4 @@
-import { type BoxItem, type LineItem, type Route, SIDES, type Side, hexagonInset } from "@/lib/whiteboard";
+import { type BoxItem, type LineItem, MAX_SIZE, MIN_SIZE, type Route, SIDES, type Side, hexagonInset } from "@/lib/whiteboard";
 
 // The view onto the board: a point at world (x, y) is drawn at
 // (x * zoom + camera.x, y * zoom + camera.y) in the canvas.
@@ -37,6 +37,27 @@ export function zoomAt(camera: Camera, anchor: Point, zoom: number): Camera {
   const world = toWorld(camera, anchor);
   return { zoom: next, x: anchor.x - world.x * next, y: anchor.y - world.y * next };
 }
+
+// Several items resized together, keeping their proportions: the factor
+// that takes the corner of their `bounds` opposite its top left (which stays
+// put) to the pointer at `to`, as far as the farther of its two directions;
+// kept so that none of the boxes (`sizes`) gets smaller than MIN_SIZE or
+// larger than MAX_SIZE.
+export function scaleFactor(bounds: Rect, to: Point, sizes: { w: number; h: number }[]): number {
+  const fx = bounds.w >= 1 ? (to.x - bounds.x) / bounds.w : -Infinity;
+  const fy = bounds.h >= 1 ? (to.y - bounds.y) / bounds.h : -Infinity;
+  const f = Math.max(fx, fy);
+  let min = 0.01;
+  let max = Infinity;
+  for (const s of sizes) {
+    min = Math.max(min, MIN_SIZE / s.w, MIN_SIZE / s.h);
+    max = Math.min(max, MAX_SIZE / s.w, MAX_SIZE / s.h);
+  }
+  return Math.min(Math.max(min, max), Math.max(min, Number.isFinite(f) ? f : 1));
+}
+
+// `p` with its distance from `origin` multiplied by `f`.
+export const scaledFrom = (origin: Point, p: Point, f: number): Point => ({ x: origin.x + (p.x - origin.x) * f, y: origin.y + (p.y - origin.y) * f });
 
 // The smallest rectangle around the boxes, or null for none.
 export function boundsOf(boxes: Rect[]): Rect | null {
@@ -422,7 +443,11 @@ export const END_SPACING = 20;
 // Connectors' points with the ends that meet a box at the same point spread
 // along its side (across for the top and bottom, down for the left and
 // right; for a diamond, an ellipse or a hexagon, the side around it there), in the
-// order of where their other ends are, so they don't cross there. Not at
+// order of the way they come from, seen from the box: from along the side
+// one way, through straight out, to along it the other way. So they don't
+// cross there, nor where they turn in: of two elbows from the left into the
+// top, the one from lower down (flatter) takes the left, the one from
+// higher up the right — its run down stays clear of the other's run across. Not at
 // boxes whose `connectorEnds` is "merge". An elbow's last run (straight
 // out of the box) moves with its end; a run straight across to the other
 // box gets a step halfway instead.
@@ -457,7 +482,17 @@ export function spreadEnds<T extends { from: string; to: string; points: Point[]
       const pts = out[e.line].points;
       return e.end === 0 ? pts[pts.length - 1] : pts[0];
     };
-    const sorted = [...ends].sort((a, b) => coord(otherEnd(a)) - coord(otherEnd(b)) || a.line - b.line);
+    // The angle of the way to the other end: from along the side toward its
+    // start (-π) through straight out of the box (-π/2) to along it toward
+    // its end (0). From behind the side counts as along it.
+    const outward = side === "top" || side === "left" ? -1 : 1;
+    const way = (e: { line: number; end: 0 | 1 }) => {
+      const o = otherEnd(e);
+      const along = coord(o) - coord(at);
+      const away = Math.max(0, (acrossX ? o.y - at.y : o.x - at.x) * outward);
+      return -Math.atan2(away, along);
+    };
+    const sorted = [...ends].sort((a, b) => way(a) - way(b) || coord(otherEnd(a)) - coord(otherEnd(b)) || a.line - b.line);
     sorted.forEach((e, k) => {
       const offset = (k - (sorted.length - 1) / 2) * step;
       if (offset !== 0) out[e.line].points = shiftEnd(out[e.line].points, e.end, acrossX, offset);
@@ -569,27 +604,54 @@ export const CORNER_RADIUS = 12;
 
 const segmentsOf = (points: Point[]) => points.slice(1).map((p, i) => [points[i], p] as const);
 
+// How much each corner of a run takes off the segments on either side (its
+// rounding; none at the ends).
+function cornerCuts(points: Point[], corner: number): number[] {
+  const length = (p: Point, q: Point) => Math.hypot(q.x - p.x, q.y - p.y);
+  const last = points.length - 1;
+  return points.map((p, i) => (i === 0 || i === last ? 0 : Math.min(corner, length(points[i - 1], p) / 2, length(p, points[i + 1]) / 2)));
+}
+
+// Whether a hop at `t` along segment `k` fits: clear of the corners' rounding
+// and the ends (as routePath() draws it).
+function hopFits(points: Point[], cuts: number[], k: number, t: number, radius: number): boolean {
+  const len = Math.hypot(points[k + 1].x - points[k].x, points[k + 1].y - points[k].y);
+  if (len <= 0) return false;
+  const half = radius / len;
+  return t - half >= cuts[k] / len + half / 2 && t + half <= 1 - cuts[k + 1] / len - half / 2;
+}
+
 // Where each line hops, for lines (runs of points) given back to front: for
-// each of its segments, the crossing distances along it (0 to 1). Lines with
-// the same `pair` (connectors between the same two boxes, either way round)
-// lie on top of each other and look like one line, so they act as one,
-// placed as their front one: a line hops over those of groups below its own,
-// never over its own group's, and hops like the rest of its group — or two
-// would hop at the same crossing, forming a circle.
-export function hopCrossings(lines: { pair: string; points: Point[] }[]): number[][][] {
+// each of its segments, the crossing distances along it (0 to 1). The line
+// in front hops over the one behind; where there's no room for it (the
+// crossing too near one of its corners or ends), the one behind hops
+// instead, if it has room — one of them, never both (two hops at one
+// crossing would make a circle). Lines with the same `pair` (connectors
+// between the same two boxes, either way round) lie on top of each other
+// and look like one line, so they act as one, placed as their front one: no
+// hops between them, and hops like the rest of the group.
+export function hopCrossings(lines: { pair: string; points: Point[] }[], radius = HOP_RADIUS, corner = CORNER_RADIUS): number[][][] {
   const rank = new Map<string, number>();
   lines.forEach((line, i) => rank.set(line.pair, i));
-  return lines.map((line) =>
-    segmentsOf(line.points).map(([a, b]) =>
-      lines.flatMap((other) => {
-        if (rank.get(other.pair)! >= rank.get(line.pair)!) return [];
-        return segmentsOf(other.points).flatMap(([c, d]) => {
+  const cuts = lines.map((line) => cornerCuts(line.points, corner));
+  const hops = lines.map((line) => segmentsOf(line.points).map(() => [] as number[]));
+  lines.forEach((line, i) => {
+    lines.forEach((other, j) => {
+      if (rank.get(other.pair)! >= rank.get(line.pair)!) return;
+      segmentsOf(line.points).forEach(([a, b], k) => {
+        segmentsOf(other.points).forEach(([c, d], m) => {
           const t = crossing(a, b, c, d);
-          return t === null ? [] : [t];
+          if (t === null) return;
+          if (hopFits(line.points, cuts[i], k, t, radius)) hops[i][k].push(t);
+          else {
+            const u = crossing(c, d, a, b);
+            if (u !== null && hopFits(other.points, cuts[j], m, u, radius)) hops[j][m].push(u);
+          }
         });
-      }),
-    ),
-  );
+      });
+    });
+  });
+  return hops;
 }
 
 // An SVG path through the points, with rounded corners, hopping over the
@@ -599,9 +661,8 @@ export function hopCrossings(lines: { pair: string; points: Point[] }[]): number
 // or each other are left out.
 export function routePath(points: Point[], crossings: number[][], radius = HOP_RADIUS, corner = CORNER_RADIUS): string {
   const length = (p: Point, q: Point) => Math.hypot(q.x - p.x, q.y - p.y);
-  const last = points.length - 1;
   // How much each corner takes off the segments on either side.
-  const cut = points.map((p, i) => (i === 0 || i === last ? 0 : Math.min(corner, length(points[i - 1], p) / 2, length(p, points[i + 1]) / 2)));
+  const cut = cornerCuts(points, corner);
   let d = `M ${points[0].x} ${points[0].y}`;
   segmentsOf(points).forEach(([a, b], k) => {
     const len = length(a, b);

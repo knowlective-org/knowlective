@@ -5,7 +5,7 @@ import { readItems, whiteboardFileIds, whiteboardMap } from "../src/lib/whiteboa
 import { GRID, align, distribute, snapMove, snapResize } from "../src/components/whiteboard/snap";
 import { TEMPLATES, buildTemplate, templateBounds } from "../src/components/whiteboard/templates";
 import { whiteboardSvg } from "../src/components/whiteboard/export";
-import { spreadEnds } from "../src/components/whiteboard/geometry";
+import { hopCrossings, spreadEnds } from "../src/components/whiteboard/geometry";
 import type { BoxItem } from "../src/lib/whiteboard";
 import { referencedFileIds } from "../src/lib/search-index";
 
@@ -94,7 +94,7 @@ describe("whiteboard lining up", () => {
 
 describe("connector ends meeting a box at one point", () => {
   const box = (id: string, connectorEnds: "spread" | "merge" = "spread"): BoxItem => ({
-    id, type: "rect", x: 0, y: 200, w: 100, h: 50, text: "", textX: 0, textY: 0, textMarks: [], color: "white", z: 0, src: "", link: "", connectorEnds, border: "solid", borderColor: null,
+    id, type: "rect", x: 0, y: 200, w: 100, h: 50, text: "", textX: 0, textY: 0, textMarks: [], color: "white", z: 0, src: "", link: "", connectorEnds, border: "solid", borderColor: null, group: "",
   });
   // Into the top of box c (x 0–100) at x 50: from the left, the right, and straight down.
   const lines = [
@@ -111,6 +111,26 @@ describe("connector ends meeting a box at one point", () => {
     assert.deepEqual(out[2].points, lines[2].points);
     // The lines given aren't changed.
     assert.equal(lines[0].points[2].x, 50);
+  });
+
+  test("from the same side, the flatter takes the outside: their runs don't cross where they turn in", () => {
+    // Two boxes above each other on the left, both into the top of c at x 50:
+    // the higher one first (made first), then the lower one.
+    const fromLeft = [
+      { id: "high", from: "h", to: "c", points: [{ x: -100, y: 40 }, { x: 50, y: 40 }, { x: 50, y: 196 }] },
+      { id: "low", from: "l", to: "c", points: [{ x: -100, y: 120 }, { x: 50, y: 120 }, { x: 50, y: 196 }] },
+    ];
+    const out = spreadEnds(fromLeft, (id) => (id === "c" ? box("c") : undefined));
+    // The lower one on the left, the higher one on the right.
+    assert.equal(out[1].points.at(-1)!.x, 40);
+    assert.equal(out[0].points.at(-1)!.x, 60);
+    const paths = out.map((l) => ({ pair: l.id, points: l.points }));
+    assert.deepEqual(hopCrossings(paths).flat(2), []);
+    // From the right, the other way round.
+    const mirrored = fromLeft.map((l) => ({ ...l, points: l.points.map((p) => ({ x: 100 - p.x, y: p.y })) }));
+    const back = spreadEnds(mirrored, (id) => (id === "c" ? box("c") : undefined));
+    assert.equal(back[1].points.at(-1)!.x, 60);
+    assert.equal(back[0].points.at(-1)!.x, 40);
   });
 
   test("a run straight across from the other box gets a step halfway", () => {

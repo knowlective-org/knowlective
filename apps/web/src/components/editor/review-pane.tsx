@@ -6,20 +6,21 @@ import { loadReviewThreads, setReviewResolved } from "@/app/(app)/pages/[pageId]
 import { reviewChatKey, type ReviewThreads } from "@/lib/review-threads";
 import { showAlert } from "@/components/dialog";
 import { Icon } from "@/components/icons";
-import { ChatThread } from "./chat-block";
+import { ChatThread } from "./chat-thread";
 import { useChildrenData, usePageEditor } from "./page-context";
 import type { KnowlectiveEditor } from "./schema";
 import styles from "./review-pane.module.css";
 
 // Review threads (lib/review-threads.ts): a chat about one of the page's
-// top-level blocks, started from its ⋮⋮ menu ("Start a chat"), shown in a
+// top-level blocks (or one of a whiteboard's items: whiteboard-canvas.tsx,
+// with the same provider and pane), started from its ⋮⋮ menu ("Start a chat"), shown in a
 // pane beside the page (the page is split in two; the pane stays in view as
 // the page scrolls). Like comments: not part of the document, so never
 // printed or exported. A block with an open thread has a mark on its right
 // with the number of messages; a resolved thread's mark goes away until a new
 // message opens it again.
 
-type ReviewApi = {
+export type ReviewApi = {
   threads: ReviewThreads | null | undefined;
   // The block whose thread is shown, null: the pane is closed.
   activeId: string | null;
@@ -146,12 +147,32 @@ function ReviewMarkers({ editor, review }: { editor: KnowlectiveEditor; review: 
 
 function ReviewPane({ editor, review, blockId }: { editor: KnowlectiveEditor; review: ReviewApi; blockId: string }) {
   const t = useTranslations("editor.review");
+  const block = editor.getBlock(blockId);
+  const excerpt = block ? textOf(block.content).trim() : null;
+  return <ReviewPaneView review={review} blockId={blockId} about={excerpt} labels={{ title: t("title"), gone: t("blockGone"), noText: t("noText") }} />;
+}
+
+// The pane of a thread, whatever it's about (a block, or an item of a
+// whiteboard: whiteboard-canvas.tsx). `about`: the text of what it's about,
+// null when that's gone (the messages stay, and show again if it comes back).
+export function ReviewPaneView({
+  review,
+  blockId,
+  about,
+  labels,
+  className,
+}: {
+  review: ReviewApi;
+  blockId: string;
+  about: string | null;
+  labels: { title: string; gone: string; noText: string };
+  className?: string;
+}) {
+  const t = useTranslations("editor.review");
   const failed = useTranslations("editor.save")("failed");
   const { pageId } = usePageEditor();
   const [busy, setBusy] = useState(false);
   const thread = review.threads?.threads.find((th) => th.blockId === blockId);
-  const block = editor.getBlock(blockId);
-  const excerpt = block ? textOf(block.content).trim() : null;
   const ref = useRef<HTMLElement>(null);
 
   // Opened: the pane comes into view (on a narrow screen it's over the page).
@@ -175,8 +196,8 @@ function ReviewPane({ editor, review, blockId }: { editor: KnowlectiveEditor; re
     <aside
       ref={ref}
       tabIndex={-1}
-      className={styles.pane}
-      aria-label={t("title")}
+      className={className ? `${styles.pane} ${className}` : styles.pane}
+      aria-label={labels.title}
       data-ui="ReviewPane"
       data-id={blockId}
       onKeyDown={(e) => {
@@ -185,7 +206,7 @@ function ReviewPane({ editor, review, blockId }: { editor: KnowlectiveEditor; re
     >
       <div className={styles.header}>
         <Icon name="chat" size={18} />
-        <span className={styles.title}>{t("title")}</span>
+        <span className={styles.title}>{labels.title}</span>
         {review.threads?.canPost && thread && thread.count > 0 && (
           <button
             type="button"
@@ -202,7 +223,7 @@ function ReviewPane({ editor, review, blockId }: { editor: KnowlectiveEditor; re
         </button>
       </div>
       <blockquote className={styles.quote} data-ui="ReviewPane.blockText">
-        {excerpt === null ? t("blockGone") : excerpt || t("noText")}
+        {about === null ? labels.gone : about || labels.noText}
       </blockquote>
       {thread?.resolved && (
         <p className={styles.resolved} role="status" data-ui="ReviewPane.resolvedStatus">

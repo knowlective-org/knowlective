@@ -10,8 +10,8 @@ import { getTheme } from "@/lib/theme";
 // site added that way. Named after the site (its name at the top left of the
 // sidebars), in the site's background color.
 //
-// The icons are public/icons/ (and app/apple-icon.png for iOS), rendered from
-// app/icon.svg. There's no offline cache: the service worker (public/sw.js)
+// The icons are public/icons/ (and public/apple-icon.png for iOS), rendered from
+// public/icon.svg. There's no offline cache: the service worker (public/sw.js)
 // only shows notifications, so decrypted pages never stay on the device.
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   await connection();

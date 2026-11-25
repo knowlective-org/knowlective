@@ -96,6 +96,7 @@ export default {
     network: "Set the networks with full access to {networks, select, none {none (no restriction)} other {{networks}}}; other networks may: {others, select, none {nothing} other {{others}}}",
     networkFlags: { access: "access", read: "read", write: "change", download: "download", upload: "attach" },
     brand: "Set the top left to {mode, select, IMAGE {the logo} other {the name}} (\"{name}\"{logo, select, true {, new logo} other {}})",
+    siteFavicon: "{set, select, true {Set the site's favicon} other {Set the site's favicon back to the default}}",
     apiKeysRevoke: "Revoked {who}'s API keys ({count, number})",
     apiSettings: "Set the API to {enabled, select, true {on} other {off}}, the MCP server to {mcp, select, true {on} other {off}} (roles that can issue keys: {roles})",
     passkeyRemove: "Removed the passkey \"{name}\"",
