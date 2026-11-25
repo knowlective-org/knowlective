@@ -74,7 +74,7 @@ test("an auditor sees the admin console read-only, and its actions refuse them",
     await openAdmin(auditor, "", "auditor");
     // Every section a site admin sees, with the controls disabled.
     await expect(auditor.getByTestId("AdminReadOnly.status")).toBeVisible();
-    await expect(auditor.getByTestId("AdminSidebar.navLink")).toHaveText(["概要", "ユーザー", "グループ", "ナレッジルート", "ファイル", "セキュリティ", "バージョン情報"]);
+    await expect(auditor.getByTestId("AdminSidebar.navLink")).toHaveText(["概要", "ユーザー", "グループ", "ナレッジルート", "ファイル", "利用状況", "セキュリティ", "バージョン情報"]);
     await expect(auditor.getByTestId("AdminSidebar.nav").locator("..")).toContainText(`${ACCOUNTS.auditor.name} (監査)`);
     await expect(auditor.getByTestId("OutboundProxyForm.urlInput")).toBeDisabled();
     await expect(auditor.getByTestId("LinkPreviewSettingsForm.submitButton")).toBeDisabled();
