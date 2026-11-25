@@ -1,4 +1,4 @@
-import { getPageAccess } from "shared";
+import { atLeast, getPageAccess, getTreeWithAccess } from "shared";
 import { auditPageIds } from "@/lib/audit-pages";
 import { prisma } from "@/lib/db";
 
@@ -15,10 +15,25 @@ export async function auditSummaries<T extends Log>(
   viewerId: string | null,
 ): Promise<(T & { hidden: boolean })[]> {
   const seen = new Map<string, Promise<boolean>>();
+  const trees = new Map<string, ReturnType<typeof getTreeWithAccess>>();
+  // A page in the trash (page.delete) opens for nobody: it counts as open
+  // for those who could open it were it not deleted. Not in a deleted
+  // knowledge root (no grants), nor for the master password login.
+  const couldOpen = async (pageId: string) => {
+    if (viewerId === null) return false;
+    const page = await prisma.page.findUnique({ where: { id: pageId }, select: { rootId: true, deletedAt: true } });
+    if (!page?.deletedAt) return false;
+    let tree = trees.get(page.rootId);
+    if (!tree) {
+      tree = getTreeWithAccess(prisma, viewerId, page.rootId);
+      trees.set(page.rootId, tree);
+    }
+    return atLeast((await tree).access.get(pageId) ?? null, "VIEW");
+  };
   const canOpen = (pageId: string) => {
     let open = seen.get(pageId);
     if (!open) {
-      open = getPageAccess(prisma, viewerId, pageId).then((access) => access !== null);
+      open = getPageAccess(prisma, viewerId, pageId).then((access) => access !== null || couldOpen(pageId));
       seen.set(pageId, open);
     }
     return open;

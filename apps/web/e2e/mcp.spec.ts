@@ -277,6 +277,70 @@ test.describe("MCP server", () => {
     }
   });
 
+  test("deletes a page without child pages, from the bottom up, through MCP and the API", async ({ baseURL, request }) => {
+    const key = await keyFor("editor", "WRITE");
+    const mcp = await connect(baseURL!, key);
+    try {
+      const stamp = Date.now();
+      const parent = data(await mcp.call("create_page", { parentId: HOME_PAGE_ID, title: `E2E MCP 削除 親 ${stamp}` })).id as string;
+      createdPages.push(parent);
+      const child = data(await mcp.call("create_page", { parentId: parent, title: "E2E MCP 削除 子" })).id as string;
+      createdPages.push(child);
+      const trashed = (id: string) =>
+        withPrisma(async (prisma) => (await prisma.page.findUniqueOrThrow({ where: { id }, select: { deletedAt: true } })).deletedAt !== null);
+
+      // A page with a child page stays, through either way in.
+      const refused = await mcp.call("delete_page", { pageId: parent });
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0].text).toMatch(/child pages/);
+      const refusedApi = await request.delete(`api/v1/pages/${parent}`, { headers: { Authorization: `Bearer ${key}` } });
+      expect(refusedApi.status()).toBe(409);
+      expect((await refusedApi.json()).error.code).toBe("has_children");
+      expect(await trashed(parent)).toBe(false);
+
+      // The child first (MCP), then the parent (API): both in the trash.
+      const deleted = await mcp.call("delete_page", { pageId: child });
+      expect(deleted.isError).toBeFalsy();
+      expect(data(deleted).parentId).toBe(parent);
+      expect(await trashed(child)).toBe(true);
+      const deletedApi = await request.delete(`api/v1/pages/${parent}`, { headers: { Authorization: `Bearer ${key}` } });
+      expect(deletedApi.status()).toBe(200);
+      expect(await trashed(parent)).toBe(true);
+      // Recorded in the audit log, with how.
+      const recorded = await withPrisma((prisma) =>
+        prisma.auditLog.count({ where: { action: "page.delete", createdAt: { gte: new Date(stamp) } } }),
+      );
+      expect(recorded).toBe(2);
+      // Gone: a second time finds nothing.
+      expect((await mcp.call("delete_page", { pageId: parent })).isError).toBe(true);
+
+      // A knowledge root's top page can't be deleted.
+      const rootPage = await withPrisma(async (prisma) => {
+        const home = await prisma.page.findUniqueOrThrow({ where: { id: HOME_PAGE_ID }, select: { root: { select: { rootPageId: true } } } });
+        return home.root.rootPageId!;
+      });
+      expect((await mcp.call("delete_page", { pageId: rootPage })).isError).toBe(true);
+      expect(await trashed(rootPage)).toBe(false);
+    } finally {
+      await mcp.close();
+    }
+
+    // A viewer can't delete, and a read-only key isn't offered the tool.
+    const viewer = await connect(baseURL!, await keyFor("viewer", "WRITE"));
+    try {
+      expect((await viewer.call("delete_page", { pageId: HOME_PAGE_ID })).isError).toBe(true);
+    } finally {
+      await viewer.close();
+    }
+    const reader = await connect(baseURL!, await keyFor("editor", "READ"));
+    try {
+      expect((await reader.client.listTools()).tools.map((t) => t.name)).not.toContain("delete_page");
+    } finally {
+      await reader.close();
+    }
+    expect(await withPrisma(async (prisma) => (await prisma.page.findUniqueOrThrow({ where: { id: HOME_PAGE_ID } })).deletedAt)).toBeNull();
+  });
+
   test("off unless both the API and MCP are on; a key is required", async ({ request }) => {
     const key = await keyFor("editor", "READ");
     const post = (headers: Record<string, string>) =>

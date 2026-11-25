@@ -5,6 +5,7 @@ import { apiError, apiJson, pageDetail, readPageInput, withApiKey } from "@/lib/
 import { markdownToBody } from "@/lib/api/page-content";
 import { adoptFilesInBody } from "@/lib/file-copy";
 import { BLOCKS_LOCKED, replacePageContent } from "@/lib/collab-events";
+import { trashPage } from "@/lib/api/page-delete";
 
 type Context = RouteContext<"/api/v1/pages/[pageId]">;
 
@@ -55,5 +56,17 @@ export async function PATCH(request: Request, ctx: Context) {
       throw error;
     }
     return apiJson(await pageDetail(user.id, pageId, access.rootId));
+  });
+}
+
+// DELETE: moves the page to the trash (restored from there as usual). Only a
+// page without child pages: a subtree is deleted from the bottom up. Needs
+// EDIT, and the page not locked. A slide is deleted from its presentation.
+export async function DELETE(request: Request, ctx: Context) {
+  return withApiKey(request, "WRITE", async ({ user }) => {
+    const { pageId } = await ctx.params;
+    const result = await trashPage(user.id, pageId, "api");
+    if ("error" in result) return apiError(result.error);
+    return apiJson({ ok: true, parentId: result.parentId });
   });
 }

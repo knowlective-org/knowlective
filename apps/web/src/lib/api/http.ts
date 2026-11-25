@@ -34,6 +34,8 @@ export type ApiErrorCode =
   | "chat_locked"
   | "too_deep"
   | "too_many_slides"
+  | "root_page"
+  | "has_children"
   | "conflict";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -53,6 +55,8 @@ const STATUS: Record<ApiErrorCode, number> = {
   chat_locked: 423,
   too_deep: 400,
   too_many_slides: 409,
+  root_page: 409,
+  has_children: 409,
   conflict: 409,
 };
 
@@ -71,6 +75,8 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   too_deep: "The page would be nested too deep.",
   too_many_slides: "A presentation can have at most 200 slides.",
   conflict: "The pages have changed, or it can't go there.",
+  root_page: "A knowledge root's top page can't be deleted.",
+  has_children: "The page has child pages. Delete them first (a presentation's slides too).",
   not_document:
     "The page isn't a document: a whiteboard's content can't be written as Markdown (its title can), and a shortcut can't be changed here.",
   not_whiteboard: "The page isn't a whiteboard.",

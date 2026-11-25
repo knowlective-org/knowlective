@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { authFile } from "./accounts";
 import { openAdmin } from "./admin-login";
+import { withPrisma } from "./db";
+import { createPage, trashOpenPage } from "./helpers";
 
 // The audit log in /admin (security): 20 entries a page, newest first.
 
@@ -28,5 +31,24 @@ test.describe("Audit log", () => {
     await expect(rows.first()).toHaveAttribute("data-id", firstOnPage1!);
     await page.goto("admin/security?auditPage=99999");
     await expect(page.getByTestId("Pagination.current")).toHaveText(String(Math.ceil(total / 20)));
+  });
+
+  test("deleting a page from the page menu is recorded, with its title for those who could open it", async ({ page, browser }) => {
+    const editor = await browser.newContext({ storageState: authFile("editor") });
+    let title = "";
+    try {
+      const tab = await editor.newPage();
+      const created = await createPage(tab, "E2E 削除の記録");
+      const id = created.id;
+      title = created.title;
+      // The title the record names is the saved one (collab writes it back).
+      await expect.poll(() => withPrisma((prisma) => prisma.page.findUnique({ where: { id } }).then((p) => p?.title))).toBe(title);
+      await trashOpenPage(tab);
+    } finally {
+      await editor.close();
+    }
+    // The page is in the trash, yet the admin (who could open it) sees its title.
+    await openAdmin(page, "/security");
+    await expect(page.getByTestId("AdminSecurityPage.auditLogRow").filter({ hasText: `ページ「${title}」をごみ箱に移動` })).toHaveCount(1);
   });
 });

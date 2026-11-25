@@ -8,16 +8,20 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-24
+
 ### Added
 
 - Child page calendars can be shown as a Gantt chart over a week, a month, three months, a year or three years, from a start and an end date column. Bars can be moved and resized.
 - Whiteboards and slides: a box's outline can be removed, drawn thick, dashed or double, and given a color, and its text can be set to any font weight from 100 to 900.
 - Whiteboards and slides: double-clicking the handle that moves a box's text puts the text back in its default place.
 - MCP: extended tables can be created (`create_extended_table`, with typed columns) and their rows and columns added and deleted (`add_table_rows`, `add_table_column`, `delete_table_rows`, `delete_table_column`). `list_blocks` gives an extended table's row count and column types. The same through the API: `POST /api/v1/pages/<id>/tables`, and `POST` / `DELETE` on `…/tables/<table id>/rows` and `…/columns`.
+- MCP and the API can move a page to the trash (`delete_page`, `DELETE /api/v1/pages/<id>`), to be restored from there as usual. Only a page without child pages: a subtree is deleted from the bottom up (a presentation's slides with `delete_slide` first). Needs edit access, and the page not locked; a knowledge root's top page can't be deleted. Recorded in the audit log.
 - Editor: a table can be turned into an extended table from the ⋮⋮ menu ("Convert to extended table"), keeping its text, colors, header row and column, and column widths. Merged cells are split.
 
 ### Changed
 
+- Moving a page to the trash (the page menu, the sidebar, a presentation's slides, and the API and MCP) is now recorded in the audit log, with how many pages under it went too. Its title is shown to those who could open the page were it not in the trash.
 - Whiteboards and slides: holding Shift while drawing a line or dragging its end now snaps it to 15° steps instead of 45°.
 
 ### Fixed
