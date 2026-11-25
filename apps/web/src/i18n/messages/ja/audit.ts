@@ -38,6 +38,12 @@ const ja: MessageShape<typeof en> = {
     outboundProxy: "外部への接続のプロキシを「{from}」から「{to}」に変更",
     outboundProxyOn: "{url}（直接つなぐ宛先：{bypass, select, none {なし} other {{bypass}}}）",
     outboundProxyOff: "プロキシなし",
+    versionRetention: "ページの履歴を残す期間を「{from}」から「{to}」に変更",
+    versionRetentionForever: "期限なし",
+    versionRetentionDaysLabel: "{days, number}日",
+    versionRetentionDeleted:
+      "保存期間（{days, number}日）より古い、{pages, number}ページの版{versions, number}個と、プレゼンテーション全体の履歴{snapshots, number}件を削除",
+    systemActor: "システム",
     auditorsPersonalRoots: "{allowed, select, true {監査グループに、全員のマイページの閲覧を許可} other {監査グループの、全員のマイページの閲覧を停止}}",
     personalPageView: "監査として、{owner} のマイページのページ（{pageId}）{where, select, history {の履歴} other {}}を閲覧",
     linkPreviewOff: "使わない",

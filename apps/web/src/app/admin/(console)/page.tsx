@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { isInsecurePublicUrl } from "shared";
 import { siteDefaultLocale } from "@/i18n/locale";
 import { BASE_PATH } from "@/lib/base-path";
@@ -26,6 +26,7 @@ import { PushNotificationsForm } from "./push-notifications-form";
 import { getOutboundProxySettings } from "@/lib/outbound-proxy";
 import { OutboundProxyForm } from "./outbound-proxy-form";
 import { AuditorSettingsForm } from "./auditor-settings-form";
+import { VersionRetentionForm } from "./version-retention-form";
 import { publicTrees } from "@/lib/sidebar-data";
 import { getDisplayTitle } from "@/i18n/display-title";
 import { PublicRootOrderForm } from "./public-root-order-form";
@@ -44,6 +45,9 @@ export default async function AdminOverviewPage() {
           landingPageId: true,
           pushNotificationsEnabled: true,
           auditorsSeePersonalRoots: true,
+          versionRetentionDays: true,
+          versionCleanupAt: true,
+          versionCleanupDeleted: true,
         },
       }),
       getRequestOrigin(),
@@ -58,6 +62,7 @@ export default async function AdminOverviewPage() {
       getBrand(),
       getOutboundProxySettings(prisma),
     ]);
+  const format = await getFormatter();
   const code = (chunks: React.ReactNode) => <code>{chunks}</code>;
   // The roots with public pages, named as someone not logged in sees them:
   // by their public pages' titles (a root's own title only if it's public).
@@ -156,6 +161,24 @@ export default async function AdminOverviewPage() {
           {t("auditorsLead")}
         </p>
         <AuditorSettingsForm personalRoots={site.auditorsSeePersonalRoots} />
+      </section>
+
+      <section className={styles.section} data-ui="AdminOverviewPage.versionRetentionSection">
+        <h2 className={styles.sectionTitle}>{t("versionRetention")}</h2>
+        <p className={styles.note} style={{ marginBottom: 16 }}>
+          {t("versionRetentionLead")}
+        </p>
+        <VersionRetentionForm current={site.versionRetentionDays} />
+        {site.versionRetentionDays !== null && (
+          <p className={styles.note} style={{ marginTop: 12 }} data-ui="AdminOverviewPage.versionCleanupStatus">
+            {site.versionCleanupAt
+              ? t("versionCleanupLast", {
+                  time: format.dateTime(site.versionCleanupAt, { dateStyle: "medium", timeStyle: "short" }),
+                  count: site.versionCleanupDeleted ?? 0,
+                })
+              : t("versionCleanupPending")}
+          </p>
+        )}
       </section>
 
       <section className={styles.section} data-ui="AdminOverviewPage.outboundProxySection">

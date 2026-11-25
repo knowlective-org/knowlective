@@ -7,6 +7,7 @@ import { siteDefaultLocale } from "@/i18n/locale";
 import { type ApiCaller, authenticateApiKey } from "./keys";
 import { MAX_MARKDOWN_BYTES, pageContent } from "./page-content";
 import { createRateLimiter } from "@/lib/rate-limit";
+import { recordUsage } from "@/lib/usage";
 
 // The public API's request handling (/api/v1/*, Route Handlers): the key,
 // the scope, errors as JSON, a rate limit per key.
@@ -109,6 +110,8 @@ export async function withApiKey(
   const retryAfter = rateLimited(caller.key.id);
   if (retryAfter !== null) return apiError("rate_limited", undefined, { "Retry-After": String(retryAfter) });
   if (scope === "WRITE" && caller.key.scope !== "WRITE") return apiError("insufficient_scope");
+  // The usage dashboard: calls by what they need (reading or writing).
+  recordUsage(prisma, { userId: caller.user.id, channel: "API", metric: scope === "WRITE" ? "write" : "read", via: `key:${caller.key.id}` });
   return handler(caller);
 }
 

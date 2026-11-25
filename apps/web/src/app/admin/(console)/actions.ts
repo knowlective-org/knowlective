@@ -21,6 +21,7 @@ import { InvalidPublicUrlError, normalizePublicUrl, type SiteRole } from "shared
 import { invitableRoles } from "@/lib/roles";
 import { recordAudit } from "@/lib/audit";
 import { normalizeRootOrder } from "@/lib/root-order";
+import { MAX_RETENTION_DAYS, MIN_RETENTION_DAYS, parseRetentionDays } from "@/lib/version-retention";
 import { reconnectDocuments } from "@/lib/collab-events";
 import { landingPageOptions } from "@/lib/landing-page";
 import { publicPageIds } from "@/lib/public-pages";
@@ -1148,6 +1149,34 @@ export async function saveAuditorSettings(_prev: AuditorSettingsState, formData:
     await recordAudit(actor, "auditors.settings", audit("audit.auditorsPersonalRoots", { allowed: String(personalRoots) }), {
       personalRoots,
     });
+  }
+  revalidatePath("/admin", "layout");
+  return { saved: true };
+}
+
+export type VersionRetentionState = { error?: string; saved?: boolean };
+
+// How many days of page history to keep (null: forever). Deleting starts with
+// the next hourly pass (lib/version-cleanup.ts), not here.
+export async function saveVersionRetention(_prev: VersionRetentionState, formData: FormData): Promise<VersionRetentionState> {
+  const { actor } = await requireAdmin(["SITE_ADMIN"]);
+  const t = await getTranslations("admin.overview");
+  const days = formData.get("mode") === "forever" ? null : parseRetentionDays(String(formData.get("days") ?? ""));
+  if (days === "invalid" || (days === null && formData.get("mode") !== "forever")) {
+    return { error: t("versionRetentionInvalid", { min: MIN_RETENTION_DAYS, max: MAX_RETENTION_DAYS }) };
+  }
+  const before = await prisma.instanceConfig.findUniqueOrThrow({ where: { id: 1 }, select: { versionRetentionDays: true } });
+  await prisma.instanceConfig.update({ where: { id: 1 }, data: { versionRetentionDays: days } });
+  if (before.versionRetentionDays !== days) {
+    const audit = await auditTranslator();
+    const label = (d: number | null) =>
+      d === null ? audit("audit.versionRetentionForever") : audit("audit.versionRetentionDaysLabel", { days: d });
+    await recordAudit(
+      actor,
+      "page.version.retention.settings",
+      audit("audit.versionRetention", { from: label(before.versionRetentionDays), to: label(days) }),
+      { from: before.versionRetentionDays, to: days },
+    );
   }
   revalidatePath("/admin", "layout");
   return { saved: true };

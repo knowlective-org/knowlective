@@ -90,6 +90,7 @@ model User {
   adminSessions     AdminSession[]
   passkeys          UserPasskey[]
   apiKeys           ApiKey[]
+  usage             UsageDaily[]
   oauthGrants       OAuthGrant[]
   emailCodes        EmailCode[]
   adminEmailChange  AdminEmailChange?
@@ -392,7 +393,8 @@ model PageVersion {
   // Set when text in this version was masked (e.g. a password typed by
   // mistake): `state` and `title` were rebuilt with the text replaced, so the
   // version is shown masked and can no longer be restored. Versions are
-  // never deleted (audit).
+  // kept (audit) unless the site sets a retention period
+  // (InstanceConfig.versionRetentionDays).
   maskedAt       DateTime?
   maskedById     String?
 
@@ -644,6 +646,14 @@ model InstanceConfig {
   // knowledge root (read-only; each page they open there is recorded in the
   // audit log). packages/shared/src/permissions.ts.
   auditorsSeePersonalRoots Boolean @default(false)
+  // How many days of page history to keep (null: forever, the default).
+  // Older versions are deleted hourly by apps/web/src/lib/version-cleanup.ts,
+  // keeping each page's newest version from before the cutoff, so the page
+  // as it was at any moment in the period can still be restored. The last
+  // pass's time and how many versions it deleted, for the admin console.
+  versionRetentionDays     Int?
+  versionCleanupAt         DateTime?
+  versionCleanupDeleted    Int?
   // The top page: where "/" goes for someone with nowhere else to go (see
   // apps/web/src/lib/landing-page.ts). No foreign key: used only while the
   // visitor can open it (checked on each visit).
@@ -1207,6 +1217,30 @@ model AuditLog {
   createdAt        DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// How much each person used the site, per day (apps/web/src/lib/usage.ts):
+// counts only, never what was read or written. Shown on the admin console's
+// usage dashboard (/admin/usage). Rows older than USAGE_KEEP_DAYS are deleted.
+// - channel: WEB (the editor), API (/api/v1), MCP (/api/mcp)
+// - metric: "edit" (a stored change to a page from the editor), "upload" /
+//   "uploadBytes" (files added), "read" / "write" (API and MCP calls)
+// - via: the API key ("key:<id>") or the connected app ("app:<OAuthClient id>")
+// - detail: the MCP tool's name
+// Pages created and chat messages aren't counted here: Page.createdById and
+// ChatMessage.authorId already say.
+model UsageDaily {
+  day     DateTime @db.Date
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel String
+  metric  String
+  via     String   @default("")
+  detail  String   @default("")
+  count   BigInt   @default(0)
+
+  @@id([day, userId, channel, metric, via, detail])
+  @@index([userId, day])
 }
 
 // Site colors set in /admin (one row, id = 1). Keys and defaults live in

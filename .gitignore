@@ -18,3 +18,6 @@ apps/web/.models/
 
 # Throwaway scripts (e.g. driving the demo site): never committed
 tmp-*
+
+# Editor settings
+.vscode/

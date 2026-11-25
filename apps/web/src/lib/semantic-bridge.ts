@@ -24,6 +24,8 @@ export type SemanticStatus = "off" | "loading" | "ready";
 type SemanticBridge = {
   status(): SemanticStatus;
   search(query: string, pageIds: string[], limit: number): Promise<SemanticHit[]>;
+  // The vector database's size in bytes (the usage dashboard).
+  size(): Promise<number | null>;
 };
 
 const BRIDGE_KEY = Symbol.for("knowlective.semantic-search");
@@ -42,6 +44,11 @@ export function semanticSearchStatus(): SemanticStatus {
 
 // The passages closest to `query` among `pageIds` (the pages the user can
 // open), best first. Null when semantic search isn't available.
+// The vector database's size in bytes; null when there is none or it can't be read.
+export async function vectorDatabaseSize(): Promise<number | null> {
+  return (await bridge()?.size().catch(() => null)) ?? null;
+}
+
 export async function semanticSearch(query: string, pageIds: string[], limit: number): Promise<SemanticHit[] | null> {
   const b = bridge();
   if (!b || b.status() !== "ready") return null;

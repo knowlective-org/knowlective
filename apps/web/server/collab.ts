@@ -43,6 +43,7 @@ import { createNotifier } from "./notifications";
 import { FALLBACK_LOCALE, isLocale, negotiateLocale } from "../src/i18n/locales";
 import { translatorFor } from "../src/i18n/translator";
 import { getClientIp } from "../src/lib/ip";
+import { recordUsage } from "../src/lib/usage";
 import { type NetworkCaps, capsFor, getNetworkSettings } from "../src/lib/network-policy";
 
 // Real-time collaboration (Yjs over WebSocket), served by the same process
@@ -77,6 +78,10 @@ export async function createCollab() {
   const editedBy = new Map<string, string>();
   // Users who edited each document since its last saved version (page history).
   const pendingEditors = new Map<string, Set<string>>();
+  // Users who edited each document from an editor (not the API, MCP or a
+  // restore: direct connections) since it was last stored: the usage
+  // dashboard counts one edit per person per store (lib/usage.ts).
+  const storedEditors = new Map<string, Set<string>>();
 
   // Saves the document's current state as a version of the page.
   async function saveVersion(
@@ -168,6 +173,8 @@ export async function createCollab() {
         const title = normalizeTitle(document.getText(TITLE_FIELD).toString());
         const editorId = editedBy.get(documentName);
         editedBy.delete(documentName);
+        for (const userId of storedEditors.get(documentName) ?? []) recordUsage(prisma, { userId, channel: "WEB", metric: "edit" });
+        storedEditors.delete(documentName);
         const page = await prisma.page.findUnique({ where: { id: documentName }, select: { title: true, parentId: true, kind: true } });
         // Search index (title, body, attachment names) from the state just stored.
         await reindexPage(prisma, documentName, Uint8Array.from(state));
@@ -348,6 +355,12 @@ export async function createCollab() {
       const editors = pendingEditors.get(documentName) ?? new Set<string>();
       editors.add(userId);
       pendingEditors.set(documentName, editors);
+      // An editor's connection (onAuthenticate gave it a cursor).
+      if ((context as CollabContext).cursor) {
+        const stored = storedEditors.get(documentName) ?? new Set<string>();
+        stored.add(userId);
+        storedEditors.set(documentName, stored);
+      }
     },
   });
 

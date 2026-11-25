@@ -1,0 +1,173 @@
+/* The usage dashboard (/admin/usage). Series colors: a validated categorical
+   palette (blue, orange, aqua); the aqua falls under 3:1 on white, so every
+   chart has its numbers in a table too. */
+.dashboard {
+  --usage-web: #2a78d6;
+  --usage-api: #eb6834;
+  --usage-mcp: #1baf7a;
+}
+
+.periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0 0 1rem;
+}
+
+.period,
+.periodCurrent {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  color: inherit;
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+
+.period:hover {
+  background: var(--color-hover);
+}
+
+.periodCurrent {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.tile {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.tileLabel {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.tileValue {
+  margin-top: 0.25rem;
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.tileNote {
+  margin-top: 0.125rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.person {
+  min-width: 10rem;
+}
+
+.muted {
+  color: var(--color-muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+}
+
+.chart {
+  position: relative;
+  width: 100%;
+}
+
+.chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.axisText {
+  fill: var(--color-muted);
+  font-size: 11px;
+}
+
+.grid {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.hoverBand {
+  fill: transparent;
+}
+
+.hoverBandActive {
+  fill: var(--color-hover);
+}
+
+.tooltip {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  min-width: 9rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.tooltipRow span:last-child {
+  margin-left: auto;
+  padding-left: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.details {
+  margin-top: 0.75rem;
+}
+
+.details summary {
+  cursor: pointer;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+@media print {
+  .periods {
+    display: none;
+  }
+}

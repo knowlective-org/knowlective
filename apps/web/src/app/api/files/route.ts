@@ -8,6 +8,7 @@ import { findAccessiblePage } from "@/lib/auth/pages";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getAllowedUploadExtensions, getMaxUploadSizeMb, getStorageConfig, getUploadsEnabled, putFile } from "@/lib/storage";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
+import { recordUsage } from "@/lib/usage";
 
 // POST /api/files?pageId=<id>  (multipart, field "file")
 // Upload from the editor (BlockNote's uploadFile). Returns { url }.
@@ -96,6 +97,8 @@ export async function POST(req: NextRequest) {
     console.error("[files] upload failed", err);
     return json(502, { error: t("failed") });
   }
+  recordUsage(prisma, { userId: user.id, channel: "WEB", metric: "upload" });
+  recordUsage(prisma, { userId: user.id, channel: "WEB", metric: "uploadBytes", count: bytes.byteLength });
 
   // Attachments are searchable by name and content once the page shows them
   // (the collab server reindexes when the block gets this URL); the content is
