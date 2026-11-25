@@ -71,8 +71,9 @@ test.describe("Extended table", () => {
     await expect(cells(page)).toHaveCount(12);
     await expect(rows(page).nth(1).getByTestId("GridTable.cell")).toHaveCount(4);
     await expect(cellContent(page, 4)).toContainText("説明");
-    // A row at the end, from the bar; then the last row deleted.
-    await page.getByTestId("GridTable.addRowButton").click();
+    // A row at the end, from the table's menu; then the last row deleted.
+    await page.getByTestId("GridTable.menuButton").click();
+    await page.getByTestId("GridTable.addRowItem").click();
     await expect(rows(page)).toHaveCount(4);
     await cells(page).last().hover();
     await cells(page).last().getByTestId("GridTable.cellMenuButton").click();
@@ -80,7 +81,8 @@ test.describe("Extended table", () => {
     await expect(rows(page)).toHaveCount(3);
 
     // Row titles: the first column.
-    await page.getByTestId("GridTable.headerColumnCheckbox").check();
+    await page.getByTestId("GridTable.menuButton").click();
+    await page.getByTestId("GridTable.headerColumnItem").click();
     await expect(cells(page).nth(4)).toHaveAttribute("role", "rowheader");
 
     // Wider first column, by dragging its edge.
@@ -109,14 +111,15 @@ test.describe("Extended table", () => {
       await openPage(viewer, id);
       await expect(viewer.getByTestId("GridTable.cell")).toHaveCount(12);
       await expect(viewer.locator(".kn-grid-cell-content").nth(0)).toHaveText("項目");
-      await expect(viewer.getByTestId("GridTable.toolbar")).toHaveCount(0);
+      await expect(viewer.getByTestId("GridTable.menuButton")).toHaveCount(0);
       await expect(viewer.getByTestId("GridTable.cellMenuButton")).toHaveCount(0);
     } finally {
       await viewerContext.close();
     }
 
     // Deleting the table (after a confirmation) leaves an empty paragraph.
-    await page.getByTestId("GridTable.deleteButton").click();
+    await page.getByTestId("GridTable.menuButton").click();
+    await page.getByTestId("GridTable.deleteItem").click();
     await page.getByTestId("AppDialog.confirmButton").click();
     await expect(page.getByTestId("GridTable")).toHaveCount(0);
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
@@ -324,7 +327,8 @@ test("a summary row adds up its columns: sums, counts and conditions (COUNTIF, S
   await createPage(page, "E2E 拡張テーブルの集計");
   await insertGridTable(page);
   // Two columns of the three: item, amount, status; header row + 2 body rows (+1 added).
-  await page.getByTestId("GridTable.addRowButton").click();
+  await page.getByTestId("GridTable.menuButton").click();
+  await page.getByTestId("GridTable.addRowItem").click();
   await expect(cells(page)).toHaveCount(12);
   const values = ["品目", "金額", "状態", "りんご", "1,200", "完了", "みかん", "300", "未着手", "ぶどう", "500", "完了"];
   for (const [i, value] of values.entries()) {
@@ -332,7 +336,8 @@ test("a summary row adds up its columns: sums, counts and conditions (COUNTIF, S
     await page.keyboard.type(value);
   }
 
-  await page.getByTestId("GridTable.summaryRowCheckbox").check();
+  await page.getByTestId("GridTable.menuButton").click();
+  await page.getByTestId("GridTable.summaryRowItem").click();
   const summary = page.getByTestId("GridTable.summaryRow");
   await expect(summary).toBeVisible();
   const summaryCell = (col: number) => summary.locator(`[data-ui="GridTable.summaryCell"][data-col="${col}"]`);
@@ -375,8 +380,8 @@ test("a summary row adds up its columns: sums, counts and conditions (COUNTIF, S
   await expect(summaryCell(2).getByTestId("GridTable.summaryValue")).toHaveText("3");
 
   // Turned off again.
-  await page.getByTestId("GridTable").hover();
-  await page.getByTestId("GridTable.summaryRowCheckbox").uncheck();
+  await page.getByTestId("GridTable.menuButton").click();
+  await page.getByTestId("GridTable.summaryRowItem").click();
   await expect(page.getByTestId("GridTable.summaryRow")).toBeHidden();
   await expect(page.getByTestId("PageView.status")).toHaveCount(0);
   await trashOpenPage(page);

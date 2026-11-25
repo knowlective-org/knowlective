@@ -313,7 +313,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     {
       title: "Read child pages' properties",
       description:
-        "A page's child pages (those you can see, in their order) with their values in the columns of the page's child page table (its properties): all columns, or only those named in `properties`. A select value is its option's name, a person { id, name }, a date \"YYYY-MM-DD\"; a masked value can't be read here ({ masked: true }). Columns sharing a name are \"name (2)\", ….",
+        "A page's child pages (those you can see, in their order) with their values in the columns of the page's child page table (its properties): all columns, or only those named in `properties`. A select value is its option's name, a person { id, name }, a date \"YYYY-MM-DD\"; a masked value can't be read here ({ masked: true }). Each child also has createdAt / updatedAt (ISO 8601) and createdBy / updatedBy ({ id, name }). Columns sharing a name are \"name (2)\", ….",
       inputSchema: z.object({
         pageId,
         properties: z.array(z.string().min(1).max(100)).max(30).optional().describe("Column names to return (default: all)"),
@@ -349,7 +349,7 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     {
       title: "Read a table",
       description:
-        "One table's values (its id from list_tables): every column, or only those named in `columns`. Each row has `values` by column name: a number, a date \"YYYY-MM-DD\", a checkbox true/false, an option's name (several: a list), a person { id, name }, text, or null when empty; a masked value can't be read here ({ masked: true }). A child page table's rows also have the page's id, title and url. Columns sharing a name are \"name (2)\", …; without a header, \"Column 1\", …. When `nextOffset` isn't null, call again with it as `offset` for the rest.",
+        "One table's values (its id from list_tables): every column, or only those named in `columns`. Each row has `values` by column name: a number, a date \"YYYY-MM-DD\", a checkbox true/false, an option's name (several: a list), a person { id, name }, text, or null when empty; a masked value can't be read here ({ masked: true }). A child page table's rows also have the page's id, title and url, createdAt / updatedAt (ISO 8601) and createdBy / updatedBy ({ id, name }). Columns sharing a name are \"name (2)\", …; without a header, \"Column 1\", …. When `nextOffset` isn't null, call again with it as `offset` for the rest.",
       inputSchema: z.object({
         pageId,
         tableId: z.string().min(1).max(64).describe("The table's id (from list_tables)"),

@@ -116,7 +116,7 @@ export default {
     // The extended table's controls (drawn outside React: read through
     // blockNoteDictionary(), as knowlective_grid).
     gridTable: {
-      toolbar: "Table",
+      tableMenu: "Table menu",
       pasteCut: "Part of the pasted data was left out: a table has up to 200 rows and 20 columns.",
       handle: "Drag to move the table; click for its menu",
       duplicateTable: "Duplicate table",
@@ -128,8 +128,8 @@ export default {
       alignment: "Alignment",
       headerRow: "Header row",
       headerColumn: "Row titles",
-      addRow: "Row",
-      addColumn: "Column",
+      addRow: "Add row",
+      addColumn: "Add column",
       deleteTable: "Delete table",
       deleteTableConfirm: "Delete this table and everything in it?",
       cellMenu: "Row and column",
