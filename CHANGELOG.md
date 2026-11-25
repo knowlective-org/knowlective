@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-25
+
 ### Added
 
 - Admin console → Overview → "Page history": a retention period in days. Versions older than it are deleted hourly, keeping each page's newest version from before the period (so a page can still be restored to any moment in the period), along with presentation history from before it. Off (kept forever) by default; setting it and each deletion are recorded in the audit log.
