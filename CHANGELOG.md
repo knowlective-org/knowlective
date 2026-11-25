@@ -8,6 +8,23 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- Whiteboards and slides: groups. Boxes and lines are grouped with Ctrl/⌘+G (ungrouped with Ctrl/⌘+Shift+G, or from the selection bar and the new menu); a click picks the whole group, a second click one of its items. Copies of a group are a new group. The API and MCP (`edit_whiteboard`) can set an item's `group`.
+- Whiteboards and slides: several selected boxes and lines are resized together, keeping their proportions, from the corner of the frame around them (their text keeps its size).
+- Whiteboards and slides: a menu on the right button (a right-button drag still moves the view), the menu key or Shift+F10: cut, copy, paste, duplicate, group, ungroup, bring to front, send to back and delete.
+- Whiteboards: a chat about an item, like the chat about a document's block: "Start a chat" in the board's menu opens it over the board's right side, and each item with messages has a mark with their number (a click opens it). It can be resolved and reopened; the messages are not part of the board.
+- Admin console → Overview → "Favicon": the icon in the browser's tab for the whole site (PNG, ICO or SVG up to 200 KB; SVGs are checked as logos are). A knowledge root's own favicon still takes its place on that root's pages; the home-screen and app icons stay the default ones. Setting it and going back to the default are recorded in the audit log.
+
+### Fixed
+
+- Whiteboards: connectors meeting a box at one point are spread along its side in the order of the way they come from (not only where their other ends are), so two from the same side no longer cross where they turn in.
+- Whiteboards: where the connector in front has no room to hop at a crossing (too near one of its corners), the one behind hops instead.
+
+### Upgrade notes
+
+- Pages open before the update have to be reloaded to keep editing (the editor's version changed).
+
 ## [0.8.0] - 2026-11-25
 
 ### Added

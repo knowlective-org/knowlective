@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { HocuspocusProvider } from "@hocuspocus/provider";
 import { yUndoPluginKey } from "y-prosemirror";
 import type { Mark } from "@tiptap/pm/model";
@@ -22,7 +22,6 @@ import { loadChildPages } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { BASE_PATH, resolveAppUrl } from "@/lib/base-path";
 import { sameSitePath } from "@/lib/same-site-link";
 import { UploadError, postFile as postSharedFile } from "@/lib/upload-file";
-import { CHILDREN_CHANGED } from "@/lib/collab-events";
 import { EXPORT_MARKDOWN_EVENT, EXPORT_PDF_EVENT, exportFileName } from "@/lib/page-export";
 import { beginSaving } from "@/lib/saving-status";
 import { TITLE_FIELD, normalizeTitle } from "@/lib/page-title";
@@ -57,7 +56,7 @@ import {
   splitMarkdownTitle,
   textToBlocks,
 } from "./editor/markdown-import";
-import { PageEditorContext, type PageEditorContextValue } from "./editor/page-context";
+import { PageEditorContext, useCollabPageContext } from "./editor/page-context";
 import { PageProperties } from "./editor/page-properties";
 import { customSlashMenuItems, editorSchema, mentionMenuItems, withTodoForChecklist } from "./editor/schema";
 import { pagePeople } from "./editor/page-people";
@@ -752,41 +751,8 @@ function EditorBody({
   }, [editor]);
 
   // Child-page blocks refetch when the collab server says this page's
-  // children changed (lib/collab-events.ts), and after a reconnect, since
-  // notifications sent while offline are lost.
-  const events = useMemo(() => new EventTarget(), []);
-  const pageContext = useMemo<PageEditorContextValue>(
-    () => ({
-      pageId,
-      userId: user.id,
-      onChildrenChanged(listener) {
-        events.addEventListener(CHILDREN_CHANGED, listener);
-        return () => events.removeEventListener(CHILDREN_CHANGED, listener);
-      },
-    }),
-    [pageId, user.id, events],
-  );
-  useEffect(() => {
-    const emit = () => events.dispatchEvent(new Event(CHILDREN_CHANGED));
-    const onStateless = ({ payload }: { payload: string }) => {
-      try {
-        if ((JSON.parse(payload) as { type?: string }).type === CHILDREN_CHANGED) emit();
-      } catch {
-        // Not ours.
-      }
-    };
-    let synced = false;
-    const onSynced = () => {
-      if (synced) emit();
-      synced = true;
-    };
-    provider.on("stateless", onStateless);
-    provider.on("synced", onSynced);
-    return () => {
-      provider.off("stateless", onStateless);
-      provider.off("synced", onSynced);
-    };
-  }, [provider, events]);
+  // children changed.
+  const pageContext = useCollabPageContext(provider, pageId, user.id);
 
   useEffect(() => {
     if (readOnly) return;

@@ -87,6 +87,13 @@ const ICONS = {
   sendToBack: [{ d: "M3.5 13.5 10 17l6.5-3.5" }, { d: "M10 3.5V13M6.5 9.5 10 13l3.5-3.5" }],
   duplicate: [{ d: "M7.5 7.5h9v9h-9ZM12.5 7.5v-4h-9v9h4" }],
   delete: [{ d: "M3.5 5.5h13M8 5.5v-2h4v2M5.2 5.5l.8 11h8l.8-11M8.5 8.5v5M11.5 8.5v5" }],
+  // The clipboard: scissors, two sheets, a clipboard.
+  cut: [{ d: "M8 13.5 15.5 3.5M12 13.5 4.5 3.5" }, { d: "M3.5 15a2 2 0 1 0 4 0 2 2 0 1 0-4 0ZM12.5 15a2 2 0 1 0 4 0 2 2 0 1 0-4 0Z" }],
+  copy: [{ d: "M7 6.5h8.5v10H7ZM13 6.5v-3H4.5v10H7" }],
+  paste: [{ d: "M7 4.5H5v12h10v-12h-2M7.5 3h5v3h-5Z" }],
+  // Two shapes in a dashed frame; for ungrouping, the frame's corners only.
+  group: [{ d: "M6 6h4.5v4.5H6ZM11 11h3v3h-3Z" }, { d: "M3 5V3h2M8 3h4M15 3h2v2M17 8v4M17 15v2h-2M12 17H8M5 17H3v-2M3 12V8" }],
+  ungroup: [{ d: "M6 6h4.5v4.5H6ZM11 11h3v3h-3Z" }, { d: "M3 6V3h3M14 3h3v3M17 14v3h-3M6 17H3v-3" }],
 
   // The view
   zoomIn: [{ d: "M4 10h12M10 4v12" }],

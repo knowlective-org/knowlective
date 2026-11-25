@@ -34,9 +34,9 @@ export const MAX_OPS = 1000;
 
 // The fields that can be written, by kind of item. (`type` too: a shape's
 // can change into another shape, the others' can't change.)
-const BOX_FIELDS = ["x", "y", "w", "h", "text", "textX", "textY", "color", "z", "src", "link", "connectorEnds", "fontSize", "fontWeight", "border", "borderColor"];
+const BOX_FIELDS = ["x", "y", "w", "h", "text", "textX", "textY", "color", "z", "src", "link", "connectorEnds", "fontSize", "fontWeight", "border", "borderColor", "group"];
 const CONNECTOR_FIELDS = ["from", "to", "arrows", "route", "stroke", "fromSide", "toSide", "text", "startText", "endText", "color", "z"];
-const LINE_FIELDS = ["x1", "y1", "x2", "y2", "arrows", "stroke", "color", "z"];
+const LINE_FIELDS = ["x1", "y1", "x2", "y2", "arrows", "stroke", "color", "z", "group"];
 
 const fieldsOf = (type: string) =>
   type === "connector" ? CONNECTOR_FIELDS : type === "line" ? LINE_FIELDS : (BOX_TYPES as readonly string[]).includes(type) ? BOX_FIELDS : null;

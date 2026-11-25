@@ -9,7 +9,7 @@ import { openPage } from "./helpers";
 // The top left of the sidebars: the site's name (Newsreader) or an SVG logo,
 // set in the admin console's overview. The cleanup goes back to the default.
 
-const LOGO = readFileSync(path.join(__dirname, "../src/app/icon.svg"));
+const LOGO = readFileSync(path.join(__dirname, "../public/icon.svg"));
 const svgFile = (name: string, content: string | Buffer) => ({
   name,
   mimeType: "image/svg+xml",
@@ -67,4 +67,49 @@ test("the top left shows the site's name or its logo, as set in the admin consol
   await openPage(editorPage, HOME_PAGE_ID);
   await expect(editorPage.getByTestId("Sidebar").getByTestId("Brand.logo")).toBeVisible();
   await editor.close();
+});
+
+test("the site's favicon in the tab is the one set in the admin console, for everyone, until set back to the default", async ({ page, browser }) => {
+  const icon = (p: typeof page) => p.locator('head link[rel="icon"]');
+  await openAdmin(page);
+  await expect(icon(page)).toHaveAttribute("href", /\/icon\.svg$/);
+  await expect(page.getByTestId("SiteFaviconForm.removeButton")).toHaveCount(0);
+
+  // An SVG with a script, or something that isn't an image, is refused.
+  await page
+    .getByTestId("SiteFaviconForm.fileInput")
+    .setInputFiles(svgFile("bad.svg", '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'));
+  await page.getByTestId("SiteFaviconForm.submitButton").click();
+  await expect(page.getByTestId("SiteFaviconForm.status")).toContainText("使えません");
+  await page.getByTestId("SiteFaviconForm.fileInput").setInputFiles({ name: "notes.png", mimeType: "image/png", buffer: Buffer.from("not an image") });
+  await page.getByTestId("SiteFaviconForm.submitButton").click();
+  await expect(page.getByTestId("SiteFaviconForm.status")).toHaveText("PNG・ICO・SVG の画像を選んでください。");
+
+  // A PNG: in the tab, served as it is.
+  const png = readFileSync(path.join(__dirname, "../public/icons/icon-192.png"));
+  await page.getByTestId("SiteFaviconForm.fileInput").setInputFiles({ name: "favicon.png", mimeType: "image/png", buffer: png });
+  await page.getByTestId("SiteFaviconForm.submitButton").click();
+  await expect(page.getByTestId("SiteFaviconForm.status")).toHaveText("保存しました。");
+  await page.reload();
+  await expect(icon(page)).toHaveAttribute("href", /\/api\/site-favicon\?v=\d+$/);
+  const href = (await icon(page).getAttribute("href"))!;
+  const response = await page.request.get(href);
+  expect(response.headers()["content-type"]).toBe("image/png");
+  expect(response.headers()["content-security-policy"]).toContain("sandbox");
+  expect(Buffer.from(await response.body()).equals(png)).toBe(true);
+
+  // The same for someone not logged in (the login screen).
+  const guest = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const guestPage = await guest.newPage();
+  await guestPage.goto("login");
+  await expect(icon(guestPage)).toHaveAttribute("href", href);
+  expect((await guestPage.request.get(href)).status()).toBe(200);
+
+  // Back to the default: no longer served.
+  await page.getByTestId("SiteFaviconForm.removeButton").click();
+  await expect(page.getByTestId("SiteFaviconForm.status")).toHaveText("既定のアイコンに戻しました。");
+  await guestPage.reload();
+  await expect(icon(guestPage)).toHaveAttribute("href", /\/icon\.svg$/);
+  expect((await guestPage.request.get("api/site-favicon")).status()).toBe(404);
+  await guest.close();
 });

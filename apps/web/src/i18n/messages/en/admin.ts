@@ -126,6 +126,8 @@ export default {
         "For visitors whose browser asks for another language, for emails to people without an account (invitations), and for the audit log. Each user can choose their own on their account screen.",
       brand: "Site name and logo",
       brandLead: "What the top left of every screen shows (the sidebar, the admin console).",
+      favicon: "Favicon",
+      faviconLead: "The icon in the browser's tab, on every screen. A knowledge root's own favicon (set from its root page's menu) is shown on its pages instead. The home-screen and app icons stay the default ones.",
       theme: "Theme",
       themeLead: "The colors of the whole site (pages, admin console, login screen). Saving applies them to everyone's screen.",
       mail: "Sending email",
@@ -177,6 +179,22 @@ export default {
     publicUrl: {
       label: "Public URL of the site",
       note: "Used in emails and invitation links. Enter the URL people open in their browser (https://…), without a path.",
+    },
+    siteFavicon: {
+      current: "Now:",
+      defaultNote: "The default icon.",
+      customNote: "Set here.",
+      file: "Favicon (PNG, ICO or SVG)",
+      replace: "Replace the favicon (PNG, ICO or SVG)",
+      fileNote: "Up to 200 KB. A square image (32 × 32 or larger) looks best. SVG files with scripts, links or anything from elsewhere are refused.",
+      remove: "Back to the default",
+      removed: "Back to the default icon.",
+      errors: {
+        required: "Choose a file.",
+        tooLarge: "The image is larger than 200 KB.",
+        badType: "Choose a PNG, ICO or SVG image.",
+        unsafe: "This SVG can't be used: it has scripts, links or something from elsewhere.",
+      },
     },
     brand: {
       mode: "Show",

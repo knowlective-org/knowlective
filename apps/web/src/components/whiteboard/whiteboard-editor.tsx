@@ -10,23 +10,28 @@ import { useDisplayTitle } from "@/i18n/use-display-title";
 import { EXPORT_WHITEBOARD_EVENT } from "@/lib/page-export";
 import { beginSaving } from "@/lib/saving-status";
 import { TITLE_FIELD } from "@/lib/page-title";
+import { PageEditorContext, useCollabPageContext } from "@/components/editor/page-context";
+import { ReviewProvider } from "@/components/editor/review-pane";
 import { WhiteboardCanvas } from "./whiteboard-canvas";
 
 type Props = {
   pageId: string;
   readOnly: boolean;
+  user: { id: string };
   onTitleChange?: (title: string) => void;
 };
 
 // A whiteboard page: the title and the board, both in the page's Yjs
-// document, edited together over the collaboration connection.
+// document, edited together over the collaboration connection. Its items can
+// have chats about them (review-pane.tsx), as a document's blocks can.
 export function WhiteboardEditor(props: Props) {
   return <CollabConnection pageId={props.pageId}>{(provider) => <WhiteboardBody {...props} provider={provider} />}</CollabConnection>;
 }
 
-function WhiteboardBody({ pageId, readOnly, onTitleChange, provider }: Props & { provider: HocuspocusProvider }) {
+function WhiteboardBody({ pageId, readOnly, user, onTitleChange, provider }: Props & { provider: HocuspocusProvider }) {
   const t = useTranslations("whiteboard");
   const displayTitle = useDisplayTitle();
+  const pageContext = useCollabPageContext(provider, pageId, user.id);
   // The page menu's export (PNG or SVG): the board as it is now. The export
   // code is loaded only then.
   useEffect(() => {
@@ -66,7 +71,11 @@ function WhiteboardBody({ pageId, readOnly, onTitleChange, provider }: Props & {
         onChange={onTitleChange}
         onEnter={() => document.querySelector<HTMLElement>('[data-ui="Whiteboard.canvas"]')?.focus()}
       />
-      <WhiteboardCanvas doc={provider.document} readOnly={readOnly} awareness={provider.awareness} pageId={pageId} />
+      <PageEditorContext.Provider value={pageContext}>
+        <ReviewProvider>
+          <WhiteboardCanvas doc={provider.document} readOnly={readOnly} awareness={provider.awareness} pageId={pageId} />
+        </ReviewProvider>
+      </PageEditorContext.Provider>
     </>
   );
 }

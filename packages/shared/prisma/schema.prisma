@@ -1254,13 +1254,20 @@ enum BrandMode {
 // What the top left of the sidebars shows (lib/brand.ts): the site's name in
 // text, or an SVG logo. One row; without it, the name "knowlective".
 model BrandSettings {
-  id        Int       @id @default(1)
-  mode      BrandMode @default(TEXT)
-  name      String    @default("knowlective")
+  id               Int       @id @default(1)
+  mode             BrandMode @default(TEXT)
+  name             String    @default("knowlective")
   // The logo (IMAGE), checked when uploaded (lib/brand.ts) and served with a
   // CSP that runs nothing (/api/brand-logo). Kept when switching back to TEXT.
-  logoSvg   String?
-  updatedAt DateTime  @updatedAt
+  logoSvg          String?
+  // The site's favicon in the browser's tab (lib/site-favicon.ts): a PNG, ICO
+  // or SVG checked as a knowledge root's is (lib/favicon-check.ts). Public
+  // (it's on the login screen too), so not encrypted, like the logo. None:
+  // the default icon (public/icon.svg).
+  favicon          Bytes?
+  faviconType      String?
+  faviconUpdatedAt DateTime?
+  updatedAt        DateTime  @updatedAt
 }
 
 model ThemeSettings {

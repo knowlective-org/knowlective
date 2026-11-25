@@ -91,6 +91,7 @@ const ja: MessageShape<typeof en> = {
     network: "フルアクセスできるネットワークを{networks, select, none {なし（制限なし）} other {{networks}}}に設定。ほかのネットワークからは: {others, select, none {なし} other {{others}}}",
     networkFlags: { access: "アクセス", read: "読む", write: "変更", download: "ダウンロード", upload: "添付" },
     brand: "左上の表示を{mode, select, IMAGE {ロゴ} other {サイト名}}に設定（「{name}」{logo, select, true {、ロゴを差し替え} other {}}）",
+    siteFavicon: "{set, select, true {サイトのファビコンを設定} other {サイトのファビコンを既定に戻す}}",
     apiKeysRevoke: "{who} の API キー（{count, number} 件）を失効",
     apiSettings: "API を{enabled, select, true {有効} other {無効}}、MCP サーバーを{mcp, select, true {有効} other {無効}}に設定（キーを発行できるロール: {roles}）",
     passkeyRemove: "パスキー「{name}」を削除",
