@@ -214,6 +214,10 @@ test.describe("MCP server", () => {
       ]);
       expect(all.children).toHaveLength(1);
       expect(all.children[0]).toMatchObject({ id: child, title: "E2E MCP 子", properties: { メモ: "覚え書き", 状態: "完了" } });
+      // Who created and last changed it (the key's owner), and when.
+      expect(all.children[0].createdBy).toEqual({ id: expect.any(String), name: ACCOUNTS.editor.name });
+      expect(all.children[0].updatedBy).toEqual(all.children[0].createdBy);
+      expect(Date.parse(all.children[0].updatedAt)).not.toBeNaN();
       const one = data(await mcp.call("get_child_properties", { pageId: parent, properties: ["状態"] }));
       expect(one.children[0].properties).toEqual({ 状態: "完了" });
       const unknown = await mcp.call("get_child_properties", { pageId: parent, properties: ["ない列"] });

@@ -19,7 +19,19 @@ export type DocBlock = {
 export type TableKind = "table" | "extendedTable" | "childTable";
 export type TableValue = string | number | boolean | string[] | { id: string; name: string | null } | { masked: true } | null;
 export type TableColumnInfo = { name: string; type: string; options?: string[]; multiple?: boolean };
-export type TableRow = { row: number; id?: string; title?: string; url?: string; values: Record<string, TableValue> };
+export type TablePerson = { id: string; name: string | null };
+export type TableRow = {
+  row: number;
+  id?: string;
+  title?: string;
+  url?: string;
+  // A child page table's rows: when the page was created and last changed, and by whom.
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: TablePerson;
+  updatedBy?: TablePerson;
+  values: Record<string, TableValue>;
+};
 export type ReadTable = { id: string; kind: TableKind; title: string | null; heading: string | null; columns: TableColumnInfo[]; rows: TableRow[] };
 // A child page table (or a linked view of one): `source` is the page whose
 // child pages it shows, null for a linked view with no page chosen yet.

@@ -7,9 +7,12 @@ import type { PropertyColumn } from "@/lib/page-property-types";
 // caller sees in the table, values by column name. A SELECT value is its
 // option's name, a USER value the person (id and name), a DATE "YYYY-MM-DD";
 // a MASKED value is sealed with a passphrase in the browser and never
-// readable here, so only whether there is one is told.
+// readable here, so only whether there is one is told. Each child also has
+// who created and last changed it (id and name), as the table's "created
+// by" / "updated by" columns show them.
 
-type Value = string | { id: string; name: string | null } | { masked: true } | null;
+type Person = { id: string; name: string | null };
+type Value = string | Person | { masked: true } | null;
 
 export type ChildProperties = {
   columns: { name: string; type: PropertyColumn["type"]; options?: string[] }[];
@@ -19,6 +22,8 @@ export type ChildProperties = {
     url: string;
     createdAt: string;
     updatedAt: string;
+    createdBy: Person;
+    updatedBy: Person;
     properties: Record<string, Value>;
   }[];
 };
@@ -45,12 +50,15 @@ export async function childProperties(
   }
   const wanted = [...keyed].filter(([key]) => !names || names.includes(key));
   const origin = await getPublicUrl();
+  const person = (id: string): Person => ({ id, name: table.userNames[id] ?? null });
   const children = table.rows.map((row) => ({
     id: row.id,
     title: row.title,
     url: `${origin}/pages/${row.id}`,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    createdBy: person(row.createdById),
+    updatedBy: person(row.updatedById ?? row.createdById),
     properties: Object.fromEntries(wanted.map(([key, column]) => [key, valueOf(column, row.values[column.id], table.userNames)])),
   }));
   return {

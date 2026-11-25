@@ -51,6 +51,7 @@ async function readChildTable(userId: string, ref: ChildTableRef): Promise<ReadT
   const data = await childProperties(userId, ref.source);
   if (!data || "unknown" in data) return null;
   const names = new Map((await pagePeople(prisma, ref.source)).map((p) => [p.id, p.name]));
+  const person = (p: { id: string }) => ({ id: p.id, name: names.get(p.id) ?? null });
   const value = (v: unknown): TableValue => {
     if (v && typeof v === "object" && "id" in v) {
       const id = String((v as { id: unknown }).id);
@@ -69,6 +70,10 @@ async function readChildTable(userId: string, ref: ChildTableRef): Promise<ReadT
       id: child.id,
       title: child.title,
       url: child.url,
+      createdAt: child.createdAt,
+      updatedAt: child.updatedAt,
+      createdBy: person(child.createdBy),
+      updatedBy: person(child.updatedBy),
       values: Object.fromEntries(Object.entries(child.properties).map(([k, v]) => [k, value(v)])),
     })),
   };

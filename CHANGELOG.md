@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-25
+
 ### Added
 
 - Admin console → Overview → "Page history": a retention period in days. Versions older than it are deleted hourly, keeping each page's newest version from before the period (so a page can still be restored to any moment in the period), along with presentation history from before it. Off (kept forever) by default; setting it and each deletion are recorded in the audit log.
@@ -15,6 +17,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ### Changed
 
+- API and MCP: a child page's row now tells who created and last changed the page (`createdBy` / `updatedBy`, `{ id, name }`), in `get_child_properties` / `GET /api/v1/pages/<id>/children` and in a child page table's rows from `get_table` / `GET /api/v1/pages/<id>/tables/<id>`, which also get `createdAt` / `updatedAt`.
+- Extended tables: the bar above the table (header row, row titles, summary row, adding a row or column, deleting the table) is now a ⋯ menu on the right of the table's header, as on child page tables. It also duplicates the table.
 - Extended tables: a masked column's menu items now read "Show the values" / "Hide the values" (was "Show" / "Hide the column", which sounded like hiding the column itself).
 
 ### Upgrade notes

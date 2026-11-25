@@ -114,6 +114,11 @@ test("a page's tables: listed, read whole and by column, not by someone who can'
       .toEqual({ 項目: "拡張の値" });
     const children = data(await mcp.call("get_table", { pageId: id, tableId: tables[2].id, columns: ["メモ"] }));
     expect(children.rows[0]).toMatchObject({ id: child, title: "E2E 子の行", values: { メモ: "子の値" } });
+    // When the page was created and changed, and by whom (the key's owner).
+    const editorName = { id: expect.any(String), name: ACCOUNTS.editor.name };
+    expect(children.rows[0]).toMatchObject({ createdBy: editorName, updatedBy: editorName });
+    expect(Date.parse(children.rows[0].createdAt)).not.toBeNaN();
+    expect(Date.parse(children.rows[0].updatedAt)).not.toBeNaN();
 
     // The same through the API.
     const headers = { Authorization: `Bearer ${key}` };

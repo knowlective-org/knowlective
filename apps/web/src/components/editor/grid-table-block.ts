@@ -43,8 +43,9 @@ import {
 } from "./grid-summary";
 
 // The extended table in the editor (the nodes: grid-table-config.ts):
-// - for editors, a bar above it (header row, header column, adding a row or
-//   a column, deleting the table) and a menu in each cell (inserting and
+// - for editors, a ⋯ menu on its header (header row, header column, summary
+//   row, adding a row or a column, duplicating and deleting the table) and a
+//   menu in each cell (inserting and
 //   deleting the cell's row and column), and the columns' widths by dragging
 //   a cell's right edge;
 // - its structure kept whole: every row has as many cells as the widest one
@@ -54,7 +55,7 @@ import {
 // extension takes any <td> under the mouse for its own table).
 
 type GridText = {
-  toolbar: string;
+  tableMenu: string;
   pasteCut: string;
   handle: string;
   duplicateTable: string;
@@ -592,31 +593,26 @@ function button(label: string, ui: string, onClick: () => void, title?: string):
   return b;
 }
 
-function checkbox(label: string, ui: string, onChange: (checked: boolean) => void): { dom: HTMLLabelElement; input: HTMLInputElement } {
-  const dom = document.createElement("label");
-  const input = document.createElement("input");
-  input.type = "checkbox";
-  input.dataset.ui = ui;
-  input.addEventListener("change", () => onChange(input.checked));
-  dom.append(input, document.createTextNode(label));
-  return { dom, input };
-}
 
 let openMenu: { close: () => void } | null = null;
 
 // A cell's menu, under its button (in the page's body: the table may scroll).
-function showCellMenu(anchor: HTMLElement, items: { label: string; ui: string; run: () => void; disabled?: boolean }[]) {
+// An item with `checked` is a setting turned on or off (✓ when on).
+type MenuItem = { label: string; ui: string; run: () => void; disabled?: boolean; checked?: boolean };
+function showCellMenu(anchor: HTMLElement, items: MenuItem[]) {
   openMenu?.close();
   const menu = document.createElement("div");
   menu.className = "kn-grid-menu";
   menu.dataset.ui = "GridTable.cellMenu";
   menu.setAttribute("role", "menu");
   for (const item of items) {
-    const b = button(item.label, item.ui, () => {
+    const checkable = item.checked !== undefined;
+    const b = button(checkable ? `${item.checked ? "✓" : " "} ${item.label}` : item.label, item.ui, () => {
       close();
       item.run();
     });
-    b.setAttribute("role", "menuitem");
+    b.setAttribute("role", checkable ? "menuitemcheckbox" : "menuitem");
+    if (checkable) b.setAttribute("aria-checked", String(item.checked));
     b.disabled = !!item.disabled;
     menu.append(b);
   }
@@ -751,11 +747,8 @@ class GridTableView implements NodeView {
   dom: HTMLElement;
   contentDOM: HTMLElement;
   private scroll: HTMLElement;
-  private bar: HTMLElement | null = null;
+  private header: HTMLElement | null = null;
   private handle: HTMLElement | null = null;
-  private headerRow: HTMLInputElement | null = null;
-  private headerColumn: HTMLInputElement | null = null;
-  private summaryToggle: HTMLInputElement | null = null;
   // The summary row, under the rows (in the scrolling part, so its columns
   // line up with theirs); not part of the document.
   private summaryRow: HTMLElement;
@@ -775,7 +768,7 @@ class GridTableView implements NodeView {
     this.dom.dataset.ui = "GridTable";
     this.text = gridText(editor);
     this.editable = editor.isEditable;
-    if (editor.isEditable) this.dom.append(this.makeHandle(editor), this.toolbar(this.text));
+    if (editor.isEditable) this.dom.append(this.makeHandle(editor), this.makeHeader(this.text));
     this.scroll = document.createElement("div");
     this.scroll.className = "kn-grid-scroll";
     this.contentDOM = document.createElement("div");
@@ -835,49 +828,80 @@ class GridTableView implements NodeView {
     return handle;
   }
 
-  private toolbar(text: GridText): HTMLElement {
-    const bar = document.createElement("div");
-    bar.className = "kn-grid-bar";
-    bar.contentEditable = "false";
-    bar.dataset.ui = "GridTable.toolbar";
-    bar.setAttribute("role", "toolbar");
-    bar.setAttribute("aria-label", text.toolbar);
+  // The header above the table: a ⋯ on its right (as on a child page
+  // table's header) opening the table's menu.
+  private makeHeader(text: GridText): HTMLElement {
+    const header = document.createElement("div");
+    header.className = "kn-grid-header";
+    header.contentEditable = "false";
+    const menuButton = button("⋯", "GridTable.menuButton", () => this.openTableMenu(menuButton, text));
+    menuButton.className = "kn-grid-menu-button";
+    menuButton.title = text.tableMenu;
+    menuButton.setAttribute("aria-label", text.tableMenu);
+    menuButton.setAttribute("aria-haspopup", "menu");
+    header.append(menuButton);
+    this.header = header;
+    return header;
+  }
+
+  private openTableMenu(anchor: HTMLElement, text: GridText) {
+    const pos = this.getPos();
+    const table = pos === undefined ? null : tableAt(this.view.state, pos);
+    if (pos === undefined || !table) return;
+    // Each runs on the table where it is then.
     const at = (run: (pos: number) => void) => () => {
-      const pos = this.getPos();
-      if (pos !== undefined) run(pos);
+      const now = this.getPos();
+      if (now !== undefined) run(now);
     };
-    const headerRow = checkbox(text.headerRow, "GridTable.headerRowCheckbox", (checked) =>
-      at((pos) => setTableAttr(this.view, pos, "headerRow", checked))(),
-    );
-    const headerColumn = checkbox(text.headerColumn, "GridTable.headerColumnCheckbox", (checked) =>
-      at((pos) => setTableAttr(this.view, pos, "headerColumn", checked))(),
-    );
-    const summary = checkbox(text.summaryRow, "GridTable.summaryRowCheckbox", (checked) =>
-      at((pos) => {
-        const table = tableAt(this.view.state, pos);
-        if (!table) return;
-        setTableAttr(this.view, pos, "summary", checked ? serializeSummary(Array.from({ length: columnCount(table) }, () => null)) : "");
-      })(),
-    );
-    this.headerRow = headerRow.input;
-    this.headerColumn = headerColumn.input;
-    this.summaryToggle = summary.input;
-    bar.append(
-      headerRow.dom,
-      headerColumn.dom,
-      summary.dom,
-      button(`＋ ${text.addRow}`, "GridTable.addRowButton", at((pos) => insertRow(this.view, pos, Infinity))),
-      button(`＋ ${text.addColumn}`, "GridTable.addColumnButton", at((pos) => insertColumn(this.view, pos, MAX_GRID_COLUMNS))),
-      button(
-        text.deleteTable,
-        "GridTable.deleteButton",
-        at(async (pos) => {
-          if (await showConfirm(text.deleteTableConfirm, { danger: true })) deleteTable(this.view, pos);
+    const headerRow = table.attrs.headerRow === true;
+    const headerColumn = table.attrs.headerColumn === true;
+    const summary = !!table.attrs.summary;
+    showCellMenu(anchor, [
+      {
+        label: text.headerRow,
+        ui: "GridTable.headerRowItem",
+        checked: headerRow,
+        run: at((p) => setTableAttr(this.view, p, "headerRow", !headerRow)),
+      },
+      {
+        label: text.headerColumn,
+        ui: "GridTable.headerColumnItem",
+        checked: headerColumn,
+        run: at((p) => setTableAttr(this.view, p, "headerColumn", !headerColumn)),
+      },
+      {
+        label: text.summaryRow,
+        ui: "GridTable.summaryRowItem",
+        checked: summary,
+        run: at((p) => {
+          const latest = tableAt(this.view.state, p);
+          if (!latest) return;
+          setTableAttr(this.view, p, "summary", summary ? "" : serializeSummary(Array.from({ length: columnCount(latest) }, () => null)));
         }),
-      ),
-    );
-    this.bar = bar;
-    return bar;
+      },
+      {
+        label: text.addRow,
+        ui: "GridTable.addRowItem",
+        run: at((p) => insertRow(this.view, p, Infinity)),
+        disabled: table.childCount >= MAX_GRID_ROWS,
+      },
+      {
+        label: text.addColumn,
+        ui: "GridTable.addColumnItem",
+        run: at((p) => insertColumn(this.view, p, MAX_GRID_COLUMNS)),
+        disabled: columnCount(table) >= MAX_GRID_COLUMNS,
+      },
+      { label: text.duplicateTable, ui: "GridTable.duplicateItem", run: at((p) => duplicateTable(this.view, p)) },
+      {
+        label: text.deleteTable,
+        ui: "GridTable.deleteItem",
+        run: async () => {
+          if (!(await showConfirm(text.deleteTableConfirm, { danger: true }))) return;
+          const now = this.getPos();
+          if (now !== undefined) deleteTable(this.view, now);
+        },
+      },
+    ]);
   }
 
   private apply(node: PMNode) {
@@ -886,9 +910,6 @@ class GridTableView implements NodeView {
     this.dom.dataset.headerColumn = String(node.attrs.headerColumn === true);
     const widths = gridWidths(node.attrs.widths, columnCount(node));
     this.contentDOM.style.setProperty("--kn-grid-columns", columnsTemplate(widths));
-    if (this.headerRow) this.headerRow.checked = node.attrs.headerRow === true;
-    if (this.headerColumn) this.headerColumn.checked = node.attrs.headerColumn === true;
-    if (this.summaryToggle) this.summaryToggle.checked = !!node.attrs.summary;
     this.summaryRow.style.setProperty("--kn-grid-columns", columnsTemplate(widths));
     this.drawSummary(node);
     // Once ProseMirror has drawn the rows and cells.
@@ -990,12 +1011,12 @@ class GridTableView implements NodeView {
 
   stopEvent(event: Event): boolean {
     const target = event.target as globalThis.Node;
-    return !!this.bar?.contains(target) || !!this.handle?.contains(target) || this.summaryRow.contains(target);
+    return !!this.header?.contains(target) || !!this.handle?.contains(target) || this.summaryRow.contains(target);
   }
 
   ignoreMutation(mutation: ViewMutationRecord): boolean {
     if (mutation.type === "selection") return false;
-    if (this.bar?.contains(mutation.target)) return true;
+    if (this.header?.contains(mutation.target)) return true;
     if (this.handle?.contains(mutation.target)) return true;
     if (this.summaryRow.contains(mutation.target)) return true;
     return (

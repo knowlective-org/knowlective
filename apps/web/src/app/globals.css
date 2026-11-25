@@ -304,23 +304,13 @@ a {
   background: var(--color-primary-light);
 }
 
-/* The bar above the table and each cell's menu button: for editors, shown
-   while the table (or cell) is pointed at or has the focus. */
-.bn-root .kn-grid-bar {
+/* The header above the table, for editors: the table's ⋯ menu on its right
+   (as on a child page table's header). Each cell's menu button shows while
+   the cell is pointed at or has the focus. */
+.bn-root .kn-grid-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
+  justify-content: flex-end;
   margin-bottom: 4px;
-  font-size: 12px;
-  color: var(--color-muted);
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.bn-root .kn-grid-table:hover > .kn-grid-bar,
-.bn-root .kn-grid-table:focus-within > .kn-grid-bar {
-  opacity: 1;
 }
 
 /* The table's ⋮⋮ (BlockNote's handle is only for its own blocks): in the
@@ -358,14 +348,7 @@ a {
   }
 }
 
-.bn-root .kn-grid-bar label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-
-.bn-root .kn-grid-bar button,
+.bn-root .kn-grid-menu-button,
 .bn-root .kn-grid-cell-menu-button {
   padding: 1px 8px;
   font: inherit;
@@ -377,7 +360,7 @@ a {
   cursor: pointer;
 }
 
-.bn-root .kn-grid-bar button:hover,
+.bn-root .kn-grid-menu-button:hover,
 .bn-root .kn-grid-cell-menu-button:hover {
   color: var(--color-primary);
   background: var(--color-hover);
@@ -750,7 +733,7 @@ a {
 
   .bn-root [data-content-type="codeBlock"] > div > select,
   .bn-root .knowlective-code-tools,
-  .bn-root .kn-grid-bar,
+  .bn-root .kn-grid-header,
   .bn-root .kn-grid-cell-controls,
   .bn-root .kn-block-locked::after {
     display: none;
