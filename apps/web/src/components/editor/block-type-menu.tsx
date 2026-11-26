@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { SideMenuExtension } from "@blocknote/core/extensions";
 import {
@@ -55,11 +56,36 @@ function Toolbar() {
 // The ⋮⋮ handle's menu: BlockNote's items, plus changing the block's type,
 // copying the blocks to the clipboard, duplicating and locking them.
 export function EditorSideMenu() {
+  // The menu of a block in an extended table's cell is left of the block, over
+  // the cell's padding and the column before it. BlockNote picks the block
+  // under the pointer at every move (a capture listener on the document), and
+  // there that's another block or none, so the menu moved away or went before
+  // its ⋮⋮ could be grabbed. While the pointer is on that menu, BlockNote
+  // doesn't see it move (this listener, on the window, runs first).
+  useEffect(() => {
+    const hold = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest("[data-kn-cell-side-menu]")) event.stopPropagation();
+    };
+    window.addEventListener("mousemove", hold, true);
+    return () => window.removeEventListener("mousemove", hold, true);
+  }, []);
   return <SideMenuController sideMenu={BlockSideMenu} />;
 }
 
 function BlockSideMenu(props: SideMenuProps) {
-  return <SideMenu {...props} dragHandleMenu={BlockMenu} />;
+  const { editor, block } = useMenuBlock();
+  const menu = <SideMenu {...props} dragHandleMenu={BlockMenu} />;
+  if (!block || !inGridCell(editor, block.id)) return menu;
+  return (
+    <div data-ui="BlockSideMenu.inCell" data-kn-cell-side-menu="">
+      {menu}
+    </div>
+  );
+}
+
+function inGridCell(editor: KnowlectiveEditor, id: string): boolean {
+  const el = editor.domElement?.querySelector(`[data-node-type="blockContainer"][data-id="${CSS.escape(id)}"]`);
+  return !!el?.closest(".kn-grid-cell");
 }
 
 function BlockMenu() {

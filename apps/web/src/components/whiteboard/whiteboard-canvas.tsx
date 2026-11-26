@@ -547,11 +547,13 @@ export function WhiteboardCanvas({
     setCamera(fitCamera(isSlide ? SLIDE_FRAME : boundsOf(itemRects(readItems(doc))), el.clientWidth, el.clientHeight));
   }, [doc, isSlide]);
 
-  // A slide fills the space it has, in full screen and back.
+  // A slide fills the space it has, in full screen and back; so does a board
+  // in a document (read-only, fitted to its low frame).
   useLayoutEffect(() => {
     const el = viewportRef.current;
-    if (el && isSlide) setCamera(fitCamera(SLIDE_FRAME, el.clientWidth, el.clientHeight));
-  }, [fullscreen, isSlide]);
+    if (!el || !(isSlide || embedded)) return;
+    setCamera(fitCamera(isSlide ? SLIDE_FRAME : boundsOf(itemRects(readItems(doc))), el.clientWidth, el.clientHeight));
+  }, [fullscreen, isSlide, embedded, doc]);
 
   // Scroll pans; Ctrl/⌘ + scroll (and a trackpad pinch, which browsers send
   // as that) zooms at the pointer. Not passive, to keep the page from scrolling.
