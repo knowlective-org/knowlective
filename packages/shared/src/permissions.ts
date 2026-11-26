@@ -203,14 +203,21 @@ async function loadTree(prisma: PrismaClient, rootId: string) {
   });
 }
 
+// What a grant to the public group gives: viewing, or nothing (NONE: a page
+// kept out of a public page above it, share/actions.ts).
+export function publicAccess(access: PageAccess): PageAccess {
+  return access === "NONE" ? "NONE" : "VIEW";
+}
+
 async function loadGrants(prisma: PrismaClient, rootId: string, groupIds: Set<string>): Promise<Grant[]> {
   if (groupIds.size === 0) return [];
   const grants = await prisma.pageGrant.findMany({
     where: { groupId: { in: [...groupIds] }, page: { rootId } },
     select: { pageId: true, groupId: true, access: true, group: { select: { builtIn: true } } },
   });
-  // Public pages are read-only for everyone, however the grant was made.
-  return grants.map((g) => ({ pageId: g.pageId, groupId: g.groupId, access: g.group.builtIn === PUBLIC_GROUP ? "VIEW" : g.access }));
+  // Public pages are read-only for everyone, however the grant was made; a
+  // NONE grant takes a page (and those under it) out of a public page above.
+  return grants.map((g) => ({ pageId: g.pageId, groupId: g.groupId, access: g.group.builtIn === PUBLIC_GROUP ? publicAccess(g.access) : g.access }));
 }
 
 // Personal knowledge roots (KnowledgeRoot.ownerId): the owner can edit every

@@ -229,4 +229,91 @@ test.describe("Public pages", () => {
       await guestContext.close();
     }
   });
+
+  test("a page under a public page can be kept out of it, with the pages under it, and put back", async ({ page, browser }) => {
+    test.setTimeout(240_000);
+    const guestContext = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const guest = await guestContext.newPage();
+    // Adds a titled page under `parentId`; returns its id.
+    const addChild = async (parentId: string, title: string) => {
+      await openPage(page, parentId);
+      await addPageFromTree(page, parentId);
+      await page.waitForURL((url) => /\/pages\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith(`/${parentId}`));
+      const childId = new URL(page.url()).pathname.split("/").pop()!;
+      await page.getByTestId("TitleField").fill(title);
+      await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+      return childId;
+    };
+    try {
+      await setPublicPagesAllowed(page, true);
+      const parent = await createPage(page, "E2E 公開の親");
+      await page.goto(`pages/${parent.id}/share`);
+      await page.getByTestId("PublishForm.submitButton").click();
+      await page.getByTestId("AppDialog.confirmButton").click();
+      await expect(page.getByTestId("UnpublishForm.submitButton")).toBeVisible();
+      const child = await addChild(parent.id, `E2E 非公開の子 ${Date.now()}`);
+      const grandchild = await addChild(child, `E2E 非公開の孫 ${Date.now()}`);
+      const sibling = await addChild(parent.id, `E2E 公開のままの子 ${Date.now()}`);
+      for (const id of [child, grandchild, sibling]) {
+        await guest.goto(`pages/${id}`);
+        await expect(guest.getByTestId("PageView.publicDocument")).toBeVisible();
+      }
+
+      // Public through the page above: kept out here (asked first).
+      await page.goto(`pages/${child}/share`);
+      await expect(page.getByTestId("SharePage.publicStatus")).toContainText("上位のページ");
+      await expect(page.getByTestId("PublishForm.submitButton")).toHaveCount(0);
+      await page.getByTestId("HidePublicForm.submitButton").click();
+      await page.getByTestId("AppDialog.confirmButton").click();
+      await expect(page.getByTestId("SharePage.publicStatus")).toContainText("公開から外しています");
+      await expect(page.getByTestId("UnhidePublicForm.submitButton")).toBeVisible();
+
+      // Not for those not logged in: the page and the one under it ask to log
+      // in, aren't in their sidebar nor the sitemap; the parent and the
+      // sibling stay public.
+      for (const id of [child, grandchild]) {
+        await guest.goto(`pages/${id}`);
+        await expect(guest).toHaveURL(/\/login/);
+      }
+      await guest.goto(`pages/${parent.id}`);
+      await expect(guest.getByTestId("PageView.publicDocument")).toBeVisible();
+      await expect(guest.locator(`[data-ui="DocTree.link"][data-id="${sibling}"]`)).toBeVisible();
+      await expect(guest.locator(`[data-ui="DocTree.link"][data-id="${child}"]`)).toHaveCount(0);
+      await expect(guest.locator(`[data-ui="DocTree.link"][data-id="${grandchild}"]`)).toHaveCount(0);
+      // The signed-in sidebar no longer marks them public.
+      await openPage(page, parent.id);
+      await expect(page.locator(`[data-ui="DocTree.publicStatus"][data-id="${parent.id}"]`)).toBeVisible();
+      await expect(page.locator(`[data-ui="DocTree.publicStatus"][data-id="${sibling}"]`)).toBeVisible();
+      await expect(page.locator(`[data-ui="DocTree.publicStatus"][data-id="${child}"]`)).toHaveCount(0);
+      await expect(page.locator(`[data-ui="DocTree.publicStatus"][data-id="${grandchild}"]`)).toHaveCount(0);
+
+      // A page under it can be published on its own again.
+      await page.goto(`pages/${grandchild}/share`);
+      await expect(page.getByTestId("SharePage.publicStatus")).toContainText("公開すると");
+      await page.getByTestId("PublishForm.submitButton").click();
+      await page.getByTestId("AppDialog.confirmButton").click();
+      await expect(page.getByTestId("UnpublishForm.submitButton")).toBeVisible();
+      await guest.goto(`pages/${grandchild}`);
+      await expect(guest.getByTestId("PageView.publicDocument")).toBeVisible();
+      await page.getByTestId("UnpublishForm.submitButton").click();
+      await page.getByTestId("AppDialog.confirmButton").click();
+      await expect(page.getByTestId("PublishForm.submitButton")).toBeVisible();
+
+      // Put back: public with the page above again.
+      await page.goto(`pages/${child}/share`);
+      await page.getByTestId("UnhidePublicForm.submitButton").click();
+      await page.getByTestId("AppDialog.confirmButton").click();
+      await expect(page.getByTestId("HidePublicForm.submitButton")).toBeVisible();
+      for (const id of [child, grandchild]) {
+        await guest.goto(`pages/${id}`);
+        await expect(guest.getByTestId("PageView.publicDocument")).toBeVisible();
+      }
+
+      await page.goto(`pages/${parent.id}`);
+      await trashOpenPage(page);
+    } finally {
+      await setPublicPagesAllowed(page, false);
+      await guestContext.close();
+    }
+  });
 });

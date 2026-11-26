@@ -15,7 +15,7 @@ import { AppShell } from "@/components/app-shell";
 import { Sidebar } from "@/components/sidebar";
 import styles from "@/styles/ui.module.css";
 import { removeGrant, setGrant } from "./actions";
-import { PublishForm, UnpublishForm } from "./public-forms";
+import { HidePublicForm, PublishForm, UnhidePublicForm, UnpublishForm } from "./public-forms";
 import { publicPagesAllowed } from "@/lib/public-pages";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -75,15 +75,11 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
     ancestors.push({ id: p.id, title: p.title });
     cursor = p.parentId;
   }
-  const [allOwn, allInherited, groups, tree, sidebar, publicAllowed, inheritedAccess] = await Promise.all([
+  const [allOwn, groups, tree, sidebar, publicAllowed, inheritedAccess] = await Promise.all([
     prisma.pageGrant.findMany({
       where: { pageId },
       orderBy: { createdAt: "asc" },
       include: { group: { select: { id: true, name: true, builtIn: true, _count: { select: { members: true } } } } },
-    }),
-    prisma.pageGrant.findMany({
-      where: { pageId: { in: ancestors.map((a) => a.id) } },
-      include: { group: { select: { id: true, name: true, builtIn: true } } },
     }),
     prisma.group.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true, builtIn: true } }),
     getVisibleTree(prisma, user.id, page.root.id),
@@ -95,9 +91,15 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
   // The public group has a section of its own (publishing to the internet).
   const isPublic = (g: { builtIn: string | null }) => g.builtIn === PUBLIC_GROUP;
   const ownGrants = allOwn.filter((g) => !isPublic(g.group));
-  const ownPublic = allOwn.some((g) => isPublic(g.group));
-  // The nearest page above made public, if any.
-  const publicAbove = ancestors.find((a) => allInherited.some((g) => g.pageId === a.id && isPublic(g.group))) ?? null;
+  const ownPublicGrant = allOwn.find((g) => isPublic(g.group));
+  const ownPublic = !!ownPublicGrant && ownPublicGrant.access !== "NONE";
+  // Kept out of a public page above (a NONE grant on this page).
+  const ownHidden = ownPublicGrant?.access === "NONE";
+  // The page above that makes this one public: the nearest public grant
+  // above, unless that one keeps its pages out (NONE).
+  const publicGroupRow = groups.find(isPublic);
+  const inheritedPublic = publicGroupRow ? inheritedAccess.get(publicGroupRow.id) : undefined;
+  const publicAbove = inheritedPublic?.access === "VIEW" ? { id: inheritedPublic.pageId } : null;
   // Don't reveal titles of ancestors the manager itself can't see.
   const visible = new Set(tree?.pages.map((p) => p.id) ?? []);
   const ancestorTitle = (id: string) => {
@@ -285,18 +287,27 @@ export default async function SharePage({ params, searchParams }: PageProps<"/pa
         </section>
 
         {/* Only where it can apply: allowed by a site admin, or already set. */}
-        {!page.personal && (publicAllowed || ownPublic || publicAbove) && (
+        {!page.personal && (publicAllowed || ownPublic || ownHidden || publicAbove) && (
           <section className={styles.section} data-ui="SharePage.publicSection">
             <h2 className={styles.sectionTitle}>{t("share.publicHeading")}</h2>
             <p className={styles.note} style={{ marginBottom: 12 }} data-ui="SharePage.publicStatus">
               {ownPublic
                 ? t("share.publicOwn")
-                : publicAbove
-                  ? t("share.publicAbove", { page: ancestorTitle(publicAbove.id) })
-                  : t("share.publicNone")}
-              {!publicAllowed && (ownPublic || publicAbove) && t("share.publicNotAllowed")}
+                : ownHidden
+                  ? publicAbove
+                    ? t("share.publicHidden", { page: ancestorTitle(publicAbove.id) })
+                    : t("share.publicHiddenNothingAbove")
+                  : publicAbove
+                    ? t("share.publicAbove", { page: ancestorTitle(publicAbove.id) })
+                    : t("share.publicNone")}
+              {!publicAllowed && (ownPublic || (publicAbove && !ownHidden)) && t("share.publicNotAllowed")}
             </p>
-            {ownPublic ? <UnpublishForm pageId={pageId} /> : !publicAbove && publicAllowed && <PublishForm pageId={pageId} />}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {ownPublic && <UnpublishForm pageId={pageId} />}
+              {ownHidden && <UnhidePublicForm pageId={pageId} above={!!publicAbove} />}
+              {!ownPublic && !ownHidden && publicAbove && <HidePublicForm pageId={pageId} />}
+              {!ownPublic && !publicAbove && publicAllowed && <PublishForm pageId={pageId} />}
+            </div>
           </section>
         )}
       </div>

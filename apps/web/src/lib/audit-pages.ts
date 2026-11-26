@@ -17,6 +17,8 @@ const PAGE_KEYS: Record<string, readonly string[]> = {
   "page.grant.remove": ["pageId"],
   "page.public.set": ["pageId"],
   "page.public.remove": ["pageId"],
+  "page.public.hide": ["pageId"],
+  "page.public.unhide": ["pageId"],
   "landing-page.settings": ["pageId"],
 };
 

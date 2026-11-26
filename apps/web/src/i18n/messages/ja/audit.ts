@@ -18,6 +18,8 @@ const ja: MessageShape<typeof en> = {
     grantRemove: "ページ「{title}」からグループ「{group}」の権限（{access}）を削除",
     publicSet: "ページ「{title}」（とその下のページ）をインターネットに公開",
     publicRemove: "ページ「{title}」（とその下のページ）のインターネットへの公開をやめる",
+    publicHide: "ページ「{title}」（とその下のページ）を上位のページの公開から外す",
+    publicUnhide: "ページ「{title}」（とその下のページ）を上位のページの公開から外すのをやめる",
     rootCreate:
       "ナレッジルート「{title}」を作成し、グループ「{group}」に管理権限を付与{newGroup, select, true {（グループを新規作成し、作成者が参加）} other {}}{shareWithAll, select, true {。全ユーザーに閲覧権限を付与} other {}}",
     rootDelete: "ナレッジルート「{title}」を削除（誰も開けない。元に戻せる）",

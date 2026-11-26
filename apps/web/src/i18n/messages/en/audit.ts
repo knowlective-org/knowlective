@@ -22,6 +22,8 @@ export default {
     grantRemove: "Removed the permission of the group \"{group}\" ({access}) from the page \"{title}\"",
     publicSet: "Published the page \"{title}\" (and the pages under it) to the internet",
     publicRemove: "Stopped publishing the page \"{title}\" (and the pages under it) to the internet",
+    publicHide: "Kept the page \"{title}\" (and the pages under it) out of the publishing of the page above",
+    publicUnhide: "Stopped keeping the page \"{title}\" (and the pages under it) out of the publishing of the page above",
     rootCreate:
       "Created the knowledge root \"{title}\" and gave the group \"{group}\" manage permission{newGroup, select, true { (a new group, joined by its creator)} other {}}{shareWithAll, select, true {. Gave all users view permission} other {}}",
     rootDelete: "Deleted the knowledge root \"{title}\" (nobody can open it; it can be restored)",
