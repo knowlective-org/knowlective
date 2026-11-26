@@ -14,6 +14,7 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - Whiteboards and slides: several selected boxes and lines are resized together, keeping their proportions, from the corner of the frame around them (their text keeps its size).
 - Whiteboards and slides: a menu on the right button (a right-button drag still moves the view), the menu key or Shift+F10: cut, copy, paste, duplicate, group, ungroup, bring to front, send to back and delete.
 - Whiteboards: a chat about an item, like the chat about a document's block: "Start a chat" in the board's menu opens it over the board's right side, and each item with messages has a mark with their number (a click opens it). It can be resolved and reopened; the messages are not part of the board.
+- Public pages: a page under a public page (or under a public knowledge root) can be kept out of it, with the pages under it, from its permission settings ("Keep out of the publishing"); people who aren't logged in can no longer open them. Undone from the same place; both are recorded in the audit log.
 - Admin console → Overview → "Favicon": the icon in the browser's tab for the whole site (PNG, ICO or SVG up to 200 KB; SVGs are checked as logos are). A knowledge root's own favicon still takes its place on that root's pages; the home-screen and app icons stay the default ones. Setting it and going back to the default are recorded in the audit log.
 
 ### Fixed

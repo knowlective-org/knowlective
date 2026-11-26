@@ -59,6 +59,7 @@ export {
   canEditPage,
   computeLocks,
   computeTreeAccess,
+  publicAccess,
   getGroupAccessForPage,
   getInheritedGroupAccess,
   getPageAccess,

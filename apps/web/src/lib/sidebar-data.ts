@@ -74,7 +74,7 @@ type VisibleTree = ReturnType<typeof resolveShortcuts>[number];
 async function publicPageIds(): Promise<Set<string>> {
   const [config, published] = await Promise.all([
     prisma.instanceConfig.findUnique({ where: { id: 1 }, select: { publicPagesAllowed: true } }),
-    prisma.pageGrant.findFirst({ where: { group: { builtIn: PUBLIC_GROUP }, page: { deletedAt: null } }, select: { pageId: true } }),
+    prisma.pageGrant.findFirst({ where: { group: { builtIn: PUBLIC_GROUP }, access: { not: "NONE" }, page: { deletedAt: null } }, select: { pageId: true } }),
   ]);
   if (!config?.publicPagesAllowed || !published) return new Set();
   const trees = await getVisibleTrees(prisma, null);

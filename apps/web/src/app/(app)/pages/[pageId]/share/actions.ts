@@ -171,8 +171,13 @@ export async function publishPage(formData: FormData): Promise<void> {
   ]);
   if (!allowed || !group || root?.root.ownerId) back(pageId, "public-not-allowed");
   const existing = await prisma.pageGrant.findUnique({ where: { pageId_groupId: { pageId, groupId: group.id } } });
-  if (existing) back(pageId);
-  await prisma.pageGrant.create({ data: { pageId, groupId: group.id, access: "VIEW" } });
+  if (existing && existing.access !== "NONE") back(pageId);
+  // (A page kept out of a public page above is made public here instead.)
+  await prisma.pageGrant.upsert({
+    where: { pageId_groupId: { pageId, groupId: group.id } },
+    create: { pageId, groupId: group.id, access: "VIEW" },
+    update: { access: "VIEW" },
+  });
   const { audit, title, hidden } = await auditFor(page.title);
   await recordAudit(
     { userId: user.id, label: userLabel(user) },
@@ -193,7 +198,7 @@ export async function unpublishPage(formData: FormData): Promise<void> {
   const { user, page } = await requireManager(pageId);
   const group = await publicGroup();
   if (!group) back(pageId);
-  const { count } = await prisma.pageGrant.deleteMany({ where: { pageId, groupId: group.id } });
+  const { count } = await prisma.pageGrant.deleteMany({ where: { pageId, groupId: group.id, access: { not: "NONE" } } });
   if (count === 0) back(pageId);
   const { audit, title, hidden } = await auditFor(page.title);
   await recordAudit(
@@ -204,6 +209,55 @@ export async function unpublishPage(formData: FormData): Promise<void> {
     audit("audit.publicRemove", { title: hidden }),
   );
   reconnectDocuments(await subtreeIds(pageId));
+  revalidatePath(`/pages/${pageId}`, "layout");
+  back(pageId);
+}
+
+// Keeps the page, and every page under it, out of a public page above it (a
+// NONE grant to the public group): those not logged in can no longer open
+// them. Only where a page above makes this one public. Editors open on them
+// reconnect, so visitors stop receiving them at once.
+export async function hidePublicPage(formData: FormData): Promise<void> {
+  const pageId = String(formData.get("pageId") ?? "");
+  const { user, page } = await requireManager(pageId);
+  const group = await publicGroup();
+  if (!group) back(pageId);
+  const [own, inherited] = await Promise.all([
+    prisma.pageGrant.findUnique({ where: { pageId_groupId: { pageId, groupId: group.id } } }),
+    getInheritedGroupAccess(prisma, pageId),
+  ]);
+  if (own || inherited.get(group.id)?.access !== "VIEW") back(pageId);
+  await prisma.pageGrant.create({ data: { pageId, groupId: group.id, access: "NONE" } });
+  const { audit, title, hidden } = await auditFor(page.title);
+  await recordAudit(
+    { userId: user.id, label: userLabel(user) },
+    "page.public.hide",
+    audit("audit.publicHide", { title }),
+    { pageId },
+    audit("audit.publicHide", { title: hidden }),
+  );
+  reconnectDocuments(await subtreeIds(pageId));
+  revalidatePath(`/pages/${pageId}`, "layout");
+  back(pageId);
+}
+
+// Undoes hidePublicPage: the page follows the pages above it again (public
+// again if one of them is).
+export async function unhidePublicPage(formData: FormData): Promise<void> {
+  const pageId = String(formData.get("pageId") ?? "");
+  const { user, page } = await requireManager(pageId);
+  const group = await publicGroup();
+  if (!group) back(pageId);
+  const { count } = await prisma.pageGrant.deleteMany({ where: { pageId, groupId: group.id, access: "NONE" } });
+  if (count === 0) back(pageId);
+  const { audit, title, hidden } = await auditFor(page.title);
+  await recordAudit(
+    { userId: user.id, label: userLabel(user) },
+    "page.public.unhide",
+    audit("audit.publicUnhide", { title }),
+    { pageId },
+    audit("audit.publicUnhide", { title: hidden }),
+  );
   revalidatePath(`/pages/${pageId}`, "layout");
   back(pageId);
 }

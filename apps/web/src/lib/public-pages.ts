@@ -1,4 +1,4 @@
-import { MAX_PAGE_DEPTH, PUBLIC_GROUP, computeTreeAccess } from "shared";
+import { MAX_PAGE_DEPTH, PUBLIC_GROUP, computeTreeAccess, publicAccess } from "shared";
 import { prisma } from "@/lib/db";
 import { getDisplayTitle } from "@/i18n/display-title";
 
@@ -20,10 +20,11 @@ export async function publicGroup(): Promise<{ id: string; name: string } | null
 export async function publicPageIds(): Promise<string[]> {
   const group = await prisma.group.findUnique({
     where: { builtIn: PUBLIC_GROUP },
-    select: { id: true, grants: { select: { pageId: true, page: { select: { rootId: true } } } } },
+    select: { id: true, grants: { select: { pageId: true, access: true, page: { select: { rootId: true } } } } },
   });
-  if (!group || group.grants.length === 0) return [];
-  const grants = group.grants.map((g) => ({ pageId: g.pageId, groupId: group.id, access: "VIEW" as const }));
+  if (!group || !group.grants.some((g) => g.access !== "NONE")) return [];
+  // (A NONE grant keeps a page, and those under it, out of a public page above.)
+  const grants = group.grants.map((g) => ({ pageId: g.pageId, groupId: group.id, access: publicAccess(g.access) }));
   const ids: string[] = [];
   for (const rootId of new Set(group.grants.map((g) => g.page.rootId))) {
     const pages = await prisma.page.findMany({ where: { rootId, deletedAt: null }, select: { id: true, parentId: true } });
