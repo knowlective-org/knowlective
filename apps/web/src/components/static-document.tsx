@@ -11,6 +11,8 @@ import "@blocknote/mantine/style.css";
 import { PageEditorContext, type PageEditorContextValue } from "@/components/editor/page-context";
 import { editorSchema } from "@/components/editor/schema";
 import { useFilePaths } from "@/components/editor/file-paths";
+import { PageTocLayout } from "@/components/editor/page-toc";
+import type { BlockNoteEditor } from "@blocknote/core";
 import { useLocale } from "next-intl";
 import { blockNoteDictionary } from "@/i18n/blocknote";
 import { useDisplayTitle } from "@/i18n/use-display-title";
@@ -22,8 +24,9 @@ import styles from "@/components/collaborative-editor.module.css";
 // connected anywhere: no collaboration, no cursors, nobody's name. Used for a
 // saved version (page history) and for a public page seen by someone not
 // logged in. Child-page blocks fetch the page's current children (with the
-// viewer's access), as on the page.
-export function StaticDocument({ pageId, state, dataUi }: { pageId: string; state: string; dataUi: string }) {
+// viewer's access), as on the page. `toc`: the table of contents on the right
+// (page-toc.tsx), for the page itself (not a version's preview).
+export function StaticDocument({ pageId, state, dataUi, toc = false }: { pageId: string; state: string; dataUi: string; toc?: boolean }) {
   const doc = useMemo(() => {
     const d = new Y.Doc();
     Y.applyUpdate(d, Uint8Array.from(atob(state), (c) => c.charCodeAt(0)));
@@ -47,7 +50,13 @@ export function StaticDocument({ pageId, state, dataUi }: { pageId: string; stat
     <div data-ui={dataUi}>
       <div className={styles.title}>{displayTitle(doc.getText(TITLE_FIELD).toString())}</div>
       <PageEditorContext.Provider value={context}>
-        <BlockNoteView editor={editor} editable={false} theme="light" />
+        {toc ? (
+          <PageTocLayout editor={editor as unknown as BlockNoteEditor}>
+            <BlockNoteView editor={editor} editable={false} theme="light" />
+          </PageTocLayout>
+        ) : (
+          <BlockNoteView editor={editor} editable={false} theme="light" />
+        )}
       </PageEditorContext.Provider>
     </div>
   );

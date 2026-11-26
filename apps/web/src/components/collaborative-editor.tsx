@@ -7,7 +7,7 @@ import type { HocuspocusProvider } from "@hocuspocus/provider";
 import { yUndoPluginKey } from "y-prosemirror";
 import type { Mark } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
-import { combineByGroup, filterSuggestionItems } from "@blocknote/core";
+import { type BlockNoteEditor, combineByGroup, filterSuggestionItems } from "@blocknote/core";
 import { getMultiColumnSlashMenuItems, multiColumnDropCursor } from "@blocknote/xl-multi-column";
 import { withCollaboration } from "@blocknote/core/yjs";
 import { BlockNoteView } from "@blocknote/mantine";
@@ -30,6 +30,7 @@ import { useDisplayTitle } from "@/i18n/use-display-title";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
 import { EditorFormattingToolbar, EditorSideMenu } from "./editor/block-type-menu";
 import { ReviewLayout, ReviewProvider } from "./editor/review-pane";
+import { PageTocLayout } from "./editor/page-toc";
 import { useAdoptFiles } from "./editor/adopt-files";
 import { dragCopyExtension } from "./editor/drag-copy";
 import { blockClicksExtension } from "./editor/block-clicks";
@@ -852,40 +853,42 @@ function EditorBody({
       <PageEditorContext.Provider value={pageContext}>
         <PageProperties />
         <ReviewProvider>
-          <ReviewLayout editor={editor}>
-            <BlockNoteView
-              editor={editor}
-              editable={!readOnly}
-              theme="light"
-              slashMenu={false}
-              sideMenu={false}
-              formattingToolbar={false}
-              onKeyDown={keepTabInEditor}
-              data-ui="EditorBody.editor"
-            >
-              <EditorFormattingToolbar />
-              <EditorSideMenu />
-              <SuggestionMenuController
-                triggerCharacter="/"
-                getItems={async (query) =>
-                  filterSuggestionItems(
-                    combineByGroup(
-                      withTodoForChecklist(getDefaultReactSlashMenuItems(editor), editor, t),
-                      getMultiColumnSlashMenuItems(editor),
-                      // Ours join BlockNote's group of the same name ("Others").
-                      customSlashMenuItems(editor, t),
-                    ),
-                    query,
-                  )
-                }
-              />
-              {/* "@": mention someone who can open the page. */}
-              <SuggestionMenuController
-                triggerCharacter="@"
-                getItems={async (query) => mentionMenuItems(editor, (await pagePeople(pageId)) ?? [], query)}
-              />
-            </BlockNoteView>
-          </ReviewLayout>
+          <PageTocLayout editor={editor as unknown as BlockNoteEditor}>
+            <ReviewLayout editor={editor}>
+              <BlockNoteView
+                editor={editor}
+                editable={!readOnly}
+                theme="light"
+                slashMenu={false}
+                sideMenu={false}
+                formattingToolbar={false}
+                onKeyDown={keepTabInEditor}
+                data-ui="EditorBody.editor"
+              >
+                <EditorFormattingToolbar />
+                <EditorSideMenu />
+                <SuggestionMenuController
+                  triggerCharacter="/"
+                  getItems={async (query) =>
+                    filterSuggestionItems(
+                      combineByGroup(
+                        withTodoForChecklist(getDefaultReactSlashMenuItems(editor), editor, t),
+                        getMultiColumnSlashMenuItems(editor),
+                        // Ours join BlockNote's group of the same name ("Others").
+                        customSlashMenuItems(editor, t),
+                      ),
+                      query,
+                    )
+                  }
+                />
+                {/* "@": mention someone who can open the page. */}
+                <SuggestionMenuController
+                  triggerCharacter="@"
+                  getItems={async (query) => mentionMenuItems(editor, (await pagePeople(pageId)) ?? [], query)}
+                />
+              </BlockNoteView>
+            </ReviewLayout>
+          </PageTocLayout>
         </ReviewProvider>
       </PageEditorContext.Provider>
       {exportingPdf && (
