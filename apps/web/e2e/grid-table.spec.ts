@@ -153,6 +153,30 @@ test.describe("Extended table", () => {
     await trashOpenPage(page);
   });
 
+  test("a block in a cell keeps its ⋮⋮ while the pointer goes to it", async ({ page }) => {
+    await createPage(page, "E2E 拡張テーブルのセルの ⋮⋮");
+    await insertGridTable(page);
+    // The middle cell (cells: 0 1 2 / 3 4 5 / 6 7 8): a column on each side.
+    await clickInEditor(cellText(page, 4));
+    await page.keyboard.type("真ん中のセル");
+    const text = cellText(page, 4);
+    await text.hover();
+    const handle = page.locator(".bn-side-menu [draggable=true]");
+    await expect(handle).toBeVisible();
+    // On the way to it (over the cell's padding and the column before) the
+    // menu stays with this block: its menu changes it.
+    const handleBox = (await handle.boundingBox())!;
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2, { steps: 8 });
+    await expect(page.getByTestId("BlockSideMenu.inCell")).toBeVisible();
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.getByRole("menuitem", { name: "種類を変更" }).hover();
+    await page.locator(".bn-menu-dropdown").last().getByRole("menuitem", { name: "見出し３", exact: true }).click();
+    await expect(cells(page).nth(4).locator(".bn-block-content", { hasText: "真ん中のセル" })).toHaveAttribute("data-level", "3");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+    await trashOpenPage(page);
+  });
+
   test("Tab goes to the next cell as in a table, unless the block has a Tab of its own", async ({ page }) => {
     await createPage(page, "E2E 拡張テーブルの Tab");
     await insertGridTable(page);

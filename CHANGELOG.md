@@ -20,6 +20,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 - Whiteboards: connectors meeting a box at one point are spread along its side in the order of the way they come from (not only where their other ends are), so two from the same side no longer cross where they turn in.
 - Whiteboards: where the connector in front has no room to hop at a crossing (too near one of its corners), the one behind hops instead.
+- Whiteboards shown in a document: full screen covers the whole window (it kept the block's height, with the rest of the page showing below), and the board is fitted again to the space it has when going in and out of it.
+- Extended tables: the ⋮⋮ of a block in a cell can be grabbed with the mouse. It's left of the block, over the cell's padding and the column before, and moved to another block (or went away) on the way to it.
 
 ### Upgrade notes
 

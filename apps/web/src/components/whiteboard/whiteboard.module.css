@@ -737,8 +737,10 @@
   box-shadow: inset 0 0 0 1px var(--color-primary);
 }
 
-/* In a document (the whiteboard block): a lower board in the block's frame. */
-.root.embedded {
+/* In a document (the whiteboard block): a lower board in the block's frame
+   (not in full screen, which this would otherwise override: same specificity,
+   later in the file). */
+.root.embedded:not([data-fullscreen]) {
   height: 420px;
   min-height: 0;
   margin: 0;

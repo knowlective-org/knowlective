@@ -263,6 +263,19 @@ test.describe("Whiteboard tools", () => {
     await expect(embed.getByTestId("Whiteboard.toolbar")).toHaveCount(0);
     await expect(page.getByTestId("PageView.status")).toHaveCount(0);
 
+    // Full screen: the whole window, not the block's low frame; Esc brings it
+    // back. (Next.js's dev indicator would cover the button at the bottom right.)
+    await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+    const embedBoard = embed.getByTestId("WhiteboardEmbed.board");
+    await embedBoard.getByTestId("Whiteboard.fullscreenButton").click();
+    await expect(embedBoard).toHaveAttribute("data-fullscreen", "true");
+    const windowSize = page.viewportSize()!;
+    expect(await embedBoard.boundingBox()).toEqual({ x: 0, y: 0, width: windowSize.width, height: windowSize.height });
+    await expect(embedBoard.getByTestId("Whiteboard.item").filter({ hasText: "埋め込みの付箋" })).toBeInViewport();
+    await page.keyboard.press("Escape");
+    await expect(embedBoard).not.toHaveAttribute("data-fullscreen");
+    expect((await embedBoard.boundingBox())!.height).toBeLessThan(windowSize.height);
+
     // Someone with access to both sees it.
     const viewer = await browser.newContext({ storageState: authFile("viewer") });
     const viewerPage = await viewer.newPage();
