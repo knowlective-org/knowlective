@@ -311,6 +311,68 @@ test.describe("Access matrix", () => {
     expect(await shortcuts()).toBe(2);
   });
 
+  test("setting child page table cells, called directly, only works for who can edit the child page", async ({ page, browser, baseURL }) => {
+    test.setTimeout(150_000);
+    // A child page table on the page, with a child page and a text column.
+    // On a page of its own (made as the page is: the same groups' access).
+    const { id: tablePageId } = await createPage(page, "E2E 権限の一覧の子ページテーブル");
+    await editorBody(page).click();
+    await page.keyboard.type("/table");
+    await page.getByRole("option", { name: /子ページテーブル/ }).click();
+    await page.getByTestId("ChildTableBlock.newPageButton").click();
+    await page.getByTestId("ChildTableBlock.newPageInput").fill("一覧の値");
+    await page.keyboard.press("Enter");
+    const row = page.getByTestId("ChildTableBlock.row").filter({ hasText: "一覧の値" });
+    await expect(row).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await page.getByTestId("ChildTableBlock.addColumn").click();
+    await page.getByTestId("AddColumnForm.nameInput").fill("メモ");
+    await page.getByTestId("AddColumnForm.typeSelect").selectOption("TEXT");
+    await page.getByTestId("AddColumnForm.submitButton").click();
+    const childId = (await row.getAttribute("data-id"))!;
+
+    const cell = row.locator('[data-ui="ChildTableBlock.cell"][data-c="1"]');
+    await expect(cell.locator("input")).toBeVisible();
+    const columnId = await withPrisma(async (prisma) => (await prisma.pagePropertyDef.findFirstOrThrow({ where: { pageId: tablePageId }, select: { id: true } })).id);
+    // The action's id, from the request a paste into the cell makes.
+    let action = "";
+    page.on("request", (request) => {
+      const id = request.headers()["next-action"];
+      if (id && (request.postData() ?? "").includes(columnId)) action = id;
+    });
+    await cell.evaluate((el) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", "管理者の値");
+      el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    });
+    await expect(cell.locator("input")).toHaveValue("管理者の値");
+    expect(action).not.toBe("");
+    const values = () => withPrisma((prisma) => prisma.pagePropertyValue.count({ where: { pageId: childId, defId: columnId } }));
+    const clear = () => withPrisma((prisma) => prisma.pagePropertyValue.deleteMany({ where: { pageId: childId, defId: columnId } }));
+
+    const origin = new URL(baseURL!).origin;
+    const call = async (request: APIRequestContext) => {
+      await request.post(`pages/${tablePageId}`, {
+        headers: { Origin: origin, "Next-Action": action, Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8" },
+        data: JSON.stringify([[{ pageId: childId, columnId, value: "直接の値" }]]),
+        maxRedirects: 0,
+      });
+    };
+    await clear();
+    for (const account of ACCOUNTS) {
+      if (account === "admin" || account === "editor") continue;
+      const context = await contextFor(browser, account);
+      await call(context.request);
+      expect(await values(), account).toBe(0);
+      await context.close();
+    }
+    // …and the very same request works for the admin.
+    await call(page.request);
+    expect(await values()).toBe(1);
+    await openPage(page, tablePageId);
+    await trashOpenPage(page);
+  });
+
   test("review threads' actions, called directly: the list for who can open the page, resolving for who can edit it", async ({ page, browser, baseURL }) => {
     // A thread on the page's first block, by the admin; the actions' ids from
     // the requests their screen makes.

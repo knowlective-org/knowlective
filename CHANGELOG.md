@@ -8,6 +8,11 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Added
+
+- Extended tables and child page tables: text pasted into an options cell (its option button or select focused, or the caret in an extended table's typed cell) chooses the options it names, when they're the column's (several, a line or a comma between them, in a multiple-options column). Text that isn't one of the column's values changes nothing, and that's said. In an extended table, the same goes for a number, date or checkbox column's cell; before, plain text pasted with the caret in a typed cell went into its hidden blocks.
+- Child page tables: a table pasted into them (from a spreadsheet, or tab-separated text) fills the cells from the one pasted into (or the selected cells' top left) rightward and downward; one value pasted with cells selected fills each of them. Each cell takes its value where it's one of its column's: an option or a person named by it, a date ("2026/12/1" too), text. What isn't, the title and built-in columns, masked columns, rows that can't be changed and what goes beyond the table's rows (pasting doesn't add child pages) are left out, and that's said.
+
 ### Changed
 
 - The Docker image installs Debian's security updates when it's built, instead of waiting for the Node.js image to include them.
