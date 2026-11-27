@@ -8,6 +8,8 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-27
+
 ### Added
 
 - Whiteboards and slides: groups. Boxes and lines are grouped with Ctrl/⌘+G (ungrouped with Ctrl/⌘+Shift+G, or from the selection bar and the new menu); a click picks the whole group, a second click one of its items. Copies of a group are a new group. The API and MCP (`edit_whiteboard`) can set an item's `group`.
