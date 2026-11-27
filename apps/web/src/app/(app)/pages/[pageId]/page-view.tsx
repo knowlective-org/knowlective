@@ -200,7 +200,7 @@ export function PageView({
           ) : user ? (
             <EditorLoader pageId={pageId} readOnly={readOnly} user={user} onTitleChange={setLiveTitle} />
           ) : (
-            <StaticDocumentLoader pageId={pageId} state={guestState ?? ""} dataUi="PageView.publicDocument" />
+            <StaticDocumentLoader pageId={pageId} state={guestState ?? ""} dataUi="PageView.publicDocument" toc />
           )}
         </InitialTitleContext.Provider>
       </div>

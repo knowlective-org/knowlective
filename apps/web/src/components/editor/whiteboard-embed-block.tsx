@@ -15,6 +15,10 @@ import { useDisplayTitle } from "@/i18n/use-display-title";
 import { PAGE_DELETED, PAGE_MOVED } from "@/lib/collab-events";
 import { COLLAB_CLIENT_VERSION, OUTDATED_CLIENT } from "@/lib/collab-version";
 import { TITLE_FIELD } from "@/lib/page-title";
+import { readItems } from "@/lib/whiteboard";
+import { type WhiteboardFocus, focusFromSelection, focusedItems, parseFocus, serializeFocus } from "@/lib/whiteboard-focus";
+import dialogStyles from "@/components/dialog.module.css";
+import ui from "@/styles/ui.module.css";
 import { BLOCK_CONFIGS } from "./block-configs";
 import styles from "./whiteboard-embed-block.module.css";
 
@@ -27,23 +31,42 @@ import styles from "./whiteboard-embed-block.module.css";
 // changed from here. Without one (a public page's visitor, or the
 // connection refused), it's the board as it was when loaded: loaded again
 // on "Reload" and when the viewer comes back to the tab.
+// The block can show only a part of the board (`focus`: some of its items
+// and groups, lib/whiteboard-focus.ts), chosen on the board in a dialog.
+// It's a view, not access: the viewer still gets the whole board.
 export const whiteboardBlock = createReactBlockSpec(BLOCK_CONFIGS.whiteboard, {
   render: ({ block, editor }) => (
     <WhiteboardEmbedView
       pageId={block.props.pageId}
+      focusProp={block.props.focus}
       editable={editor.isEditable}
-      onChoose={(pageId) => editor.updateBlock(block, { props: { pageId } })}
+      onChoose={(pageId) => editor.updateBlock(block, { props: { pageId, focus: "" } })}
+      onFocus={(focus) => editor.updateBlock(block, { props: { focus: serializeFocus(focus) } })}
     />
   ),
 });
 
-function WhiteboardEmbedView({ pageId, editable, onChoose }: { pageId: string; editable: boolean; onChoose: (pageId: string) => void }) {
+function WhiteboardEmbedView({
+  pageId,
+  focusProp,
+  editable,
+  onChoose,
+  onFocus,
+}: {
+  pageId: string;
+  focusProp: string;
+  editable: boolean;
+  onChoose: (pageId: string) => void;
+  onFocus: (focus: WhiteboardFocus | null) => void;
+}) {
   const t = useTranslations("editor.whiteboardEmbed");
   const displayTitle = useDisplayTitle();
   // What was loaded, and for which page (another page chosen: loading again).
   const [loaded, setLoaded] = useState<{ pageId: string; data: WhiteboardEmbed | null } | null>(null);
   const data = loaded?.pageId === pageId ? loaded.data : undefined;
   const [picking, setPicking] = useState(false);
+  const [choosingPart, setChoosingPart] = useState(false);
+  const focus = useMemo(() => parseFocus(focusProp), [focusProp]);
   const ref = useRef<HTMLDivElement>(null);
 
   // The live board (its whole document, from the collab server), once
@@ -162,11 +185,21 @@ function WhiteboardEmbedView({ pageId, editable, onChoose }: { pageId: string; e
           ) : (
             t("label")
           )}
+          {data && focus && (
+            <span className={styles.partial} data-ui="WhiteboardEmbed.partialStatus">
+              {t("partial")}
+            </span>
+          )}
         </span>
         <span className={styles.actions}>
           {data && !liveDoc && (
             <button type="button" className={styles.linkButton} onClick={load} data-ui="WhiteboardEmbed.reloadButton">
               {t("reload")}
+            </button>
+          )}
+          {editable && data && doc && (
+            <button type="button" className={styles.linkButton} onClick={() => setChoosingPart(true)} data-ui="WhiteboardEmbed.rangeButton">
+              {t("range")}
             </button>
           )}
           {editable && pageId && (
@@ -200,10 +233,23 @@ function WhiteboardEmbedView({ pageId, editable, onChoose }: { pageId: string; e
           doc={liveDoc ?? doc}
           readOnly
           embedded
+          focus={focus}
+          emptyText={focus ? t("rangeGone") : undefined}
           dataUi="WhiteboardEmbed.board"
         />
       )}
       {picker}
+      {choosingPart && doc && (
+        <PartDialog
+          doc={liveDoc ?? doc}
+          focus={focus}
+          onChoose={(next) => {
+            setChoosingPart(false);
+            onFocus(next);
+          }}
+          onClose={() => setChoosingPart(false)}
+        />
+      )}
     </div>
   );
 }
@@ -223,5 +269,90 @@ function useLiveTitle(doc: Y.Doc | null): string | null {
     subscribe,
     () => (doc ? doc.getText(TITLE_FIELD).toString() : null),
     () => null,
+  );
+}
+
+// Choosing the part of the board the block shows: its items picked by
+// clicking them (with their groups) or drawing a frame around them; or the
+// whole board.
+function PartDialog({
+  doc,
+  focus,
+  onChoose,
+  onClose,
+}: {
+  doc: Y.Doc;
+  focus: WhiteboardFocus | null;
+  onChoose: (focus: WhiteboardFocus | null) => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations("editor.whiteboardEmbed");
+  const ref = useRef<HTMLDialogElement>(null);
+  // The items of the part chosen now, picked to start with.
+  const [initial] = useState(() => (focus ? focusedItems(readItems(doc), focus).filter((i) => i.type !== "connector").map((i) => i.id) : []));
+  const [picked, setPicked] = useState<string[]>(initial);
+  // Cleared: the board drawn again with nothing picked.
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+  const items = readItems(doc);
+  const chosen = focusFromSelection(items, picked);
+  const boxes = new Set(items.filter((i) => i.type !== "connector").map((i) => i.id));
+  const count = picked.filter((id) => boxes.has(id)).length;
+
+  return (
+    <dialog
+      ref={ref}
+      className={`${dialogStyles.dialog} ${styles.partDialog}`}
+      data-ui="WhiteboardEmbed.rangeDialog"
+      aria-labelledby="whiteboard-part-title"
+      onClose={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      // Inside a document's block: keys and clicks are the dialog's, not the editor's.
+      onKeyDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className={dialogStyles.body}>
+        <h2 id="whiteboard-part-title" className={dialogStyles.title}>
+          {t("rangeTitle")}
+        </h2>
+        <p className={ui.note}>{t("rangeLead")}</p>
+        <WhiteboardCanvas
+          key={round}
+          doc={doc}
+          readOnly
+          picking
+          initialSelection={round === 0 ? initial : []}
+          onSelectionChange={setPicked}
+          dataUi="WhiteboardEmbed.rangeBoard"
+        />
+        <p className={ui.note} data-ui="WhiteboardEmbed.rangeStatus">
+          {t("rangeCount", { count })}
+        </p>
+        <div className={dialogStyles.actions}>
+          <button
+            type="button"
+            className={ui.buttonSecondary}
+            data-ui="WhiteboardEmbed.rangeClearButton"
+            disabled={count === 0}
+            onClick={() => {
+              setPicked([]);
+              setRound((r) => r + 1);
+            }}
+          >
+            {t("rangeClear")}
+          </button>
+          <button type="button" className={ui.buttonSecondary} data-ui="WhiteboardEmbed.rangeCancelButton" onClick={onClose}>
+            {t("rangeCancel")}
+          </button>
+          <button type="button" className={ui.button} data-ui="WhiteboardEmbed.rangeApplyButton" onClick={() => onChoose(chosen)}>
+            {chosen ? t("rangeApply") : t("rangeAll")}
+          </button>
+        </div>
+      </div>
+    </dialog>
   );
 }

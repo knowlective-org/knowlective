@@ -1,0 +1,33 @@
+/* The mark over what was last followed, on coming back (return-highlight.tsx):
+   a frame and a light fill that fade out. */
+.mark {
+  position: fixed;
+  z-index: 25;
+  pointer-events: none;
+  border: 2px solid var(--color-primary);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  animation: returnMark 2.4s ease-out forwards;
+}
+
+@keyframes returnMark {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    animation: none;
+  }
+}
+
+@media print {
+  .mark {
+    display: none;
+  }
+}

@@ -6,7 +6,9 @@
 # Fully qualified, for Podman (it asks which registry a short name means).
 FROM docker.io/library/node:24-bookworm-slim AS base
 # openssl: Prisma's schema engine (used by `prisma migrate deploy`).
+# upgrade: Debian's security fixes, before the Node image is rebuilt with them.
 RUN apt-get update \
+  && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 # npm is only needed to install pnpm: removed afterwards, so the image doesn't

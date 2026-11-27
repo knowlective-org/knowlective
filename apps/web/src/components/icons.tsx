@@ -91,6 +91,7 @@ const ICONS = {
   cut: [{ d: "M8 13.5 15.5 3.5M12 13.5 4.5 3.5" }, { d: "M3.5 15a2 2 0 1 0 4 0 2 2 0 1 0-4 0ZM12.5 15a2 2 0 1 0 4 0 2 2 0 1 0-4 0Z" }],
   copy: [{ d: "M7 6.5h8.5v10H7ZM13 6.5v-3H4.5v10H7" }],
   paste: [{ d: "M7 4.5H5v12h10v-12h-2M7.5 3h5v3h-5Z" }],
+  export: [{ d: "M10 3v9.5M6 8.5l4 4 4-4M4 14v3h12v-3" }],
   // Two shapes in a dashed frame; for ungrouping, the frame's corners only.
   group: [{ d: "M6 6h4.5v4.5H6ZM11 11h3v3h-3Z" }, { d: "M3 5V3h2M8 3h4M15 3h2v2M17 8v4M17 15v2h-2M12 17H8M5 17H3v-2M3 12V8" }],
   ungroup: [{ d: "M6 6h4.5v4.5H6ZM11 11h3v3h-3Z" }, { d: "M3 6V3h3M14 3h3v3M17 14v3h-3M6 17H3v-3" }],

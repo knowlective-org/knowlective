@@ -314,6 +314,9 @@ export default {
       mcp: "Turn on the MCP server",
       mcpNote: "AI apps (Claude, ChatGPT, Cursor…) search, read and write pages through /api/mcp, acting as the person who connected them (their permissions, never more). Part of the API: it works only while the API is on, for the roles below. Page content goes to the AI's provider, and text in pages can try to steer the AI: suggest read-only access where that's enough.",
       roles: "Roles that can issue keys",
+      importPrivate: "Accept page copies from sites at private (intranet) addresses",
+      importPrivateNote:
+        "Pages can be copied from another knowlective site through the API and MCP (a one-time link made on that site). Off: only from sites at public addresses over https. On: also from private addresses, over http there too. Never from this server's own addresses or link-local ones (cloud metadata). Requests go through the outbound proxy, if one is set.",
       rolesNote: "A key stops working when its owner's role is taken off this list. Keys of disabled users never work.",
       keyCount: "{count, plural, =0 {No API keys issued.} one {# API key issued.} other {# API keys issued.}}",
     },

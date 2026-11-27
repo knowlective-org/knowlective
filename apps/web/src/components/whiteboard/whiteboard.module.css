@@ -1062,3 +1062,11 @@
     display: none;
   }
 }
+
+/* Choosing the part a whiteboard block shows (whiteboard-embed-block.tsx),
+   in a dialog. */
+.root.picking {
+  height: min(60vh, 560px);
+  min-height: 240px;
+  margin: 0;
+}

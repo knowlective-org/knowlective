@@ -111,6 +111,15 @@ test.describe("Access matrix", () => {
         );
         expect([401, 403], `${account} ${part} DELETE`).toContain((await context.request.delete(`api/v1/pages/${pageId}/tables/x/${part}?at=0`)).status());
       }
+      // Copying pages (lib/page-transfer/): the link, its import and the copy take keys only.
+      for (const part of ["export", "import", "copy"]) {
+        expect([401, 403], `${account} ${part} POST`).toContain(
+          (await context.request.post(`api/v1/pages/${pageId}/${part}`, { data: { url: "x", parentId: pageId } })).status(),
+        );
+      }
+      // A copy link's token is its only key: a made-up one gives nothing.
+      expect((await context.request.get(`api/v1/exports/knx_${"a".repeat(43)}`)).status(), `${account} export link`).toBe(404);
+      expect((await context.request.get(`api/v1/exports/knx_${"a".repeat(43)}/files/${fileId}`)).status(), `${account} export file`).toBe(404);
       // The MCP server takes keys only too (404 while it's off).
       expect([401, 404], `${account} MCP`).toContain(
         (await context.request.post("api/mcp", { data: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} } })).status(),

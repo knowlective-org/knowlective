@@ -9,7 +9,12 @@ import { type NumberPosition, SLIDE_HEIGHT, SLIDE_WIDTH } from "@/lib/presentati
 
 // Slide pixels to PDF points: a 960 × 540 pt page.
 const PT = 0.5;
-const pt = (px: number) => `${(Math.round(px * PT * 100) / 100).toString()}pt`;
+type Pt = (px: number) => string;
+const ptAt =
+  (scale: number): Pt =>
+  (px) =>
+    `${(Math.round(px * scale * 100) / 100).toString()}pt`;
+const pt = ptAt(PT);
 
 export const SLIDE_FONTS = ["Noto Sans JP", "Noto Sans KR", "Noto Emoji"];
 
@@ -50,11 +55,12 @@ export function typstColor(css: string): string | null {
   return `rgb("#${channels.map((c) => c.toString(16).padStart(2, "0")).join("")}")`;
 }
 
-const place = (x: number, y: number, content: string) => `#place(top + left, dx: ${pt(x)}, dy: ${pt(y)}, ${content})\n`;
+const placeAt = (pt: Pt) => (x: number, y: number, content: string) => `#place(top + left, dx: ${pt(x)}, dy: ${pt(y)}, ${content})\n`;
 
 type StrLit = (text: string) => string;
 
-function fragmentTypst(f: TextFragment, ink: string, strLit: StrLit): string {
+function fragmentTypst(f: TextFragment, ink: string, strLit: StrLit, pt: Pt): string {
+  const place = placeAt(pt);
   let out = "";
   const highlight = f.highlight ? typstColor(f.highlight) : null;
   if (highlight) out += place(f.x, f.y, `rect(width: ${pt(f.w)}, height: ${pt(f.h)}, fill: ${highlight}, stroke: none)`);
@@ -83,6 +89,39 @@ function numberTypst(number: number, position: NumberPosition, board: string, in
   );
 }
 
+// The layers of one page (shapes, then their text), at `pt`.
+function layersTypst(layers: SlideLayer[], width: number, height: number, ink: string, strLit: StrLit, pt: Pt): string {
+  let out = "";
+  for (const layer of layers) {
+    if (layer.asset) out += `#place(top + left, image(${strLit(layer.asset)}, width: ${pt(width)}, height: ${pt(height)}))\n`;
+    for (const f of layer.fragments) out += fragmentTypst(f, ink, strLit, pt);
+  }
+  return out;
+}
+
+// The largest page a PDF reader is sure to open (200 inches).
+const MAX_PAGE_PT = 14_400;
+// Board pixels to points as on screen (a CSS pixel is 3/4 of a point).
+const BOARD_PT = 0.75;
+
+// A whiteboard (or part of it) on one page of its own size: `width` ×
+// `height` board pixels, made smaller to fit the largest page.
+export function boardTypst(
+  layers: SlideLayer[],
+  options: { title: string; lang: string; board: string; ink: string; width: number; height: number },
+  strLit: StrLit,
+): string {
+  const board = typstColor(options.board) ?? `rgb("#ffffff")`;
+  const ink = typstColor(options.ink) ?? `rgb("#1f2328")`;
+  const p = ptAt(Math.min(BOARD_PT, MAX_PAGE_PT / Math.max(options.width, options.height, 1)));
+  return (
+    `#set document(title: ${strLit(options.title)})\n` +
+    `#set page(width: ${p(options.width)}, height: ${p(options.height)}, margin: 0pt, fill: ${board})\n` +
+    `#set text(font: (${SLIDE_FONTS.map((f) => strLit(f)).join(", ")}), lang: ${strLit(options.lang === "ja" ? "ja" : "en")})\n` +
+    (layersTypst(layers, options.width, options.height, ink, strLit, p) || "#box()\n")
+  );
+}
+
 export function presentationTypst(
   slides: PdfSlide[],
   options: { title: string; lang: string; board: string; ink: string; position: NumberPosition },
@@ -95,11 +134,7 @@ export function presentationTypst(
     `#set page(width: ${pt(SLIDE_WIDTH)}, height: ${pt(SLIDE_HEIGHT)}, margin: 0pt, fill: ${board})\n` +
     `#set text(font: (${SLIDE_FONTS.map((f) => strLit(f)).join(", ")}), lang: ${strLit(options.lang === "ja" ? "ja" : "en")})\n`;
   const pages = slides.map((slide) => {
-    let out = "";
-    for (const layer of slide.layers) {
-      if (layer.asset) out += `#place(top + left, image(${strLit(layer.asset)}, width: ${pt(SLIDE_WIDTH)}, height: ${pt(SLIDE_HEIGHT)}))\n`;
-      for (const f of layer.fragments) out += fragmentTypst(f, ink, strLit);
-    }
+    let out = layersTypst(slide.layers, SLIDE_WIDTH, SLIDE_HEIGHT, ink, strLit, pt);
     if (slide.number !== null) out += numberTypst(slide.number, options.position, board, ink, strLit, !!slide.onImage);
     // An empty slide is still a page.
     return out || "#box()\n";

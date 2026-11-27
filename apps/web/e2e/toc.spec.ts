@@ -44,3 +44,42 @@ test("a table of contents lists the headings, follows them, and jumps to them", 
   await expect(page.getByTestId("PageView.status")).toHaveCount(0);
   await trashOpenPage(page);
 });
+
+test("a document page shows its headings on the right on a wide screen, not when printed", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await createPage(page, "E2E 右の目次");
+  const toc = page.getByTestId("PageToc");
+  // No heading: no table of contents.
+  await typeInBody(page, "本文");
+  await expect(toc).toHaveCount(0);
+
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("## 最初");
+  await page.keyboard.press("Enter");
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.type(`本文 ${i}`);
+    await page.keyboard.press("Enter");
+  }
+  await page.keyboard.type("### 次");
+  await page.keyboard.press("Enter");
+  const links = toc.getByTestId("PageToc.headingLink");
+  await expect(links).toHaveText(["最初", "次"]);
+  await expect(toc).toBeVisible();
+
+  // A click scrolls to the heading, and marks it as the one being read.
+  await page.mouse.wheel(0, -10000);
+  const target = editorBody(page).locator("h3", { hasText: "次" });
+  await expect(target).not.toBeInViewport();
+  await links.nth(1).click();
+  await expect(target).toBeInViewport();
+  await expect(links.nth(1)).toHaveAttribute("aria-current", "location");
+
+  // Narrow screens and print: not shown.
+  await page.emulateMedia({ media: "print" });
+  await expect(toc).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+  await page.setViewportSize({ width: 900, height: 900 });
+  await expect(toc).toBeHidden();
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await trashOpenPage(page);
+});

@@ -8,6 +8,12 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Changed
+
+- The Docker image installs Debian's security updates when it's built, instead of waiting for the Node.js image to include them.
+
+## [0.8.1] - 2026-11-27
+
 ### Added
 
 - Whiteboards and slides: groups. Boxes and lines are grouped with Ctrl/⌘+G (ungrouped with Ctrl/⌘+Shift+G, or from the selection bar and the new menu); a click picks the whole group, a second click one of its items. Copies of a group are a new group. The API and MCP (`edit_whiteboard`) can set an item's `group`.
@@ -16,6 +22,16 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 - Whiteboards: a chat about an item, like the chat about a document's block: "Start a chat" in the board's menu opens it over the board's right side, and each item with messages has a mark with their number (a click opens it). It can be resolved and reopened; the messages are not part of the board.
 - Public pages: a page under a public page (or under a public knowledge root) can be kept out of it, with the pages under it, from its permission settings ("Keep out of the publishing"); people who aren't logged in can no longer open them. Undone from the same place; both are recorded in the audit log.
 - Admin console → Overview → "Favicon": the icon in the browser's tab for the whole site (PNG, ICO or SVG up to 200 KB; SVGs are checked as logos are). A knowledge root's own favicon still takes its place on that root's pages; the home-screen and app icons stay the default ones. Setting it and going back to the default are recorded in the audit log.
+- Document pages: on a wide screen, the page's headings are listed on its right, the one being read marked; a click scrolls to it. Not printed or exported, and not shown while a review chat is open.
+- Going back to a screen after following a link on it (a child page table, board or calendar, an extended table, a page's text, search results…) briefly marks the row, card, cell or link that was followed, scrolled into view if needed.
+- Whiteboards: a whiteboard block in a document can show only a part of the board: "Part shown" opens the board to pick items (a click, with its group, or a frame drawn around them). A group picked is shown with whatever is put in it later; connectors between the items shown are shown with them. "Show the whole board" goes back. Grouping a whole group with more items now keeps that group (the others join it) instead of making a new one.
+- Whiteboards: links to objects. "Copy link" in the board's menu copies the page's address naming the objects picked (`?items=…&groups=…`); opened, the whiteboard shows them in the middle, picked (a note if none of them is there any more). Someone who can only view the board can pick objects too (a click; a drag still moves the view), to copy a link to them or export them.
+- Whiteboards: the page menu exports the board as a PDF too (its text stays text, as in a presentation's PDF), and the board's menu exports the items picked (with the connectors between them) as PNG, SVG or PDF.
+- API and MCP: copying a page and the pages under it as they are, to another knowlective site or elsewhere on the same one: content and block locks, whiteboards, presentations with their speaker notes, child page table columns and values, attachments. `POST /api/v1/pages/<id>/export` (MCP `export_page`) makes a one-time link (10 minutes, usable once), and `POST /api/v1/pages/<parent>/import` (`import_pages`) on the site to copy to fetches it, server to server. `POST /api/v1/pages/<id>/copy` (`copy_page`) does both on one site. Links between the copied pages point to the copies. On another site, people are matched by email address (sent only as salted hashes) among those who can open the parent page; the others are removed. Chats and history aren't copied. Making a link and copying are recorded in the audit log. Admin console → Users → API: "Accept page copies from sites at private (intranet) addresses" (off: public https sites only).
+
+### Changed
+
+- Images in pages are shown at most 600px wide on screen (their saved width is kept; print and the PDF export are unchanged).
 
 ### Fixed
 

@@ -841,21 +841,30 @@ export async function saveApiSettings(_prev: ApiSettingState, formData: FormData
   const { actor } = await requireAdmin(["SITE_ADMIN"]);
   const enabled = formData.get("enabled") === "on";
   const mcp = formData.get("mcp") === "on";
+  const importPrivate = formData.get("importPrivate") === "on";
   const roles = SITE_ROLE_ORDER.filter((r) => formData.getAll("roles").includes(r));
   const before = await prisma.instanceConfig.findUniqueOrThrow({
     where: { id: 1 },
-    select: { apiEnabled: true, mcpEnabled: true, apiKeyRoles: true },
+    select: { apiEnabled: true, mcpEnabled: true, apiKeyRoles: true, pageImportAllowPrivate: true },
   });
-  await prisma.instanceConfig.update({ where: { id: 1 }, data: { apiEnabled: enabled, mcpEnabled: mcp, apiKeyRoles: roles } });
+  await prisma.instanceConfig.update({
+    where: { id: 1 },
+    data: { apiEnabled: enabled, mcpEnabled: mcp, apiKeyRoles: roles, pageImportAllowPrivate: importPrivate },
+  });
   const rolesBefore = SITE_ROLE_ORDER.filter((r) => before.apiKeyRoles.includes(r));
-  if (before.apiEnabled !== enabled || before.mcpEnabled !== mcp || rolesBefore.join() !== roles.join()) {
+  if (
+    before.apiEnabled !== enabled ||
+    before.mcpEnabled !== mcp ||
+    before.pageImportAllowPrivate !== importPrivate ||
+    rolesBefore.join() !== roles.join()
+  ) {
     const audit = await auditTranslator();
     const roleNames = roles.map((r) => audit(`roles.${r}`)).join(audit("common.listSeparator")) || "-";
     await recordAudit(
       actor,
       "api.settings",
-      audit("audit.apiSettings", { enabled: String(enabled), mcp: String(mcp), roles: roleNames }),
-      { enabled, mcp, roles },
+      audit("audit.apiSettings", { enabled: String(enabled), mcp: String(mcp), importPrivate: String(importPrivate), roles: roleNames }),
+      { enabled, mcp, importPrivate, roles },
     );
   }
   revalidatePath("/admin", "layout");

@@ -6,6 +6,7 @@ import { MAX_GRID_COLUMNS, MAX_GRID_ROWS, gridWidths } from "../components/edito
 import { shiftSummary } from "../components/editor/grid-summary";
 import { parseVideoUrl } from "../components/editor/video-url";
 import { safeHttpUrl } from "./safe-url";
+import { parseFocus, serializeFocus } from "./whiteboard-focus";
 
 // Changing one block of a page's body for the public API and MCP
 // (lib/api/blocks.ts): its text, its settings (props), a block inserted beside
@@ -133,7 +134,7 @@ export const EDITABLE_PROPS: Record<string, Record<string, Check>> = {
   videoEmbed: { url: videoUrl },
   linkPreview: { url: httpOrEmpty, title: shortText(500), description: shortText(2000), image: httpOrEmpty, siteName: shortText(200) },
   chat: { title: TITLE },
-  whiteboard: { pageId: idOrEmpty },
+  whiteboard: { pageId: idOrEmpty, focus: (v) => (v === "" ? v : typeof v === "string" && v.length <= 400_000 ? serializeFocus(parseFocus(v)) || INVALID : INVALID) },
   childPages: { title: TITLE, depth: (v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 10 ? v : INVALID), sort },
   childTable: { title: TITLE, sort, source: idOrEmpty },
   childBoard: { title: TITLE, groupBy: idOrEmpty, subGroupBy: idOrEmpty, sort, source: idOrEmpty },

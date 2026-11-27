@@ -603,6 +603,14 @@ a {
   cursor: default;
 }
 
+/* Images: at most 600px wide on screen, whatever width the block holds
+   (previewWidth stays as it is; print and the PDF export use it as before). */
+@media screen {
+  .bn-root [data-content-type="image"] .bn-visual-media-wrapper {
+    max-width: min(100%, 600px);
+  }
+}
+
 /* Columns (xl-multi-column) on a phone-width screen: one under another, each
    the full width (side by side they'd be a few characters wide). */
 @media (max-width: 599.98px) {

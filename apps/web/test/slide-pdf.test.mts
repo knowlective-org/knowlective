@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { strLit } from "@blocknote/xl-pdf-exporter";
-import { presentationTypst as build, type PdfSlide, type TextFragment, typstColor } from "../src/components/presentation/slide-pdf";
+import { boardTypst, presentationTypst as build, type PdfSlide, type TextFragment, typstColor } from "../src/components/presentation/slide-pdf";
 
 const fragment = (over: Partial<TextFragment> = {}): TextFragment => ({
   text: "text",
@@ -73,4 +73,14 @@ test("styles are drawn", () => {
   assert.ok(source.includes("skew("));
   assert.equal(source.match(/line\(length/g)?.length, 2);
   assert.ok(source.includes('fill: rgb("#ffe14d")'));
+});
+
+test("a whiteboard's page is the size of its items, made smaller only to fit the largest page", () => {
+  const board = (width: number, height: number) =>
+    boardTypst([{ asset: "/assets/board-0.svg", fragments: [fragment()] }], { title: "Board", lang: "en", board: "#ffffff", ink: "#1f2328", width, height }, strLit);
+  // 3/4 of a point per pixel.
+  assert.ok(board(800, 400).includes("#set page(width: 600pt, height: 300pt"));
+  assert.ok(board(800, 400).includes("dx: 75pt, dy: 150pt"));
+  // 40,000 px wide: 14,400pt.
+  assert.ok(board(40_000, 1_000).includes("#set page(width: 14400pt, height: 360pt"));
 });

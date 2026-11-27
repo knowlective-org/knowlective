@@ -81,3 +81,18 @@
     display: none;
   }
 }
+
+/* A part of the board shown: a quiet mark by the title. */
+.partial {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.partDialog {
+  width: min(960px, calc(100vw - 32px));
+}
