@@ -8,6 +8,10 @@ Add each change under "Unreleased" as it's made. `pnpm release <version>` turns 
 
 ## [Unreleased]
 
+### Changed
+
+- The Docker image installs Debian's security updates when it's built, instead of waiting for the Node.js image to include them.
+
 ## [0.8.1] - 2026-11-27
 
 ### Added
