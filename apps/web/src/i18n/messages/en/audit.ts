@@ -14,6 +14,10 @@ export default {
       "Restored the page \"{title}\" from the trash under \"{to}\" (its original parent \"{from}\" is in the trash). Permissions now come from the new place",
     pageDelete:
       "Moved the page \"{title}\"{descendants, plural, =0 {} one { and the # page under it} other { and the # pages under it}} to the trash{via, select, api { (through the API)} mcp { (through MCP)} other {}}",
+    pageExport:
+      "Made a one-time link to copy the page \"{title}\"{descendants, plural, =0 {} one { and the # page under it} other { and the # pages under it}} ({via, select, mcp {through MCP} other {through the API}})",
+    pageImport:
+      "Copied the page \"{title}\"{descendants, plural, =0 {} one { and the # page under it} other { and the # pages under it}} under \"{to}\"{site, select, __empty__ {} other { from {site}}} ({via, select, mcp {through MCP} other {through the API}})",
     pageLock: "Locked the page \"{title}\"{withChildren, select, true { (with its child pages)} other {}}",
     pageUnlock: "Unlocked the page \"{title}\"",
     versionMask:
@@ -100,7 +104,7 @@ export default {
     brand: "Set the top left to {mode, select, IMAGE {the logo} other {the name}} (\"{name}\"{logo, select, true {, new logo} other {}})",
     siteFavicon: "{set, select, true {Set the site's favicon} other {Set the site's favicon back to the default}}",
     apiKeysRevoke: "Revoked {who}'s API keys ({count, number})",
-    apiSettings: "Set the API to {enabled, select, true {on} other {off}}, the MCP server to {mcp, select, true {on} other {off}} (roles that can issue keys: {roles})",
+    apiSettings: "Set the API to {enabled, select, true {on} other {off}}, the MCP server to {mcp, select, true {on} other {off}}{importPrivate, select, true {, page copies accepted from private addresses too} other {}} (roles that can issue keys: {roles})",
     passkeyRemove: "Removed the passkey \"{name}\"",
     passkeysReset: "Removed {who}'s passkeys ({count, number})",
     passkeyRequired: "{required, select, true {Required passkeys} other {Made passkeys optional}}",

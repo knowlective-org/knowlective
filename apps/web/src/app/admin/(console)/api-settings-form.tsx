@@ -12,12 +12,14 @@ const checkRow = { display: "flex", gap: 8, alignItems: "flex-start" } as const;
 export function ApiSettingsForm({
   enabled,
   mcp,
+  importPrivate,
   roles,
   roleLabels,
   keyCount,
 }: {
   enabled: boolean;
   mcp: boolean;
+  importPrivate: boolean;
   roles: SiteRole[];
   // From the server: lib/roles imports the database client.
   roleLabels: Record<SiteRole, string>;
@@ -27,6 +29,7 @@ export function ApiSettingsForm({
   const ta = useTranslations("admin");
   const [on, setOn] = useState(enabled);
   const [mcpOn, setMcpOn] = useState(mcp);
+  const [privateOn, setPrivateOn] = useState(importPrivate);
   const [allowed, setAllowed] = useState<SiteRole[]>(roles);
 
   return (
@@ -68,6 +71,21 @@ export function ApiSettingsForm({
           {ta("api.mcp")}
           <span className={styles.note} style={{ display: "block" }}>
             {ta("api.mcpNote")}
+          </span>
+        </span>
+      </label>
+      <label style={checkRow}>
+        <input
+          type="checkbox"
+          name="importPrivate"
+          checked={privateOn}
+          onChange={(e) => setPrivateOn(e.target.checked)}
+          data-ui="ApiSettingsForm.importPrivateCheckbox"
+        />
+        <span>
+          {ta("api.importPrivate")}
+          <span className={styles.note} style={{ display: "block" }}>
+            {ta("api.importPrivateNote")}
           </span>
         </span>
       </label>

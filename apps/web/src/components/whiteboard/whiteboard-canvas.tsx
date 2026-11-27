@@ -64,14 +64,16 @@ import {
 } from "@/lib/whiteboard-marks";
 import { getUploadPolicy } from "@/app/(app)/actions";
 import { adoptPageFiles } from "@/app/(app)/pages/[pageId]/file-actions";
-import { showAlert } from "@/components/dialog";
+import { showAlert, showCopyText } from "@/components/dialog";
 import { showNotice } from "@/components/notice";
 import { PagePickerDialog } from "@/components/page-picker-dialog";
 import { ReviewPaneView, useReview } from "@/components/editor/review-pane";
-import { resolveAppUrl } from "@/lib/base-path";
+import { resolveAppUrl, withBasePath } from "@/lib/base-path";
+import { focusFromSelection, focusSearch, focusedItems, groupToJoin, parseFocus, serializeFocus, type WhiteboardFocus } from "@/lib/whiteboard-focus";
 import { beginSaving } from "@/lib/saving-status";
 import { UploadError, postFile } from "@/lib/upload-file";
 import { isUploadAllowed, uploadRefusedMessage } from "@/lib/upload-types";
+import type { WhiteboardExportFormat } from "./export-download";
 import { type Clip, clipBounds, clipHtml, clipItems, clipText, readClip } from "./clipboard";
 import {
   type Camera,
@@ -126,7 +128,7 @@ const MODIFIER_KEYS = new Set(["Alt", "Shift", "Control", "Meta"]);
 type Gesture =
   // `menu`: pressed with the right button; let go without moving, it opens
   // the board's menu there (for `hit`, the item under it) instead.
-  | { kind: "pan"; start: Point; camera: Camera; menu?: { client: Point; hit: string | null } }
+  | { kind: "pan"; start: Point; camera: Camera; menu?: { client: Point; hit: string | null }; clearOnClick?: boolean }
   | {
       kind: "move";
       start: Point;
@@ -335,6 +337,13 @@ export function WhiteboardCanvas({
   pageId,
   embedded = false,
   slide,
+  focus = null,
+  picking = false,
+  onSelectionChange,
+  initialSelection,
+  emptyText,
+  onExport,
+  target = null,
 }: {
   doc: Y.Doc;
   readOnly: boolean;
@@ -348,8 +357,29 @@ export function WhiteboardCanvas({
   // A presentation's slide: the board has a frame of the slide's size to fit
   // and snap to, and the slide's number (none: null) on top of everything.
   slide?: { number: number | null; position: NumberPosition };
+  // Only this part of the board shown (lib/whiteboard-focus.ts; null: all of
+  // it), as a whiteboard block shows it.
+  focus?: WhiteboardFocus | null;
+  // Read-only, but items can be picked (clicked, or a frame drawn around
+  // them): choosing the part a whiteboard block shows. Each change of the
+  // selection goes to `onSelectionChange`.
+  picking?: boolean;
+  onSelectionChange?: (ids: string[]) => void;
+  // Picked when it opens.
+  initialSelection?: string[];
+  // Shown on a board with nothing on it, instead of the usual note.
+  emptyText?: string;
+  // Exports the items picked (the board's menu): the part they make, with
+  // the connectors between them (lib/whiteboard-focus.ts).
+  onExport?: (items: WhiteboardItem[], format: WhiteboardExportFormat) => void;
+  // A link's items (lib/whiteboard-focus.ts): the board opens at them,
+  // picked; and again when the link changes.
+  target?: WhiteboardFocus | null;
 }) {
   const isSlide = slide !== undefined;
+  // Read-only on its page (not in a document, nor a saved version): items
+  // can still be picked, for a link to them or to export them.
+  const viewPicking = readOnly && !picking && !embedded && !isSlide && !!pageId;
   // A slide's background (by anyone, as it changes).
   const subscribeBackground = useCallback(
     (onChange: () => void) => {
@@ -385,7 +415,10 @@ export function WhiteboardCanvas({
     };
   }, [map, origin]);
 
-  const [items, setItems] = useState<WhiteboardItem[]>(() => readItems(doc));
+  // The items shown: the board's, or the part of it in focus.
+  const focusKey = serializeFocus(focus);
+  const shownItems = useCallback(() => focusedItems(readItems(doc), parseFocus(focusKey)), [doc, focusKey]);
+  const [items, setItems] = useState<WhiteboardItem[]>(shownItems);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [tool, setTool] = useState<Tool>("select");
   // The board over the whole window (the sidebar out of the way); this
@@ -401,7 +434,7 @@ export function WhiteboardCanvas({
       document.body.style.overflow = previous;
     };
   }, [fullscreen]);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelection));
   // Where a dragged or resized box lines up with others.
   const [guides, setGuides] = useState<Guide[]>([]);
   // (The board is only drawn in the browser: loaded without server rendering.)
@@ -479,11 +512,11 @@ export function WhiteboardCanvas({
   const pointers = useRef(new Map<number, Point>());
 
   useEffect(() => {
-    const update = () => setItems(readItems(doc));
+    const update = () => setItems(shownItems());
     update();
     map.observeDeep(update);
     return () => map.unobserveDeep(update);
-  }, [doc, map]);
+  }, [map, shownItems]);
 
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const boxes = useMemo(() => items.filter(isBox), [items]);
@@ -527,6 +560,15 @@ export function WhiteboardCanvas({
   const connectorPoints_ = useMemo(() => new Map(connectorPaths.map((c) => [c.id, c.points])), [connectorPaths]);
   // Gone items (deleted by someone else) drop out of the selection.
   const selection = useMemo(() => new Set([...selected].filter((id) => byId.has(id))), [selected, byId]);
+  // Picking: each change of the selection is told.
+  const selectionChanged = useRef(onSelectionChange);
+  useEffect(() => {
+    selectionChanged.current = onSelectionChange;
+  });
+  const selectionKey = [...selection].join(" ");
+  useEffect(() => {
+    selectionChanged.current?.(selectionKey ? selectionKey.split(" ") : []);
+  }, [selectionKey]);
   // The items picked together with `id`: its group's (it first), or itself.
   const groupOf = (id: string): string[] => {
     const item = byId.get(id);
@@ -544,16 +586,41 @@ export function WhiteboardCanvas({
   useLayoutEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
-    setCamera(fitCamera(isSlide ? SLIDE_FRAME : boundsOf(itemRects(readItems(doc))), el.clientWidth, el.clientHeight));
-  }, [doc, isSlide]);
+    setCamera(fitCamera(isSlide ? SLIDE_FRAME : boundsOf(itemRects(shownItems())), el.clientWidth, el.clientHeight));
+  }, [shownItems, isSlide]);
 
   // A slide fills the space it has, in full screen and back; so does a board
   // in a document (read-only, fitted to its low frame).
   useLayoutEffect(() => {
     const el = viewportRef.current;
     if (!el || !(isSlide || embedded)) return;
-    setCamera(fitCamera(isSlide ? SLIDE_FRAME : boundsOf(itemRects(readItems(doc))), el.clientWidth, el.clientHeight));
-  }, [fullscreen, isSlide, embedded, doc]);
+    setCamera(fitCamera(isSlide ? SLIDE_FRAME : boundsOf(itemRects(shownItems())), el.clientWidth, el.clientHeight));
+  }, [fullscreen, isSlide, embedded, shownItems]);
+
+  // A link's items: shown and picked (after the fit above, when it opens).
+  // None of them on the board any more: the board as it is, and a note.
+  const targetKey = serializeFocus(target);
+  // Picked as the link changes (state adjusted while rendering); the view
+  // needs the board's size, so it's moved in the effect below.
+  const [linkedKey, setLinkedKey] = useState("");
+  if (targetKey !== linkedKey) {
+    setLinkedKey(targetKey);
+    const part = parseFocus(targetKey);
+    const found = part ? focusedItems(readItems(doc), part).filter((i) => i.type !== "connector") : [];
+    if (found.length > 0) setSelected(new Set(found.map((i) => i.id)));
+  }
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    const part = parseFocus(targetKey);
+    if (!el || !part) return;
+    const found = focusedItems(readItems(doc), part);
+    if (found.length === 0) {
+      showNotice(t("linkTargetGone"));
+      return;
+    }
+    setCamera(fitCamera(boundsOf(itemRects(found)), el.clientWidth, el.clientHeight));
+    // (t is the same function while the language is.)
+  }, [targetKey, doc, t]);
 
   // Scroll pans; Ctrl/⌘ + scroll (and a trackpad pinch, which browsers send
   // as that) zooms at the pointer. Not passive, to keep the page from scrolling.
@@ -1006,7 +1073,7 @@ export function WhiteboardCanvas({
   // with its group, unless already selected), or the board (nothing picked).
   const openMenu = (client: Point, hit: string | null, keyboard = false) => {
     const root = rootRef.current?.getBoundingClientRect();
-    if (!root || readOnly) return;
+    if (!root || (readOnly && !viewPicking)) return;
     if (!keyboard) {
       if (hit && !selection.has(hit)) setSelected(new Set(groupOf(hit)));
       if (!hit) setSelected(new Set());
@@ -1100,14 +1167,15 @@ export function WhiteboardCanvas({
   };
 
   // Grouping: the selected boxes and lines (two or more, not all of one
-  // group already) put in a new group, out of the ones they were in.
+  // group already) put in one group, out of the ones they were in: a new
+  // one, or a group selected whole (groupToJoin), which they join.
   const groupableSelected = [...selection].filter((id) => isGroupable(byId.get(id)));
   const groupsSelected = new Set(groupableSelected.map((id) => (byId.get(id) as BoxItem | LineItem).group));
   const canGroup = groupableSelected.length >= 2 && !(groupsSelected.size === 1 && !groupsSelected.has(""));
   const canUngroup = groupableSelected.some((id) => (byId.get(id) as BoxItem | LineItem).group);
   const groupSelection = () => {
     if (!canGroup) return;
-    const group = newId();
+    const group = groupToJoin(items, groupableSelected) ?? newId();
     undo.current?.stopCapturing();
     change(() => groupableSelected.forEach((id) => setField(id, { group })));
   };
@@ -1279,7 +1347,45 @@ export function WhiteboardCanvas({
     }
     if (pointers.current.size > 2) return;
 
-    if (e.button === 2 && !readOnly) {
+    // Picking: a click picks or lets go of an item (with its group); a drag
+    // from the board, a frame around items.
+    if (picking && e.button === 0 && tool === "select" && !spaceHeld) {
+      const hit = itemUnder(target, e.clientX, e.clientY);
+      if (hit) {
+        const unit = groupOf(hit);
+        const all = unit.every((id) => selection.has(id));
+        const next = new Set(selection);
+        for (const id of unit) {
+          if (all) next.delete(id);
+          else next.add(id);
+        }
+        setSelected(next);
+        gesture.current = { kind: "pan", start: point, camera };
+        return;
+      }
+      const base = e.shiftKey ? new Set(selection) : new Set<string>();
+      setSelected(base);
+      gesture.current = { kind: "marquee", start: world, base };
+      return;
+    }
+    // Read-only, a whiteboard page's own board: items can be picked (for a
+    // link to them, or to export them); a drag still looks around.
+    if (viewPicking && e.button === 0 && tool === "select" && !spaceHeld) {
+      const hit = itemUnder(target, e.clientX, e.clientY);
+      if (hit) {
+        const unit = groupOf(hit);
+        const next = e.shiftKey ? new Set(selection) : new Set<string>();
+        const all = e.shiftKey && unit.every((id) => selection.has(id));
+        for (const id of unit) {
+          if (all) next.delete(id);
+          else next.add(id);
+        }
+        setSelected(next);
+      }
+      gesture.current = { kind: "pan", start: point, camera, clearOnClick: !hit && !e.shiftKey };
+      return;
+    }
+    if (e.button === 2 && (!readOnly || viewPicking)) {
       gesture.current = { kind: "pan", start: point, camera, menu: { client: { x: e.clientX, y: e.clientY }, hit: itemUnder(target, e.clientX, e.clientY) } };
       return;
     }
@@ -1445,7 +1551,10 @@ export function WhiteboardCanvas({
       }
       case "pan":
         // Moved with the right button: a pan, not the menu.
-        if (g.menu && Math.hypot(point.x - g.start.x, point.y - g.start.y) >= 4) g.menu = undefined;
+        if ((g.menu || g.clearOnClick) && Math.hypot(point.x - g.start.x, point.y - g.start.y) >= 4) {
+          g.menu = undefined;
+          g.clearOnClick = false;
+        }
         if (g.menu) return;
         setCamera({ ...g.camera, x: g.camera.x + point.x - g.start.x, y: g.camera.y + point.y - g.start.y });
         return;
@@ -1633,6 +1742,7 @@ export function WhiteboardCanvas({
     gesture.current = null;
     flushWrite();
     if (g?.kind === "pan" && g.menu) openMenu(g.menu.client, g.menu.hit);
+    if (g?.kind === "pan" && g.clearOnClick) setSelected(new Set());
     setDrag(null);
     setDropTarget(null);
     setGuides([]);
@@ -1813,6 +1923,16 @@ export function WhiteboardCanvas({
       setTool("select");
       return;
     }
+    // The menu from the keyboard: by the selection, or in the middle
+    // (on a board one can only view too: openMenu() decides).
+    if (key === "contextmenu" || (e.shiftKey && key === "f10")) {
+      e.preventDefault();
+      const rect = viewportRef.current!.getBoundingClientRect();
+      const around = boundsOf(itemRects(items.filter((i) => selection.has(i.id))));
+      const at = around ? toScreen(camera, { x: around.x + around.w, y: around.y + around.h }) : { x: rect.width / 2, y: rect.height / 2 };
+      openMenu({ x: rect.left + Math.min(rect.width - 8, Math.max(8, at.x)), y: rect.top + Math.min(rect.height - 8, Math.max(8, at.y)) }, null, true);
+      return;
+    }
     if (readOnly) return;
     if (mod && key === "z") {
       e.preventDefault();
@@ -1839,15 +1959,6 @@ export function WhiteboardCanvas({
       e.preventDefault();
       if (e.shiftKey) ungroupSelection();
       else groupSelection();
-      return;
-    }
-    // The menu from the keyboard: by the selection, or in the middle.
-    if (key === "contextmenu" || (e.shiftKey && key === "f10")) {
-      e.preventDefault();
-      const rect = viewportRef.current!.getBoundingClientRect();
-      const around = boundsOf(itemRects(items.filter((i) => selection.has(i.id))));
-      const at = around ? toScreen(camera, { x: around.x + around.w, y: around.y + around.h }) : { x: rect.width / 2, y: rect.height / 2 };
-      openMenu({ x: rect.left + Math.min(rect.width - 8, Math.max(8, at.x)), y: rect.top + Math.min(rect.height - 8, Math.max(8, at.y)) }, null, true);
       return;
     }
     const flag: StyleFlag | null = !mod || e.altKey ? null : key === "b" && !e.shiftKey ? "bold" : key === "i" && !e.shiftKey ? "italic" : key === "u" && !e.shiftKey ? "underline" : key === "s" && e.shiftKey ? "strike" : null;
@@ -1997,7 +2108,38 @@ export function WhiteboardCanvas({
     return points ? boundsOf(points.map((p) => ({ x: p.x, y: p.y, w: 0, h: 0 }))) : null;
   })();
 
-  const menuEntries: (MenuEntry | null)[] = [
+  // What the picked items make (null: nothing to export).
+  const selectionFocus = focusFromSelection(items, selection);
+  // A link to the items picked: the page's address, naming them
+  // (lib/whiteboard-focus.ts).
+  const copyLink = async () => {
+    if (!selectionFocus || !pageId) return;
+    const url = `${window.location.origin}${withBasePath(`/pages/${pageId}?${focusSearch(selectionFocus)}`)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showNotice(t("linkCopied"));
+    } catch {
+      await showCopyText(t("linkCopyFallback"), url);
+    }
+  };
+  const linkEntry: MenuEntry | null = pageId && !isSlide
+    ? { key: "copyLink", label: t("copyLink"), icon: "link", disabled: !selectionFocus, run: () => void copyLink() }
+    : null;
+  const exportEntries: (MenuEntry | null)[] = onExport
+    ? [
+        null,
+        ...(["png", "svg", "pdf"] as const).map(
+          (format): MenuEntry => ({
+            key: `export${format.toUpperCase()}`,
+            label: t(`exportSelection.${format}`),
+            icon: "export",
+            disabled: !selectionFocus,
+            run: () => selectionFocus && onExport(focusedItems(items, selectionFocus), format),
+          }),
+        ),
+      ]
+    : [];
+  const menuEntries: (MenuEntry | null)[] = readOnly ? [linkEntry, ...exportEntries].filter((e, i, all) => e || all.slice(0, i).some(Boolean)) : [
     { key: "cut", label: t("cut"), icon: "cut", shortcut: `${mod}X`, disabled: !hasSelection, run: () => void copyFromMenu(true) },
     { key: "copy", label: t("copy"), icon: "copy", shortcut: `${mod}C`, disabled: !hasSelection, run: () => void copyFromMenu(false) },
     { key: "paste", label: t("paste"), icon: "paste", shortcut: `${mod}V`, disabled: false, run: () => menu && void pasteFromMenu(menu.world) },
@@ -2011,10 +2153,12 @@ export function WhiteboardCanvas({
     null,
     { key: "delete", label: t("delete"), icon: "delete", shortcut: "Delete", disabled: !hasSelection, danger: true, run: () => removeItems(selection) },
     ...(chatEntry ? [null, chatEntry] : []),
+    ...(linkEntry ? [null, linkEntry] : []),
+    ...exportEntries,
   ];
 
   return (
-    <div ref={rootRef} className={embedded ? `${styles.root} ${styles.embedded}` : styles.root} data-slide={isSlide ? "" : undefined} data-ui={dataUi} data-fullscreen={fullscreen || undefined}>
+    <div ref={rootRef} className={embedded ? `${styles.root} ${styles.embedded}` : picking ? `${styles.root} ${styles.picking}` : styles.root} data-slide={isSlide ? "" : undefined} data-ui={dataUi} data-fullscreen={fullscreen || undefined}>
       <div
         ref={viewportRef}
         className={styles.viewport}
@@ -2337,7 +2481,7 @@ export function WhiteboardCanvas({
         })}
         {items.length === 0 && (
           <p className={styles.empty} data-ui="Whiteboard.emptyStatus">
-            {readOnly ? t("emptyReadOnly") : t("empty")}
+            {emptyText ?? (readOnly ? t("emptyReadOnly") : t("empty"))}
           </p>
         )}
       </div>
@@ -3034,6 +3178,7 @@ export function WhiteboardCanvas({
             <Icon name="grid" size={18} />
           </button>
         )}
+        {!picking && (
         <button
           type="button"
           className={styles.barButton}
@@ -3045,6 +3190,7 @@ export function WhiteboardCanvas({
         >
           <Icon name={fullscreen ? "exitFullscreen" : "fullscreen"} size={18} />
         </button>
+        )}
       </div>
       {review && reviewActive && (
         <ReviewPaneView
@@ -3056,7 +3202,7 @@ export function WhiteboardCanvas({
           className={styles.reviewPane}
         />
       )}
-      {menu && !readOnly && (
+      {menu && (!readOnly || viewPicking) && (
         <BoardMenu
           menuRef={menuRef}
           at={menu}

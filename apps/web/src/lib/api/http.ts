@@ -37,6 +37,10 @@ export type ApiErrorCode =
   | "too_many_slides"
   | "root_page"
   | "has_children"
+  | "too_many_pages"
+  | "bad_link"
+  | "link_unusable"
+  | "invalid_export"
   | "conflict";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -58,6 +62,10 @@ const STATUS: Record<ApiErrorCode, number> = {
   too_many_slides: 409,
   root_page: 409,
   has_children: 409,
+  too_many_pages: 413,
+  bad_link: 400,
+  link_unusable: 422,
+  invalid_export: 422,
   conflict: 409,
 };
 
@@ -81,6 +89,11 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   not_document:
     "The page isn't a document: a whiteboard's content can't be written as Markdown (its title can), and a shortcut can't be changed here.",
   not_whiteboard: "The page isn't a whiteboard.",
+  too_many_pages: "Too many pages to copy at once (at most 500, slides included).",
+  bad_link: "That isn't a copy link (\"https://<site>/api/v1/exports/knx_…\", made with POST /api/v1/pages/<id>/export).",
+  link_unusable:
+    "The copy link couldn't be fetched: it's unknown, expired or used already (each works once, for 10 minutes), or its site can't be reached from here.",
+  invalid_export: "What the copy link gave isn't pages this site can read (another version of knowlective, or not knowlective).",
   chat_locked: "The chat is locked.",
 };
 

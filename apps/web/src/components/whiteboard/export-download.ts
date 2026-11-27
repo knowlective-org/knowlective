@@ -1,14 +1,15 @@
-import type * as Y from "yjs";
 import { downloadBlob } from "@/components/editor/markdown-export";
 import { resolveAppUrl } from "@/lib/base-path";
 import { exportFileName } from "@/lib/page-export";
-import { ITEM_COLORS, type ItemColor, isBox, readItems } from "@/lib/whiteboard";
+import { ITEM_COLORS, type ItemColor, type WhiteboardItem, isBox } from "@/lib/whiteboard";
 import { HIGHLIGHT_COLORS, type HighlightColor, TEXT_COLORS, type TextColor } from "@/lib/whiteboard-marks";
 import { type ExportColors, whiteboardSvg } from "./export";
 
-// The page menu's whiteboard export, in the browser: the board as it is now,
-// in the colors on screen (the theme's), as an SVG file or a PNG image. The
-// images are fetched with the viewer's own access and put in the file.
+// A whiteboard's export, in the browser: the board as it is now (the page
+// menu), or the items picked (the board's menu), in the colors on screen
+// (the theme's), as an SVG file, a PNG image or a PDF (with its text as
+// text, as a presentation's: slide-pdf-export.ts). The images are fetched
+// with the viewer's own access and put in the file.
 
 // A PNG is drawn at twice the size, within what browsers can draw on a canvas.
 const PNG_SCALE = 2;
@@ -54,8 +55,13 @@ export async function imageData(srcs: string[]): Promise<Map<string, string>> {
   return out;
 }
 
-export async function exportWhiteboard(doc: Y.Doc, format: "svg" | "png", title: string): Promise<void> {
-  const items = readItems(doc);
+export type WhiteboardExportFormat = "svg" | "png" | "pdf";
+
+export async function exportWhiteboard(items: WhiteboardItem[], format: WhiteboardExportFormat, title: string, lang: string): Promise<void> {
+  if (format === "pdf") {
+    const { exportWhiteboardPdf } = await import("@/components/presentation/slide-pdf-export");
+    return exportWhiteboardPdf(items, title, lang);
+  }
   const srcs = [...new Set(items.flatMap((i) => (isBox(i) && i.src ? [i.src] : [])))];
   const { svg, width, height } = whiteboardSvg(items, themeColors(), await imageData(srcs));
   if (format === "svg") {

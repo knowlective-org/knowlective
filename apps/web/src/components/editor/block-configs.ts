@@ -133,6 +133,9 @@ export const BLOCK_CONFIGS = {
     type: "whiteboard",
     propSchema: {
       pageId: { default: "" },
+      // Only a part of the board shown: its items' and groups' ids
+      // (lib/whiteboard-focus.ts, JSON); "" for all of it.
+      focus: { default: "" },
     },
     content: "none",
   },

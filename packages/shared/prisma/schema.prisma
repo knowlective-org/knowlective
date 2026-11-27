@@ -90,6 +90,7 @@ model User {
   adminSessions     AdminSession[]
   passkeys          UserPasskey[]
   apiKeys           ApiKey[]
+  pageExports       PageExport[]
   usage             UsageDaily[]
   oauthGrants       OAuthGrant[]
   emailCodes        EmailCode[]
@@ -702,6 +703,10 @@ model InstanceConfig {
   // The MCP server (/api/mcp, lib/mcp/): part of the API, so it works only
   // while apiEnabled is on too. Its callers are held to apiKeyRoles as well.
   mcpEnabled  Boolean    @default(false)
+  // Copying pages from another site (apps/web/src/lib/page-transfer/): also
+  // from sites at private (intranet) addresses, and over http there. Never
+  // loopback or link-local addresses, whatever this says.
+  pageImportAllowPrivate Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -829,6 +834,28 @@ model ApiKey {
   lastUsedAt DateTime?
 
   @@index([userId])
+}
+
+// A one-time link for copying pages to another site, or elsewhere on this one
+// (apps/web/src/lib/page-transfer/): made through the API or MCP by someone
+// who can see the page, and fetched by the site the pages are copied to. Only
+// the SHA-256 hash of the token is stored. The pages are read when the link is
+// fetched (once only, before expiresAt), with the access its maker has then;
+// the attachments listed at that moment can be fetched until expiresAt.
+model PageExport {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // No foreign key: the page may be deleted meanwhile (then nothing is fetched).
+  pageId    String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  fetchedAt DateTime?
+  fileIds   String[]  @default([])
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // OAuth 2.1 for the MCP server (lib/oauth/): this site is the authorization

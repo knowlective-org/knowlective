@@ -9,7 +9,7 @@ import { resolveAppUrl, withBasePath } from "@/lib/base-path";
 import { exportFileName } from "@/lib/page-export";
 import { SLIDE_FRAME, SLIDE_WIDTH, shownSlides } from "@/lib/presentation";
 import { type BoxItem, type SlideBackground, type WhiteboardItem, isBox, readItems, readSlideBackground } from "@/lib/whiteboard";
-import { type PdfSlide, SLIDE_FONTS, type SlideLayer, type TextFragment, presentationTypst } from "./slide-pdf";
+import { type PdfSlide, SLIDE_FONTS, type SlideLayer, type TextFragment, boardTypst, presentationTypst } from "./slide-pdf";
 
 // A presentation's PDF, made in the browser: the server only hands out the
 // slides the viewer can get. Loaded when someone exports.
@@ -158,28 +158,106 @@ function layOut(
   images: Map<string, string>,
   host: HTMLElement,
   addAsset: (svg: string) => string,
-  stored: SlideBackground,
-): SlideLayer[] {
-  const background = {
+  // A slide's background, on the slide's frame; none: a whiteboard, as big
+  // as its items.
+  stored?: SlideBackground,
+): { layers: SlideLayer[]; width: number; height: number } {
+  const background = stored && {
     color: stored.color ? colors.items[stored.color] : undefined,
     image: stored.image ? images.get(stored.image) : undefined,
   };
-  const result = whiteboardSvg(items, colors, images, SLIDE_FRAME, { font: CSS_FONT, plainLists: true, noShadow: true, background });
+  const result = whiteboardSvg(items, colors, images, stored ? SLIDE_FRAME : undefined, { font: CSS_FONT, plainLists: true, noShadow: true, background });
   const layers = mergeLayers(result.layers);
+  host.style.width = `${result.width}px`;
   host.innerHTML = result.layerSvg(layers.map((l, i) => `<g data-layer="${i}">${l.text}</g>`).join(""));
   const svg = host.firstElementChild!;
   const box = svg.getBoundingClientRect();
   // At full size, so the positions are the slide's.
-  const scale = box.width / SLIDE_WIDTH;
+  const scale = box.width / result.width;
   const fragments = (i: number) => {
     const g = svg.querySelector(`[data-layer="${i}"]`);
     if (!g) return [];
     return readFragments(g, box).map((f) => ({ ...f, x: f.x / scale, y: f.y / scale, w: f.w / scale, h: f.h / scale }));
   };
-  return layers.map((layer, i) => ({
-    asset: layer.shapes ? addAsset(result.layerSvg(layer.shapes)) : null,
-    fragments: fragments(i),
-  }));
+  return {
+    layers: layers.map((layer, i) => ({
+      asset: layer.shapes ? addAsset(result.layerSvg(layer.shapes)) : null,
+      fragments: fragments(i),
+    })),
+    width: result.width,
+    height: result.height,
+  };
+}
+
+// The fonts the items' text needs, loaded (each weight is ~6MB: only those
+// in use).
+async function fontsFor(items: WhiteboardItem[]): Promise<Uint8Array[]> {
+  const text = items.map((i) => ("text" in i ? `${i.text}${"startText" in i ? `${i.startText}${i.endText}` : ""}` : "")).join("");
+  const weights = new Set([400, 700]);
+  for (const item of items) {
+    if (!isBox(item) || !item.fontWeight) continue;
+    weights.add(item.fontWeight);
+    if (item.textMarks.some((m) => m.bold)) weights.add(bolder(item.fontWeight));
+  }
+  const fonts = [
+    ...[...weights].map((w) => notoFont("JP", w)),
+    ...(HANGUL.test(text) ? [...weights].map((w) => notoFont("KR", w)) : []),
+    ...(EMOJI.test(text) ? EMOJI_FONT : []),
+  ];
+  const bytes = await Promise.all(fonts.map(loadFont));
+  await document.fonts.ready;
+  return bytes;
+}
+
+async function loadImages(srcs: string[]): Promise<Map<string, string>> {
+  const images = new Map<string, string>();
+  await Promise.all(
+    [...new Set(srcs)].map(async (src) => {
+      const data = await loadImage(src);
+      if (data) images.set(src, data);
+    }),
+  );
+  return images;
+}
+
+// Out of sight, laid out at full size.
+function layoutHost(): HTMLElement {
+  const host = document.createElement("div");
+  host.setAttribute("aria-hidden", "true");
+  host.style.cssText = `position:fixed;left:-100000px;top:0;width:${SLIDE_WIDTH}px;visibility:hidden;pointer-events:none`;
+  document.body.append(host);
+  return host;
+}
+
+async function compile(source: string, fonts: Uint8Array[], assets: Map<string, Uint8Array>): Promise<Blob> {
+  const compiler = await TypstCompiler.create({ wasm: asset("typst.wasm"), fonts });
+  const result = compiler.compilePdf(source, { assets, tagged: false });
+  if (result.error) throw new Error(result.compileErrors.map((e) => e.message).join("\n") || "PDF compile failed");
+  return new Blob([new Uint8Array(result.pdf)], { type: "application/pdf" });
+}
+
+// A whiteboard's items (all of it, or a part) as a PDF of one page of their
+// size, text as text (as a slide's).
+export async function exportWhiteboardPdf(items: WhiteboardItem[], title: string, lang: string): Promise<void> {
+  const fontBytes = await fontsFor(items);
+  const images = await loadImages(items.filter((i): i is BoxItem => isBox(i) && !!i.src).map((i) => i.src));
+  const assets = new Map<string, Uint8Array>();
+  const encoder = new TextEncoder();
+  const host = layoutHost();
+  const colors = themeColors();
+  let page: ReturnType<typeof layOut>;
+  try {
+    let n = 0;
+    page = layOut(items, colors, images, host, (svg) => {
+      const path = `/assets/board-${n++}.svg`;
+      assets.set(path, encoder.encode(svg));
+      return path;
+    });
+  } finally {
+    host.remove();
+  }
+  const source = boardTypst(page.layers, { title, lang, board: colors.board, ink: colors.ink, width: page.width, height: page.height }, strLit);
+  downloadBlob(exportFileName(title, "pdf"), await compile(source, fontBytes, assets));
 }
 
 export class NoSlidesToExport extends Error {}
@@ -205,55 +283,23 @@ export async function exportPresentationPdf(deckId: string, title: string, lang:
     return { id, items, background };
   });
 
-  // The fonts this presentation's text needs.
-  const text = contents
-    .flatMap((c) => c.items)
-    .map((i) => ("text" in i ? `${i.text}${"startText" in i ? `${i.startText}${i.endText}` : ""}` : ""))
-    .join("");
-  // Each weight is ~6MB: only those in use.
-  const weights = new Set([400, 700]);
-  for (const item of contents.flatMap((c) => c.items)) {
-    if (!isBox(item) || !item.fontWeight) continue;
-    weights.add(item.fontWeight);
-    if (item.textMarks.some((m) => m.bold)) weights.add(bolder(item.fontWeight));
-  }
-  const fonts = [
-    ...[...weights].map((w) => notoFont("JP", w)),
-    ...(HANGUL.test(text) ? [...weights].map((w) => notoFont("KR", w)) : []),
-    ...(EMOJI.test(text) ? EMOJI_FONT : []),
-  ];
-  const fontBytes = await Promise.all(fonts.map(loadFont));
-  await document.fonts.ready;
-
-  const srcs = [
-    ...new Set(
-      contents.flatMap((c) => [
-        ...c.items.filter((i): i is BoxItem => isBox(i) && !!i.src).map((i) => i.src),
-        ...(c.background.image ? [c.background.image] : []),
-      ]),
-    ),
-  ];
-  const images = new Map<string, string>();
-  await Promise.all(
-    srcs.map(async (src) => {
-      const data = await loadImage(src);
-      if (data) images.set(src, data);
-    }),
+  const fontBytes = await fontsFor(contents.flatMap((c) => c.items));
+  const images = await loadImages(
+    contents.flatMap((c) => [
+      ...c.items.filter((i): i is BoxItem => isBox(i) && !!i.src).map((i) => i.src),
+      ...(c.background.image ? [c.background.image] : []),
+    ]),
   );
 
   const assets = new Map<string, Uint8Array>();
   const encoder = new TextEncoder();
-  const host = document.createElement("div");
-  host.setAttribute("aria-hidden", "true");
-  // Out of sight, laid out at full size.
-  host.style.cssText = `position:fixed;left:-100000px;top:0;width:${SLIDE_WIDTH}px;visibility:hidden;pointer-events:none`;
-  document.body.append(host);
+  const host = layoutHost();
   const colors = themeColors();
   let slides: PdfSlide[];
   try {
     slides = contents.map(({ id, items, background }, s) => {
       let n = 0;
-      const layers = layOut(items, colors, images, host, (svg) => {
+      const { layers } = layOut(items, colors, images, host, (svg) => {
         const path = `/assets/slide-${s}-${n++}.svg`;
         assets.set(path, encoder.encode(svg));
         return path;
@@ -265,8 +311,5 @@ export async function exportPresentationPdf(deckId: string, title: string, lang:
   }
 
   const source = presentationTypst(slides, { title, lang, board: colors.board, ink: colors.ink, position: deck.settings.numberPosition }, strLit);
-  const compiler = await TypstCompiler.create({ wasm: asset("typst.wasm"), fonts: fontBytes });
-  const result = compiler.compilePdf(source, { assets, tagged: false });
-  if (result.error) throw new Error(result.compileErrors.map((e) => e.message).join("\n") || "PDF compile failed");
-  downloadBlob(exportFileName(title, "pdf"), new Blob([new Uint8Array(result.pdf)], { type: "application/pdf" }));
+  downloadBlob(exportFileName(title, "pdf"), await compile(source, fontBytes, assets));
 }

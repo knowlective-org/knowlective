@@ -45,6 +45,9 @@ import { type PageDeleteError, trashPage } from "@/lib/api/page-delete";
 import { sendPageMessage } from "@/lib/page-message";
 import { MAX_MESSAGE_LENGTH, MAX_MESSAGE_RECIPIENTS } from "@/lib/page-message-text";
 import { recordUsage } from "@/lib/usage";
+import { type ExportError, createPageExport } from "@/lib/page-transfer/export";
+import { type ImportError, importPages } from "@/lib/page-transfer/import";
+import { importJson } from "@/lib/api/page-transfer";
 import type { McpCaller } from "./auth";
 
 // The MCP server's tools. Each acts as the caller (lib/mcp/auth.ts) through
@@ -86,6 +89,35 @@ async function editableDocument(userId: string, id: string): Promise<{ rootId: s
   const page = await prisma.page.findUniqueOrThrow({ where: { id }, select: { kind: true } });
   if (page.kind !== "DOCUMENT") return fail("The page isn't a document (a whiteboard or a shortcut).");
   return { rootId: access.rootId };
+}
+
+const EXPORT_ERRORS: Record<ExportError, string> = {
+  not_found: NOT_FOUND,
+  slide: "A slide is copied with its presentation: export the presentation.",
+  too_many_pages: "Too many pages to copy at once (at most 500, slides included). Copy a part of them.",
+};
+
+function importErrorText(error: ImportError): string {
+  switch (error.code) {
+    case "not_allowed":
+      return "The page to copy under doesn't exist, or you can't edit it.";
+    case "locked":
+      return "The page to copy under is locked with its child pages.";
+    case "not_here":
+      return "Pages can be copied under a document or a whiteboard only.";
+    case "too_deep":
+      return "The pages would be nested too deep there.";
+    case "bad_url":
+      return "That isn't a link from export_page (\"https://<site>/api/v1/exports/knx_…\").";
+    case "unreachable":
+      return "The link couldn't be fetched: it's unknown, expired or used already (each works once, for 10 minutes; make a new one with export_page), or its site can't be reached from here.";
+    case "bundle":
+      return error.problem === "too_many_pages"
+        ? "Too many pages to copy at once (at most 500)."
+        : "What the link gave isn't pages this site can read (another version of knowlective?).";
+    case "too_many_slides":
+      return "A presentation in it has more slides than allowed.";
+  }
 }
 
 function blockResult(result: BlockWriteResult): string | null {
@@ -417,7 +449,60 @@ export function registerTools(server: McpServer, caller: McpCaller) {
     },
   );
 
+  server.registerTool(
+    "export_page",
+    {
+      title: "Make a link to copy a page",
+      description:
+        "Makes a one-time link to copy a page and the pages under it (those you can see) exactly as they are — content, whiteboards, presentations with their speaker notes, child page table columns and values, attachments — to another knowlective site or elsewhere on this one. Give the link to import_pages there (on another site, through that site's MCP server or API). It works once, for 10 minutes; whoever has it gets the pages, so treat it like their content. Chats aren't copied. To copy within this site, copy_page does both steps.",
+      inputSchema: z.object({ pageId }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id }) => {
+      const result = await createPageExport(userId, id, "mcp");
+      if ("error" in result) return fail(EXPORT_ERRORS[result.error]);
+      return json({ url: result.url, expiresAt: result.expiresAt.toISOString(), pages: result.pages });
+    },
+  );
+
   if (caller.scope !== "WRITE") return;
+
+  server.registerTool(
+    "import_pages",
+    {
+      title: "Copy pages from a link",
+      description:
+        "Copies the pages of a link made with export_page (on another knowlective site, or this one) under `parentId` here, as new pages at the end of its children (you need edit access there). Links between the copied pages point to the copies; links to other pages stay as they were (from another site, they open nothing). People named in them (mentions, TODO assignees, user columns) are matched to accounts here by email address among those who can open the parent page; others are removed. Attachments are copied when this site accepts them (files on, allowed types, the size limit); `files.skipped` lists the rest.",
+      inputSchema: z.object({
+        parentId: pageId.describe("The page to copy under"),
+        url: z.string().min(1).max(2000).describe("The link from export_page"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    async ({ parentId, url }) => {
+      const result = await importPages(userId, parentId, url, "mcp");
+      if ("code" in result) return fail(importErrorText(result));
+      return json(await importJson(result));
+    },
+  );
+
+  server.registerTool(
+    "copy_page",
+    {
+      title: "Copy a page",
+      description:
+        "Copies a page and the pages under it (those you can see) under another page of this site (`parentId`, where you need edit access), exactly as they are: content, whiteboards, presentations with their speaker notes, child page table columns and values, attachments. Chats aren't copied. To copy to another site, use export_page there instead.",
+      inputSchema: z.object({ pageId, parentId: pageId.describe("The page to copy under") }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ pageId: id, parentId }) => {
+      const link = await createPageExport(userId, id, "mcp");
+      if ("error" in link) return fail(EXPORT_ERRORS[link.error]);
+      const result = await importPages(userId, parentId, link.url, "mcp");
+      if ("code" in result) return fail(importErrorText(result));
+      return json(await importJson(result));
+    },
+  );
 
   server.registerTool(
     "rename_page",

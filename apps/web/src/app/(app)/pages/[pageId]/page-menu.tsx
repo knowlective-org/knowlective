@@ -280,20 +280,20 @@ export function PageMenu({
             )}
             {whiteboard && (
               <>
-                {(["png", "svg"] as const).map((format) => (
+                {(["png", "svg", "pdf"] as const).map((format) => (
                   <button
                     key={format}
                     type="button"
                     role="menuitem"
                     className={styles.menuItem}
-                    data-ui={format === "png" ? "PageMenu.exportPng" : "PageMenu.exportSvg"}
+                    data-ui={format === "png" ? "PageMenu.exportPng" : format === "svg" ? "PageMenu.exportSvg" : "PageMenu.exportBoardPdf"}
                     onClick={() => {
                       setOpen(false);
                       // The whiteboard holds the board and writes the file.
                       window.dispatchEvent(new CustomEvent(EXPORT_WHITEBOARD_EVENT, { detail: format }));
                     }}
                   >
-                    <span>{format === "png" ? t("exportPng") : t("exportSvg")}</span>
+                    <span>{format === "png" ? t("exportPng") : format === "svg" ? t("exportSvg") : t("exportPdf")}</span>
                     <span className={styles.menuNote}>.{format}</span>
                   </button>
                 ))}

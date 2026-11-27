@@ -314,3 +314,28 @@ export async function fetchPublicJson(raw: string, proxy: OutboundProxy | null, 
     return null;
   }
 }
+
+// A file at an address chosen by a user, for copying pages from another site
+// (lib/page-transfer/): the same checks as a link preview (no loopback or
+// link-local addresses ever, private ones only when `allowPrivate`, through
+// the outbound proxy if any), https only unless private addresses are
+// allowed (an intranet site), redirects not followed. null: unreachable, or
+// larger than `maxBytes`; otherwise the status and the body as received.
+export async function fetchChecked(
+  raw: string,
+  options: FetchOptions,
+  maxBytes: number,
+  accept: string,
+): Promise<{ status: number; contentType: string; body: Buffer } | null> {
+  const url = parsePreviewUrl(raw, options.allowPrivate);
+  if (!url || (url.protocol !== "https:" && !options.allowPrivate)) return null;
+  try {
+    const proxyUrl = proxyForHost(options.proxy, url.hostname);
+    if (proxyUrl && !(await resolvesToAllowed(url, options.allowPrivate))) return null;
+    const response = await get(url, options.allowPrivate, proxyUrl, { accept, maxBytes: maxBytes + 1 });
+    if (response.body.length > maxBytes) return null;
+    return { status: response.status, contentType: response.contentType, body: response.body };
+  } catch {
+    return null;
+  }
+}

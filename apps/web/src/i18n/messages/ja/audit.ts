@@ -11,6 +11,9 @@ const ja: MessageShape<typeof en> = {
     pageMoveRoot: "（ナレッジルート「{root}」へ）",
     pageRestoreMove: "ページ「{title}」をごみ箱から「{to}」の下に戻した（元の親「{from}」はごみ箱にあるため。権限は移動先から引き継ぐ）",
     pageDelete: "ページ「{title}」{descendants, plural, =0 {} other {とその下の#ページ}}をごみ箱に移動{via, select, api {（API から）} mcp {（MCP から）} other {}}",
+    pageExport: "ページ「{title}」{descendants, plural, =0 {} other {とその下の#ページ}}をコピーする1回限りのリンクを作成（{via, select, mcp {MCP から} other {API から}}）",
+    pageImport:
+      "ページ「{title}」{descendants, plural, =0 {} other {とその下の#ページ}}を「{to}」の下にコピー{site, select, __empty__ {} other {（{site} から）}}（{via, select, mcp {MCP から} other {API から}}）",
     pageLock: "ページ「{title}」をロック{withChildren, select, true {（子ページも含む）} other {}}",
     pageUnlock: "ページ「{title}」のロックを解除",
     versionMask: "ページ「{title}」の履歴で、{versions}個の版の{matches}か所をマスク",
@@ -95,7 +98,7 @@ const ja: MessageShape<typeof en> = {
     brand: "左上の表示を{mode, select, IMAGE {ロゴ} other {サイト名}}に設定（「{name}」{logo, select, true {、ロゴを差し替え} other {}}）",
     siteFavicon: "{set, select, true {サイトのファビコンを設定} other {サイトのファビコンを既定に戻す}}",
     apiKeysRevoke: "{who} の API キー（{count, number} 件）を失効",
-    apiSettings: "API を{enabled, select, true {有効} other {無効}}、MCP サーバーを{mcp, select, true {有効} other {無効}}に設定（キーを発行できるロール: {roles}）",
+    apiSettings: "API を{enabled, select, true {有効} other {無効}}、MCP サーバーを{mcp, select, true {有効} other {無効}}に設定{importPrivate, select, true {、プライベートアドレスからのページのコピーを受け付ける} other {}}（キーを発行できるロール: {roles}）",
     passkeyRemove: "パスキー「{name}」を削除",
     passkeysReset: "{who} のパスキー（{count, number} 件）を削除",
     passkeyRequired: "{required, select, true {パスキーを必須に変更} other {パスキーを任意に変更}}",
