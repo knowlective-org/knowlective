@@ -288,6 +288,88 @@ export async function setCellValue(childId: string, defId: string, value: string
   return {};
 }
 
+// A paste into the child page table this big at most (cells).
+const MAX_CELL_CHANGES = 2000;
+
+// Many cells at once (a paste into the child page table:
+// lib/child-table-paste.ts), each one checked as setCellValue() checks it;
+// those that pass are written together (the last value for a cell counts),
+// each child page counted as edited. `failed`: how many didn't pass (not
+// allowed: no EDIT, locked, a column that isn't its parent's; or not a value
+// of the column). An error when none did.
+export async function setCellValues(raw: unknown): Promise<{ error?: string; failed?: number }> {
+  const user = await requireUser();
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_CELL_CHANGES) return { error: await notAllowed() };
+  const changes: { pageId: string; columnId: string; value: string }[] = [];
+  for (const item of raw) {
+    const { pageId, columnId, value } = (item ?? {}) as Record<string, unknown>;
+    if (typeof pageId !== "string" || typeof columnId !== "string" || typeof value !== "string") return { error: await notAllowed() };
+    changes.push({ pageId, columnId, value });
+  }
+
+  const childIds = [...new Set(changes.map((c) => c.pageId))];
+  const defIds = [...new Set(changes.map((c) => c.columnId))];
+  const [accesses, children, defs] = await Promise.all([
+    Promise.all(childIds.map(async (id) => [id, canEditPage(await getPageAccess(prisma, user.id, id))] as const)),
+    prisma.page.findMany({ where: { id: { in: childIds } }, select: { id: true, parentId: true } }),
+    prisma.pagePropertyDef.findMany({ where: { id: { in: defIds } } }),
+  ]);
+  const editable = new Map(accesses);
+  const parentOf = new Map(children.map((c) => [c.id, c.parentId]));
+  const key = await loadDataKey(prisma);
+  const columns = new Map(defs.map((d) => [d.id, { def: d, column: openColumn(key, d) }]));
+  const people = new Map<string, Set<string>>();
+  const peopleOf = async (pageId: string) => {
+    let ids = people.get(pageId);
+    if (!ids) {
+      ids = new Set((await getUsersWithPageAccess(prisma, pageId)).map((u) => u.id));
+      people.set(pageId, ids);
+    }
+    return ids;
+  };
+
+  let denied = 0;
+  let invalid = 0;
+  const writes = new Map<string, { pageId: string; columnId: string; value: string; parentId: string }>();
+  for (const change of changes) {
+    const entry = columns.get(change.columnId);
+    if (!editable.get(change.pageId) || !entry || entry.def.pageId !== parentOf.get(change.pageId)) {
+      denied++;
+      continue;
+    }
+    const { column, def } = entry;
+    const value = column.type === "TEXT" || column.type === "LONG_TEXT" ? change.value.trim() : change.value;
+    const users = column.type === "USER" && value ? await peopleOf(def.pageId) : null;
+    if (!validateValue(column, value, (id) => !!users?.has(id))) {
+      invalid++;
+      continue;
+    }
+    writes.set(`${change.pageId}:${change.columnId}`, { ...change, value, parentId: def.pageId });
+  }
+  if (writes.size === 0) {
+    return { error: denied > 0 ? await notAllowed() : (await getTranslations("childPages"))("value") };
+  }
+
+  const written = [...writes.values()];
+  const pages = [...new Set(written.map((w) => w.pageId))];
+  await prisma.$transaction([
+    ...written.map(({ pageId, columnId, value }) =>
+      value === ""
+        ? prisma.pagePropertyValue.deleteMany({ where: { pageId, defId: columnId } })
+        : prisma.pagePropertyValue.upsert({
+            where: { pageId_defId: { pageId, defId: columnId } },
+            create: { pageId, defId: columnId, value: sealValue(key, pageId, columnId, value) },
+            update: { value: sealValue(key, pageId, columnId, value) },
+          }),
+    ),
+    prisma.page.updateMany({ where: { id: { in: pages } }, data: { updatedAt: new Date(), updatedById: user.id } }),
+  ]);
+  for (const parent of new Set(written.map((w) => w.parentId))) notifyChildrenChanged(parent);
+  // The child pages show their values under their titles (loadPageProperties()).
+  for (const page of pages) notifyChildrenChanged(page);
+  return { failed: denied + invalid };
+}
+
 
 // A person's own filters and sort for one table block (lib/table-view.ts),
 // kept on their account. Someone not logged in keeps theirs on the screen

@@ -198,6 +198,7 @@ const ja: MessageShape<typeof en> = {
       maskedUnsupported: "この画面では使えません（https で開く必要があります）。",
       maskedNeedUnlock: "先にこの列を表示してください。",
       maskedPasteSkipped: "鍵の列には貼り付けていません（値は1つずつ入力してください）。",
+      pasteNotValue: "貼り付けていません：「{text}」はこの列の値ではありません。",
     },
     chat: {
       label: "チャット",
@@ -441,6 +442,10 @@ const ja: MessageShape<typeof en> = {
       marker: "このブロックについてのメッセージ {count, number} 件",
     },
     childTable: {
+      pasteNotValue: "貼り付けていません：「{text}」はこの列の値ではありません。",
+      pasteSkipped: "{count, number} 個のセルは貼り付けていません（列の値でないもの、変更できないもの）。",
+      pasteCut: "テーブルに収まらない分は貼り付けていません（貼り付けでは子ページを作りません）。",
+      pasteNotOption: "貼り付けていません：「{text}」はこの列の選択肢にありません。",
       copied: "{count, number} 個のセルをクリップボードにコピーしました。",
       placeholder: "子ページテーブル",
       cannotShow: "このテーブルは表示できません。",

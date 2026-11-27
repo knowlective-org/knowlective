@@ -5,7 +5,8 @@
 // for a quote) holding tabs and line breaks. Plain text without a tab isn't a
 // table (it's pasted as text).
 //
-// Dependency-free: unit-tested (test/grid-paste.test.ts).
+// Dependency-free: unit-tested (test/grid-paste.test.ts). Also the child
+// page table's paste (child-table-block.tsx).
 
 export function tableFromTsv(text: string): string[][] | null {
   const source = text.replace(/\r\n?/g, "\n").replace(/\n$/, "");
@@ -55,4 +56,26 @@ export function trimTable(rows: string[][]): string[][] | null {
   }));
   if (out.length === 0 || width === 0) return null;
   return out.map((r) => Array.from({ length: width }, (_, i) => r[i] ?? ""));
+}
+
+// The table data on the clipboard, if any: an HTML table (what spreadsheets
+// and other editors put there) or tab-separated text.
+export function clipboardTable(data: DataTransfer): string[][] | null {
+  const html = data.getData("text/html");
+  if (html && /<table[\s>]/i.test(html)) {
+    const table = new DOMParser().parseFromString(html, "text/html").querySelector("table");
+    if (table) {
+      const rows = [...table.querySelectorAll("tr")].map((tr) =>
+        [...tr.querySelectorAll("th, td")].map((cell) => {
+          // Line breaks and paragraphs as lines.
+          cell.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+          cell.querySelectorAll("p, div, li").forEach((block) => block.append("\n"));
+          return (cell.textContent ?? "").replace(/\u00a0/g, " ").replace(/\n+$/, "").trim();
+        }),
+      );
+      const trimmed = trimTable(rows);
+      if (trimmed) return trimmed;
+    }
+  }
+  return tableFromTsv(data.getData("text/plain"));
 }

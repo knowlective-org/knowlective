@@ -64,6 +64,7 @@ export type GridValueText = {
   maskedUnsupported: string;
   maskedNeedUnlock: string;
   maskedPasteSkipped: string;
+  pasteNotValue: string;
 };
 
 export type MenuItem = { label: string; ui: string; run: () => void; disabled?: boolean };
@@ -738,4 +739,21 @@ export function pastedValue(column: GridColumn | null, text: string): string | n
     default:
       return text;
   }
+}
+
+// One value pasted into a typed cell (the caret in it, or its control
+// focused: grid-table-block.ts): written when it is one of the column's
+// values (a select column's: options named by it, a line or a comma between
+// them), else nothing changes and that's said. Users and masked values
+// aren't pasted (they're chosen, or sealed one by one).
+export function pasteCellValue(view: EditorView, cellPos: number, column: GridColumn, raw: string, text: GridValueText) {
+  const pasted = raw.replace(/\r\n?/g, "\n").trim();
+  if (!pasted) return;
+  if (column.type === "masked") return void showNotice(text.maskedPasteSkipped);
+  const value = column.type === "user" ? null : pastedValue(column, pasted);
+  if (value === null || (value === "" && column.type !== "checkbox") || !isValidText(value, column)) {
+    const shown = pasted.length > 40 ? `${pasted.slice(0, 40)}…` : pasted;
+    return void showNotice(fill(text.pasteNotValue, { text: shown.replace(/\s+/g, " ") }));
+  }
+  writeCell(view, cellPos, value);
 }

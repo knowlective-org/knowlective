@@ -165,3 +165,47 @@ test("columns with input rules: dates, options, numbers, checkboxes, people and 
   await expect(cellText(page, 3)).toHaveText("2026-12-01");
   await trashOpenPage(page);
 });
+
+test("text pasted into an options cell chooses the options it names", async ({ page }) => {
+  await createPage(page, "E2E 拡張テーブルの選択肢への貼り付け");
+  await insertGridTable(page);
+  await typeIn(page, 0, "状態");
+  await typeIn(page, 3, "未着手");
+  await typeIn(page, 6, "完了");
+  await setType(page, 0, "選択肢（複数）");
+  const selects = page.getByTestId("GridTable.selectButton");
+  await expect(selects).toHaveCount(2);
+
+  const paste = (i: number, text: string) =>
+    selects.nth(i).evaluate((el, text) => {
+      (el as HTMLElement).focus();
+      const data = new DataTransfer();
+      data.setData("text/plain", text);
+      el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    }, text);
+  // One option, then several (a line or a comma between them).
+  await paste(0, "完了\r\n");
+  await expect(selects.nth(0)).toHaveText("完了");
+  await paste(1, "未着手, 完了");
+  await expect(selects.nth(1).getByTestId("GridTable.option")).toHaveText(["未着手", "完了"]);
+  // Not an option: nothing changes, and that's said.
+  await paste(0, "保留");
+  await expect(page.getByTestId("Notice")).toContainText("「保留」はこの列の値ではありません");
+  await expect(selects.nth(0)).toHaveText("完了");
+  await expect(page.getByTestId("GridTable").locator(".kn-grid-invalid")).toHaveCount(0);
+
+  // With the caret in the cell (its blocks hidden): the same.
+  await clickInEditor(cellText(page, 0));
+  await page.keyboard.press("ArrowDown");
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData("text/plain", "未着手");
+    document.querySelector(".bn-editor")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  await expect(selects.nth(0)).toHaveText("未着手");
+
+  await page.reload();
+  await expect(page.getByTestId("GridTable.selectButton").nth(0)).toHaveText("未着手");
+  await expect(page.getByTestId("GridTable.selectButton").nth(1).getByTestId("GridTable.option")).toHaveText(["未着手", "完了"]);
+  await trashOpenPage(page);
+});

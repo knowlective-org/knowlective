@@ -7,7 +7,7 @@ import { type EditorState, Plugin, PluginKey, TextSelection } from "@tiptap/pm/s
 import type { Decoration, EditorView, NodeView, ViewMutationRecord } from "@tiptap/pm/view";
 import { showChoice, showConfirm } from "../dialog";
 import { showNotice } from "../notice";
-import { tableFromTsv, trimTable } from "./grid-paste";
+import { clipboardTable } from "./grid-paste";
 import { type GridColumn, parseColumns, serializeColumns, shiftColumns } from "./grid-types";
 import {
   type CellSpec,
@@ -18,7 +18,9 @@ import {
   editOption,
   gridValuesPlugin,
   lockColumn,
+  pasteCellValue,
   pastedValue,
+  typedCellAt,
   unlockColumn,
 } from "./grid-values";
 import { clearColumn, columnPlugin, copyColumn, moveColumn, selectColumn, selectedColumn, styleColumn } from "./grid-columns";
@@ -222,28 +224,6 @@ function deleteColumn(view: EditorView, tablePos: number, at: number) {
   view.dispatch(tr);
 }
 
-// The table data on the clipboard, if any: an HTML table (what spreadsheets
-// and other editors put there) or tab-separated text.
-function clipboardTable(data: DataTransfer): string[][] | null {
-  const html = data.getData("text/html");
-  if (html && /<table[\s>]/i.test(html)) {
-    const table = new DOMParser().parseFromString(html, "text/html").querySelector("table");
-    if (table) {
-      const rows = [...table.querySelectorAll("tr")].map((tr) =>
-        [...tr.querySelectorAll("th, td")].map((cell) => {
-          // Line breaks and paragraphs as lines.
-          cell.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
-          cell.querySelectorAll("p, div, li").forEach((block) => block.append("\n"));
-          return (cell.textContent ?? "").replace(/\u00a0/g, " ").replace(/\n+$/, "").trim();
-        }),
-      );
-      const trimmed = trimTable(rows);
-      if (trimmed) return trimmed;
-    }
-  }
-  return tableFromTsv(data.getData("text/plain"));
-}
-
 // A cell holding `text`: a paragraph per line (an empty cell: one empty paragraph).
 function cellWithText(schema: Schema, id: string, text: string): PMNode {
   const lines = text.split("\n");
@@ -264,23 +244,34 @@ function cellWithText(schema: Schema, id: string, text: string): PMNode {
 export function pasteIntoGrid(editor: Editor & { prosemirrorView: EditorView | undefined }, data: DataTransfer | null): boolean {
   const view = editor.prosemirrorView;
   if (!view || !data || !editor.isEditable) return false;
-  const { state } = view;
-  const { $from } = state.selection;
-  let cellDepth = -1;
-  for (let d = $from.depth; d > 0; d--) {
-    if ($from.node(d).type.name === "gridCell") {
-      cellDepth = d;
-      break;
-    }
+  const { $from } = view.state.selection;
+  for (let d = $from.depth; d > 2; d--) {
+    if ($from.node(d).type.name === "gridCell") return pasteAtCell(view, editor, $from.before(d), data);
   }
-  if (cellDepth < 2) return false;
+  return false;
+}
+
+// A paste into the cell at `cellPos` (the caret in it, or its value's
+// control focused). Into a typed column's cell (its blocks hidden), text that
+// isn't a table of several cells is that cell's value (pasteCellValue():
+// written when it's one of the column's values); anything else pasted there
+// is dropped. True when it's been dealt with.
+function pasteAtCell(view: EditorView, editor: Editor, cellPos: number, data: DataTransfer): boolean {
   const pasted = clipboardTable(data);
+  const typed = typedCellAt(view.state, cellPos + 1);
+  if (typed && (!pasted || (pasted.length === 1 && pasted[0].length === 1))) {
+    pasteCellValue(view, cellPos, typed.column, pasted ? pasted[0][0] : data.getData("text/plain"), gridText(editor));
+    return true;
+  }
   if (!pasted) return false;
 
-  const tablePos = $from.before(cellDepth - 2);
-  const table = $from.node(cellDepth - 2);
-  const row0 = $from.index(cellDepth - 2);
-  const col0 = $from.index(cellDepth - 1);
+  const { state } = view;
+  const $cell = state.doc.resolve(cellPos);
+  if ($cell.parent.type.name !== "gridRow" || $cell.depth < 2) return false;
+  const tablePos = $cell.before($cell.depth - 1);
+  const table = $cell.node($cell.depth - 1);
+  const row0 = $cell.index($cell.depth - 1);
+  const col0 = $cell.index();
   const columns = columnCount(table);
   const width = Math.max(...pasted.map((r) => r.length));
   const newRows = Math.min(MAX_GRID_ROWS, Math.max(table.childCount, row0 + pasted.length));
@@ -317,8 +308,8 @@ export function pasteIntoGrid(editor: Editor & { prosemirrorView: EditorView | u
   const lastRow = Math.min(newRows, row0 + pasted.length) - 1;
   const lastCol = Math.min(newColumns, col0 + width) - 1;
   const rowPos = childPositions(next, tablePos)[lastRow];
-  const cellPos = childPositions(next.child(lastRow), rowPos)[lastCol];
-  tr.setSelection(TextSelection.near(tr.doc.resolve(cellPos + next.child(lastRow).child(lastCol).nodeSize - 1), -1));
+  const lastPos = childPositions(next.child(lastRow), rowPos)[lastCol];
+  tr.setSelection(TextSelection.near(tr.doc.resolve(lastPos + next.child(lastRow).child(lastCol).nodeSize - 1), -1));
   view.dispatch(tr.scrollIntoView());
   if (cut) showNotice(gridText(editor).pasteCut);
   else if (skipped) showNotice(gridText(editor).maskedPasteSkipped);
@@ -1045,7 +1036,7 @@ class GridCellView implements NodeView {
     private node: PMNode,
     private view: EditorView,
     private getPos: () => number | undefined,
-    editor: Editor,
+    private editor: Editor,
     decorations: readonly Decoration[],
   ) {
     this.dom = document.createElement("div");
@@ -1089,6 +1080,19 @@ class GridCellView implements NodeView {
       text: this.text,
       menu: showCellMenu,
     });
+    // A paste with the control focused (an option's button, a checkbox…;
+    // ProseMirror leaves the control's events alone): as into the cell. A
+    // number field takes text as typed.
+    if (this.editable) {
+      this.valueBox.addEventListener("paste", (event) => {
+        const target = event.target as HTMLElement;
+        if (target instanceof HTMLInputElement && target.type === "text") return;
+        event.preventDefault();
+        event.stopPropagation();
+        const pos = this.getPos();
+        if (pos !== undefined && event.clipboardData) pasteAtCell(this.view, this.editor, pos, event.clipboardData);
+      });
+    }
     this.dom.insertBefore(this.valueBox, this.contentDOM);
   }
 

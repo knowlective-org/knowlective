@@ -23,6 +23,7 @@ import {
   renameColumn,
   saveTableView,
   setCellValue,
+  setCellValues,
   setColumnOptions,
 } from "@/app/(app)/pages/[pageId]/child-pages-actions";
 import { EMPTY_VIEW, isEmptyView, matchesFilters, type CellReader, type FilterCondition, type TableView } from "@/lib/table-view";
@@ -41,6 +42,8 @@ import {
 } from "@/lib/page-property-types";
 import { BlockTitle } from "./block-title";
 import { inRange, rangeBounds, useCellRange } from "./cell-range";
+import { clipboardTable } from "./grid-paste";
+import { optionForText, planTablePaste } from "@/lib/child-table-paste";
 import { copyTable } from "@/lib/clipboard-table";
 import { showNotice } from "@/components/notice";
 import { MaskProvider, MaskedCell, MaskedColumnToggle } from "./masked-cell";
@@ -226,6 +229,69 @@ function ChildTable({
     }
     void copyTable(out).then(() => showNotice(t("childTable.copied", { count: out.length * (out[0]?.length ?? 0) })));
   });
+
+  // A paste into the table (lib/child-table-paste.ts): a table of cells (a
+  // spreadsheet's, or tab-separated text) fills the cells from the one
+  // pasted into (the selected cells' top left) rightward and downward; one
+  // value fills every selected cell. Each cell gets its value only where it's
+  // one of its column's. Text pasted into a text field, alone, is the
+  // field's. A listener on the table, before the cells' own (SelectCell) and
+  // ProseMirror (which would paste into the page).
+  const pasteRef = useRef<(event: ClipboardEvent) => void>(() => {});
+  useLayoutEffect(() => {
+    pasteRef.current = (event) => {
+      if (!editable || !data || !tableEl || !event.clipboardData) return;
+      const target = event.target as HTMLElement;
+      const b = cellRange ? rangeBounds(cellRange) : null;
+      const cell = target.closest<HTMLElement>("[data-r][data-c]");
+      const at = b ? { r: b.top, c: b.left } : cell && tableEl.contains(cell) ? { r: Number(cell.dataset.r), c: Number(cell.dataset.c) } : null;
+      if (!at) return;
+      const fill = b ? { rows: b.bottom - b.top + 1, columns: b.right - b.left + 1 } : undefined;
+      const many = !!fill && fill.rows * fill.columns > 1;
+      let pasted = clipboardTable(event.clipboardData);
+      const field = target.tagName === "TEXTAREA" || (target instanceof HTMLInputElement && target.type === "text");
+      if (!many && field && (!pasted || (pasted.length === 1 && pasted[0].length === 1))) return;
+      if (!pasted) {
+        const text = event.clipboardData.getData("text/plain");
+        if (!text.trim() && !many) return;
+        pasted = [[text]];
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (field) target.blur();
+      const columns = [null, ...visible.map((c) => c.custom)];
+      const plan = planTablePaste({ pasted, at, fill, rows, columns, people: data.assignees });
+      const single = !many && pasted.length === 1 && pasted[0].length === 1;
+      if (single && plan.skipped === 1) {
+        const text = pasted[0][0].trim();
+        const shown = (text.length > 40 ? `${text.slice(0, 40)}…` : text).replace(/\s+/g, " ");
+        const column = columns[at.c];
+        showNotice(t(column?.type === "SELECT" ? "childTable.pasteNotOption" : "childTable.pasteNotValue", { text: shown }));
+      } else if (plan.skipped > 0 || plan.cut) {
+        showNotice(
+          [plan.skipped > 0 && t("childTable.pasteSkipped", { count: plan.skipped }), plan.cut && t("childTable.pasteCut")]
+            .filter(Boolean)
+            .join(" "),
+        );
+      }
+      if (plan.changes.length === 0) return;
+      const done = beginSaving();
+      void run(
+        setCellValues(plan.changes).then((result) => {
+          if (result.failed) showNotice(t("childTable.pasteSkipped", { count: result.failed }));
+          return result;
+        }),
+      )
+        .then(() => reload())
+        .finally(done);
+    };
+  });
+  useEffect(() => {
+    if (!tableEl) return;
+    const onPaste = (event: ClipboardEvent) => pasteRef.current(event);
+    tableEl.addEventListener("paste", onPaste, true);
+    return () => tableEl.removeEventListener("paste", onPaste, true);
+  }, [tableEl]);
 
   const linkedSource = linked && (
     <LinkedSource
@@ -1192,21 +1258,7 @@ export function Cell({
   if (column.type === "SELECT") {
     const option = column.options.find((o) => o.id === value);
     if (!editable) return option ? <span className={styles.chip} style={{ background: option.color }}>{option.name}</span> : null;
-    return (
-      <select
-        className={styles.cellSelect}
-        style={option ? { background: option.color } : undefined}
-        value={option ? value : ""}
-        onChange={(e) => onSave(e.target.value)}
-      >
-        <option value="">—</option>
-        {column.options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
-    );
+    return <SelectCell options={column.options} value={value} onSave={onSave} />;
   }
 
   if (column.type === "USER") {
@@ -1248,6 +1300,56 @@ export function Cell({
   }
   if (!editable) return <span className={styles.text}>{value}</span>;
   return <TextCell value={value} onSave={onSave} />;
+}
+
+// A select column's cell. A paste into it (focused) chooses the option the
+// text names; text that names none changes nothing, and that's said. A
+// listener on the element: inside the editor, ProseMirror would take the
+// paste (into the page) before React's handler.
+function SelectCell({ options, value, onSave }: { options: SelectOption[]; value: string; onSave: (value: string) => void }) {
+  const t = useTranslations("editor.childTable");
+  const ref = useRef<HTMLSelectElement>(null);
+  const latest = useRef({ options, value, onSave, t });
+  useLayoutEffect(() => {
+    latest.current = { options, value, onSave, t };
+  });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onPaste = (event: ClipboardEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const text = (event.clipboardData?.getData("text/plain") ?? "").trim();
+      if (!text) return;
+      const { options, value, onSave, t } = latest.current;
+      const option = optionForText(options, text);
+      if (!option) {
+        const shown = text.length > 40 ? `${text.slice(0, 40)}…` : text;
+        return void showNotice(t("pasteNotOption", { text: shown.replace(/\s+/g, " ") }));
+      }
+      if (option.id !== value) onSave(option.id);
+    };
+    el.addEventListener("paste", onPaste);
+    return () => el.removeEventListener("paste", onPaste);
+  }, []);
+  const option = options.find((o) => o.id === value);
+  return (
+    <select
+      ref={ref}
+      className={styles.cellSelect}
+      data-ui="SelectCell"
+      style={option ? { background: option.color } : undefined}
+      value={option ? value : ""}
+      onChange={(e) => onSave(e.target.value)}
+    >
+      <option value="">—</option>
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.name}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 // How much of a long text a cell shows in full; a longer one scrolls inside

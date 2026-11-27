@@ -128,6 +128,47 @@ test.describe("Child page table", () => {
     await trashOpenPage(page);
   });
 
+  test("text pasted into a select cell chooses the option it names", async ({ page }) => {
+    await tableWithColumn(page, "E2E 選択肢への貼り付け", "状態", "SELECT");
+    const select = page.getByTestId("ChildTableBlock.row").getByTestId("SelectCell");
+    await expect(select).toBeVisible();
+    const editor = page.getByTestId("OptionsEditor");
+    await expect(async () => {
+      await page.getByTestId("ChildTableBlock.columnMenu").first().click();
+      await expect(editor).toBeVisible({ timeout: 2000 });
+    }).toPass();
+    for (const name of ["未着手", "完了"]) {
+      await editor.getByTestId("OptionsEditor.addButton").click();
+      await editor.getByTestId("OptionsEditor.nameInput").last().fill(name);
+    }
+    await editor.getByTestId("OptionsEditor.saveButton").click();
+    await expect(editor.getByTestId("OptionsEditor.status")).toHaveText("✓ 保存しました");
+    await page.keyboard.press("Escape");
+    await expect(select.locator("option")).toContainText(["未着手", "完了"]);
+
+    const paste = (text: string) =>
+      select.evaluate((el, text) => {
+        el.focus();
+        const data = new DataTransfer();
+        data.setData("text/plain", text);
+        el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+      }, text);
+    // As copied from a spreadsheet's cell (a line break at the end).
+    await paste("完了\r\n");
+    await expect(select.locator("option:checked")).toHaveText("完了");
+    // Not an option: nothing changes, and that's said.
+    await paste("保留");
+    await expect(page.getByTestId("Notice")).toContainText("「保留」はこの列の選択肢にありません");
+    await expect(select.locator("option:checked")).toHaveText("完了");
+    // Nothing went into the page itself.
+    await expect(editorBody(page)).not.toContainText("保留");
+    await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+    await page.reload();
+    await expect(page.getByTestId("ChildTableBlock.row").getByTestId("SelectCell").locator("option:checked")).toHaveText("完了");
+    await trashOpenPage(page);
+  });
+
   test("filters and sort are each person's own, saved to their account", async ({ page, browser }) => {
     const { id } = await createPage(page, "E2E フィルター");
     await editorBody(page).click();
@@ -293,5 +334,81 @@ test("cells are selected by dragging or Shift+click and copied as a table", asyn
   // A press outside lets them go.
   await page.getByTestId("TitleField").click();
   await expect(selected).toHaveCount(0);
+  await trashOpenPage(page);
+});
+
+test("a table pasted into the child page table fills its cells; one value fills the selected cells", async ({ page }) => {
+  await tableWithColumn(page, "E2E 子ページテーブルへの貼り付け", "状態", "SELECT");
+  const rows = page.getByTestId("ChildTableBlock.row");
+  for (const name of ["二つ目", "三つ目"]) {
+    await page.getByTestId("ChildTableBlock.newPageButton").click();
+    await page.getByTestId("ChildTableBlock.newPageInput").fill(name);
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Escape");
+  }
+  await expect(rows).toHaveCount(3);
+  await page.getByTestId("ChildTableBlock.addColumn").click();
+  await page.getByTestId("AddColumnForm.nameInput").fill("期限");
+  await page.getByTestId("AddColumnForm.typeSelect").selectOption("DATE");
+  await page.getByTestId("AddColumnForm.submitButton").click();
+  await expect(rows.first().locator('input[type="date"]')).toBeVisible();
+  const editor = page.getByTestId("OptionsEditor");
+  await expect(async () => {
+    await page.getByTestId("ChildTableBlock.columnMenu").first().click();
+    await expect(editor).toBeVisible({ timeout: 2000 });
+  }).toPass();
+  for (const name of ["未着手", "完了"]) {
+    await editor.getByTestId("OptionsEditor.addButton").click();
+    await editor.getByTestId("OptionsEditor.nameInput").last().fill(name);
+  }
+  await editor.getByTestId("OptionsEditor.saveButton").click();
+  await expect(editor.getByTestId("OptionsEditor.status")).toHaveText("✓ 保存しました");
+  await page.keyboard.press("Escape");
+
+  const selects = rows.getByTestId("SelectCell");
+  const dates = rows.locator('input[type="date"]');
+  const paste = (r: number, c: number, data: Record<string, string>) =>
+    page.locator(`[data-ui="ChildTableBlock.cell"][data-r="${r}"][data-c="${c}"]`).evaluate((cell, data) => {
+      const target = cell.querySelector<HTMLElement>("select, input") ?? (cell as HTMLElement);
+      target.focus();
+      const transfer = new DataTransfer();
+      for (const [type, value] of Object.entries(data)) transfer.setData(type, value);
+      target.dispatchEvent(new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true }));
+    }, data);
+
+  // From a spreadsheet (an HTML table): two columns, four rows (one more than
+  // the table has), one value that isn't an option.
+  await paste(0, 1, {
+    "text/html":
+      "<table><tr><td>完了</td><td>2026/12/1</td></tr><tr><td>保留</td><td>2026-12-02</td></tr><tr><td>未着手</td><td></td></tr><tr><td>完了</td><td>2026-12-04</td></tr></table>",
+    "text/plain": "完了\t2026/12/1\n保留\t2026-12-02\n未着手\t\n完了\t2026-12-04",
+  });
+  await expect(page.getByTestId("Notice")).toContainText("1 個のセルは貼り付けていません");
+  await expect(page.getByTestId("Notice")).toContainText("テーブルに収まらない分は貼り付けていません");
+  await expect(selects.nth(0).locator("option:checked")).toHaveText("完了");
+  await expect(selects.nth(1).locator("option:checked")).toHaveText("—");
+  await expect(selects.nth(2).locator("option:checked")).toHaveText("未着手");
+  await expect(dates.nth(0)).toHaveValue("2026-12-01");
+  await expect(dates.nth(1)).toHaveValue("2026-12-02");
+  await expect(dates.nth(2)).toHaveValue("");
+  // Nothing went into the page itself.
+  await expect(editorBody(page)).not.toContainText("保留");
+
+  // One value, with cells selected (Shift+click): each of them.
+  await page.locator('[data-ui="ChildTableBlock.cell"][data-r="1"][data-c="1"]').click({ position: { x: 2, y: 2 } });
+  await page.locator('[data-ui="ChildTableBlock.cell"][data-r="2"][data-c="1"]').click({ position: { x: 2, y: 2 }, modifiers: ["Shift"] });
+  await expect(page.locator('[data-ui="ChildTableBlock.cell"][data-selected]')).toHaveCount(2);
+  await page.getByTestId("ChildTableBlock.table").evaluate((table) => {
+    const transfer = new DataTransfer();
+    transfer.setData("text/plain", "完了");
+    table.dispatchEvent(new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true }));
+  });
+  await expect(selects.nth(1).locator("option:checked")).toHaveText("完了");
+  await expect(selects.nth(2).locator("option:checked")).toHaveText("完了");
+  await expect(page.getByTestId("PageView.status")).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByTestId("ChildTableBlock.row").getByTestId("SelectCell").locator("option:checked")).toHaveText(["完了", "完了", "完了"]);
+  await expect(page.getByTestId("ChildTableBlock.row").locator('input[type="date"]').nth(1)).toHaveValue("2026-12-02");
   await trashOpenPage(page);
 });

@@ -200,6 +200,7 @@ export default {
       maskedUnsupported: "Not available here (the page must be opened over https).",
       maskedNeedUnlock: "Show this column first.",
       maskedPasteSkipped: "Nothing was pasted into masked columns (type their values one by one).",
+      pasteNotValue: "Not pasted: \"{text}\" isn't a value of this column.",
     },
     chat: {
       label: "Chat",
@@ -447,6 +448,10 @@ export default {
       marker: "{count, plural, one {# message} other {# messages}} about this block",
     },
     childTable: {
+      pasteNotValue: "Not pasted: “{text}” isn't a value of this column.",
+      pasteSkipped: "{count, plural, one {# cell wasn't} other {# cells weren't}} pasted (not values of their columns, or not changeable).",
+      pasteCut: "What didn't fit in the table wasn't pasted (pasting doesn't add child pages).",
+      pasteNotOption: "Not pasted: “{text}” isn't one of this column's options.",
       copied: "Copied {count, plural, one {# cell} other {# cells}} to the clipboard.",
       placeholder: "Child page table",
       cannotShow: "This table can't be shown.",
